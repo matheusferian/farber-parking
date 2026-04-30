@@ -162,6 +162,27 @@
   .history-item .h-date{color:var(--muted);font-size:12px;}
   .deliver-btn{background:var(--delivered);color:#000;border:none;border-radius:10px;padding:13px;font-family:'Syne',sans-serif;font-weight:700;font-size:14px;cursor:pointer;width:100%;margin-top:4px;transition:opacity 0.15s;}
   .deliver-btn:hover{opacity:0.85;}
+
+  /* CHECKBOXES */
+  .cb-col{width:36px;padding-left:12px!important;}
+  .row-checkbox{width:18px;height:18px;accent-color:var(--accent);cursor:pointer;}
+  tbody tr.selected{background:rgba(232,160,48,0.1)!important;}
+
+  /* BULK ACTION BAR */
+  .bulk-bar{display:none;position:fixed;top:70px;left:50%;transform:translateX(-50%);background:#1a1a1a;border:2px solid var(--accent);border-radius:14px;padding:14px 24px;gap:14px;align-items:center;z-index:500;box-shadow:0 8px 32px rgba(232,160,48,0.3);white-space:nowrap;}
+  .bulk-bar.show{display:flex;}
+  .bulk-count{font-family:'DM Mono',monospace;font-size:13px;color:var(--accent);}
+  .bulk-btn{border:none;border-radius:10px;padding:9px 16px;font-family:'Syne',sans-serif;font-weight:700;font-size:13px;cursor:pointer;transition:opacity 0.15s;}
+  .bulk-btn.deliver{background:var(--delivered);color:#000;}
+  .bulk-btn.cancel{background:var(--surface2);color:var(--muted);border:1px solid var(--border);}
+
+  /* HANGAR PICKER in detail */
+  .hangar-grid{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;}
+  .hangar-opt{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 14px;font-size:13px;font-family:'DM Mono',monospace;color:var(--muted);cursor:pointer;transition:all 0.15s;}
+  .hangar-opt:hover{border-color:var(--accent);color:var(--accent);}
+  .hangar-opt.current{background:rgba(232,160,48,0.15);border-color:var(--accent);color:var(--accent);}
+  .move-hangar-btn{background:var(--surface2);color:var(--muted);border:1px solid var(--border);border-radius:10px;padding:10px;font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer;width:100%;margin-top:8px;display:flex;align-items:center;justify-content:center;gap:8px;}
+  .move-hangar-section{margin-top:12px;}
   .close-btn{background:var(--surface2);color:var(--muted);border:1px solid var(--border);border-radius:10px;padding:13px;font-family:'DM Sans',sans-serif;font-size:14px;cursor:pointer;width:100%;margin-top:8px;}
 </style>
 </head>
@@ -205,7 +226,7 @@
   </div>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>Name</th><th>Phone</th><th>Ticket</th><th>Car</th><th>Location</th><th>Arrived</th><th>Return</th><th>Status</th></tr></thead>
+      <thead><tr><th class="cb-col"><input type="checkbox" id="selectAll" onchange="toggleSelectAll(this)" class="row-checkbox"></th><th>Name</th><th>Phone</th><th>Ticket</th><th>Car</th><th>Location</th><th>Arrived</th><th>Return</th><th>Status</th></tr></thead>
       <tbody id="tableBody"></tbody>
     </table>
     <div class="empty" id="emptyState" style="display:none">
@@ -232,6 +253,12 @@
   </div>
 </div>
 
+
+<div class="bulk-bar" id="bulkBar">
+  <span class="bulk-count" id="bulkCount">0 selected</span>
+  <button class="bulk-btn deliver" onclick="bulkDeliver()">✓ Mark All Delivered</button>
+  <button class="bulk-btn cancel" onclick="clearSelection()">Cancel</button>
+</div>
 <button class="fab" id="addBtn">
   <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
   New Entry
@@ -484,12 +511,16 @@ function renderTable(){
     else if(retOver){rc='overdue';rl=fmtDate(r.returnDate)+' ⚠';}
     const bc=r.status==='PENDING'?'badge-pending':r.status==='DELIVERD'?'badge-delivered':'badge-nodate';
     const rowCls=retToday?'hl-today':retTomorrow?'hl-tomorrow':'';
-    return `<tr class="${rowCls}" onclick="showDetail(${r.id})">
-      <td class="name">${r.name}${freq?`<span class="freq-badge">×${counts[r.name+'|'+r.phone]}</span>`:''}${retToday?'<span class="returning-tag">TODAY</span>':''}${retTomorrow?'<span class="tomorrow-tag">TOMORROW</span>':''}${retOver?'<span class="overdue-tag">LATE</span>':''}</td>
-      <td class="phone">${fmtPhone(r.phone)}</td><td class="ticket">${r.ticket}</td>
-      <td class="car">${r.car}</td><td style="font-size:12px;color:var(--muted)">${r.location||'—'}</td><td style="font-size:12px;color:var(--muted)">${fmtArrival(r.createdAt)}</td>
-      <td><span class="return-date ${rc}">${rl}</span></td>
-      <td><span class="badge ${bc}">${r.status}</span></td>
+    return `<tr class="${rowCls}" data-id="${r.id}">
+      <td class="cb-col" onclick="event.stopPropagation()"><input type="checkbox" class="row-checkbox" data-id="${r.id}" onchange="onRowCheck(this)"></td>
+      <td class="name" onclick="showDetail(${r.id})" style="cursor:pointer">${r.name}${freq?`<span class="freq-badge">×${counts[r.name+'|'+r.phone]}</span>`:''}${retToday?'<span class="returning-tag">TODAY</span>':''}${retTomorrow?'<span class="tomorrow-tag">TOMORROW</span>':''}${retOver?'<span class="overdue-tag">LATE</span>':''}</td>
+      <td class="phone" onclick="showDetail(${r.id})" style="cursor:pointer">${fmtPhone(r.phone)}</td>
+      <td class="ticket" onclick="showDetail(${r.id})" style="cursor:pointer">${r.ticket}</td>
+      <td class="car" onclick="showDetail(${r.id})" style="cursor:pointer">${r.car}</td>
+      <td style="font-size:12px;color:var(--muted);cursor:pointer" onclick="showDetail(${r.id})">${r.location||'—'}</td>
+      <td style="font-size:12px;color:var(--muted);cursor:pointer" onclick="showDetail(${r.id})">${fmtArrival(r.createdAt)}</td>
+      <td onclick="showDetail(${r.id})" style="cursor:pointer"><span class="return-date ${rc}">${rl}</span></td>
+      <td onclick="showDetail(${r.id})" style="cursor:pointer"><span class="badge ${bc}">${r.status}</span></td>
     </tr>`;
   }).join('');
 }
