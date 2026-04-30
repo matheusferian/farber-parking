@@ -237,7 +237,7 @@ input[type=checkbox]{width:17px;height:17px;accent-color:var(--acc);cursor:point
 <script>
 var SHEET_ID = '1Rmt85fFNXAXt408hnwRgFDuXbNgTvExoWy4Dio_uPoQ';
 var API_KEY  = 'AIzaSyD5CZxcowhnb6eAVeFRIVm7wtxosrB4SrA';
-var WRITE_URL = 'https://script.google.com/macros/s/SCRIPT_ID/exec';
+var WRITE_URL = 'https://script.google.com/macros/s/AKfycbyoDUrPxgxK3iNTSUlnYOcE4TQd8eDnbT6iB4LwCIanRcVRGJpV8kHR_yF8RH4tpfp0/exec';
 var HANGARS  = ['HANGAR 19','HANGAR 18','HANGAR 16','HANGAR 7','HH'];
 var today    = new Date(); today.setHours(0,0,0,0);
 var tomorrow = new Date(today); tomorrow.setDate(today.getDate()+1);
@@ -453,17 +453,28 @@ function clearSel(){
 }
 
 async function updateSheet(rowNum, col, value) {
-  var url = 'https://sheets.googleapis.com/v4/spreadsheets/'+SHEET_ID+'/values/'+encodeURIComponent(sheetName+'!'+col+rowNum)+'?valueInputOption=USER_ENTERED&key='+API_KEY;
-  var r = await fetch(url, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({values:[[value]]})});
+  var r = await fetch(WRITE_URL, {
+    method:'POST',
+    headers:{'Content-Type':'text/plain'},
+    body:JSON.stringify({action:'update', row:rowNum, col:colToNum(col), value:value})
+  });
   var j = await r.json();
-  if(j.error) throw new Error(j.error.message);
+  if(j.status!=='ok') throw new Error('Update failed');
   return j;
 }
+function colToNum(col) {
+  var n=0;
+  for(var i=0;i<col.length;i++) n=n*26+(col.charCodeAt(i)-64);
+  return n;
+}
 async function appendSheet(vals) {
-  var url = 'https://sheets.googleapis.com/v4/spreadsheets/'+SHEET_ID+'/values/'+encodeURIComponent(sheetName)+'%3Aappend?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS&key='+API_KEY;
-  var r = await fetch(url, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({values:[vals]})});
+  var r = await fetch(WRITE_URL, {
+    method:'POST',
+    headers:{'Content-Type':'text/plain'},
+    body:JSON.stringify({action:'append', values:vals})
+  });
   var j = await r.json();
-  if(j.error) throw new Error(j.error.message);
+  if(j.status!=='ok') throw new Error('Append failed');
   return j;
 }
 
