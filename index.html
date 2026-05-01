@@ -449,7 +449,7 @@ input[type=checkbox] { width: 20px; height: 20px; }
     <button class="fb" data-f="today">Out Today</button>
     <button class="fb" data-f="tomorrow">Out Tomorrow</button>
     <button class="fb" data-f="overdue">Overdue</button>
-        <button class="fb" data-f="forgot">⚠️ Forgot</button>
+
     <button class="fb" data-f="frequent">Frequent</button>
   </div>
   <div class="bulk">
@@ -892,6 +892,23 @@ function renderDay() {
   document.getElementById('titleArrived').innerHTML='&#128663; Arrived Today <span class="tbadge" style="background:var(--ok);color:#000">'+arrived.length+'</span>';
   document.getElementById('titleToday').innerHTML='&#128276; Leaving Today <span class="tbadge" style="background:var(--acc);color:#000">'+lt.length+'</span>';
   document.getElementById('titleTomorrow').innerHTML='&#128198; Leaving Tomorrow <span class="tbadge" style="background:var(--pur);color:#fff">'+lm.length+'</span>';
+
+  // Forgot Yesterday
+  var yst=new Date(today); yst.setDate(yst.getDate()-1);
+  var forgot=data.filter(function(r){
+    if(r.status==='DELIVERD') return false;
+    var d=pd(r.ret);
+    if(!d) return false;
+    return d.getFullYear()===yst.getFullYear()&&d.getMonth()===yst.getMonth()&&d.getDate()===yst.getDate();
+  });
+  var forgotSec=document.getElementById('forgotSection');
+  if(forgot.length>0){
+    forgotSec.style.display='block';
+    document.getElementById('titleForgot').innerHTML='&#9888;&#65039; Forgot Yesterday <span class="tbadge" style="background:var(--red);color:#fff">'+forgot.length+'</span>';
+    document.getElementById('dForgot').innerHTML=mkCards(forgot,'cf');
+  } else {
+    forgotSec.style.display='none';
+  }
 }
 function render(){renderStats();renderTable();renderDay();renderTasks();updateReportPreview();}
 
