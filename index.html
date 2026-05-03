@@ -607,19 +607,19 @@ input[type=checkbox] { width: 20px; height: 20px; }
     <p class="msub">Saved directly to Google Sheets</p>
     <div class="fi" id="freqInfo"></div>
     <div class="fr two">
-      <div class="fg"><label>Full Name</label><input type="text" id="fName" oninput="this.value=this.value.toUpperCase();chkFreq()" placeholder="JOHN SMITH" style="text-transform:uppercase"></div>
-      <div class="fg"><label>Phone</label><input type="text" id="fPhone" oninput="fmtPhoneInput(this);chkFreq()" placeholder="(305) 555-0000" maxlength="14"></div>
+      <div class="fg"><label>Full Name <span style="color:var(--red)">*</span></label><input type="text" id="fName" oninput="this.value=this.value.toUpperCase();chkFreq()" placeholder="JOHN SMITH" style="text-transform:uppercase"></div>
+      <div class="fg"><label>Phone <span style="color:var(--red)">*</span></label><input type="text" id="fPhone" oninput="fmtPhoneInput(this);chkFreq()" placeholder="(305) 555-0000" maxlength="14"></div>
     </div>
     <div class="fr two">
-      <div class="fg"><label>Ticket #</label><input type="text" id="fTicket" placeholder="9001"></div>
+      <div class="fg"><label>Ticket # <span style="color:var(--red)">*</span></label><input type="text" id="fTicket" placeholder="9001"></div>
       <div class="fg"><label>Return Date</label><input type="date" id="fReturn" onchange="onReturnDateChange(this)"></div>
     </div>
     <div class="fr full">
-      <div class="fg"><label>Car Model / Color</label><input type="text" id="fCar" oninput="this.value=this.value.toUpperCase()" placeholder="TOYOTA CAMRY - WHITE" style="text-transform:uppercase"></div>
+      <div class="fg"><label>Car Model / Color <span style="color:var(--red)">*</span></label><input type="text" id="fCar" oninput="this.value=this.value.toUpperCase()" placeholder="TOYOTA CAMRY - WHITE" style="text-transform:uppercase"></div>
     </div>
     <div class="fr full">
       <div class="fg">
-        <label>Location</label>
+        <label>Location <span style="color:var(--red)">*</span></label>
         <div class="lbs">
           <div class="lb" onclick="selLoc(this,'HANGAR 19')">Hangar 19</div>
           <div class="lb" onclick="selLoc(this,'HANGAR 18')">Hangar 18</div>
