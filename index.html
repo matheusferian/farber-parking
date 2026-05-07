@@ -701,6 +701,7 @@ var sortCol = 'ts', sortAsc = false;
 function pd(s) {
   if (!s) return null;
   s = String(s).trim();
+  if(s.toUpperCase()==='TODAY') return new Date(today.getFullYear(),today.getMonth(),today.getDate());
   var p = s.split('/');
   if (p.length === 3) {
     var mo = parseInt(p[0],10), d = parseInt(p[1],10), y = parseInt(p[2],10);
@@ -905,8 +906,8 @@ function renderTable() {
 }
 function renderDay() {
   var arrived=data.filter(function(r){return isArrToday(r.ts);});
-  var lt=data.filter(function(r){return isToday(r.ret)&&r.status!=='DELIVERED';});
-  var lm=data.filter(function(r){return isTmrw(r.ret)&&r.status!=='DELIVERED';});
+  var lt=data.filter(function(r){return isToday(r.ret)&&r.status!=='DELIVERED'&&r.status!=='DELIVERD';});
+  var lm=data.filter(function(r){return isTmrw(r.ret)&&r.status!=='DELIVERED'&&r.status!=='DELIVERD';});
   function mkCards(list,cls){
     if(!list.length) return '<div class="eday">No cars in this group</div>';
     return list.map(function(r){
@@ -1276,8 +1277,13 @@ async function markDel(id){
   loading(true);
   try{
     await updateSheet(target.ri,'H','DELIVERED');
-    showMsg('Delivered: '+target.name+' (Ticket '+target.ticket+')',false);
+    // Update local data immediately so UI reflects change instantly
+    for(var i=0;i<data.length;i++){
+      if(data[i].id===target.id){ data[i].status='DELIVERED'; break; }
+    }
+    render();
     closeAll();
+    showMsg('Delivered: '+target.name+' (Ticket '+target.ticket+')',false);
     await loadData();
   }catch(e){showMsg('Error: '+e.message,true);}
   loading(false);
