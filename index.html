@@ -636,15 +636,15 @@ input[type=checkbox] { width: 20px; height: 20px; }
     <p class="msub">Saved directly to Google Sheets</p>
     <div class="fi" id="freqInfo"></div>
     <div class="fr two">
-      <div class="fg"><label>Full Name <span style="color:var(--red)">*</span></label><input type="text" id="fName" oninput="this.value=this.value.toUpperCase();chkFreq()" placeholder="JOHN SMITH" style="text-transform:uppercase"></div>
-      <div class="fg"><label>Phone <span style="color:var(--red)">*</span></label><input type="text" id="fPhone" oninput="fmtPhoneInput(this);chkFreq()" placeholder="(305) 555-0000" maxlength="14"></div>
+      <div class="fg"><label>Full Name <span style="color:var(--red)">*</span></label><input type="text" id="fName" oninput="this.value=this.value.toUpperCase();chkFreq()" placeholder="" style="text-transform:uppercase"></div>
+      <div class="fg"><label>Phone <span style="color:var(--red)">*</span></label><input type="text" id="fPhone" oninput="fmtPhoneInput(this);chkFreq()" placeholder="" maxlength="14"></div>
     </div>
     <div class="fr two">
-      <div class="fg"><label>Ticket # <span style="color:var(--red)">*</span></label><input type="text" id="fTicket" placeholder="9001"></div>
+      <div class="fg"><label>Ticket # <span style="color:var(--red)">*</span></label><input type="text" id="fTicket" placeholder=""></div>
       <div class="fg"><label>Return Date</label><input type="date" id="fReturn" onchange="onReturnDateChange(this)"></div>
     </div>
     <div class="fr full">
-      <div class="fg"><label>Car Model / Color <span style="color:var(--red)">*</span></label><input type="text" id="fCar" oninput="this.value=this.value.toUpperCase()" placeholder="TOYOTA CAMRY - WHITE" style="text-transform:uppercase"></div>
+      <div class="fg"><label>Car Model / Color <span style="color:var(--red)">*</span></label><input type="text" id="fCar" oninput="this.value=this.value.toUpperCase()" placeholder="" style="text-transform:uppercase"></div>
     </div>
     <div class="fr full">
       <div class="fg">
@@ -675,7 +675,7 @@ input[type=checkbox] { width: 20px; height: 20px; }
       </div>
     </div>
     <div class="fr full">
-      <div class="fg"><label>OBS</label><input type="text" id="fObs" oninput="this.value=this.value.toUpperCase()" placeholder="OBSERVATIONS..." style="text-transform:uppercase"></div>
+      <div class="fg"><label>OBS</label><input type="text" id="fObs" oninput="this.value=this.value.toUpperCase()" placeholder="" style="text-transform:uppercase"></div>
     </div>
     <div class="mact">
       <button class="btnc" onclick="closeAll()">Cancel</button>
@@ -807,6 +807,7 @@ function getFiltered() {
   }
   if(curFilter==='PENDING') rows=rows.filter(function(r){return r.status==='PENDING';});
   else if(curFilter==='DELIVERED') rows=rows.filter(function(r){return r.status==='DELIVERED';});
+  else if(curFilter==='DELIVERED_TODAY') rows=rows.filter(function(r){if(r.status!=='DELIVERED')return false;var d=pd(r.ret);return d&&(sd(d,today)||sd(d,new Date(today.getFullYear(),today.getMonth(),today.getDate()-1)));});
   else if(curFilter==='NO DATE') rows=rows.filter(function(r){return r.status==='NO DATE';});
   else if(curFilter==='today') rows=rows.filter(function(r){return isToday(r.ret)&&r.status!=='DELIVERED';});
   else if(curFilter==='tomorrow') rows=rows.filter(function(r){return isTmrw(r.ret)&&r.status!=='DELIVERED';});
@@ -840,12 +841,12 @@ function renderStats() {
   data.forEach(function(r){
     if(r.status==='PENDING')p++;
     else if(r.status==='NO DATE')n++;
-    else if(r.status==='DELIVERED')d++;
+    else if(r.status==='DELIVERED'){var _d=pd(r.ret);if(_d&&(sd(_d,today)||sd(_d,new Date(today.getFullYear(),today.getMonth(),today.getDate()-1))))d++;}
     if(r.status!=='DELIVERED'){if(isToday(r.ret))t++;else if(isTmrw(r.ret))tm++;else if(isLate(r.ret))o++;}
   });
   document.getElementById('statsBar').innerHTML=
-    chip('var(--acc)',p,'Pending','today')+chip('var(--pur)',n,'No Date','NO DATE')+
-    chip('var(--ok)',d,'Delivered','DELIVERED')+chip('var(--acc)',t,'Out Today','today')+
+    chip('var(--acc)',p,'Pending','PENDING')+chip('var(--pur)',n,'No Date','NO DATE')+
+    chip('var(--ok)',d,'Delivered Today','DELIVERED_TODAY')+chip('var(--acc)',t,'Out Today','today')+
     chip('var(--pur)',tm,'Tomorrow','tomorrow')+chip('var(--red)',o,'Overdue','overdue');
   document.getElementById('ball').textContent=data.length;
   var u=t+o;
