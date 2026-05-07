@@ -930,11 +930,10 @@ function renderDay() {
   var yst=new Date(today.getFullYear(), today.getMonth(), today.getDate()-1);
   var ystTime = yst.getTime();
   var forgot=data.filter(function(r){
-    if(r.status==='DELIVERED') return false;
+    if(r.status==='DELIVERED'||r.status==='DELIVERD'||r.status==='NO DATE') return false;
     var d=pd(r.ret);
     if(!d) return false;
-    var dNorm = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-    return dNorm.getTime() === ystTime;
+    return sd(d, yst);
   });
   console.log('Forgot yesterday check - yst:', yst.toDateString(), 'found:', forgot.length);
   setTimeout(function(){
