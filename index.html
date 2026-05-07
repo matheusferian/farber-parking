@@ -936,19 +936,8 @@ function renderDay() {
     return sd(d, yst);
   });
   console.log('Forgot yesterday check - yst:', yst.toDateString(), 'found:', forgot.length);
-  setTimeout(function(){
-    var forgotSec=document.getElementById('forgotSection');
-    var forgotTitle=document.getElementById('titleForgot');
-    var forgotList=document.getElementById('dForgot');
-    if(!forgotSec||!forgotTitle||!forgotList) return;
-    if(forgot.length>0){
-      forgotSec.style.display='block';
-      forgotTitle.innerHTML='&#9888; Forgot Yesterday <span class="tbadge" style="background:var(--red);color:#fff">'+forgot.length+'</span>';
-      forgotList.innerHTML=mkCards(forgot,'cf');
-    } else {
-      forgotSec.style.display='none';
-    }
-  }, 100);
+  forgot.forEach(function(r){ console.log('FORGOT:', r.name, '| status:', JSON.stringify(r.status), '| ret:', r.ret); });
+  
 }
 function render(){renderStats();renderTable();renderDay();renderTasks();updateReportPreview();}
 
