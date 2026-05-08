@@ -1175,8 +1175,8 @@ function acSearch(q){
   // Store matches for selection
   drop._matches=matches;
   drop.querySelectorAll('.ac-item').forEach(function(el){
-    el.addEventListener('mousedown',function(e){
-      e.preventDefault();
+    el.addEventListener('click',function(e){
+      e.stopPropagation();
       var m=drop._matches[parseInt(el.dataset.idx)];
       if(m) acSelect(m.name,m.phone,m.car);
     });
