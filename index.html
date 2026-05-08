@@ -114,6 +114,12 @@ input[type=checkbox]{width:17px;height:17px;accent-color:var(--gold);cursor:poin
 .di{background:var(--s2);border-radius:10px;padding:11px 13px;}
 .di-l{font-size:9px;font-family:'DM Mono',monospace;color:var(--mu);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;}
 .di-v{font-size:14px;font-weight:500;}
+.di.editable{cursor:pointer;transition:background .15s;}
+.di.editable:hover{background:rgba(201,168,76,0.08);}
+.di.editable:hover .di-l::after{content:' ✎';color:var(--gold);font-size:9px;}
+.di-input{width:100%;background:transparent;border:none;border-bottom:2px solid var(--gold);outline:none;font-size:14px;font-weight:600;color:var(--tx);font-family:'Syne',sans-serif;padding:2px 0;}
+.save-edits-btn{width:100%;background:linear-gradient(135deg,#1a3d7c,#2255a4);color:#fff;border:1px solid rgba(201,168,76,0.4);border-radius:10px;padding:13px;font-family:'Syne',sans-serif;font-weight:800;font-size:13px;cursor:pointer;letter-spacing:1px;margin-bottom:10px;display:none;transition:all .2s;}
+.save-edits-btn.visible{display:block;}
 .htitle{font-size:10px;font-family:'DM Mono',monospace;color:var(--mu);text-transform:uppercase;margin-bottom:8px;}
 .hlist{display:flex;flex-direction:column;gap:6px;max-height:140px;overflow-y:auto;margin-bottom:14px;}
 .hi{background:var(--s2);border-radius:8px;padding:9px 11px;display:flex;justify-content:space-between;font-size:12px;}
@@ -748,7 +754,7 @@ function d2us(v) {
   return (d.getMonth()+1)+'/'+d.getDate()+'/'+d.getFullYear();
 }
 function toRow(row,i) {
-  return {id:i+2,ri:i+2,ts:row[0]||'',name:row[1]||'',phone:row[2]||'',ticket:row[3]||'',ret:row[4]||'',car:row[5]||'',loc:row[6]||'',status:row[7]||'PENDING',block:row[8]||'',obs:row[9]||''};
+  return {id:i+2,ri:i+2,ts:row[0]||'',name:row[1]||'',phone:row[2]||'',ticket:row[3]||'',ret:row[4]||'',car:row[5]||'',loc:row[6]||'',status:row[7]||'PENDING',block:row[8]||'',obs:row[9]||'',deldate:row[10]||''};
 }
 function loading(on) { document.getElementById('bar').style.display=on?'block':'none'; }
 function showMsg(txt,err) {
@@ -807,7 +813,7 @@ function getFiltered() {
   }
   if(curFilter==='PENDING') rows=rows.filter(function(r){return r.status==='PENDING';});
   else if(curFilter==='DELIVERED') rows=rows.filter(function(r){return r.status==='DELIVERED';});
-  else if(curFilter==='DELIVERED_TODAY') rows=rows.filter(function(r){if(r.status!=='DELIVERED')return false;var d=pd(r.ret);return d&&sd(d,today);});
+  else if(curFilter==='DELIVERED_TODAY') rows=rows.filter(function(r){if(r.status!=='DELIVERED')return false;var d=pd(r.deldate);return d&&sd(d,today);});
   else if(curFilter==='NO DATE') rows=rows.filter(function(r){return r.status==='NO DATE';});
   else if(curFilter==='today') rows=rows.filter(function(r){return isToday(r.ret)&&r.status!=='DELIVERED';});
   else if(curFilter==='tomorrow') rows=rows.filter(function(r){return isTmrw(r.ret)&&r.status!=='DELIVERED';});
@@ -841,7 +847,7 @@ function renderStats() {
   data.forEach(function(r){
     if(r.status==='PENDING')p++;
     else if(r.status==='NO DATE')n++;
-    else if(r.status==='DELIVERED'){var _d=pd(r.ret);if(_d&&sd(_d,today))d++;}
+    else if(r.status==='DELIVERED'){var _dd=pd(r.deldate);if(_dd&&sd(_dd,today))d++;}
     if(r.status!=='DELIVERED'){if(isToday(r.ret))t++;else if(isTmrw(r.ret))tm++;else if(isLate(r.ret))o++;}
   });
   document.getElementById('statsBar').innerHTML=
@@ -1333,10 +1339,13 @@ async function markDel(id){
   var target = samePassenger.length>0 ? samePassenger[0] : r;
   loading(true);
   try{
+    var todayStr=(today.getMonth()+1)+'/'+(today.getDate())+'/'+today.getFullYear();
     await updateSheet(target.ri,'H','DELIVERED');
+    await updateSheet(target.ri,'K',todayStr);
     // Update local data immediately so UI reflects change instantly
+    var todayFmt=(today.getMonth()+1)+'/'+(today.getDate())+'/'+today.getFullYear();
     for(var i=0;i<data.length;i++){
-      if(data[i].id===target.id){ data[i].status='DELIVERED'; break; }
+      if(data[i].id===target.id){ data[i].status='DELIVERED'; data[i].deldate=todayFmt; break; }
     }
     render();
     closeAll();
