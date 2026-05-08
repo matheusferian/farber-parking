@@ -1286,7 +1286,7 @@ async function saveEntry(){
     await appendSheet([ts,name.toUpperCase(),phoneFull,ticket,finalDate,car,document.getElementById('fLoc').value,finalStatus,'',finalObs]);
     showMsg('Saved!',false);closeAll();
     document.getElementById('fName').value='';document.getElementById('fPhone').value='';document.getElementById('fTicket').value='';
-    getReturnDate()='';document.getElementById('fCar').value='';document.getElementById('fLoc').value='';
+    var fRet2=document.getElementById('fReturn');if(fRet2)fRet2.value='';document.getElementById('fCar').value='';document.getElementById('fLoc').value='';
     document.getElementById('fObs').value='';document.getElementById('fStatus').value='PENDING';
     document.querySelectorAll('.lb').forEach(function(b){b.classList.remove('on');});
     document.getElementById('freqInfo').classList.remove('on');
