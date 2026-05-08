@@ -1312,7 +1312,7 @@ function showDet(id){
       (r.phone?'<a href="tel:'+r.phone.replace(/\D/g,'')+'" style="background:var(--ok);color:#000;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;text-decoration:none;font-family:Syne,sans-serif;">&#128222; CALL</a>':'')+
       (r.phone?'<a href="sms:'+r.phone.replace(/\D/g,'')+'" style="background:var(--pur);color:#fff;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;text-decoration:none;font-family:Syne,sans-serif;">&#128172; TEXT</a>':'')+
     '</div>'+
-    '<div id="saveEditsWrap"><button class="save-edits-btn" id="saveEditsBtn" onclick="saveEdits('+r.id+')">&#128190; Save Changes</button></div>'+
+    '<div id="saveEditsWrap"><button class="save-edits-btn" id="saveEditsBtn" data-rid="'+r.id+'">&#128190; Save Changes</button></div>'+
     '<div class="dgrid">'+
       '<div class="di"><div class="di-l">Ticket</div><div class="di-v" style="color:var(--acc)">'+r.ticket+'</div></div>'+
       '<div class="di"><div class="di-l">Status</div><div class="di-v">'+r.status+'</div></div>'+
@@ -1350,6 +1350,8 @@ function showDet(id){
     document.getElementById('detPanel').querySelectorAll('.di.editable').forEach(function(cell){
       cell.addEventListener('click',function(){makeEditable(cell,cell.dataset.field);});
     });
+    var sb=document.getElementById('saveEditsBtn');
+    if(sb) sb.addEventListener('click',function(){saveEdits(parseInt(sb.dataset.rid));});
   },50);
   document.getElementById('detOv').classList.add('on');
 }
