@@ -114,6 +114,14 @@ input[type=checkbox]{width:17px;height:17px;accent-color:var(--gold);cursor:poin
 .di{background:var(--s2);border-radius:10px;padding:11px 13px;}
 .di-l{font-size:9px;font-family:'DM Mono',monospace;color:var(--mu);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;}
 .di-v{font-size:14px;font-weight:500;}
+.ac-wrap{position:relative;}
+.ac-drop{position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid var(--b);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,0.12);z-index:999;max-height:220px;overflow-y:auto;display:none;}
+.ac-drop.open{display:block;}
+.ac-item{padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--s2);transition:background .12s;}
+.ac-item:last-child{border-bottom:none;}
+.ac-item:hover{background:var(--s2);}
+.ac-name{font-weight:700;font-size:13px;color:var(--navy);font-family:'Syne',sans-serif;}
+.ac-sub{font-size:11px;color:var(--mu);margin-top:2px;font-family:'DM Mono',monospace;}
 .di.editable{cursor:pointer;transition:background .15s;}
 .di.editable:hover{background:rgba(201,168,76,0.08);}
 .di.editable:hover .di-l::after{content:' ✎';color:var(--gold);font-size:9px;}
@@ -642,12 +650,25 @@ input[type=checkbox] { width: 20px; height: 20px; }
     <p class="msub">Saved directly to Google Sheets</p>
     <div class="fi" id="freqInfo"></div>
     <div class="fr two">
-      <div class="fg"><label>Full Name <span style="color:var(--red)">*</span></label><input type="text" id="fName" oninput="this.value=this.value.toUpperCase();chkFreq()" placeholder="" style="text-transform:uppercase"></div>
+      <div class="fg"><label>Full Name <span style="color:var(--red)">*</span></label><div class="ac-wrap"><input type="text" id="fName" oninput="this.value=this.value.toUpperCase();chkFreq();acSearch(this.value)" autocomplete="off" placeholder="" style="text-transform:uppercase;width:100%"><div class="ac-drop" id="acDrop"></div></div></div>
       <div class="fg"><label>Phone <span style="color:var(--red)">*</span></label><input type="text" id="fPhone" oninput="fmtPhoneInput(this);chkFreq()" placeholder="" maxlength="14"></div>
     </div>
     <div class="fr two">
       <div class="fg"><label>Ticket # <span style="color:var(--red)">*</span></label><input type="text" id="fTicket" placeholder=""></div>
-      <div class="fg"><label>Return Date</label><input type="date" id="fReturn" onchange="onReturnDateChange(this)"></div>
+      <div class="fg"><label>Return Date</label>
+        <div style="display:flex;align-items:center;gap:4px;background:var(--s2);border:1px solid var(--b);border-radius:10px;padding:8px 12px;">
+          <input type="text" id="fRetMM" maxlength="2" placeholder="MM" inputmode="numeric"
+            style="width:32px;background:transparent;border:none;outline:none;font-size:15px;font-family:'Syne',sans-serif;font-weight:700;color:var(--acc);text-align:center;"
+            oninput="autoTab(this,'fRetDD',2)">
+          <span style="color:var(--mu);font-weight:700;">/</span>
+          <input type="text" id="fRetDD" maxlength="2" placeholder="DD" inputmode="numeric"
+            style="width:28px;background:transparent;border:none;outline:none;font-size:15px;font-family:'Syne',sans-serif;font-weight:700;color:var(--acc);text-align:center;"
+            oninput="autoTab(this,'fRetYY',2)" onkeydown="backTab(event,'fRetMM')">
+          <span style="color:var(--mu);font-weight:700;">/</span>
+          <input type="text" id="fRetYY" maxlength="4" placeholder="YYYY" inputmode="numeric"
+            style="width:48px;background:transparent;border:none;outline:none;font-size:15px;font-family:'Syne',sans-serif;font-weight:700;color:var(--acc);text-align:center;"
+            oninput="autoTab(this,null,4)" onkeydown="backTab(event,'fRetDD')">
+        </div></div>
     </div>
     <div class="fr full">
       <div class="fg"><label>Car Model / Color <span style="color:var(--red)">*</span></label><input type="text" id="fCar" oninput="this.value=this.value.toUpperCase()" placeholder="" style="text-transform:uppercase"></div>
@@ -813,6 +834,7 @@ function getFiltered() {
   }
   if(curFilter==='PENDING') rows=rows.filter(function(r){return r.status==='PENDING';});
   else if(curFilter==='DELIVERED') rows=rows.filter(function(r){return r.status==='DELIVERED';});
+  else if(curFilter==='ARRIVED_TODAY') rows=rows.filter(function(r){return isArrToday(r.ts);});
   else if(curFilter==='DELIVERED_TODAY') rows=rows.filter(function(r){if(r.status!=='DELIVERED')return false;var d=pd(r.deldate);return d&&sd(d,today);});
   else if(curFilter==='NO DATE') rows=rows.filter(function(r){return r.status==='NO DATE';});
   else if(curFilter==='today') rows=rows.filter(function(r){return isToday(r.ret)&&r.status!=='DELIVERED';});
@@ -843,15 +865,16 @@ function getFiltered() {
   return rows;
 }
 function renderStats() {
-  var p=0,n=0,d=0,t=0,tm=0,o=0;
+  var p=0,n=0,d=0,t=0,tm=0,o=0,arr=0;
   data.forEach(function(r){
     if(r.status==='PENDING')p++;
     else if(r.status==='NO DATE')n++;
     else if(r.status==='DELIVERED'){var _dd=pd(r.deldate);if(_dd&&sd(_dd,today))d++;}
     if(r.status!=='DELIVERED'){if(isToday(r.ret))t++;else if(isTmrw(r.ret))tm++;else if(isLate(r.ret))o++;}
+    if(isArrToday(r.ts))arr++;
   });
   document.getElementById('statsBar').innerHTML=
-    chip('var(--acc)',p,'Pending','PENDING')+chip('var(--pur)',n,'No Date','NO DATE')+
+    chip('var(--navy)',arr,'Arrived Today','ARRIVED_TODAY')+chip('var(--acc)',p,'Pending','PENDING')+chip('var(--pur)',n,'No Date','NO DATE')+
     chip('var(--ok)',d,'Delivered Today','DELIVERED_TODAY')+chip('var(--acc)',t,'Out Today','today')+
     chip('var(--pur)',tm,'Tomorrow','tomorrow')+chip('var(--red)',o,'Overdue','overdue');
   document.getElementById('ball').textContent=data.length;
@@ -1101,13 +1124,96 @@ document.querySelectorAll('.fb').forEach(function(b){
 });
 document.getElementById('srch').addEventListener('input',function(e){srchTerm=e.target.value.trim();renderTable();});
 
+// ── DATE AUTO-TAB ────────────────────────────────────────────────────────────
+function autoTab(el,nextId,maxLen){
+  el.value=el.value.replace(/\D/g,'');
+  if(el.value.length>=maxLen && nextId){
+    document.getElementById(nextId).focus();
+    document.getElementById(nextId).select();
+  }
+}
+function backTab(e,prevId){
+  if(e.key==='Backspace' && e.target.value===''){
+    e.preventDefault();
+    var prev=document.getElementById(prevId);
+    if(prev){prev.focus();prev.setSelectionRange(prev.value.length,prev.value.length);}
+  }
+}
+function getReturnDate(){
+  var mm=document.getElementById('fRetMM'),dd=document.getElementById('fRetDD'),yy=document.getElementById('fRetYY');
+  if(!mm||!dd||!yy) return '';
+  var m=mm.value.trim(),d=dd.value.trim(),y=yy.value.trim();
+  if(!m&&!d&&!y) return '';
+  if(m&&d&&y) return m+'/'+d+'/'+y;
+  return '';
+}
+function setReturnDate(val){
+  if(!val) return;
+  var p=val.split('/');
+  if(p.length===3){
+    var mm=document.getElementById('fRetMM'),dd=document.getElementById('fRetDD'),yy=document.getElementById('fRetYY');
+    if(mm) mm.value=p[0];
+    if(dd) dd.value=p[1];
+    if(yy) yy.value=p[2];
+  }
+}
+// ── AUTOCOMPLETE ─────────────────────────────────────────────────────────────
+function acSearch(q){
+  var drop=document.getElementById('acDrop');
+  if(!drop) return;
+  q=q.trim();
+  if(q.length<2){drop.classList.remove('open');return;}
+  // Get unique passengers by name (most recent record per name)
+  var seen={}, matches=[];
+  var sorted=data.slice().sort(function(a,b){return b.ri-a.ri;});
+  sorted.forEach(function(r){
+    var n=r.name.toUpperCase();
+    if(seen[n]) return;
+    if(n.indexOf(q.toUpperCase())>=0){
+      seen[n]=true;
+      matches.push(r);
+    }
+  });
+  if(matches.length===0){drop.classList.remove('open');return;}
+  drop.innerHTML=matches.slice(0,6).map(function(r,i){
+    return '<div class="ac-item" data-idx="'+i+'"><div class="ac-name">'+r.name+'</div><div class="ac-sub">'+r.phone+(r.car?' &middot; '+r.car:'')+'</div></div>';
+  }).join('');
+  // Store matches for selection
+  drop._matches=matches;
+  drop.querySelectorAll('.ac-item').forEach(function(el){
+    el.addEventListener('mousedown',function(e){
+      e.preventDefault();
+      var m=drop._matches[parseInt(el.dataset.idx)];
+      if(m) acSelect(m.name,m.phone,m.car);
+    });
+  });
+  drop.classList.add('open');
+}
+function acSelect(name,phone,car){
+  var fName=document.getElementById('fName');
+  var fPhone=document.getElementById('fPhone');
+  var fCar=document.getElementById('fCar');
+  if(fName) fName.value=name;
+  if(fPhone) fPhone.value=phone;
+  if(fCar) fCar.value=car;
+  acClose();
+  chkFreq();
+  // Focus ticket field
+  var fTicket=document.getElementById('fTicket');
+  if(fTicket) fTicket.focus();
+}
+function acClose(){
+  var drop=document.getElementById('acDrop');
+  if(drop) drop.classList.remove('open');
+}
+// Close dropdown when clicking outside
+document.addEventListener('click',function(e){
+  if(!e.target.closest('.ac-wrap')) acClose();
+});
 function openAdd(){
   // Always reset return date field state before opening
-  var retField = document.getElementById('fReturn');
-  if(retField) {
-    retField.disabled = false;
-    retField.style.opacity = '1';
-  }
+  // Clear date fields
+  ['fRetMM','fRetDD','fRetYY'].forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});
   var approxRow = document.getElementById('approxRow');
   if(approxRow) approxRow.style.display = 'none';
   document.getElementById('fStatus').value = 'PENDING';document.getElementById('addOv').classList.add('on');}
@@ -1172,12 +1278,12 @@ async function saveEntry(){
     if(finalStatus === 'NO DATE') {
       finalDate = hasEstDate ? d2us(estDate) : '';
     } else {
-      finalDate = d2us(document.getElementById('fReturn').value);
+      finalDate = d2us(getReturnDate());
     }
     await appendSheet([ts,name.toUpperCase(),phoneFull,ticket,finalDate,car,document.getElementById('fLoc').value,finalStatus,'',finalObs]);
     showMsg('Saved!',false);closeAll();
     document.getElementById('fName').value='';document.getElementById('fPhone').value='';document.getElementById('fTicket').value='';
-    document.getElementById('fReturn').value='';document.getElementById('fCar').value='';document.getElementById('fLoc').value='';
+    getReturnDate()='';document.getElementById('fCar').value='';document.getElementById('fLoc').value='';
     document.getElementById('fObs').value='';document.getElementById('fStatus').value='PENDING';
     document.querySelectorAll('.lb').forEach(function(b){b.classList.remove('on');});
     document.getElementById('freqInfo').classList.remove('on');
