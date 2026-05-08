@@ -665,19 +665,7 @@ input[type=checkbox] { width: 20px; height: 20px; }
     <div class="fr two">
       <div class="fg"><label>Ticket # <span style="color:var(--red)">*</span></label><input type="text" id="fTicket" placeholder=""></div>
       <div class="fg"><label>Return Date</label>
-        <div style="display:flex;align-items:center;gap:6px;background:var(--s2);border:1px solid var(--b);border-radius:10px;padding:10px 14px;width:100%;box-sizing:border-box;">
-          <input type="text" id="fRetMM" maxlength="2" placeholder="MM" inputmode="numeric"
-            style="width:2.5ch;background:transparent;border:none;outline:none;font-size:16px;font-family:'Syne',sans-serif;font-weight:700;color:var(--acc);text-align:center;min-width:32px;"
-            oninput="autoTab(this,'fRetDD',2)">
-          <span style="color:var(--mu);font-weight:700;">/</span>
-          <input type="text" id="fRetDD" maxlength="2" placeholder="DD" inputmode="numeric"
-            style="width:2.5ch;background:transparent;border:none;outline:none;font-size:16px;font-family:'Syne',sans-serif;font-weight:700;color:var(--acc);text-align:center;min-width:32px;"
-            oninput="autoTab(this,'fRetYY',2)" onkeydown="backTab(event,'fRetMM')">
-          <span style="color:var(--mu);font-weight:700;">/</span>
-          <input type="text" id="fRetYY" maxlength="4" placeholder="YYYY" inputmode="numeric"
-            style="width:4ch;background:transparent;border:none;outline:none;font-size:16px;font-family:'Syne',sans-serif;font-weight:700;color:var(--acc);text-align:center;min-width:48px;"
-            oninput="autoTab(this,null,4)" onkeydown="backTab(event,'fRetDD')">
-        </div></div>
+        <input type="date" id="fReturn" style="width:100%;background:var(--s2);border:1px solid var(--b);border-radius:10px;padding:11px 14px;font-size:16px;color:var(--tx);outline:none;font-family:'Syne',sans-serif;box-sizing:border-box;">
     </div>
     <div class="fr full">
       <div class="fg"><label>Car Model / Color <span style="color:var(--red)">*</span></label><input type="text" id="fCar" oninput="this.value=this.value.toUpperCase()" placeholder="" style="text-transform:uppercase"></div>
@@ -1149,21 +1137,18 @@ function backTab(e,prevId){
   }
 }
 function getReturnDate(){
-  var mm=document.getElementById('fRetMM'),dd=document.getElementById('fRetDD'),yy=document.getElementById('fRetYY');
-  if(!mm||!dd||!yy) return '';
-  var m=mm.value.trim(),d=dd.value.trim(),y=yy.value.trim();
-  if(!m&&!d&&!y) return '';
-  if(m&&d&&y) return m+'/'+d+'/'+y;
+  var el=document.getElementById('fReturn');
+  if(!el||!el.value) return '';
+  var p=el.value.split('-'); // yyyy-mm-dd
+  if(p.length===3) return p[1]+'/'+p[2]+'/'+p[0];
   return '';
 }
 function setReturnDate(val){
   if(!val) return;
   var p=val.split('/');
   if(p.length===3){
-    var mm=document.getElementById('fRetMM'),dd=document.getElementById('fRetDD'),yy=document.getElementById('fRetYY');
-    if(mm) mm.value=p[0];
-    if(dd) dd.value=p[1];
-    if(yy) yy.value=p[2];
+    var el=document.getElementById('fReturn');
+    if(el) el.value=p[2]+'-'+p[0].padStart(2,'0')+'-'+p[1].padStart(2,'0');
   }
 }
 // ── AUTOCOMPLETE ─────────────────────────────────────────────────────────────
@@ -1224,9 +1209,7 @@ function openAdd(){
   ['fName','fPhone','fTicket','fCar','fObs'].forEach(function(id){
     var el=document.getElementById(id); if(el) el.value='';
   });
-  ['fRetMM','fRetDD','fRetYY'].forEach(function(id){
-    var el=document.getElementById(id); if(el) el.value='';
-  });
+  var fRet=document.getElementById('fReturn'); if(fRet) fRet.value='';
   // Clear location selection
   document.querySelectorAll('.lb').forEach(function(b){b.classList.remove('on');});
   // Reset status
