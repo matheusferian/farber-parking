@@ -1197,13 +1197,16 @@ function showDet(id){
       (r.phone?'<a href="tel:'+r.phone.replace(/\D/g,'')+'" style="background:var(--ok);color:#000;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;text-decoration:none;font-family:Syne,sans-serif;">&#128222; CALL</a>':'')+
       (r.phone?'<a href="sms:'+r.phone.replace(/\D/g,'')+'" style="background:var(--pur);color:#fff;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;text-decoration:none;font-family:Syne,sans-serif;">&#128172; TEXT</a>':'')+
     '</div>'+
+    '<div id="saveEditsWrap"><button class="save-edits-btn" id="saveEditsBtn" onclick="saveEdits(''+r.id+'')">💾 Save Changes</button></div>'+
     '<div class="dgrid">'+
       '<div class="di"><div class="di-l">Ticket</div><div class="di-v" style="color:var(--acc)">'+r.ticket+'</div></div>'+
       '<div class="di"><div class="di-l">Status</div><div class="di-v">'+r.status+'</div></div>'+
       '<div class="di"><div class="di-l">Return</div><div class="di-v" style="font-size:12px;'+retC+'">'+retDisp+'</div></div>'+
       '<div class="di"><div class="di-l">Arrived</div><div class="di-v" style="font-size:12px">'+fmtA(r.ts)+'</div></div>'+
-      '<div class="di" style="grid-column:1/-1"><div class="di-l">Car</div><div class="di-v">'+r.car+'</div></div>'+
-      (r.obs?'<div class="di" style="grid-column:1/-1"><div class="di-l">OBS</div><div class="di-v" style="font-size:12px">'+r.obs+'</div></div>':'')+
+      '<div class="di editable" style="grid-column:1/-1" onclick="makeEditable(this,'name')"><div class="di-l">Name</div><div class="di-v" id="edit-name">'+r.name+'</div></div>'+
+      '<div class="di editable" style="grid-column:1/-1" onclick="makeEditable(this,'phone')"><div class="di-l">Phone</div><div class="di-v" id="edit-phone">'+fmtP(r.phone)+'</div></div>'+
+      '<div class="di editable" style="grid-column:1/-1" onclick="makeEditable(this,'car')"><div class="di-l">Car</div><div class="di-v" id="edit-car">'+r.car+'</div></div>'+
+      '<div class="di editable" style="grid-column:1/-1" onclick="makeEditable(this,'obs')"><div class="di-l">OBS</div><div class="di-v" id="edit-obs" style="font-size:12px">'+(r.obs||'—')+'</div></div>'+
     '</div>'+histH+
     (r.obs&&r.obs.indexOf('APPROX DATE')>=0&&r.status!=='DELIVERED'?
       '<div style="background:rgba(201,168,76,0.1);border:1px solid rgba(201,168,76,0.4);border-radius:10px;padding:12px 14px;margin-bottom:12px">'+
