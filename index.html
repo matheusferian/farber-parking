@@ -1296,7 +1296,9 @@ async function saveEntry(){
 }
 
 function showDet(id){
+  console.log('showDet called with id:', id, 'data length:', data.length);
   var r=null;for(var i=0;i<data.length;i++){if(data[i].id===id){r=data[i];break;}}
+  console.log('record found:', r?r.name:'NOT FOUND');
   if(!r)return;
   var hist=data.filter(function(d){return d.name.toLowerCase()===r.name.toLowerCase();});
   var rt=isToday(r.ret),rm=isTmrw(r.ret),ro=isLate(r.ret);
