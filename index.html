@@ -912,21 +912,21 @@ function renderTable() {
     else if(ro){rc='late';}
     var bc=r.status==='PENDING'?'bp':r.status==='DELIVERED'?'bd':'bn';
     var sel=selected[r.id]?true:false;
-    h+='<tr style="'+(sel?'background:rgba(232,160,48,.12)':'')+'">'+
+    h+='<tr style="'+(sel?'background:rgba(232,160,48,.12)':'')+';cursor:pointer" onclick="showDet('+r.id+')">'+
       '<td class="cbtd" onclick="event.stopPropagation()"><input type="checkbox" data-id="'+r.id+'" '+(sel?'checked':'')+' onchange="rowChk(this)"></td>'+
-      '<td onclick="showDet('+r.id+')" style="cursor:pointer;font-weight:500">'+r.name+
+      '<td style="font-weight:500">'+r.name+
         (freq?'<span class="t-freq">x'+cnt[r.name.toLowerCase()]+'</span>':'')+
         (rt?'<span class="tag t-today">TODAY</span>':'')+
         (rm?'<span class="tag t-tmrw">TMR</span>':'')+
         (ro?'<span class="tag t-late">LATE</span>':'')+
         (r.obs&&r.obs.indexOf('APPROX DATE')>=0?'<span class="tag" style="background:rgba(201,168,76,0.15);color:var(--gold)">~APPROX</span>':'')+'</td>'+
-      '<td onclick="showDet('+r.id+')" style="cursor:pointer;font-family:monospace;font-size:12px;color:var(--mu)">'+fmtP(r.phone)+'</td>'+
-      '<td onclick="showDet('+r.id+')" style="cursor:pointer;font-family:monospace;font-size:12px;color:var(--gold)">'+r.ticket+'</td>'+
-      '<td onclick="showDet('+r.id+')" style="cursor:pointer;font-size:12px;color:var(--mu)">'+r.car+'</td>'+
-      '<td onclick="showDet('+r.id+')" style="cursor:pointer;font-size:12px;color:var(--mu)">'+(r.loc||'-')+'</td>'+
-      '<td onclick="showDet('+r.id+')" style="cursor:pointer;font-size:11px;color:var(--mu)">'+fmtA(r.ts)+'</td>'+
-      '<td onclick="showDet('+r.id+')" style="cursor:pointer"><span class="rd '+rc+'">'+rl+'</span></td>'+
-      '<td onclick="showDet('+r.id+')" style="cursor:pointer"><span class="badge '+bc+'">'+r.status+'</span></td>'+
+      '<td style="font-family:monospace;font-size:12px;color:var(--mu)">'+fmtP(r.phone)+'</td>'+
+      '<td style="font-family:monospace;font-size:12px;color:var(--gold)">'+r.ticket+'</td>'+
+      '<td style="font-size:12px;color:var(--mu)">'+r.car+'</td>'+
+      '<td style="font-size:12px;color:var(--mu)">'+(r.loc||'-')+'</td>'+
+      '<td style="font-size:11px;color:var(--mu)">'+fmtA(r.ts)+'</td>'+
+      '<td style=""><span class="rd '+rc+'">'+rl+'</span></td>'+
+      '<td style=""><span class="badge '+bc+'">'+r.status+'</span></td>'+
     '</tr>';
   });
   tbody.innerHTML=h;
@@ -1201,7 +1201,7 @@ function acClose(){
   if(drop) drop.classList.remove('open');
 }
 // Close dropdown when clicking outside
-document.addEventListener('mousedown',function(e){
+document.addEventListener('click',function(e){
   if(!e.target.closest('.ac-wrap')) acClose();
 });
 function openAdd(){
