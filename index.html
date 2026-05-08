@@ -1201,7 +1201,7 @@ function acClose(){
   if(drop) drop.classList.remove('open');
 }
 // Close dropdown when clicking outside
-document.addEventListener('click',function(e){
+document.addEventListener('mousedown',function(e){
   if(!e.target.closest('.ac-wrap')) acClose();
 });
 function openAdd(){
