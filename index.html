@@ -863,12 +863,12 @@ function getFiltered() {
   return rows;
 }
 function renderStats() {
-  var p=0,n=0,d=0,t=0,tm=0,o=0,arr=0;
+  var p=0,n=0,d=0,t=0,tm=0,arr=0;
   data.forEach(function(r){
     if(r.status==='PENDING')p++;
     else if(r.status==='NO DATE')n++;
     else if(r.status==='DELIVERED'){var _dd=pd(r.deldate);if(_dd&&sd(_dd,today))d++;}
-    if(r.status!=='DELIVERED'){if(isToday(r.ret))t++;else if(isTmrw(r.ret))tm++;else if(isLate(r.ret))o++;}
+    if(r.status!=='DELIVERED'){if(isToday(r.ret))t++;else if(isTmrw(r.ret))tm++;}
     if(isArrToday(r.ts))arr++;
   });
   document.getElementById('statsBar').innerHTML=
@@ -919,7 +919,7 @@ function renderTable() {
         (freq?'<span class="t-freq">x'+cnt[r.name.toLowerCase()]+'</span>':'')+
         (rt?'<span class="tag t-today">TODAY</span>':'')+
         (rm?'<span class="tag t-tmrw">TMR</span>':'')+
-        (ro?'<span class="tag t-late">LATE</span>':'')+
+        (ro&&r.status!=='DELIVERED'?'<span class="tag t-late">LATE</span>':'')+
         (r.obs&&r.obs.indexOf('APPROX DATE')>=0?'<span class="tag" style="background:rgba(201,168,76,0.15);color:var(--gold)">~APPROX</span>':'')+'</td>'+
       '<td style="font-family:monospace;font-size:12px;color:var(--mu)">'+fmtP(r.phone)+'</td>'+
       '<td style="font-family:monospace;font-size:12px;color:var(--gold)">'+r.ticket+'</td>'+
