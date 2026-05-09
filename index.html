@@ -666,6 +666,7 @@ input[type=checkbox] { width: 20px; height: 20px; }
       <div class="fg"><label>Ticket # <span style="color:var(--red)">*</span></label><input type="text" id="fTicket" placeholder=""></div>
       <div class="fg"><label>Return Date</label>
         <input type="date" id="fReturn" style="width:100%;background:var(--s2);border:1px solid var(--b);border-radius:10px;padding:11px 14px;font-size:16px;color:var(--tx);outline:none;font-family:'Syne',sans-serif;box-sizing:border-box;">
+      </div>
     </div>
     <div class="fr full">
       <div class="fg"><label>Car Model / Color <span style="color:var(--red)">*</span></label><input type="text" id="fCar" oninput="this.value=this.value.toUpperCase()" placeholder="" style="text-transform:uppercase"></div>
@@ -912,7 +913,7 @@ function renderTable() {
     else if(ro){rc='late';}
     var bc=r.status==='PENDING'?'bp':r.status==='DELIVERED'?'bd':'bn';
     var sel=selected[r.id]?true:false;
-    h+='<tr style="'+(sel?'background:rgba(232,160,48,.12)':'')+';cursor:pointer" onclick="showDet('+r.id+')">'+
+    h+='<tr class="passenger-row" data-id="'+r.id+'" style="'+(sel?'background:rgba(232,160,48,.12)':'')+';cursor:pointer">'+
       '<td class="cbtd" onclick="event.stopPropagation()"><input type="checkbox" data-id="'+r.id+'" '+(sel?'checked':'')+' onchange="rowChk(this)"></td>'+
       '<td style="font-weight:500">'+r.name+
         (freq?'<span class="t-freq">x'+cnt[r.name.toLowerCase()]+'</span>':'')+
@@ -933,13 +934,13 @@ function renderTable() {
 }
 function renderDay() {
   var arrived=data.filter(function(r){return isArrToday(r.ts);});
-  var lt=data.filter(function(r){return isToday(r.ret)&&r.status!=='DELIVERED'&&r.status!=='DELIVERD';});
-  var lm=data.filter(function(r){return isTmrw(r.ret)&&r.status!=='DELIVERED'&&r.status!=='DELIVERD';});
+  var lt=data.filter(function(r){return isToday(r.ret)&&r.status!=='DELIVERED'&&r.status!=='DELIVERED';});
+  var lm=data.filter(function(r){return isTmrw(r.ret)&&r.status!=='DELIVERED'&&r.status!=='DELIVERED';});
   function mkCards(list,cls){
     if(!list.length) return '<div class="eday">No cars in this group</div>';
     return list.map(function(r){
       var isApprox=r.obs&&r.obs.indexOf('APPROX DATE')>=0;
-      return '<div class="dcard '+cls+(isApprox?' approx-card':'')+'" onclick="showDet('+r.id+')">'+
+      return '<div class="dcard '+cls+(isApprox?' approx-card':'')+'">'+
         '<div><div class="dc-n">'+r.name+(isApprox?' <span style="font-size:9px;background:rgba(201,168,76,0.2);color:var(--gold);border-radius:4px;padding:2px 5px">~APPROX</span>':'')+'</div>'+
         '<div class="dc-c">'+r.car+' &middot; '+fmtP(r.phone)+'</div></div>'+
         '<div style="text-align:right"><div class="dc-tk">'+r.ticket+'</div><div class="dc-l">'+r.loc+'</div></div>'+
@@ -958,7 +959,7 @@ function renderDay() {
   var yst=new Date(today.getFullYear(), today.getMonth(), today.getDate()-1);
   var ystTime = yst.getTime();
   var forgot=data.filter(function(r){
-    if(r.status==='DELIVERED'||r.status==='DELIVERD'||r.status==='NO DATE') return false;
+    if(r.status==='DELIVERED'||r.status==='DELIVERED'||r.status==='NO DATE') return false;
     var d=pd(r.ret);
     if(!d) return false;
     return sd(d, yst);
@@ -1356,6 +1357,15 @@ function showDet(id){
   document.getElementById('detOv').classList.add('on');
 }
 
+// Delegated click handler for passenger rows
+document.getElementById('tbody').addEventListener('click', function(e) {
+  if (e.target.closest('.cbtd')) return;
+  var row = e.target.closest('.passenger-row');
+  if (!row) return;
+  var id = parseInt(row.getAttribute('data-id'), 10);
+  showDet(id);
+});
+
 document.getElementById('detPanel').addEventListener('click',function(e){
   var el=e.target;
   if(el.classList.contains('ho-item')){
@@ -1421,7 +1431,7 @@ async function saveEdits(rid){
   if(!r) return;
   loading(true);
   try{
-    var colMap={name:'B',phone:'C',car:'F',obs:'I'};
+    var colMap={name:'B',phone:'C',car:'F',obs:'J'};
     for(var field in _editChanges){
       var col=colMap[field]; if(!col) continue;
       var val=_editChanges[field];
@@ -1540,7 +1550,7 @@ function renderTasks() {
         (r.phone && !isDone ?
           '<a href="' + smsLink + '" class="task-btn text" onclick="markTaskSent(' + r.id + ')">&#128172; Send Text</a>' : '') +
         (!isDone ?
-          '<button class="task-btn skip" onclick="showDet(' + r.id + ')">&#128065; View</button>' : '') +
+          '<button class="task-btn skip">&#128065; View</button>' : '') +
         (isDone ?
           '<button class="task-btn skip" onclick="undoTask(' + r.id + ')">&#8634; Undo</button>' : '') +
       '</div>' +
