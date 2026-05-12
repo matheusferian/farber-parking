@@ -1391,6 +1391,7 @@ function showDet(id){
     '<div class="dphone" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'+fmtP(r.phone)+
       (r.phone?'<a href="tel:'+r.phone.replace(/\D/g,'')+'" style="background:var(--ok);color:#000;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;text-decoration:none;font-family:Syne,sans-serif;">&#128222; CALL</a>':'')+
       (r.phone?'<a href="sms:'+r.phone.replace(/\D/g,'')+'" style="background:var(--pur);color:#fff;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;text-decoration:none;font-family:Syne,sans-serif;">&#128172; TEXT</a>':'')+
+      (r.phone&&r.status!=='DELIVERED'?'<a href="sms:'+r.phone.replace(/\D/g,'')+'&body='+encodeURIComponent('Welcome to Makers Air Valet! Your vehicle has been successfully checked in.'+(r.ret?' If your return date or arrival time changes from '+fmtD(r.ret)+', please update us through this message so your vehicle will be ready when you arrive.':' If your return date or arrival time changes, please update us through this message so your vehicle will be ready when you arrive.')+' Thank you and safe travels!')+'" style="background:linear-gradient(135deg,var(--navy),#2a5db0);color:#fff;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;text-decoration:none;font-family:Syne,sans-serif;">&#9992;&#65039; Welcome Text</a>':'')+
     '</div>'+
     '<div id="saveEditsWrap"><button class="save-edits-btn" id="saveEditsBtn" data-rid="'+r.id+'">&#128190; Save Changes</button></div>'+
     '<div class="dgrid">'+
