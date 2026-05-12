@@ -106,7 +106,7 @@ input[type=checkbox]{width:17px;height:17px;accent-color:var(--gold);cursor:poin
 .fi{background:rgba(232,96,48,.1);border:1px solid rgba(232,96,48,.2);border-radius:8px;padding:9px 13px;font-size:12px;color:#e86030;margin-bottom:14px;display:none;}
 .fi.on{display:block;}
 .mact{display:flex;gap:10px;margin-top:18px;}
-.btnp{background:linear-gradient(135deg,var(--navy),#2a5db0);color:#fff;border:1px solid var(--gold);border:none;border-radius:10px;padding:12px 20px;font-family:'Syne',sans-serif;font-weight:700;font-size:13px;cursor:pointer;flex:1;}
+.btnp{background:linear-gradient(135deg,var(--navy),#2a5db0);color:#fff;border:none;border-radius:10px;padding:12px 20px;font-family:'Syne',sans-serif;font-weight:700;font-size:13px;cursor:pointer;flex:1;}
 .btnc{background:var(--s2);color:var(--mu);border:1px solid var(--b);border-radius:10px;padding:12px 18px;font-size:13px;cursor:pointer;}
 .dname{font-family:'Syne',sans-serif;font-size:20px;font-weight:800;margin-bottom:3px;}
 .dphone{font-family:'DM Mono',monospace;font-size:13px;color:var(--mu);margin-bottom:16px;}
@@ -142,16 +142,33 @@ input[type=checkbox]{width:17px;height:17px;accent-color:var(--gold);cursor:poin
 .dtitle{font-family:'Syne',sans-serif;font-size:14px;font-weight:800;margin-bottom:3px;}
 .dsub{font-size:11px;color:var(--mu);margin-bottom:10px;}
 .dcards{display:flex;flex-direction:column;gap:8px;margin-bottom:24px;}
-.dcard{background:var(--s);border:1px solid var(--b);box-shadow:0 2px 6px rgba(26,61,124,0.06);border-radius:10px;padding:12px 14px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;}
-.dcard:hover{background:var(--s2);}
+.dcard{background:var(--s);border:1px solid var(--b);box-shadow:0 2px 8px rgba(26,61,124,0.07);border-radius:12px;padding:0;display:flex;align-items:stretch;cursor:pointer;overflow:hidden;transition:box-shadow .15s;}
+.dcard:hover{box-shadow:0 4px 18px rgba(26,61,124,0.15);}
 .dcard.ct{border-left:3px solid var(--acc);}
 .dcard.cm{border-left:3px solid var(--pur);}
 .dcard.ca{border-left:3px solid var(--ok);}
-.dc-n{font-weight:600;font-size:13px;margin-bottom:2px;}
+.dcard.cr{border-left:3px solid var(--red);}
+.dc-body{flex:1;padding:13px 14px;min-width:0;}
+.dc-n{font-weight:700;font-size:14px;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .dc-c{font-size:11px;color:var(--mu);}
-.dc-tk{font-family:'DM Mono',monospace;font-size:12px;color:var(--acc);}
-.dc-l{font-size:10px;color:var(--mu);margin-top:2px;}
+.dc-meta{display:flex;flex-direction:column;align-items:flex-end;justify-content:center;padding:13px 10px 13px 4px;gap:2px;flex-shrink:0;}
+.dc-tk{font-family:'DM Mono',monospace;font-size:12px;color:var(--acc);font-weight:600;}
+.dc-l{font-size:10px;color:var(--mu);}
+.dc-qd{padding:0 14px;display:flex;align-items:center;flex-shrink:0;border-left:1px solid var(--b);}
+.qd-btn{background:var(--ok);color:#000;border:none;border-radius:8px;padding:10px 14px;font-family:'Syne',sans-serif;font-weight:800;font-size:13px;cursor:pointer;white-space:nowrap;transition:opacity .15s;}
+.qd-btn:active{opacity:.8;}
+.qd-btn.late{background:var(--red);color:#fff;}
+.qd-btn.nodate{background:var(--pur);color:#fff;}
 .eday{text-align:center;padding:18px;color:var(--mu);font-size:12px;background:var(--s);border-radius:10px;border:1px dashed var(--b);}
+
+/* ── REPORT PILLS ─────────────────────────────── */
+.rpill{background:var(--s);border:1px solid var(--b);border-radius:20px;padding:8px 16px;font-size:12px;font-family:'DM Mono',monospace;color:var(--mu);cursor:pointer;transition:all .15s;white-space:nowrap;}
+.rpill.on{background:linear-gradient(135deg,var(--navy),#2a5db0);color:#fff;border-color:var(--gold);font-weight:600;}
+.rpill:active{opacity:.8;}
+/* ── REPORT STAT CHIP ────────────────────────── */
+.rstat{background:var(--s);border:1px solid var(--b);border-radius:10px;padding:10px 16px;text-align:center;flex:1;min-width:70px;}
+.rstat-num{font-family:'Syne',sans-serif;font-size:20px;font-weight:800;}
+.rstat-lbl{font-size:9px;color:var(--mu);text-transform:uppercase;letter-spacing:0.5px;margin-top:2px;}
 
 /* ── MOBILE & TABLET OPTIMIZATIONS ─────────────────────────────── */
 * { -webkit-tap-highlight-color: transparent; }
@@ -534,6 +551,7 @@ input[type=checkbox] { width: 20px; height: 20px; }
         <th onclick="sortBy('ts')" style="cursor:pointer;user-select:none">Arrived <span id="s-ts"></span></th>
         <th onclick="sortBy('ret')" style="cursor:pointer;user-select:none">Return <span id="s-ret"></span></th>
         <th onclick="sortBy('status')" style="cursor:pointer;user-select:none">Status <span id="s-status"></span></th>
+        <th style="text-align:center">Action</th>
       </tr></thead>
       <tbody id="tbody"></tbody>
     </table>
@@ -618,37 +636,35 @@ input[type=checkbox] { width: 20px; height: 20px; }
 <!-- REPORT PANE -->
 <div class="pane" id="pane-report">
   <div class="flight-sec">
-    <div class="dtitle" style="color:var(--gold);margin-bottom:4px">&#128438; Daily Report</div>
-    <div class="dsub" style="margin-bottom:16px">Generate a printable PDF report for your shift</div>
 
-    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px;">
-      <div class="fg">
-        <label>Report Date</label>
-        <input type="date" id="reportDate" style="background:var(--s);border:1px solid var(--b);border-radius:8px;padding:10px 12px;color:var(--tx);font-size:16px;outline:none;width:100%;">
-      </div>
-      <div class="fg">
-        <label>Report Type</label>
-        <select id="reportType" style="background:var(--s);border:1px solid var(--b);border-radius:8px;padding:10px 12px;color:var(--tx);font-size:16px;outline:none;width:100%;">
-          <option value="all_pending">All Pending Cars</option>
-          <option value="arriving_tomorrow">Arriving Tomorrow</option>
-          <option value="no_date">No Return Date</option>
-          <option value="today">Today's Activity</option>
-          <option value="overdue">Overdue</option>
-        </select>
-      </div>
+    <!-- Stats bar -->
+    <div id="reportStatsBar" style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;"></div>
+
+    <!-- Date + type pills -->
+    <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap;">
+      <input type="date" id="reportDate" style="background:var(--s);border:1px solid var(--b);border-radius:8px;padding:10px 12px;color:var(--tx);font-size:15px;outline:none;flex:1;min-width:140px;">
+      <input type="hidden" id="reportType" value="all_pending">
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px;" id="reportTypePills">
+      <button class="rpill on" data-v="all_pending" onclick="setRType(this)">All Pending</button>
+      <button class="rpill" data-v="arriving_tomorrow" onclick="setRType(this)">✈️ Tomorrow</button>
+      <button class="rpill" data-v="no_date" onclick="setRType(this)">📅 No Date</button>
+      <button class="rpill" data-v="today" onclick="setRType(this)">🔔 Today</button>
+      <button class="rpill" data-v="overdue" onclick="setRType(this)">⚠️ Overdue</button>
     </div>
 
-    <button onclick="generatePDF()" style="width:100%;background:linear-gradient(135deg,var(--navy),#2a5db0);color:#fff;border:1px solid var(--gold);border-radius:10px;padding:14px;font-family:'Syne',sans-serif;font-weight:800;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:12px;">
-      &#128438; Generate & Print PDF
+    <!-- Preview table -->
+    <div id="reportPreviewTable" style="background:var(--s);border:1px solid var(--b);border-radius:12px;overflow:hidden;margin-bottom:16px;">
+      <div style="padding:12px 16px;border-bottom:1px solid var(--b);font-size:11px;color:var(--mu);font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:0.5px;">Preview</div>
+      <div id="reportPreview" style="font-size:13px;color:var(--tx);line-height:2;padding:14px 16px;"></div>
+    </div>
+
+    <button onclick="generatePDF()" style="width:100%;background:linear-gradient(135deg,var(--navy),#2a5db0);color:#fff;border:1px solid var(--gold);border-radius:10px;padding:15px;font-family:'Syne',sans-serif;font-weight:800;font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:10px;">
+      🖨️ Print / Save PDF
     </button>
     <button onclick="generatePDF('share')" style="width:100%;background:var(--s2);color:var(--mu);border:1px solid var(--b);border-radius:10px;padding:12px;font-family:'Syne',sans-serif;font-size:13px;cursor:pointer;">
-      &#128279; Open Printable View
+      🔗 Open in New Tab
     </button>
-
-    <div style="margin-top:20px;background:var(--s);border:1px solid var(--b);border-radius:12px;padding:14px 16px;">
-      <div style="font-size:11px;color:var(--mu);font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">Quick Stats</div>
-      <div id="reportPreview" style="font-size:13px;color:var(--tx);line-height:2;"></div>
-    </div>
   </div>
 </div>
 
@@ -664,7 +680,7 @@ input[type=checkbox] { width: 20px; height: 20px; }
     </div>
     <div class="fr two">
       <div class="fg"><label>Ticket # <span style="color:var(--red)">*</span></label><input type="text" id="fTicket" placeholder=""></div>
-      <div class="fg"><label>Return Date</label>
+      <div class="fg"><label>Return Date <span style="color:var(--red)" id="retRequired">*</span></label>
         <input type="date" id="fReturn" style="width:100%;background:var(--s2);border:1px solid var(--b);border-radius:10px;padding:11px 14px;font-size:16px;color:var(--tx);outline:none;font-family:'Syne',sans-serif;box-sizing:border-box;">
       </div>
     </div>
@@ -838,7 +854,7 @@ function getFiltered() {
   else if(curFilter==='today') rows=rows.filter(function(r){return isToday(r.ret)&&r.status!=='DELIVERED';});
   else if(curFilter==='tomorrow') rows=rows.filter(function(r){return isTmrw(r.ret)&&r.status!=='DELIVERED';});
   else if(curFilter==='overdue') rows=rows.filter(function(r){return isLate(r.ret)&&r.status!=='DELIVERED';});
-  else if(curFilter==='frequent'){var c={};data.forEach(function(r){var k=r.name+'|'+r.phone;c[k]=(c[k]||0)+1;});rows=rows.filter(function(r){return c[r.name.toLowerCase()]>1;});}
+  else if(curFilter==='frequent'){var c={};data.forEach(function(r){var k=r.name.toLowerCase();c[k]=(c[k]||0)+1;});rows=rows.filter(function(r){return c[r.name.toLowerCase()]>1;});}
   // Apply sort
   rows.sort(function(a,b) {
     var av = a[sortCol]||'', bv = b[sortCol]||'';
@@ -863,12 +879,12 @@ function getFiltered() {
   return rows;
 }
 function renderStats() {
-  var p=0,n=0,d=0,t=0,tm=0,o=0,arr=0;
+  var p=0,n=0,d=0,t=0,tm=0,arr=0,o=0;
   data.forEach(function(r){
     if(r.status==='PENDING')p++;
     else if(r.status==='NO DATE')n++;
     else if(r.status==='DELIVERED'){var _dd=pd(r.deldate);if(_dd&&sd(_dd,today))d++;}
-    if(r.status!=='DELIVERED'){if(isToday(r.ret))t++;else if(isTmrw(r.ret))tm++;else if(isLate(r.ret))o++;}
+    if(r.status!=='DELIVERED'){if(isToday(r.ret))t++;else if(isTmrw(r.ret))tm++;if(isLate(r.ret))o++;}
     if(isArrToday(r.ts))arr++;
   });
   document.getElementById('statsBar').innerHTML=
@@ -919,7 +935,7 @@ function renderTable() {
         (freq?'<span class="t-freq">x'+cnt[r.name.toLowerCase()]+'</span>':'')+
         (rt?'<span class="tag t-today">TODAY</span>':'')+
         (rm?'<span class="tag t-tmrw">TMR</span>':'')+
-        (ro?'<span class="tag t-late">LATE</span>':'')+
+        (ro&&r.status!=='DELIVERED'?'<span class="tag t-late">LATE</span>':'')+
         (r.obs&&r.obs.indexOf('APPROX DATE')>=0?'<span class="tag" style="background:rgba(201,168,76,0.15);color:var(--gold)">~APPROX</span>':'')+'</td>'+
       '<td style="font-family:monospace;font-size:12px;color:var(--mu)">'+fmtP(r.phone)+'</td>'+
       '<td style="font-family:monospace;font-size:12px;color:var(--gold)">'+r.ticket+'</td>'+
@@ -928,28 +944,38 @@ function renderTable() {
       '<td style="font-size:11px;color:var(--mu)">'+fmtA(r.ts)+'</td>'+
       '<td style="cursor:pointer"><span class="rd '+rc+'">'+rl+'</span></td>'+
       '<td style="cursor:pointer"><span class="badge '+bc+'">'+r.status+'</span></td>'+
+      '<td style="text-align:center;padding:8px" onclick="event.stopPropagation()">'+
+        (r.status!=='DELIVERED'?'<button class="qd-btn'+(ro?' late':r.status==='NO DATE'?' nodate':'')+'" onclick="quickDeliver('+r.id+')">✓</button>':'<span style="color:var(--mu);font-size:12px">—</span>')+
+      '</td>'+
     '</tr>';
   });
   tbody.innerHTML=h;
 }
 function renderDay() {
   var arrived=data.filter(function(r){return isArrToday(r.ts);});
-  var lt=data.filter(function(r){return isToday(r.ret)&&r.status!=='DELIVERED'&&r.status!=='DELIVERED';});
-  var lm=data.filter(function(r){return isTmrw(r.ret)&&r.status!=='DELIVERED'&&r.status!=='DELIVERED';});
-  function mkCards(list,cls){
+  var lt=data.filter(function(r){return isToday(r.ret)&&r.status!=='DELIVERED';});
+  var lm=data.filter(function(r){return isTmrw(r.ret)&&r.status!=='DELIVERED';});
+  function mkCards(list,cls,btnCls){
     if(!list.length) return '<div class="eday">No cars in this group</div>';
     return list.map(function(r){
       var isApprox=r.obs&&r.obs.indexOf('APPROX DATE')>=0;
-      return '<div class="dcard '+cls+(isApprox?' approx-card':'')+'">'+
-        '<div><div class="dc-n">'+r.name+(isApprox?' <span style="font-size:9px;background:rgba(201,168,76,0.2);color:var(--gold);border-radius:4px;padding:2px 5px">~APPROX</span>':'')+'</div>'+
-        '<div class="dc-c">'+r.car+' &middot; '+fmtP(r.phone)+'</div></div>'+
-        '<div style="text-align:right"><div class="dc-tk">'+r.ticket+'</div><div class="dc-l">'+r.loc+'</div></div>'+
+      var qcls=btnCls||'';
+      return '<div class="dcard '+cls+(isApprox?' approx-card':'')+'" onclick="showDet('+r.id+')">'+
+        '<div class="dc-body">'+
+          '<div class="dc-n">'+r.name+(isApprox?' <span style="font-size:9px;background:rgba(201,168,76,0.2);color:var(--gold);border-radius:4px;padding:2px 5px;margin-left:4px">~APPROX</span>':'')+'</div>'+
+          '<div class="dc-c">'+r.car+' &middot; '+fmtP(r.phone)+'</div>'+
+        '</div>'+
+        '<div class="dc-meta"><div class="dc-tk">'+r.ticket+'</div><div class="dc-l">'+r.loc+'</div></div>'+
+        (r.status!=='DELIVERED'?
+          '<div class="dc-qd" onclick="event.stopPropagation()">'+
+            '<button class="qd-btn '+qcls+'" onclick="quickDeliver('+r.id+')">✓ Deliver</button>'+
+          '</div>':'')+
       '</div>';
     }).join('');
   }
-  document.getElementById('dArrived').innerHTML=mkCards(arrived,'ca');
-  document.getElementById('dToday').innerHTML=mkCards(lt,'ct');
-  document.getElementById('dTomorrow').innerHTML=mkCards(lm,'cm');
+  document.getElementById('dArrived').innerHTML=mkCards(arrived,'ca','');
+  document.getElementById('dToday').innerHTML=mkCards(lt,'ct','');
+  document.getElementById('dTomorrow').innerHTML=mkCards(lm,'cm','');
   // Update section titles with counts
   document.getElementById('titleArrived').innerHTML='&#128663; Arrived Today <span class="tbadge" style="background:var(--ok);color:#000">'+arrived.length+'</span>';
   document.getElementById('titleToday').innerHTML='&#128276; Leaving Today <span class="tbadge" style="background:var(--acc);color:#000">'+lt.length+'</span>';
@@ -959,14 +985,18 @@ function renderDay() {
   var yst=new Date(today.getFullYear(), today.getMonth(), today.getDate()-1);
   var ystTime = yst.getTime();
   var forgot=data.filter(function(r){
-    if(r.status==='DELIVERED'||r.status==='DELIVERED'||r.status==='NO DATE') return false;
+    if(r.status==='DELIVERED'||r.status==='NO DATE') return false;
     var d=pd(r.ret);
     if(!d) return false;
     return sd(d, yst);
   });
-  console.log('Forgot yesterday check - yst:', yst.toDateString(), 'found:', forgot.length);
-  forgot.forEach(function(r){ console.log('FORGOT:', r.name, '| status:', JSON.stringify(r.status), '| ret:', r.ret); });
-  
+  if(forgot.length) {
+    document.getElementById('forgotSection').style.display = 'block';
+    document.getElementById('dForgot').innerHTML = mkCards(forgot,'cr','late');
+    document.getElementById('titleForgot').innerHTML = '&#9888; Forgot Yesterday <span class="tbadge" style="background:var(--red);color:#fff">'+forgot.length+'</span>';
+  } else {
+    document.getElementById('forgotSection').style.display = 'none';
+  }
 }
 function render(){renderStats();renderTable();renderDay();renderTasks();updateReportPreview();}
 
@@ -1051,15 +1081,11 @@ function clearSel(){
 
 async function updateSheet(rowNum, col, value) {
   var payload = JSON.stringify({action:'update', row:rowNum, col:colToNum(col), value:value});
-  // Use no-cors + wait a bit for Apps Script to process
-  await fetch(WRITE_URL, {
-    method:'POST',
-    mode:'no-cors',
+  fetch(WRITE_URL, {
+    method:'POST', mode:'no-cors',
     headers:{'Content-Type':'text/plain'},
     body:payload
-  });
-  // Wait 1.5s for Apps Script to write
-  await new Promise(function(r){setTimeout(r,1500);});
+  }).catch(function(e){console.warn('updateSheet error:',e);});
   return {status:'ok'};
 }
 function colToNum(col) {
@@ -1070,13 +1096,14 @@ function colToNum(col) {
 async function appendSheet(vals) {
   var payload = JSON.stringify({action:'append', values:vals});
   await fetch(WRITE_URL, {
-    method:'POST',
-    mode:'no-cors',
+    method:'POST', mode:'no-cors',
     headers:{'Content-Type':'text/plain'},
     body:payload
   });
-  await new Promise(function(r){setTimeout(r,1500);});
   return {status:'ok'};
+}
+function loadDataBackground() {
+  setTimeout(function(){ loadData(); }, 3500);
 }
 
 async function bulkAct(newStatus){
@@ -1096,8 +1123,24 @@ async function bulkAct(newStatus){
       same.sort(function(a,b){return b.ri-a.ri;});
       if(same.length>0) target=same[0];
     }
-    try{await updateSheet(target.ri,'H',newStatus);done++;}catch(e){console.error(e);}
+    try{
+      await updateSheet(target.ri,'H',newStatus);
+      if(newStatus==='DELIVERED'){
+        var todayStr=(today.getMonth()+1)+'/'+(today.getDate())+'/'+today.getFullYear();
+        await updateSheet(target.ri,'K',todayStr);
+        for(var j=0;j<data.length;j++){
+          if(data[j].id===target.id){data[j].status='DELIVERED';data[j].deldate=todayStr;break;}
+        }
+        await sendLog('DELIVERED', target, 'bulk action');
+      } else {
+        for(var j=0;j<data.length;j++){
+          if(data[j].id===target.id){data[j].status=newStatus;break;}
+        }
+      }
+      done++;
+    }catch(e){console.error(e);}
   }
+  render();
   loading(false);
   showMsg(done+' car(s) updated to '+newStatus,false);
   clearSel();
@@ -1207,24 +1250,29 @@ document.addEventListener('click',function(e){
 });
 function openAdd(){
   // Clear ALL form fields
-  ['fName','fPhone','fTicket','fCar','fObs'].forEach(function(id){
+  ['fName','fPhone','fTicket','fCar','fObs','fReturn','fEstDate','fLoc'].forEach(function(id){
     var el=document.getElementById(id); if(el) el.value='';
   });
-  var fRet=document.getElementById('fReturn'); if(fRet) fRet.value='';
   // Clear location selection
   document.querySelectorAll('.lb').forEach(function(b){b.classList.remove('on');});
-  // Reset status
+  // Reset status + hide approx row
   var fSt=document.getElementById('fStatus'); if(fSt) fSt.value='PENDING';
-  // Clear autocomplete
-  acClose();
   var approxRow=document.getElementById('approxRow');
   if(approxRow) approxRow.style.display='none';
+  // Clear freq info banner
+  var fi=document.getElementById('freqInfo'); if(fi) fi.classList.remove('on');
+  // Clear autocomplete
+  acClose();
   document.getElementById('addOv').classList.add('on');
+  // Focus name field
+  setTimeout(function(){ var n=document.getElementById('fName'); if(n) n.focus(); },100);
 }
 function closeAll(){document.getElementById('addOv').classList.remove('on');document.getElementById('detOv').classList.remove('on');}
 document.querySelectorAll('.ov').forEach(function(o){o.addEventListener('click',function(e){if(e.target===e.currentTarget)closeAll();});});
 function selLoc(el,loc){document.querySelectorAll('.lb').forEach(function(b){b.classList.remove('on');});el.classList.add('on');document.getElementById('fLoc').value=loc;}
 function onStatusChange(val) {
+  var retReq=document.getElementById('retRequired');
+  if(retReq) retReq.style.display=(val==='PENDING')?'':'none';
   var returnField = document.getElementById('fReturn');
   var approxRow = document.getElementById('approxRow');
   // Always reset first
@@ -1244,7 +1292,6 @@ function onStatusChange(val) {
   }
 }
 
-function onReturnDateChange(el) {}
 
 function fmtPhoneInput(el) {
   var digits = el.value.replace(/\D/g, '').slice(0,10);
@@ -1268,6 +1315,21 @@ async function saveEntry(){
   var name=document.getElementById('fName').value.trim();
   var ticket=document.getElementById('fTicket').value.trim();
   if(!name||!ticket){alert('Name and Ticket required.');return;}
+  var status0=document.getElementById('fStatus').value;
+  var retVal=document.getElementById('fReturn').value;
+  if(status0==='PENDING'&&!retVal){
+    alert('Return Date is required for PENDING status.');
+    document.getElementById('fReturn').focus();
+    return;
+  }
+  // Duplicate ticket guard: warn if same ticket number exists AND arrived today
+  var todayTickets=data.filter(function(r){
+    return r.ticket===ticket && r.status!=='DELIVERED' && isArrToday(r.ts);
+  });
+  if(todayTickets.length>0){
+    var dup=todayTickets[0];
+    if(!confirm('⚠️ Ticket '+ticket+' already in use today by '+dup.name+' ('+dup.car+'). Save anyway?')) return;
+  }
   var btn=document.getElementById('saveBtn');btn.textContent='Saving...';btn.disabled=true;
   try{
     var ts=new Date().toLocaleString('en-US');
@@ -1284,14 +1346,16 @@ async function saveEntry(){
     } else {
       finalDate = d2us(getReturnDate());
     }
-    await appendSheet([ts,name.toUpperCase(),phoneFull,ticket,finalDate,car,document.getElementById('fLoc').value,finalStatus,'',finalObs]);
+    var locVal=document.getElementById('fLoc').value;
+    await appendSheet([ts,name.toUpperCase(),phoneFull,ticket,finalDate,car,locVal,finalStatus,'',finalObs]);
+    await sendLog('NEW ENTRY',{name:name.toUpperCase(),ticket:ticket,loc:locVal},'Status: '+finalStatus+(finalDate?' · Returns '+finalDate:''));
     showMsg('Saved!',false);closeAll();
     document.getElementById('fName').value='';document.getElementById('fPhone').value='';document.getElementById('fTicket').value='';
     var fRet2=document.getElementById('fReturn');if(fRet2)fRet2.value='';document.getElementById('fCar').value='';document.getElementById('fLoc').value='';
     document.getElementById('fObs').value='';document.getElementById('fStatus').value='PENDING';
     document.querySelectorAll('.lb').forEach(function(b){b.classList.remove('on');});
     document.getElementById('freqInfo').classList.remove('on');
-    await loadData();
+    loadDataBackground();
   }catch(e){showMsg('Error: '+e.message,true);console.error(e);}
   btn.textContent='Save to Sheets';btn.disabled=false;
 }
@@ -1337,6 +1401,9 @@ function showDet(id){
     '<div class="htitle" style="margin-top:4px">Move Hangar</div>'+
     '<div class="hgrid">'+hangH+'</div>'+
     (r.status!=='DELIVERED'?'<button class="delb" onclick="markDel('+r.id+')">Mark as Delivered</button>':'')+
+    (r.status!=='DELIVERED'&&!isToday(r.ret)&&!isLate(r.ret)?
+      '<button onclick="earlyReturn('+r.id+')" style="width:100%;background:linear-gradient(135deg,#7b3fa0,#a855f7);color:#fff;border:none;border-radius:10px;padding:13px;font-family:Syne,sans-serif;font-weight:800;font-size:14px;cursor:pointer;margin-top:8px;display:flex;align-items:center;justify-content:center;gap:8px;">&#9889; Early Return — Arrived Today</button>'
+    :'')+
     '<div style="margin-top:10px">'+
       '<div class="htitle">Change Return Date</div>'+
       '<div style="display:flex;gap:8px;align-items:center;margin-top:6px">'+
@@ -1375,6 +1442,45 @@ document.getElementById('detPanel').addEventListener('click',function(e){
   }
 });
 
+async function earlyReturn(id){
+  var r=null;for(var i=0;i<data.length;i++){if(data[i].id===id){r=data[i];break;}}
+  if(!r)return;
+  var was=fmtD(r.ret);
+  if(!confirm('⚡ Early Return — Mark as delivered?\n\n'+r.name+' (Ticket '+r.ticket+')\nWas expected: '+was+'\n\nWill mark as EARLY RETURN (delivered today).')) return;
+  loading(true);
+  try{
+    var todayStr=(today.getMonth()+1)+'/'+(today.getDate())+'/'+today.getFullYear();
+    // Update return date to today
+    updateSheet(r.ri,'E',todayStr);
+    // Mark as DELIVERED
+    updateSheet(r.ri,'H','DELIVERED');
+    // Set delivery date (col K)
+    updateSheet(r.ri,'K',todayStr);
+    // Add EARLY RETURN note to OBS
+    var curObs=r.obs||'';
+    curObs=curObs.replace('APPROX DATE','').replace(' | ','').trim();
+    var newObs=(curObs?curObs+' | ':'')+'EARLY RETURN';
+    updateSheet(r.ri,'J',newObs);
+    await sendLog('EARLY RETURN',r,'was '+was+' → delivered today early');
+    // Update local data instantly
+    for(var i=0;i<data.length;i++){
+      if(data[i].id===r.id){
+        data[i].ret=todayStr;
+        data[i].status='DELIVERED';
+        data[i].deldate=todayStr;
+        data[i].obs=newObs;
+        break;
+      }
+    }
+    render();
+    closeAll();
+    showMsg('⚡ Early Return delivered: '+r.name+' (was '+was+')',false);
+    loadDataBackground();
+  }catch(e){showMsg('Error: '+e.message,true);}
+  loading(false);
+}
+
+
 async function changeDate(id){
   var input = document.getElementById('newRetDate');
   if(!input || !input.value){ alert('Please select a date first.'); return; }
@@ -1395,9 +1501,10 @@ async function changeDate(id){
       var newObs = r.obs.replace('APPROX DATE','').replace(' | ','').trim();
       await updateSheet(r.ri,'J',newObs);
     }
+    await sendLog('DATE CHANGED', r, 'was '+fmtD(r.ret)+' → '+newDate);
     showMsg('Date updated! Status changed to PENDING.',false);
     closeAll();
-    await loadData();
+    loadDataBackground();
   }catch(e){showMsg('Error: '+e.message,true);}
   loading(false);
 }
@@ -1444,10 +1551,56 @@ async function saveEdits(rid){
     if(btn) btn.classList.remove('visible');
     showMsg('Record updated!',false);
     render();
-    await loadData();
+    loadDataBackground();
   }catch(e){showMsg('Error: '+e.message,true);}
   loading(false);
 }
+async function sendLog(logAction, r, detail) {
+  try {
+    await fetch(WRITE_URL, {
+      method:'POST', mode:'no-cors',
+      headers:{'Content-Type':'text/plain'},
+      body: JSON.stringify({
+        action:'log',
+        logAction: logAction,
+        passenger: r.name,
+        ticket: r.ticket,
+        location: r.loc,
+        detail: detail||''
+      })
+    });
+  } catch(e){ console.warn('Log error:',e); }
+}
+
+async function quickDeliver(id){
+  var r=null; for(var i=0;i<data.length;i++){if(data[i].id===id){r=data[i];break;}}
+  if(!r) return;
+  var isLate=isLate2(r.ret);
+  var msg = isLate
+    ? '✓ Mark as DELIVERED?\n'+r.name+' (Ticket '+r.ticket+')\n⚠️ Was due: '+fmtD(r.ret)
+    : '✓ Mark as DELIVERED?\n'+r.name+' (Ticket '+r.ticket+')';
+  if(!confirm(msg)) return;
+  loading(true);
+  try{
+    var samePassenger=data.filter(function(d){return d.name.toLowerCase()===r.name.toLowerCase()&&d.status!=='DELIVERED';});
+    samePassenger.sort(function(a,b){return b.ri-a.ri;});
+    var target=samePassenger.length>0?samePassenger[0]:r;
+    var todayStr=(today.getMonth()+1)+'/'+(today.getDate())+'/'+today.getFullYear();
+    await updateSheet(target.ri,'H','DELIVERED');
+    await updateSheet(target.ri,'K',todayStr);
+    var logAction = isLate ? 'LATE DELIVER' : 'DELIVERED';
+    var detail = isLate ? 'was due '+fmtD(r.ret) : '';
+    await sendLog(logAction, target, detail);
+    for(var i=0;i<data.length;i++){if(data[i].id===target.id){data[i].status='DELIVERED';data[i].deldate=todayStr;break;}}
+    render();
+    showMsg('✓ Delivered: '+target.name+' (Ticket '+target.ticket+')',false);
+    loadDataBackground();
+  }catch(e){showMsg('Error: '+e.message,true);}
+  loading(false);
+}
+
+function isLate2(s){ var d=pd(s); return d&&d<today&&!sd(d,today); }
+
 async function markDel(id){
   var r=null;for(var i=0;i<data.length;i++){if(data[i].id===id){r=data[i];break;}}
   if(!r)return;
@@ -1470,8 +1623,10 @@ async function markDel(id){
     }
     render();
     closeAll();
-    showMsg('Delivered: '+target.name+' (Ticket '+target.ticket+')',false);
-    await loadData();
+    var isLateDel=isLate2(target.ret);
+    await sendLog(isLateDel?'LATE DELIVER':'DELIVERED', target, isLateDel?'was due '+fmtD(target.ret):'');
+    showMsg('✓ Delivered: '+target.name+' (Ticket '+target.ticket+')',false);
+    loadDataBackground();
   }catch(e){showMsg('Error: '+e.message,true);}
   loading(false);
 }
@@ -1485,7 +1640,7 @@ async function deleteRec(id){
     await new Promise(function(res){setTimeout(res,1500);});
     showMsg('Record deleted!',false);
     closeAll();
-    await loadData();
+    loadDataBackground();
   }catch(e){showMsg('Error: '+e.message,true);}
   loading(false);
 }
@@ -1493,7 +1648,7 @@ async function deleteRec(id){
 async function moveHangar(id,hangar){
   var r=null;for(var i=0;i<data.length;i++){if(data[i].id===id){r=data[i];break;}}
   if(!r)return;loading(true);
-  try{await updateSheet(r.ri,'G',hangar);showMsg('Moved to '+hangar,false);closeAll();await loadData();}
+  try{await updateSheet(r.ri,'G',hangar);showMsg('Moved to '+hangar,false);closeAll();loadDataBackground();}
   catch(e){showMsg('Error: '+e.message,true);}loading(false);
 }
 
@@ -1597,7 +1752,7 @@ async function confirmTaskDate(id) {
 
     showMsg('Return date confirmed: ' + newDate, false);
     taskStatus[id] = 'done';
-    await loadData();
+    loadDataBackground();
   } catch(e) {
     showMsg('Error: ' + e.message, true);
     console.error(e);
@@ -1609,303 +1764,6 @@ function refreshTasks() {
 }
 
 // ── FLIGHT LIST ────────────────────────────────────────────────
-var flightImageB64 = null;
-
-var flightImages = []; // array of {b64, name, mime, isPDF}
-
-function onFilesSelected(input) {
-  var files = Array.from(input.files);
-  if(!files.length) return;
-  flightImages = [];
-  var loaded = 0;
-  var grid = document.getElementById('previewGrid');
-  var countEl = document.getElementById('previewCount');
-  grid.innerHTML = '';
-  grid.style.display = 'flex';
-
-  files.forEach(function(file, idx) {
-    var reader = new FileReader();
-    var isPDF = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
-    reader.onload = function(e) {
-      var dataUrl = e.target.result;
-      var mime = isPDF ? 'application/pdf' : (file.type || 'image/jpeg');
-      if(mime === 'image/heic' || mime === 'image/heif') mime = 'image/jpeg';
-      flightImages.push({ b64: dataUrl.split(',')[1], name: file.name, mime: mime, isPDF: isPDF });
-
-      // Add thumbnail
-      var thumb = document.createElement('div');
-      thumb.style.cssText = 'width:80px;height:80px;border-radius:8px;border:1px solid var(--b);display:flex;align-items:center;justify-content:center;background:var(--s2);font-size:11px;color:var(--mu);text-align:center;padding:4px;';
-      if(isPDF) {
-        thumb.innerHTML = '<div>📄<br>' + file.name.slice(0,10) + '...</div>';
-      } else {
-        var img = document.createElement('img');
-        img.src = dataUrl;
-        img.style.cssText = 'width:80px;height:80px;object-fit:cover;border-radius:8px;';
-        thumb = img;
-      }
-      grid.appendChild(thumb);
-      loaded++;
-      if(loaded === files.length) {
-        var pdfs = flightImages.filter(function(f){return f.isPDF;}).length;
-        var imgs = flightImages.filter(function(f){return !f.isPDF;}).length;
-        var label = '';
-        if(pdfs) label += pdfs + ' PDF' + (pdfs>1?'s':'');
-        if(imgs) label += (label?' + ':'') + imgs + ' image' + (imgs>1?'s':'');
-        countEl.textContent = '📋 ' + label + ' ready to scan';
-        countEl.style.display = 'block';
-        document.getElementById('scanBtn').disabled = false;
-        document.getElementById('uploadZone').style.display = 'none';
-        document.getElementById('flightResults').style.display = 'none';
-      }
-    };
-    reader.readAsDataURL(file);
-  });
-}
-
-async function scanSingleImage(b64) {
-  var response = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 1000,
-      messages: [{
-        role: 'user',
-        content: [
-          { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: b64 } },
-          { type: 'text', text: 'This is a Makers Air passenger manifest. Extract: 1) The TAIL NUMBER (starts with N, like N624JR) 2) The ARRIVAL TIME at FXE (Fort Lauderdale Executive) 3) All passenger names (Last + First combined). Return ONLY valid JSON, no markdown: {"tail":"N624JR","arrival":"09:00","passengers":[{"name":"ROBERT ROY"}]}' }
-        ]
-      }]
-    })
-  });
-  var json = await response.json();
-  var text = json.content[0].text.trim().replace(/```json/g,'').replace(/```/g,'').trim();
-  return JSON.parse(text);
-}
-
-async function scanList() {
-  if(!flightImages.length) return;
-  document.getElementById('scanBtn').style.display = 'none';
-  document.getElementById('scanningIndicator').style.display = 'block';
-  document.getElementById('flightResults').style.display = 'none';
-
-  var allManifests = [];
-  var total = flightImages.length;
-
-  try {
-    for(var i=0; i<total; i++) {
-      // Update scanning indicator
-      document.getElementById('scanningIndicator').innerHTML =
-        '<div class="spin">⚙️</div>' +
-        '<div style="margin-top:10px;font-size:13px">Scanning manifest ' + (i+1) + ' of ' + total + '...</div>';
-
-      try {
-        var result = await scanSingleImage(flightImages[i].b64, flightImages[i].mime, flightImages[i].isPDF);
-        if(result && result._multiFlights) {
-          // PDF with multiple flights
-          result._multiFlights.forEach(function(f){ if((f.passengers||[]).length>0) allManifests.push(f); });
-        } else if(result && (result.passengers||[]).length > 0) {
-          allManifests.push(result);
-        } else {
-          console.warn('File ' + (i+1) + ' returned no passengers:', result);
-        }
-      } catch(e) {
-        console.error('Error scanning file ' + (i+1) + ':', e.message);
-        showMsg('File ' + (i+1) + ' error: ' + e.message, true);
-      }
-    }
-
-    // Combine all results
-    var allPassengers = [];
-    var infoBarHtml = '';
-
-    allManifests.forEach(function(result, idx) {
-      var tail = result.tail || '';
-      var arrival = result.arrival || '';
-      var manifestDate = result.date || '';
-      var flightNum = result.flight || '';
-      var origin = result.origin || '';
-      var pax = (result.passengers || []).map(function(p) {
-        return { name: p.name, flight: tail, time: arrival, manifestDate: manifestDate, flightNum: flightNum, origin: origin };
-      });
-      allPassengers = allPassengers.concat(pax);
-
-      var fdate = result.date || '';
-      var fnum = result.flight || '';
-      var orig = result.origin || '';
-      infoBarHtml += '<div style="background:rgba(0,0,0,0.3);border-radius:8px;padding:8px 12px;">' +
-        '<div style="font-size:12px;font-weight:700;color:var(--tx)">✈️ ' + (tail||'Unknown') + '</div>' +
-        (fnum ? '<div style="font-size:11px;color:var(--gold)">Flight ' + fnum + (orig?' from '+orig:'') + '</div>' : '') +
-        (arrival ? '<div style="font-size:11px;color:var(--ok)">🕐 Arrives: ' + arrival + '</div>' : '') +
-        (fdate ? '<div style="font-size:11px;color:var(--mu)">📅 ' + fdate + '</div>' : '') +
-        '<div style="font-size:10px;color:var(--mu)">' + pax.length + ' pax</div>' +
-      '</div>';
-    });
-
-    // Show info bar with all flights
-    var infoBar = document.getElementById('flightInfoBar');
-    if(infoBar && infoBarHtml) {
-      infoBar.style.display = 'flex';
-      infoBar.style.flexWrap = 'wrap';
-      infoBar.style.gap = '8px';
-      infoBar.innerHTML = infoBarHtml;
-    }
-
-    if(allManifests.length === 0) {
-      showMsg('Could not read any manifest. Try clearer photos.', true);
-      document.getElementById('scanBtn').style.display = 'flex';
-    } else {
-      showMsg(allManifests.length + ' of ' + total + ' manifests scanned successfully', false);
-      await showFlightResults(allPassengers, null, null, allManifests);
-    }
-
-  } catch(e) {
-    showMsg('Error: ' + e.message, true);
-    console.error(e);
-    document.getElementById('scanBtn').style.display = 'flex';
-  }
-  document.getElementById('scanningIndicator').style.display = 'none';
-}
-
-async function showFlightResults(passengers, tailNum, arrivalTime, allManifests) {
-  var matched = 0, noDate = 0, notFound = 0, earlyReturn = 0;
-  var cardsHtml = '';
-  var toUpdate = []; // records to update with flight info
-
-  passengers.forEach(function(p) {
-    var name = p.name.toUpperCase().trim();
-    var valetMatch = data.filter(function(r) {
-      return r.status !== 'DELIVERED' && fuzzyMatch(r.name.toUpperCase(), name);
-    });
-
-    var hasNoDate = valetMatch.some(function(r){ return !r.ret || r.status === 'NO DATE'; });
-    var cardClass, badgeClass, badgeText, extraInfo = '';
-
-    if(valetMatch.length === 0) {
-      cardClass = 'nomatch'; badgeClass = 'nomatch'; badgeText = 'NOT IN VALET';
-      notFound++;
-    } else if(hasNoDate) {
-      cardClass = 'nodate'; badgeClass = 'nodate'; badgeText = '&#9888; NO RETURN DATE';
-      noDate++;
-      var m = valetMatch.find(function(r){ return !r.ret || r.status==='NO DATE'; });
-      extraInfo = 'Ticket: ' + m.ticket + ' · ' + m.loc;
-      if(p.flight || p.time) toUpdate.push({rec: m, flight: p.flight, time: p.time});
-    } else {
-      // Check for early return
-      var m2 = valetMatch[0];
-      var registeredDate = pd(m2.ret);
-      var manifestDateParsed = p.manifestDate ? pd(p.manifestDate) : null;
-      var isEarly = registeredDate && manifestDateParsed && manifestDateParsed < registeredDate;
-
-      if(isEarly) {
-        cardClass = 'nodate'; badgeClass = 'nodate';
-        badgeText = '&#9889; EARLY RETURN!';
-        extraInfo = 'Was expected: ' + fmtD(m2.ret) + ' · Ticket: ' + m2.ticket + ' · ' + m2.loc;
-        earlyReturn++;
-      } else {
-        cardClass = 'match'; badgeClass = 'match'; badgeText = '&#10003; ARRIVING';
-        extraInfo = 'Expected: ' + fmtD(m2.ret) + ' · Ticket: ' + m2.ticket + ' · ' + m2.loc;
-        matched++;
-      }
-      if(p.flight || p.time) toUpdate.push({rec: m2, flight: p.flight, time: p.time});
-    }
-
-    var flightInfo = '';
-    var dispTail = tailNum || p.flight || '';
-    var dispETA  = arrivalTime || p.time || '';
-    if(dispTail) flightInfo += 'Tail: <strong style="color:var(--gold)">' + dispTail + '</strong>';
-    if(dispETA)  flightInfo += (flightInfo?' &middot; ':'') + 'Arrives: <strong style="color:var(--ok)">' + dispETA + '</strong>';
-
-    cardsHtml += '<div class="flight-card ' + cardClass + '">' +
-      '<div style="flex:1">' +
-        '<div class="fc-name">' + name + '</div>' +
-        '<div class="fc-info">' + flightInfo + (extraInfo?(flightInfo?' &middot; ':'')+extraInfo:'') + '</div>' +
-      '</div>' +
-      '<span class="fc-badge ' + badgeClass + '">' + badgeText + '</span>' +
-    '</div>';
-  });
-
-  document.getElementById('flightSummary').innerHTML =
-    '<div class="fs-item"><div class="fs-num" style="color:var(--tx)">' + passengers.length + '</div><div class="fs-lbl">Total</div></div>' +
-    '<div class="fs-item"><div class="fs-num" style="color:var(--ok)">' + matched + '</div><div class="fs-lbl">Arriving ✓</div></div>' +
-    '<div class="fs-item"><div class="fs-num" style="color:var(--gold)">' + noDate + '</div><div class="fs-lbl">No Date ⚠</div></div>' +
-    '<div class="fs-item"><div class="fs-num" style="color:var(--red)">' + notFound + '</div><div class="fs-lbl">Not Found</div></div>' +
-    (earlyReturn>0?'<div class="fs-item"><div class="fs-num" style="color:#ff9900">'+earlyReturn+'</div><div class="fs-lbl">Early Return ⚡</div></div>':'');
-
-  document.getElementById('flightCards').innerHTML = cardsHtml;
-  document.getElementById('flightResults').style.display = 'block';
-
-  // Auto-update flight info in valet records
-  if(toUpdate.length > 0) {
-    loading(true);
-    for(var i=0; i<toUpdate.length; i++) {
-      var u = toUpdate[i];
-      var flightNote = '';
-      var tail = u.flight || tailNum || '';
-      var eta  = u.time  || arrivalTime || '';
-      var fnum = u.flightNum || '';
-      var orig = u.origin || '';
-      if(tail) flightNote += 'TAIL: ' + tail;
-      if(fnum) flightNote += (flightNote?' | ':'') + 'FLT: ' + fnum + (orig?' '+orig:'');
-      if(eta)  flightNote += (flightNote?' | ':'') + 'ETA: ' + eta;
-      var currentObs = u.rec.obs || '';
-      // Remove old flight info if exists
-      currentObs = currentObs.replace(/FLIGHT:[^|]*/g,'').replace(/ETA:[^|]*/g,'').replace(/\|\s*\|/g,'|').replace(/^\s*\|\s*/,'').replace(/\s*\|\s*$/,'').trim();
-      var newObs = currentObs ? currentObs + ' | ' + flightNote : flightNote;
-      try { await updateSheet(u.rec.ri, 'J', newObs); } catch(e) { console.error(e); }
-    }
-    loading(false);
-    showMsg('Flight info saved for ' + toUpdate.length + ' passenger(s)!', false);
-    await loadData();
-  }
-}
-
-function toggleManual() {
-  var el = document.getElementById('manualEntry');
-  el.style.display = el.style.display === 'none' ? 'block' : 'none';
-  // Set today's date as default
-  var dateInput = document.getElementById('manualDate');
-  if(!dateInput.value) {
-    var t = new Date();
-    t.setDate(t.getDate()+1); // tomorrow
-    dateInput.value = t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0');
-  }
-}
-
-async function runManualScan() {
-  var tail = document.getElementById('manualTail').value.trim().toUpperCase();
-  var eta  = document.getElementById('manualETA').value.trim();
-  var dateVal = document.getElementById('manualDate').value;
-  var namesRaw = document.getElementById('manualNames').value;
-  var names = namesRaw.split('\n').map(function(n){ return n.trim().toUpperCase(); }).filter(function(n){ return n.length > 1; });
-
-  if(!names.length) return;
-
-  var dateParts = dateVal ? dateVal.split('-') : [];
-  var manifestDate = dateParts.length===3 ? parseInt(dateParts[1],10)+'/'+parseInt(dateParts[2],10)+'/'+dateParts[0] : '';
-
-  var passengers = names.map(function(n) {
-    return { name: n, flight: tail, time: eta, manifestDate: manifestDate };
-  });
-
-  document.getElementById('manualEntry').style.display = 'none';
-  document.getElementById('flightResults').style.display = 'none';
-
-  // Show flight info bar
-  var infoBar = document.getElementById('flightInfoBar');
-  infoBar.style.display = 'flex';
-  infoBar.style.flexWrap = 'wrap';
-  infoBar.style.gap = '8px';
-  infoBar.innerHTML = '<div style="background:rgba(0,0,0,0.3);border-radius:8px;padding:8px 12px;">' +
-    '<div style="font-size:12px;font-weight:700;color:var(--tx)">✈️ ' + (tail||'Manual Entry') + '</div>' +
-    (eta ? '<div style="font-size:11px;color:var(--ok)">🕐 ' + eta + '</div>' : '') +
-    (manifestDate ? '<div style="font-size:11px;color:var(--gold)">📅 ' + manifestDate + '</div>' : '') +
-    '<div style="font-size:10px;color:var(--mu)">' + passengers.length + ' passengers</div>' +
-  '</div>';
-
-  await showFlightResults(passengers, tail, eta, []);
-}
-
 function fuzzyMatch(a, b) {
   a = a.toUpperCase().trim();
   b = b.toUpperCase().trim();
@@ -1941,25 +1799,6 @@ function fuzzyMatch(a, b) {
 
   return false;
 }
-
-function resetFlight() {
-  flightImages = [];
-  document.getElementById('previewGrid').innerHTML = '';
-  document.getElementById('previewGrid').style.display = 'none';
-  document.getElementById('previewCount').style.display = 'none';
-  document.getElementById('uploadZone').style.display = 'block';
-  document.getElementById('scanBtn').style.display = 'flex';
-  document.getElementById('scanBtn').disabled = true;
-  document.getElementById('flightResults').style.display = 'none';
-  document.getElementById('flightInfoBar').style.display = 'none';
-  document.getElementById('flightInfoBar').innerHTML = '';
-  document.getElementById('flightImg').value = '';
-  document.getElementById('manualEntry').style.display = 'none';
-  document.getElementById('manualNames').value = '';
-  document.getElementById('manualTail').value = '';
-  document.getElementById('manualETA').value = '';
-}
-
 // ── FLIGHT CHECK MANUAL ────────────────────────────────────────
 async function runFCCheck2() {
   var tail    = (document.getElementById('fcTail').value||'').trim().toUpperCase();
@@ -2092,18 +1931,45 @@ function resetFC() {
 }
 
 // ── REPORT ────────────────────────────────────────────────────
+function setRType(btn){
+  document.querySelectorAll('.rpill').forEach(function(b){b.classList.remove('on');});
+  btn.classList.add('on');
+  document.getElementById('reportType').value = btn.getAttribute('data-v');
+  updateReportPreview();
+}
 function updateReportPreview() {
   var pending = data.filter(function(r){return r.status==='PENDING';}).length;
   var noDate  = data.filter(function(r){return r.status==='NO DATE';}).length;
   var tmrw    = data.filter(function(r){return isTmrw(r.ret)&&r.status!=='DELIVERED';}).length;
   var overdue = data.filter(function(r){return isLate(r.ret)&&r.status!=='DELIVERED';}).length;
   var today2  = data.filter(function(r){return isToday(r.ret)&&r.status!=='DELIVERED';}).length;
-  document.getElementById('reportPreview').innerHTML =
-    '&#128661; Pending: <strong>' + pending + '</strong><br>' +
-    '&#128197; No Date: <strong>' + noDate + '</strong><br>' +
-    '&#9992; Arriving Tomorrow: <strong>' + tmrw + '</strong><br>' +
-    '&#128276; Leaving Today: <strong>' + today2 + '</strong><br>' +
-    '&#9888; Overdue: <strong style="color:var(--red)">' + overdue + '</strong>';
+  var total   = data.filter(function(r){return r.status!=='DELIVERED';}).length;
+  // Stats bar
+  var sb=document.getElementById('reportStatsBar');
+  if(sb) sb.innerHTML=
+    '<div class="rstat"><div class="rstat-num" style="color:var(--tx)">'+total+'</div><div class="rstat-lbl">Total</div></div>'+
+    '<div class="rstat"><div class="rstat-num" style="color:var(--acc)">'+pending+'</div><div class="rstat-lbl">Pending</div></div>'+
+    '<div class="rstat"><div class="rstat-num" style="color:var(--pur)">'+noDate+'</div><div class="rstat-lbl">No Date</div></div>'+
+    '<div class="rstat"><div class="rstat-num" style="color:var(--red)">'+overdue+'</div><div class="rstat-lbl">Overdue</div></div>'+
+    '<div class="rstat"><div class="rstat-num" style="color:var(--ok)">'+today2+'</div><div class="rstat-lbl">Today</div></div>';
+  // Preview text
+  var type = document.getElementById('reportType') ? document.getElementById('reportType').value : 'all_pending';
+  var rows=[];
+  if(type==='all_pending') rows=data.filter(function(r){return r.status==='PENDING'||r.status==='NO DATE';});
+  else if(type==='arriving_tomorrow') rows=data.filter(function(r){return isTmrw(r.ret)&&r.status!=='DELIVERED';});
+  else if(type==='no_date') rows=data.filter(function(r){return r.status==='NO DATE';});
+  else if(type==='today') rows=data.filter(function(r){return isToday(r.ret)&&r.status!=='DELIVERED';});
+  else if(type==='overdue') rows=data.filter(function(r){return isLate(r.ret)&&r.status!=='DELIVERED';});
+  var prev=document.getElementById('reportPreview');
+  if(prev){
+    if(!rows.length){prev.innerHTML='<span style="color:var(--mu)">No records for this filter.</span>';return;}
+    prev.innerHTML=rows.slice(0,5).map(function(r,i){
+      return '<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--b)">'+
+        '<span style="font-weight:600">'+r.name+'</span>'+
+        '<span style="color:var(--mu);font-size:12px;font-family:monospace">'+r.ticket+' · '+r.loc+'</span>'+
+      '</div>';
+    }).join('')+(rows.length>5?'<div style="color:var(--mu);font-size:12px;padding:8px 0">+ '+(rows.length-5)+' more records...</div>':'');
+  }
 }
 
 function generatePDF(mode) {
@@ -2208,861 +2074,12 @@ function generatePDF(mode) {
   </body></html>`);
   printWin.document.close();
   if(mode !== 'share') setTimeout(function(){ printWin.print(); }, 500);
-}
-
-// ── FLIGHT CHECK ────────────────────────────────────────────────
-var fcFiles = [];
-
-function onFCFiles(input) {
-  var files = Array.from(input.files);
-  if(!files.length) return;
-  fcFiles = fcFiles.concat(files);
-
-  var thumbs = document.getElementById('fcThumbs');
-  files.forEach(function(file) {
-    var reader = new FileReader();
-    reader.onload = function(e) {
-      var img = document.createElement('img');
-      img.src = e.target.result;
-      img.style.cssText = 'width:56px;height:56px;object-fit:cover;border-radius:8px;border:1px solid var(--b)';
-      thumbs.appendChild(img);
-    };
-    reader.readAsDataURL(file);
-  });
-
-  document.getElementById('fcStatus').style.display = 'block';
-  document.getElementById('fcStatusText').textContent = '📋 ' + fcFiles.length + ' manifest' + (fcFiles.length>1?'s':'') + ' ready — scanning...';
-  document.getElementById('fcUploadZone').style.display = 'none';
-  document.getElementById('fcResults').style.display = 'none';
-
-  // Start scanning
-  scanAllManifests();
-}
-
-async function scanAllManifests() {
-  var allPassengers = [];
-  var allFlights = [];
-  var total = fcFiles.length;
-
-  for(var i=0; i<total; i++) {
-    document.getElementById('fcStatusText').textContent = '⚙️ Scanning manifest ' + (i+1) + ' of ' + total + '...';
-    try {
-      var b64 = await fileToB64(fcFiles[i]);
-      var mime = fcFiles[i].type || 'image/jpeg';
-      if(mime==='image/heic'||mime==='image/heif') mime='image/jpeg';
-
-      // Call Anthropic API directly
-      var resp = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': ANTHROPIC_KEY,
-          'anthropic-version': '2023-06-01'
-        },
-        body: JSON.stringify({
-          model: 'claude-opus-4-5',
-          max_tokens: 1024,
-          messages: [{
-            role: 'user',
-            content: [
-              {type:'image', source:{type:'base64', media_type:mime, data:b64}},
-              {type:'text', text:'This is a Makers Air passenger manifest. The table has Last name and First name columns. Extract: 1) TAIL NUMBER (starts with N, near "Tail Number:") 2) ARRIVAL TIME at FXE (near "Arrival:") 3) FLIGHT DATE (in title, format M/D/YYYY) 4) FLIGHT NUMBER (in title like "Flight 27") 5) ALL passenger names as FIRST LAST. Return ONLY valid JSON: {"tail":"N624JR","arrival":"09:00","date":"5/1/2026","flight":"27","passengers":[{"name":"ROBERT ROY"},{"name":"JON DEE"}]}'}
-            ]
-          }]
-        })
-      });
-
-      if(!resp.ok) throw new Error('API error: ' + resp.status);
-      var json = await resp.json();
-      if(json.error) throw new Error(json.error.message);
-      var text = json.content[0].text.trim();
-      console.log('Manifest '+(i+1)+':', text.slice(0,200));
-      var s=text.indexOf('{'), e=text.lastIndexOf('}');
-      if(s>=0&&e>s) text=text.slice(s,e+1);
-      var result = JSON.parse(text);
-
-      if(result.passengers && result.passengers.length > 0) {
-        allFlights.push({tail:result.tail||'', arrival:result.arrival||'', date:result.date||'', flight:result.flight||''});
-        result.passengers.forEach(function(p) {
-          allPassengers.push({name:p.name.toUpperCase(), tail:result.tail||'', arrival:result.arrival||'', date:result.date||'', flight:result.flight||''});
-        });
-      } else {
-        console.warn('Manifest '+(i+1)+' returned 0 passengers:', JSON.stringify(result));
-        document.getElementById('fcStatusText').textContent = '⚠️ Manifest '+(i+1)+' returned: tail='+result.tail+' pax count='+(result.passengers||[]).length;
-      }
-    } catch(e) {
-      console.error('Manifest '+(i+1)+' error:', e.message);
-      document.getElementById('fcStatusText').style.color = 'var(--red)';
-      document.getElementById('fcStatusText').textContent = '❌ Manifest '+(i+1)+' error: '+e.message.slice(0,80);
-    }
-  }
-
-  document.getElementById('fcStatusText').textContent = '✓ Done! ' + allPassengers.length + ' passengers found across ' + total + ' manifests';
-
-  // Show flight info bar
-  var barHtml = '';
-  allFlights.forEach(function(f) {
-    barHtml += '<div style="background:rgba(0,0,0,0.3);border-radius:8px;padding:8px 12px;">' +
-      '<div style="font-size:12px;font-weight:700;color:var(--tx)">✈️ ' + (f.tail||'?') + '</div>' +
-      (f.flight?'<div style="font-size:10px;color:var(--gold)">Flt '+f.flight+'</div>':'')+
-      (f.arrival?'<div style="font-size:10px;color:var(--ok)">🕐 '+f.arrival+'</div>':'')+
-    '</div>';
-  });
-  document.getElementById('fcFlightBar').innerHTML = barHtml;
-
-  // Run the check
-  runFCCheck(allPassengers);
-}
-
-function fileToB64(file) {
-  return new Promise(function(resolve) {
-    var reader = new FileReader();
-    reader.onload = function(e) { resolve(e.target.result.split(',')[1]); };
-    reader.readAsDataURL(file);
-  });
-}
-
-async function runFCCheck(passengers) {
-  var matched=0, noDate=0, earlyRet=0;
-  var toUpdate = [];
-  var cardsHtml = '';
-
-  // Build result cards sorted by arrival time
-  var results = [];
-
-  passengers.forEach(function(p) {
-    var name = p.name.trim();
-    var valetMatch = data.filter(function(r) {
-      return r.status !== 'DELIVERED' && fuzzyMatch(r.name.toUpperCase(), name);
-    });
-    if(!valetMatch.length) return; // skip not in valet
-
-    var r = valetMatch[0];
-    var hasNoDate = !r.ret || r.status === 'NO DATE';
-    var cardBg, cardBorder, icon, info='';
-    var regDate = pd(r.ret);
-    var manDate = p.date ? pd(p.date) : null;
-    var isEarly = regDate && manDate && manDate < regDate;
-
-    if(hasNoDate) {
-      cardBg='rgba(201,168,76,0.08)'; cardBorder='rgba(201,168,76,0.4)';
-      icon='⚠️'; noDate++;
-      info='Ticket: <strong style="color:var(--gold)">'+r.ticket+'</strong> &middot; '+r.loc;
-    } else if(isEarly) {
-      cardBg='rgba(255,153,0,0.08)'; cardBorder='rgba(255,153,0,0.4)';
-      icon='⚡'; earlyRet++;
-      info='Was: <strong style="color:var(--red)">'+fmtD(r.ret)+'</strong> &middot; Ticket: '+r.ticket+' &middot; '+r.loc;
-    } else {
-      cardBg='rgba(46,204,138,0.08)'; cardBorder='rgba(46,204,138,0.4)';
-      icon='✅'; matched++;
-      info='Ticket: <strong style="color:var(--ok)">'+r.ticket+'</strong> &middot; '+r.loc;
-    }
-
-    // Queue for merge: update return date + flight info
-    toUpdate.push({
-      rec: r,
-      tail: p.tail,
-      eta: p.arrival,
-      date: p.date,
-      flight: p.flight || ''
-    });
-
-    results.push({
-      name: name, cardBg: cardBg, cardBorder: cardBorder,
-      icon: icon, info: info,
-      eta: p.arrival || '99:99',
-      tail: p.tail || '', arrival: p.arrival || '', date: p.date || ''
-    });
-  });
-
-  // Sort by ETA
-  results.sort(function(a,b){ return a.eta.localeCompare(b.eta); });
-
-  results.forEach(function(res) {
-    cardsHtml += '<div style="background:'+res.cardBg+';border:1px solid '+res.cardBorder+';border-radius:12px;padding:14px 16px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;gap:10px;">' +
-      '<div style="flex:1">' +
-        '<div style="font-weight:700;font-size:14px;margin-bottom:3px;">'+res.name+'</div>' +
-        '<div style="font-size:11px;color:var(--mu)">'+res.info+
-          (res.tail?' &middot; ✈️ <span style="color:var(--gold)">'+res.tail+'</span>':'')+
-          (res.arrival?' &middot; 🕐 <strong style="color:var(--ok)">'+res.arrival+'</strong>':'')+
-        '</div>' +
-      '</div>' +
-      '<div style="font-size:20px;flex-shrink:0">'+res.icon+'</div>' +
-    '</div>';
-  });
-
-  var inValet = matched+noDate+earlyRet;
-  document.getElementById('fcSummary').innerHTML =
-    chip2('#f0f4ff', inValet, 'In Valet') +
-    chip2('var(--ok)', matched, 'Has Date ✓') +
-    chip2('var(--gold)', noDate, 'No Date ⚠') +
-    (earlyRet?chip2('#ff9900', earlyRet, 'Early ⚡'):'');
-
-  document.getElementById('fcCards').innerHTML = cardsHtml || '<div style="text-align:center;padding:30px;color:var(--mu)">No passengers found in valet from this manifest</div>';
-  document.getElementById('fcResults').style.display = 'block';
-
-  // MERGE: update return date + flight info for all matched passengers
-  if(toUpdate.length > 0) {
-    loading(true);
-    var updates = toUpdate.slice();
-    (async function() {
-      for(var i=0; i<updates.length; i++) {
-        var u = updates[i];
-        try {
-          // Update return date if manifest has one
-          if(u.date) {
-            var parts = u.date.split('/');
-            if(parts.length===3) {
-              var newDate = parseInt(parts[0],10)+'/'+parseInt(parts[1],10)+'/'+parts[2];
-              await updateSheet(u.rec.ri, 'E', newDate);
-              // If was NO DATE, change to PENDING
-              if(u.rec.status === 'NO DATE') {
-                await updateSheet(u.rec.ri, 'H', 'PENDING');
-              }
-            }
-          }
-          // Build flight note
-          var note = '';
-          if(u.tail) note += 'TAIL: '+u.tail;
-          if(u.flight) note += (note?' | ':'')+' FLT: '+u.flight;
-          if(u.eta) note += (note?' | ':'')+' ETA: '+u.eta;
-          if(note) {
-            // Clean old flight info from obs
-            var obs = (u.rec.obs||'')
-              .replace(/TAIL:[^|]*/g,'')
-              .replace(/FLT:[^|]*/g,'')
-              .replace(/ETA:[^|]*/g,'')
-              .split('|').map(function(s){return s.trim();}).filter(function(s){return s.length>0;}).join(' | ');
-            var newObs = obs ? obs + ' | ' + note : note;
-            await updateSheet(u.rec.ri, 'J', newObs);
-          }
-        } catch(e) { console.error('Update error:', e); }
-      }
-      loading(false);
-      showMsg('✓ ' + updates.length + ' records updated with flight info!', false);
-      await loadData();
-    })();
-  }
 }
 
 function chip2(color, num, lbl) {
   return '<div style="background:var(--s);border:1px solid var(--b);border-radius:8px;padding:8px 14px;text-align:center;">' +
     '<div style="font-family:Syne,sans-serif;font-size:18px;font-weight:800;color:'+color+'">'+num+'</div>' +
     '<div style="font-size:10px;color:var(--mu);text-transform:uppercase">'+lbl+'</div></div>';
-}
-
-function runPasteCheck() {
-  var namesRaw = document.getElementById('fcPasteNames').value;
-  var dateVal = document.getElementById('fcPasteDate').value;
-  var names = namesRaw.split('\n').map(function(n){ return n.trim().toUpperCase(); }).filter(function(n){ return n.length > 1; });
-  if(!names.length) { alert('Please paste at least one name.'); return; }
-
-  var dateParts = dateVal ? dateVal.split('-') : [];
-  var manifestDate = dateParts.length===3 ? parseInt(dateParts[1],10)+'/'+parseInt(dateParts[2],10)+'/'+dateParts[0] : '';
-
-  var passengers = names.map(function(n){ return {name:n, tail:'', arrival:'', date:manifestDate, flight:''}; });
-  document.getElementById('fcResults').style.display = 'none';
-  runFCCheck(passengers);
-}
-
-function resetFC() {
-  fcFiles = [];
-  document.getElementById('fcUploadZone').style.display = 'block';
-  document.getElementById('fcStatus').style.display = 'none';
-  document.getElementById('fcThumbs').innerHTML = '';
-  document.getElementById('fcResults').style.display = 'none';
-  document.getElementById('fcFlightBar').innerHTML = '';
-}
-
-// ── FLIGHT CHECK MANUAL ────────────────────────────────────────
-async function runFCCheck2() {
-  var tail    = (document.getElementById('fcTail').value||'').trim().toUpperCase();
-  var eta     = (document.getElementById('fcETA').value||'').trim();
-  var dateVal = document.getElementById('fcDate').value;
-  var namesRaw = document.getElementById('fcNames').value;
-
-  var names = namesRaw.split('\n')
-    .map(function(n){ return n.trim().toUpperCase(); })
-    .filter(function(n){ return n.length > 1; });
-
-  if(!names.length) { alert('Please paste at least one name.'); return; }
-
-  var dateParts = dateVal ? dateVal.split('-') : [];
-  var manifestDate = dateParts.length===3 ?
-    parseInt(dateParts[1],10)+'/'+parseInt(dateParts[2],10)+'/'+dateParts[0] : '';
-
-  var matched=0, noDate=0, earlyRet=0;
-  var toUpdate = [];
-  var cardsHtml = '';
-  var results = [];
-
-  names.forEach(function(name) {
-    var valetMatch = data.filter(function(r) {
-      return r.status !== 'DELIVERED' && fuzzyMatch(r.name.toUpperCase(), name);
-    });
-    if(!valetMatch.length) return;
-
-    var r = valetMatch[0];
-    var hasNoDate = !r.ret || r.status === 'NO DATE';
-    var cardBg, cardBorder, icon, info='';
-
-    if(hasNoDate) {
-      cardBg='rgba(201,168,76,0.08)'; cardBorder='rgba(201,168,76,0.4)';
-      icon='⚠️'; noDate++;
-      info='Ticket: <strong style="color:var(--gold)">'+r.ticket+'</strong> &middot; '+r.loc;
-    } else {
-      var regDate=pd(r.ret), manDate=manifestDate?pd(manifestDate):null;
-      if(regDate&&manDate&&manDate<regDate) {
-        cardBg='rgba(255,153,0,0.08)'; cardBorder='rgba(255,153,0,0.4)';
-        icon='⚡'; earlyRet++;
-        info='Was: <strong style="color:var(--red)">'+fmtD(r.ret)+'</strong> &middot; Ticket: '+r.ticket+' &middot; '+r.loc;
-      } else {
-        cardBg='rgba(46,204,138,0.08)'; cardBorder='rgba(46,204,138,0.4)';
-        icon='✅'; matched++;
-        info='Ticket: <strong style="color:var(--ok)">'+r.ticket+'</strong> &middot; '+r.loc;
-      }
-    }
-
-    var isEarlyReturn = !hasNoDate && (function(){
-      var regD=pd(r.ret), manD=manifestDate?pd(manifestDate):null;
-      return regD&&manD&&manD<regD;
-    })();
-    if(tail||eta) toUpdate.push({rec:r, tail:tail, eta:eta, isEarly:isEarlyReturn, manifestDate:manifestDate});
-
-    results.push({name:name, cardBg:cardBg, cardBorder:cardBorder, icon:icon, info:info, eta:eta});
-  });
-
-  // Sort by ETA
-  results.sort(function(a,b){ return (a.eta||'99:99').localeCompare(b.eta||'99:99'); });
-
-  results.forEach(function(res) {
-    cardsHtml += '<div style="background:'+res.cardBg+';border:1px solid '+res.cardBorder+';border-radius:12px;padding:14px 16px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;gap:10px;">'+
-      '<div style="flex:1">'+
-        '<div style="font-weight:700;font-size:14px;margin-bottom:3px;">'+res.name+'</div>'+
-        '<div style="font-size:11px;color:var(--mu)">'+res.info+
-          (tail?' &middot; ✈️ <span style="color:var(--gold)">'+tail+'</span>':'')+
-          (eta?' &middot; 🕐 <strong style="color:var(--ok)">'+eta+'</strong>':'')+
-        '</div>'+
-      '</div>'+
-      '<div style="font-size:20px;flex-shrink:0">'+res.icon+'</div>'+
-    '</div>';
-  });
-
-  var inValet = matched+noDate+earlyRet;
-  document.getElementById('fcSummary').innerHTML =
-    chip2('var(--tx)', inValet, 'In Valet') +
-    chip2('var(--ok)', matched, 'Has Date ✓') +
-    chip2('var(--gold)', noDate, 'No Date ⚠') +
-    (earlyRet?chip2('#ff9900', earlyRet, 'Early ⚡'):'');
-
-  document.getElementById('fcResultTitle').textContent = 'Results' + (tail?' — '+tail:'') + (eta?' @ '+eta:'');
-  document.getElementById('fcCards').innerHTML = cardsHtml || '<div style="text-align:center;padding:30px;color:var(--mu)">No passengers from this manifest found in valet</div>';
-  document.getElementById('fcResults').style.display = 'block';
-  document.getElementById('fcResults').scrollIntoView({behavior:'smooth'});
-
-  // Save tail + ETA + update date for early returns
-  if(toUpdate.length > 0) {
-    loading(true);
-    for(var i=0;i<toUpdate.length;i++) {
-      var u = toUpdate[i];
-      try {
-        // Build OBS note
-        var note = '';
-        if(u.tail) note += 'TAIL: '+u.tail;
-        if(u.eta)  note += (note?' | ':'')+' ETA: '+u.eta;
-        if(u.isEarly) note += (note?' | ':'')+' EARLY RETURN';
-
-        var obs = (u.rec.obs||'')
-          .replace(/TAIL:[^|]*/g,'').replace(/ETA:[^|]*/g,'').replace(/EARLY RETURN/g,'')
-          .split('|').map(function(s){return s.trim();})
-          .filter(function(s){return s.length>0;}).join(' | ');
-        var newObs = obs ? obs+' | '+note : note;
-        await updateSheet(u.rec.ri,'J',newObs);
-
-        // If early return, update the return date to manifest date
-        if(u.isEarly && u.manifestDate) {
-          await updateSheet(u.rec.ri,'E',u.manifestDate);
-          // Keep status as PENDING
-          if(u.rec.status === 'NO DATE') {
-            await updateSheet(u.rec.ri,'H','PENDING');
-          }
-        }
-      } catch(e){console.error(e);}
-    }
-    loading(false);
-    var earlyCount = toUpdate.filter(function(u){return u.isEarly;}).length;
-    var msg = '✓ '+toUpdate.length+' records updated!';
-    if(earlyCount) msg += ' ⚡ '+earlyCount+' early return(s) date updated!';
-    showMsg(msg, false);
-    setTimeout(loadData, 2000);
-  }
-}
-
-function resetFC() {
-  document.getElementById('fcResults').style.display='none';
-  document.getElementById('fcNames').value='';
-  document.getElementById('fcTail').value='';
-  document.getElementById('fcETA').value='';
-}
-
-// ── REPORT ────────────────────────────────────────────────────// ── FLIGHT CHECK MANUAL ────────────────────────────────────────
-async function runFCCheck2() {
-  var tail    = (document.getElementById('fcTail').value||'').trim().toUpperCase();
-  var eta     = (document.getElementById('fcETA').value||'').trim();
-  var dateVal = document.getElementById('fcDate').value;
-  var namesRaw = document.getElementById('fcNames').value;
-
-  var names = namesRaw.split('\n')
-    .map(function(n){ return n.trim().toUpperCase(); })
-    .filter(function(n){ return n.length > 1; });
-
-  if(!names.length) { alert('Please paste at least one name.'); return; }
-
-  var dateParts = dateVal ? dateVal.split('-') : [];
-  var manifestDate = dateParts.length===3 ?
-    parseInt(dateParts[1],10)+'/'+parseInt(dateParts[2],10)+'/'+dateParts[0] : '';
-
-  var matched=0, noDate=0, earlyRet=0;
-  var toUpdate = [];
-  var cardsHtml = '';
-  var results = [];
-
-  names.forEach(function(name) {
-    var valetMatch = data.filter(function(r) {
-      return r.status !== 'DELIVERED' && fuzzyMatch(r.name.toUpperCase(), name);
-    });
-    if(!valetMatch.length) return;
-
-    var r = valetMatch[0];
-    var hasNoDate = !r.ret || r.status === 'NO DATE';
-    var cardBg, cardBorder, icon, info='';
-
-    if(hasNoDate) {
-      cardBg='rgba(201,168,76,0.08)'; cardBorder='rgba(201,168,76,0.4)';
-      icon='⚠️'; noDate++;
-      info='Ticket: <strong style="color:var(--gold)">'+r.ticket+'</strong> &middot; '+r.loc;
-    } else {
-      var regDate=pd(r.ret), manDate=manifestDate?pd(manifestDate):null;
-      if(regDate&&manDate&&manDate<regDate) {
-        cardBg='rgba(255,153,0,0.08)'; cardBorder='rgba(255,153,0,0.4)';
-        icon='⚡'; earlyRet++;
-        info='Was: <strong style="color:var(--red)">'+fmtD(r.ret)+'</strong> &middot; Ticket: '+r.ticket+' &middot; '+r.loc;
-      } else {
-        cardBg='rgba(46,204,138,0.08)'; cardBorder='rgba(46,204,138,0.4)';
-        icon='✅'; matched++;
-        info='Ticket: <strong style="color:var(--ok)">'+r.ticket+'</strong> &middot; '+r.loc;
-      }
-    }
-
-    var isEarlyReturn = !hasNoDate && (function(){
-      var regD=pd(r.ret), manD=manifestDate?pd(manifestDate):null;
-      return regD&&manD&&manD<regD;
-    })();
-    if(tail||eta) toUpdate.push({rec:r, tail:tail, eta:eta, isEarly:isEarlyReturn, manifestDate:manifestDate});
-
-    results.push({name:name, cardBg:cardBg, cardBorder:cardBorder, icon:icon, info:info, eta:eta});
-  });
-
-  // Sort by ETA
-  results.sort(function(a,b){ return (a.eta||'99:99').localeCompare(b.eta||'99:99'); });
-
-  results.forEach(function(res) {
-    cardsHtml += '<div style="background:'+res.cardBg+';border:1px solid '+res.cardBorder+';border-radius:12px;padding:14px 16px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;gap:10px;">'+
-      '<div style="flex:1">'+
-        '<div style="font-weight:700;font-size:14px;margin-bottom:3px;">'+res.name+'</div>'+
-        '<div style="font-size:11px;color:var(--mu)">'+res.info+
-          (tail?' &middot; ✈️ <span style="color:var(--gold)">'+tail+'</span>':'')+
-          (eta?' &middot; 🕐 <strong style="color:var(--ok)">'+eta+'</strong>':'')+
-        '</div>'+
-      '</div>'+
-      '<div style="font-size:20px;flex-shrink:0">'+res.icon+'</div>'+
-    '</div>';
-  });
-
-  var inValet = matched+noDate+earlyRet;
-  document.getElementById('fcSummary').innerHTML =
-    chip2('var(--tx)', inValet, 'In Valet') +
-    chip2('var(--ok)', matched, 'Has Date ✓') +
-    chip2('var(--gold)', noDate, 'No Date ⚠') +
-    (earlyRet?chip2('#ff9900', earlyRet, 'Early ⚡'):'');
-
-  document.getElementById('fcResultTitle').textContent = 'Results' + (tail?' — '+tail:'') + (eta?' @ '+eta:'');
-  document.getElementById('fcCards').innerHTML = cardsHtml || '<div style="text-align:center;padding:30px;color:var(--mu)">No passengers from this manifest found in valet</div>';
-  document.getElementById('fcResults').style.display = 'block';
-  document.getElementById('fcResults').scrollIntoView({behavior:'smooth'});
-
-  // Save tail + ETA + update date for early returns
-  if(toUpdate.length > 0) {
-    loading(true);
-    for(var i=0;i<toUpdate.length;i++) {
-      var u = toUpdate[i];
-      try {
-        // Build OBS note
-        var note = '';
-        if(u.tail) note += 'TAIL: '+u.tail;
-        if(u.eta)  note += (note?' | ':'')+' ETA: '+u.eta;
-        if(u.isEarly) note += (note?' | ':'')+' EARLY RETURN';
-
-        var obs = (u.rec.obs||'')
-          .replace(/TAIL:[^|]*/g,'').replace(/ETA:[^|]*/g,'').replace(/EARLY RETURN/g,'')
-          .split('|').map(function(s){return s.trim();})
-          .filter(function(s){return s.length>0;}).join(' | ');
-        var newObs = obs ? obs+' | '+note : note;
-        await updateSheet(u.rec.ri,'J',newObs);
-
-        // If early return, update the return date to manifest date
-        if(u.isEarly && u.manifestDate) {
-          await updateSheet(u.rec.ri,'E',u.manifestDate);
-          // Keep status as PENDING
-          if(u.rec.status === 'NO DATE') {
-            await updateSheet(u.rec.ri,'H','PENDING');
-          }
-        }
-      } catch(e){console.error(e);}
-    }
-    loading(false);
-    var earlyCount = toUpdate.filter(function(u){return u.isEarly;}).length;
-    var msg = '✓ '+toUpdate.length+' records updated!';
-    if(earlyCount) msg += ' ⚡ '+earlyCount+' early return(s) date updated!';
-    showMsg(msg, false);
-    setTimeout(loadData, 2000);
-  }
-}
-
-function resetFC() {
-  document.getElementById('fcResults').style.display='none';
-  document.getElementById('fcNames').value='';
-  document.getElementById('fcTail').value='';
-  document.getElementById('fcETA').value='';
-}
-
-// ── REPORT ────────────────────────────────────────────────────
-function updateReportPreview() {
-  var pending = data.filter(function(r){return r.status==='PENDING';}).length;
-  var noDate  = data.filter(function(r){return r.status==='NO DATE';}).length;
-  var tmrw    = data.filter(function(r){return isTmrw(r.ret)&&r.status!=='DELIVERED';}).length;
-  var overdue = data.filter(function(r){return isLate(r.ret)&&r.status!=='DELIVERED';}).length;
-  var today2  = data.filter(function(r){return isToday(r.ret)&&r.status!=='DELIVERED';}).length;
-  document.getElementById('reportPreview').innerHTML =
-    '&#128661; Pending: <strong>' + pending + '</strong><br>' +
-    '&#128197; No Date: <strong>' + noDate + '</strong><br>' +
-    '&#9992; Arriving Tomorrow: <strong>' + tmrw + '</strong><br>' +
-    '&#128276; Leaving Today: <strong>' + today2 + '</strong><br>' +
-    '&#9888; Overdue: <strong style="color:var(--red)">' + overdue + '</strong>';
-}
-
-function generatePDF(mode) {
-  var type = document.getElementById('reportType').value;
-  var dateVal = document.getElementById('reportDate').value;
-  var reportDate = dateVal ? new Date(dateVal+'T00:00:00').toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'}) : today.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
-
-  var rows = [];
-  if(type==='all_pending')       rows = data.filter(function(r){return r.status==='PENDING'||r.status==='NO DATE';});
-  else if(type==='arriving_tomorrow') rows = data.filter(function(r){return isTmrw(r.ret)&&r.status!=='DELIVERED';});
-  else if(type==='no_date')      rows = data.filter(function(r){return r.status==='NO DATE'||!r.ret;});
-  else if(type==='today')        rows = data.filter(function(r){return isToday(r.ret)&&r.status!=='DELIVERED';});
-  else if(type==='overdue')      rows = data.filter(function(r){return isLate(r.ret)&&r.status!=='DELIVERED';});
-
-  var typeLabel = {
-    'all_pending':'All Pending Cars',
-    'arriving_tomorrow':'Arriving Tomorrow',
-    'no_date':'No Return Date',
-    'today':"Today's Activity",
-    'overdue':'Overdue'
-  }[type];
-
-  // Sort by ETA (arrival time) then by name
-  rows.sort(function(a,b) {
-    var getETA = function(r) {
-      if(!r.obs) return '99:99';
-      var em = r.obs.match(/ETA:\s*([^|]+)/);
-      return em ? em[1].trim() : '99:99';
-    };
-    var etaA = getETA(a), etaB = getETA(b);
-    if(etaA !== etaB) return etaA.localeCompare(etaB);
-    return a.name.localeCompare(b.name);
-  });
-
-  var rowsHtml = rows.map(function(r,i) {
-    var flightInfo = '';
-    if(r.obs) {
-      var fm = r.obs.match(/TAIL:\s*([^|]+)/) || r.obs.match(/FLIGHT:\s*([^|]+)/);
-      var em = r.obs.match(/ETA:\s*([^|]+)/);
-      if(fm) flightInfo += fm[1].trim();
-      if(em) flightInfo += (flightInfo?' ':'') + em[1].trim();
-    }
-    var obsClean = (r.obs||'').replace('APPROX DATE','').replace(/\s*\|\s*/g,' | ').trim().replace(/^\s*\|\s*|\s*\|\s*$/g,'').trim();
-    var isEarlyRep = obsClean.indexOf('EARLY RETURN') >= 0;
-    return '<tr>' +
-      '<td>' + (i+1) + '</td>' +
-      '<td><strong>' + r.name + '</strong></td>' +
-      '<td>' + fmtP(r.phone) + '</td>' +
-      '<td>' + r.ticket + '</td>' +
-      '<td>' + r.car + '</td>' +
-      '<td>' + (r.loc||'-') + '</td>' +
-      '<td>' + (r.ret ? fmtD(r.ret) : '-') + '</td>' +
-      '<td>' + r.status + '</td>' +
-      '<td>' + flightInfo + '</td>' +
-      '<td>' + (obsClean||'-') + '</td>' +
-    '</tr>';
-  }).join('');
-
-  var printWin = window.open('','_blank');
-  printWin.document.write(`<!DOCTYPE html><html><head>
-  <title>Valet Report - ` + typeLabel + `</title>
-  <style>
-    body { font-family: Arial, sans-serif; margin: 20px; color: #000; }
-    .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; border-bottom: 3px solid #1a3d7c; padding-bottom: 16px; }
-    .header-left h1 { color: #1a3d7c; font-size: 22px; margin: 0 0 4px; }
-    .header-left p { color: #666; font-size: 12px; margin: 0; }
-    .header-right { text-align: right; font-size: 11px; color: #666; }
-    .report-title { background: #1a3d7c; color: white; padding: 8px 14px; border-radius: 6px; font-size: 13px; font-weight: bold; margin-bottom: 16px; display: inline-block; }
-    .summary { display: flex; gap: 16px; margin-bottom: 16px; }
-    .sum-box { border: 1px solid #ddd; border-radius: 8px; padding: 8px 14px; text-align: center; }
-    .sum-num { font-size: 20px; font-weight: bold; color: #1a3d7c; }
-    .sum-lbl { font-size: 10px; color: #999; text-transform: uppercase; }
-    table { width: 100%; border-collapse: collapse; font-size: 11px; }
-    th { background: #1a3d7c; color: white; padding: 7px 8px; text-align: left; }
-    td { padding: 6px 8px; border-bottom: 1px solid #eee; vertical-align: middle; }
-    tr:nth-child(even) td { background: #f9f9f9; }
-    .footer { margin-top: 20px; font-size: 10px; color: #999; text-align: center; border-top: 1px solid #eee; padding-top: 10px; }
-    @media print { button { display: none; } }
-  </style>
-  </head><body>
-  <div class="header">
-    <div class="header-left">
-      <h1>MAKERS AIR VALET — By Farber Parking</h1>
-      <p>Passenger & Vehicle Control System</p>
-    </div>
-    <div class="header-right">
-      <strong>` + reportDate + `</strong><br>
-      <br>
-      Total Records: ` + rows.length + `
-    </div>
-  </div>
-  <div class="report-title">` + typeLabel + `</div>
-  <div style="font-size:11px;color:#666;margin-bottom:12px;">Sorted by arrival time (ETA) &nbsp;·&nbsp; Generated: ` + new Date().toLocaleString('en-US') + `</div>
-  <table>
-    <thead><tr>
-      <th>#</th><th>Name</th><th>Phone</th><th>Ticket</th><th>Car</th><th>Location</th><th>Return Date</th><th>Status</th><th>Flight Info</th><th>OBS</th>
-    </tr></thead>
-    <tbody>` + rowsHtml + `</tbody>
-  </table>
-  <div class="footer">Makers Air Valet by Farber Parking &nbsp;|&nbsp; Confidential &nbsp;|&nbsp; ` + rows.length + ` records</div>
-  <br><button onclick="window.print()" style="background:#1a3d7c;color:white;border:none;padding:10px 20px;border-radius:6px;cursor:pointer;font-size:14px;">&#128438; Print / Save as PDF</button>
-  </body></html>`);
-  printWin.document.close();
-  if(mode !== 'share') setTimeout(function(){ printWin.print(); }, 500);
-}
-
-// ── FLIGHT CHECK (Simple) ──────────────────────────────────────
-async function scanManifestPhoto(input) {
-  var files = Array.from(input.files);
-  if(!files.length) return;
-
-  var status = document.getElementById('fcScanStatus');
-  var preview = document.getElementById('fcPhotoPreview');
-  status.style.display = 'block';
-  status.style.color = 'var(--gold)';
-
-  var allNames = [];
-  var firstTail = '', firstETA = '', firstDate = '';
-
-  for(var i=0; i<files.length; i++) {
-    status.textContent = '⚙️ Scanning manifest ' + (i+1) + ' of ' + files.length + '...';
-
-    // Show thumbnail
-    var thumbUrl = await new Promise(function(res) {
-      var reader = new FileReader();
-      reader.onload = function(e) { res(e.target.result); };
-      reader.readAsDataURL(files[i]);
-    });
-
-    var img = document.createElement('img');
-    img.src = thumbUrl;
-    img.style.cssText = 'width:60px;height:60px;object-fit:cover;border-radius:6px;border:1px solid var(--b)';
-    preview.appendChild(img);
-
-    var b64 = thumbUrl.split(',')[1];
-    var mime = files[i].type || 'image/jpeg';
-
-    try {
-      var resp = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': ANTHROPIC_KEY,
-          'anthropic-version': '2023-06-01'
-        },
-        body: JSON.stringify({
-          model: 'claude-opus-4-5',
-          max_tokens: 1024,
-          messages: [{
-            role: 'user',
-            content: [
-              { type: 'image', source: { type: 'base64', media_type: mime, data: b64 } },
-              { type: 'text', text: 'This is a Makers Air passenger manifest. Extract: 1) TAIL NUMBER (starts with N like N624JR) 2) ARRIVAL TIME at FXE 3) FLIGHT DATE 4) ALL passenger names (First Last). Return ONLY valid JSON no markdown: {"tail":"N624JR","arrival":"09:00","date":"5/1/2026","passengers":[{"name":"JOHN SMITH"},{"name":"JANE DOE"}]}' }
-            ]
-          }]
-        })
-      });
-
-      var json = await resp.json();
-      if(json.error) throw new Error(json.error.message);
-      var text = json.content[0].text.trim();
-      text = text=text.slice(text.indexOf('{')).slice(0,text.lastIndexOf('}')+1).trim();
-      var s = text.indexOf('{'), e = text.lastIndexOf('}');
-      if(s>=0 && e>s) text = text.slice(s,e+1);
-      var result = JSON.parse(text);
-
-      if(result.tail && !firstTail) firstTail = result.tail;
-      if(result.arrival && !firstETA) firstETA = result.arrival;
-      if(result.date && !firstDate) firstDate = result.date;
-      (result.passengers||[]).forEach(function(p){ if(p.name) allNames.push(p.name.toUpperCase()); });
-
-    } catch(err) {
-      console.error('Scan error:', err);
-      status.style.color = 'var(--red)';
-      status.textContent = '⚠️ Error on manifest ' + (i+1) + ': ' + err.message;
-    }
-  }
-
-  // Fill in the form
-  if(firstTail) document.getElementById('fcTail').value = firstTail;
-  if(firstETA)  document.getElementById('fcETA').value = firstETA;
-  if(firstDate) {
-    // Convert M/D/YYYY to YYYY-MM-DD for date input
-    var dp = firstDate.split('/');
-    if(dp.length===3) document.getElementById('fcDate').value = dp[2]+'-'+dp[0].padStart(2,'0')+'-'+dp[1].padStart(2,'0');
-  }
-  if(allNames.length) {
-    var existing = document.getElementById('fcNames').value.trim();
-    var textarea = document.getElementById('fcNames');
-    var existing = textarea.value.trim();
-    // Remove placeholder text if present
-    if(existing.indexOf('auto-filled') >= 0 || existing.indexOf('JOHN SMITH') >= 0) existing = '';
-    textarea.value = existing ? existing + '\n' + allNames.join('\n') : allNames.join('\n');
-  }
-
-  status.style.color = 'var(--ok)';
-  status.textContent = '✓ Scanned ' + files.length + ' manifest(s) — ' + allNames.length + ' passengers extracted!';
-  setTimeout(function(){ status.style.display='none'; }, 3000);
-  // Auto-run flight check
-  if(allNames.length > 0) {
-    setTimeout(function(){ runFlightCheck(); }, 500);
-  }
-}
-
-function runFlightCheck() {
-  var tail     = document.getElementById('fcTail').value.trim().toUpperCase();
-  var eta      = document.getElementById('fcETA').value.trim();
-  var dateVal  = document.getElementById('fcDate').value;
-  var namesRaw = document.getElementById('fcNames').value;
-
-  var names = namesRaw.split('\n')
-    .map(function(n){ return n.trim().toUpperCase(); })
-    .filter(function(n){ return n.length > 1; });
-
-  if(!names.length) return;
-
-  var dateParts = dateVal ? dateVal.split('-') : [];
-  var manifestDate = dateParts.length===3 ?
-    parseInt(dateParts[1],10)+'/'+parseInt(dateParts[2],10)+'/'+dateParts[0] : '';
-
-  var matched=0, noDate=0, notFound=0, earlyRet=0;
-  var toUpdate = [];
-  var cardsHtml = '';
-
-  names.forEach(function(name) {
-    var valetMatch = data.filter(function(r) {
-      return r.status !== 'DELIVERED' && fuzzyMatch(r.name.toUpperCase(), name);
-    });
-
-    var cardClass, icon, badgeText, info = '';
-
-    if(valetMatch.length === 0) {
-      notFound++;
-      return; // skip - not in valet, not relevant
-    } else {
-      var r = valetMatch[0];
-      var hasNoDate = !r.ret || r.status === 'NO DATE';
-
-      if(hasNoDate) {
-        cardClass='nodate'; icon='&#9888;'; badgeText='NO RETURN DATE';
-        noDate++;
-        info = 'Ticket: <strong style="color:var(--gold)">'+r.ticket+'</strong> &middot; '+r.loc;
-      } else {
-        // Check early return
-        var regDate = pd(r.ret);
-        var manDate = manifestDate ? pd(manifestDate) : null;
-        if(regDate && manDate && manDate < regDate) {
-          cardClass='nodate'; icon='&#9889;'; badgeText='EARLY RETURN!';
-          earlyRet++;
-          info = 'Was: <strong style="color:var(--red)">'+fmtD(r.ret)+'</strong> &middot; Ticket: '+r.ticket+' &middot; '+r.loc;
-        } else {
-          cardClass='match'; icon='&#10003;'; badgeText='HAS DATE';
-          matched++;
-          info = 'Returns: <strong style="color:var(--ok)">'+fmtD(r.ret)+'</strong> &middot; Ticket: '+r.ticket+' &middot; '+r.loc;
-        }
-      }
-      // Queue update with flight info
-      if(tail || eta) toUpdate.push({rec: r, tail: tail, eta: eta, flightDate: manifestDate});
-    }
-
-    var bgColor = cardClass==='match'?'rgba(46,204,138,0.08)':'rgba(201,168,76,0.08)';
-    var borderColor = cardClass==='match'?'rgba(46,204,138,0.4)':'rgba(201,168,76,0.4)';
-    var iconColor = cardClass==='match'?'var(--ok)':'var(--gold)';
-    if(cardClass==='nodate' && badgeText==='EARLY RETURN!') { bgColor='rgba(255,153,0,0.08)'; borderColor='rgba(255,153,0,0.4)'; iconColor='#ff9900'; }
-
-    cardsHtml += '<div style="background:'+bgColor+';border:1px solid '+borderColor+';border-radius:12px;padding:14px 16px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;gap:10px;">'+
-      '<div style="flex:1">'+
-        '<div style="font-weight:700;font-size:14px;margin-bottom:3px;">'+name+'</div>'+
-        (info?'<div style="font-size:11px;color:var(--mu)">'+info+'</div>':'')+
-      '</div>'+
-      '<div style="font-size:18px;color:'+iconColor+';font-weight:900;flex-shrink:0">'+icon+'</div>'+
-    '</div>';
-  });
-
-  // Summary
-  var inValet = matched + noDate + earlyRet;
-  document.getElementById('fcSummary').innerHTML =
-    '<div style="background:var(--s);border:1px solid var(--b);border-radius:8px;padding:8px 14px;text-align:center;"><div style="font-family:Syne,sans-serif;font-size:18px;font-weight:800">'+inValet+'</div><div style="font-size:10px;color:var(--mu);text-transform:uppercase">In Valet</div></div>'+
-    '<div style="background:rgba(46,204,138,0.08);border:1px solid rgba(46,204,138,0.3);border-radius:8px;padding:8px 14px;text-align:center;"><div style="font-family:Syne,sans-serif;font-size:18px;font-weight:800;color:var(--ok)">'+matched+'</div><div style="font-size:10px;color:var(--mu);text-transform:uppercase">Has Date &#10003;</div></div>'+
-    '<div style="background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.3);border-radius:8px;padding:8px 14px;text-align:center;"><div style="font-family:Syne,sans-serif;font-size:18px;font-weight:800;color:var(--gold)">'+noDate+'</div><div style="font-size:10px;color:var(--mu);text-transform:uppercase">No Date &#9888;</div></div>'+
-    (earlyRet>0?'<div style="background:rgba(255,153,0,0.08);border:1px solid rgba(255,153,0,0.3);border-radius:8px;padding:8px 14px;text-align:center;"><div style="font-family:Syne,sans-serif;font-size:18px;font-weight:800;color:#ff9900">'+earlyRet+'</div><div style="font-size:10px;color:var(--mu);text-transform:uppercase">Early &#9889;</div></div>':'')+
-    (notFound>0?'<div style="font-size:11px;color:var(--mu);align-self:center;">+'+notFound+' not in valet (hidden)</div>':'');
-
-  document.getElementById('fcCards').innerHTML = cardsHtml;
-  document.getElementById('fcResults').style.display = 'block';
-
-  // Scroll to results
-  document.getElementById('fcResults').scrollIntoView({behavior:'smooth'});
-
-  // Save flight info to valet records
-  if(toUpdate.length > 0) {
-    toUpdate.forEach(function(u) {
-      var note = '';
-      if(u.tail) note += 'TAIL: ' + u.tail;
-      if(u.eta)  note += (note?' | ':'') + 'ETA: ' + u.eta;
-      var currentObs = u.rec.obs || '';
-      currentObs = currentObs.replace(/TAIL:[^|]*/g,'').replace(/ETA:[^|]*/g,'').replace(/\|\s*\|/g,'|').replace(/^\s*\|\s*/,'').replace(/\s*\|\s*$/,'').trim();
-      var newObs = currentObs ? currentObs + ' | ' + note : note;
-      updateSheet(u.rec.ri, 'J', newObs).catch(function(e){ console.error(e); });
-    });
-    showMsg('Flight info saved for ' + toUpdate.length + ' passenger(s)!', false);
-    setTimeout(loadData, 2000);
-  }
-}
-
-function resetFlightCheck() {
-  document.getElementById('fcResults').style.display = 'none';
-  document.getElementById('fcNames').value = '';
-  document.getElementById('fcTail').value = '';
-  document.getElementById('fcETA').value = '';
-  document.getElementById('fcPhotoPreview').innerHTML = '';
-  document.getElementById('fcScanStatus').style.display = 'none';
-  document.getElementById('fcPhotoCamera').value = '';
-  document.getElementById('fcPhotoUpload').value = '';
 }
 
 // ── LOGIN ──────────────────────────────────────────────────────
