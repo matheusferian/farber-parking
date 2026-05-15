@@ -517,6 +517,7 @@ input[type=checkbox] { width: 20px; height: 20px; }
     <button class="fb" data-f="DELIVERED">Delivered</button>
     <button class="fb" data-f="today">Out Today</button>
     <button class="fb" data-f="tomorrow">Out Tomorrow</button>
+    <button class="fb" data-f="sunday">&#128197; Sunday</button>
     <button class="fb" data-f="overdue">Overdue</button>
 
     <button class="fb" data-f="frequent">Frequent</button>
@@ -569,6 +570,9 @@ input[type=checkbox] { width: 20px; height: 20px; }
     <div class="dtitle" style="color:var(--pur)" id="titleTomorrow">&#128198; Leaving Tomorrow <span class="tbadge" style="background:var(--pur);color:#fff">0</span></div>
     <div class="dsub">Return Date = tomorrow</div>
     <div class="dcards" id="dTomorrow"></div>
+    <div class="dtitle" style="color:#e86030" id="titleSunday">&#128197; Returning Sunday <span class="tbadge" style="background:#e86030;color:#fff">0</span></div>
+    <div class="dsub" id="subSunday">Return Date = next Sunday</div>
+    <div class="dcards" id="dSunday"></div>
   </div>
   <div class="dsec" id="forgotSection" style="display:none">
     <div class="dtitle" style="color:var(--red)" id="titleForgot">&#9888; Forgot Yesterday <span class="tbadge" style="background:var(--red);color:#fff">0</span></div>
@@ -762,6 +766,11 @@ function sd(a,b) { return a&&b&&a.getFullYear()===b.getFullYear()&&a.getMonth()=
 function isToday(s)  { return sd(pd(s), today); }
 function isTmrw(s)   { return sd(pd(s), tomorrow); }
 function isLate(s)   { var d=pd(s); return d&&d<today&&!sd(d,today); }
+function nextSunday() {
+  var d=new Date(today); var day=d.getDay(); var diff=day===0?7:7-day;
+  d.setDate(d.getDate()+diff); return d;
+}
+function isSunday(s) { return sd(pd(s), nextSunday()); }
 function isArrToday(ts) {
   if (!ts) return false;
   var s = String(ts).trim(), p = s.split('/');
@@ -857,6 +866,7 @@ function getFiltered() {
   else if(curFilter==='NO DATE') rows=rows.filter(function(r){return r.status==='NO DATE';});
   else if(curFilter==='today') rows=rows.filter(function(r){return isToday(r.ret)&&r.status!=='DELIVERED';});
   else if(curFilter==='tomorrow') rows=rows.filter(function(r){return isTmrw(r.ret)&&r.status!=='DELIVERED';});
+  else if(curFilter==='sunday') rows=rows.filter(function(r){return isSunday(r.ret)&&r.status!=='DELIVERED';});
   else if(curFilter==='overdue') rows=rows.filter(function(r){return isLate(r.ret)&&r.status!=='DELIVERED';});
   else if(curFilter==='frequent'){var c={};data.forEach(function(r){var k=r.name.toLowerCase();c[k]=(c[k]||0)+1;});rows=rows.filter(function(r){return c[r.name.toLowerCase()]>1;});}
   // Apply sort
@@ -883,18 +893,18 @@ function getFiltered() {
   return rows;
 }
 function renderStats() {
-  var p=0,n=0,d=0,t=0,tm=0,arr=0,o=0;
+  var p=0,n=0,d=0,t=0,tm=0,arr=0,o=0,sun=0;
   data.forEach(function(r){
     if(r.status==='PENDING')p++;
     else if(r.status==='NO DATE')n++;
     else if(r.status==='DELIVERED'){var _dd=pd(r.deldate);if(_dd&&sd(_dd,today))d++;}
-    if(r.status!=='DELIVERED'){if(isToday(r.ret))t++;else if(isTmrw(r.ret))tm++;if(isLate(r.ret))o++;}
+    if(r.status!=='DELIVERED'){if(isToday(r.ret))t++;else if(isTmrw(r.ret))tm++;if(isLate(r.ret))o++;if(isSunday(r.ret))sun++;}
     if(isArrToday(r.ts))arr++;
   });
   document.getElementById('statsBar').innerHTML=
     chip('var(--navy)',arr,'Arrived Today','ARRIVED_TODAY')+chip('var(--acc)',p,'Pending','PENDING')+chip('var(--pur)',n,'No Date','NO DATE')+
     chip('var(--ok)',d,'Delivered Today','DELIVERED_TODAY')+chip('var(--acc)',t,'Out Today','today')+
-    chip('var(--pur)',tm,'Tomorrow','tomorrow')+chip('var(--red)',o,'Overdue','overdue');
+    chip('var(--pur)',tm,'Tomorrow','tomorrow')+chip('#e86030',sun,'Sunday','sunday')+chip('var(--red)',o,'Overdue','overdue');
   document.getElementById('ball').textContent=data.length;
   var u=t+o;
   document.getElementById('bday').textContent=u>0?u:'OK';
@@ -959,6 +969,8 @@ function renderDay() {
   var arrived=data.filter(function(r){return isArrToday(r.ts);});
   var lt=data.filter(function(r){return isToday(r.ret)&&r.status!=='DELIVERED';});
   var lm=data.filter(function(r){return isTmrw(r.ret)&&r.status!=='DELIVERED';});
+  var ls=data.filter(function(r){return isSunday(r.ret)&&r.status!=='DELIVERED';});
+  var sun=nextSunday();
   function mkCards(list,cls,btnCls){
     if(!list.length) return '<div class="eday">No cars in this group</div>';
     return list.map(function(r){
@@ -980,10 +992,14 @@ function renderDay() {
   document.getElementById('dArrived').innerHTML=mkCards(arrived,'ca','');
   document.getElementById('dToday').innerHTML=mkCards(lt,'ct','');
   document.getElementById('dTomorrow').innerHTML=mkCards(lm,'cm','');
+  document.getElementById('dSunday').innerHTML=mkCards(ls,'cm','');
   // Update section titles with counts
   document.getElementById('titleArrived').innerHTML='&#128663; Arrived Today <span class="tbadge" style="background:var(--ok);color:#000">'+arrived.length+'</span>';
   document.getElementById('titleToday').innerHTML='&#128276; Leaving Today <span class="tbadge" style="background:var(--acc);color:#000">'+lt.length+'</span>';
   document.getElementById('titleTomorrow').innerHTML='&#128198; Leaving Tomorrow <span class="tbadge" style="background:var(--pur);color:#fff">'+lm.length+'</span>';
+  var sunLabel=sun.toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'});
+  document.getElementById('titleSunday').innerHTML='&#128197; Returning Sunday <span class="tbadge" style="background:#e86030;color:#fff">'+ls.length+'</span>';
+  document.getElementById('subSunday').textContent='Return Date = '+sunLabel;
 
   // Forgot Yesterday - compare by zeroing out time
   var yst=new Date(today.getFullYear(), today.getMonth(), today.getDate()-1);
