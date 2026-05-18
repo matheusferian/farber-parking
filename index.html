@@ -501,6 +501,7 @@ input[type=checkbox] { width: 20px; height: 20px; }
   <div class="tab" data-t="tasks">&#9989; Tasks <span class="tbadge red" id="btasks">0</span></div>
   <div class="tab" data-t="flight">&#9992; Flight List</div>
   <div class="tab" data-t="report">&#128438; Report</div>
+  <div class="tab" data-t="stats">&#128202; Stats</div>
 </div>
 <div class="pane on" id="pane-all">
   <div class="stats" id="statsBar"></div>
@@ -669,6 +670,33 @@ input[type=checkbox] { width: 20px; height: 20px; }
     <button onclick="generatePDF('share')" style="width:100%;background:var(--s2);color:var(--mu);border:1px solid var(--b);border-radius:10px;padding:12px;font-family:'Syne',sans-serif;font-size:13px;cursor:pointer;">
       🔗 Open in New Tab
     </button>
+  </div>
+</div>
+
+<!-- STATS PANE -->
+<div class="pane" id="pane-stats">
+  <div class="flight-sec" style="padding:16px 20px 100px;">
+    <div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:800;margin-bottom:4px;color:var(--tx)">&#128202; Médias de Movimento</div>
+    <div style="font-size:11px;color:var(--mu);margin-bottom:18px;font-family:'DM Mono',monospace;">Entradas e saídas calculadas pelo histórico completo</div>
+
+    <!-- Period selector -->
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px;" id="statsPeriodBtns">
+      <button class="rpill on" data-p="day" onclick="setStatsPeriod(this)">📅 Hoje</button>
+      <button class="rpill" data-p="week" onclick="setStatsPeriod(this)">📆 Esta Semana</button>
+      <button class="rpill" data-p="month" onclick="setStatsPeriod(this)">🗓️ Este Mês</button>
+      <button class="rpill" data-p="all" onclick="setStatsPeriod(this)">📊 Médias Gerais</button>
+    </div>
+
+    <!-- Main big numbers -->
+    <div id="statsBigNums" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px;"></div>
+
+    <!-- Averages row -->
+    <div style="font-size:10px;font-family:'DM Mono',monospace;color:var(--mu);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Médias Históricas</div>
+    <div id="statsAvgRow" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:20px;"></div>
+
+    <!-- Daily breakdown last 14 days -->
+    <div style="font-size:10px;font-family:'DM Mono',monospace;color:var(--mu);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;" id="statsBreakdownTitle">Últimos 14 Dias — Entradas</div>
+    <div id="statsBarChart" style="display:flex;flex-direction:column;gap:5px;background:var(--s);border:1px solid var(--b);border-radius:12px;padding:14px 16px;"></div>
   </div>
 </div>
 
@@ -1018,7 +1046,226 @@ function renderDay() {
     document.getElementById('forgotSection').style.display = 'none';
   }
 }
-function render(){renderStats();renderTable();renderDay();renderTasks();updateReportPreview();}
+function render(){renderStats();renderTable();renderDay();renderTasks();updateReportPreview();renderStatsPane();}
+
+// ── STATS PANE ─────────────────────────────────────────────────
+var statsPeriod = 'day';
+function setStatsPeriod(btn) {
+  document.querySelectorAll('#statsPeriodBtns .rpill').forEach(function(b){b.classList.remove('on');});
+  btn.classList.add('on');
+  statsPeriod = btn.getAttribute('data-p');
+  renderStatsPane();
+}
+
+function getDateFromTs(ts) {
+  if (!ts) return null;
+  var s = String(ts).trim(), p = s.split('/');
+  if (p.length >= 3) {
+    var d = new Date(parseInt(p[2],10), parseInt(p[0],10)-1, parseInt(p[1],10));
+    return isNaN(d.getTime()) ? null : d;
+  }
+  var d2 = new Date(s);
+  return isNaN(d2.getTime()) ? null : d2;
+}
+
+function getDateFromDel(s) {
+  if (!s) return null;
+  var p = String(s).trim().split('/');
+  if (p.length >= 3) {
+    var d = new Date(parseInt(p[2],10), parseInt(p[0],10)-1, parseInt(p[1],10));
+    return isNaN(d.getTime()) ? null : d;
+  }
+  return null;
+}
+
+function statsCard(num, label, color, sub) {
+  return '<div style="background:var(--s);border:1px solid var(--b);border-radius:12px;padding:16px 14px;text-align:center;">' +
+    '<div style="font-family:\'Syne\',sans-serif;font-size:32px;font-weight:800;color:'+color+'">'+num+'</div>' +
+    '<div style="font-size:11px;font-family:\'DM Mono\',monospace;color:var(--mu);text-transform:uppercase;letter-spacing:.5px;margin-top:3px;">'+label+'</div>' +
+    (sub?'<div style="font-size:10px;color:var(--mu);margin-top:4px;">'+sub+'</div>':'')+
+  '</div>';
+}
+
+function avgCard(num, label, color) {
+  var n = typeof num === 'number' ? num.toFixed(1) : num;
+  return '<div style="background:var(--s2);border:1px solid var(--b);border-radius:10px;padding:12px 10px;text-align:center;">' +
+    '<div style="font-family:\'Syne\',sans-serif;font-size:20px;font-weight:800;color:'+color+'">'+n+'</div>' +
+    '<div style="font-size:9px;font-family:\'DM Mono\',monospace;color:var(--mu);text-transform:uppercase;letter-spacing:.5px;margin-top:2px;">'+label+'</div>' +
+  '</div>';
+}
+
+function renderStatsPane() {
+  if (!data || !data.length) return;
+
+  var now = new Date(); now.setHours(0,0,0,0);
+
+  // Build per-day maps: { 'YYYY-MM-DD': count }
+  var inMap = {}, outMap = {};
+  data.forEach(function(r) {
+    var din = getDateFromTs(r.ts);
+    if (din) {
+      var k = din.getFullYear()+'-'+String(din.getMonth()+1).padStart(2,'0')+'-'+String(din.getDate()).padStart(2,'0');
+      inMap[k] = (inMap[k]||0) + 1;
+    }
+    if (r.status === 'DELIVERED') {
+      var dout = getDateFromDel(r.deldate);
+      if (dout) {
+        var k2 = dout.getFullYear()+'-'+String(dout.getMonth()+1).padStart(2,'0')+'-'+String(dout.getDate()).padStart(2,'0');
+        outMap[k2] = (outMap[k2]||0) + 1;
+      }
+    }
+  });
+
+  function keyOf(d) {
+    return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  }
+  function startOfWeek(d) {
+    var c = new Date(d); c.setDate(d.getDate()-d.getDay()); return c;
+  }
+
+  // Count for a date range
+  function sumRange(map, from, to) {
+    var total = 0;
+    for (var k in map) {
+      var d = new Date(k+'T00:00:00');
+      if (d >= from && d <= to) total += map[k];
+    }
+    return total;
+  }
+
+  // All distinct days that appear in either map
+  var allKeys = {};
+  Object.keys(inMap).forEach(function(k){allKeys[k]=1;});
+  Object.keys(outMap).forEach(function(k){allKeys[k]=1;});
+  var allDays = Object.keys(allKeys).sort();
+
+  // Unique weeks and months in data
+  var weekSet = {}, monthSet = {};
+  allDays.forEach(function(k){
+    var d = new Date(k+'T00:00:00');
+    var sw = startOfWeek(d);
+    weekSet[keyOf(sw)] = 1;
+    monthSet[d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')] = 1;
+  });
+  var totalWeeks = Math.max(1, Object.keys(weekSet).length);
+  var totalMonths = Math.max(1, Object.keys(monthSet).length);
+  var totalDays = Math.max(1, allDays.length);
+
+  var totalIn = 0, totalOut = 0;
+  Object.values(inMap).forEach(function(v){totalIn+=v;});
+  Object.values(outMap).forEach(function(v){totalOut+=v;});
+
+  var avgDayIn  = totalIn  / totalDays;
+  var avgDayOut = totalOut / totalDays;
+  var avgWeekIn  = totalIn  / totalWeeks;
+  var avgWeekOut = totalOut / totalWeeks;
+  var avgMonthIn  = totalIn  / totalMonths;
+  var avgMonthOut = totalOut / totalMonths;
+
+  // Period-specific counts
+  var bigIn, bigOut, bigLabel, chartDays = 14, chartTitle;
+  var todayKey = keyOf(now);
+  var weekStart = startOfWeek(now);
+  var monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  if (statsPeriod === 'day') {
+    bigIn  = inMap[todayKey]  || 0;
+    bigOut = outMap[todayKey] || 0;
+    bigLabel = 'hoje';
+    chartTitle = 'Últimos 14 Dias — Entradas vs. Saídas';
+  } else if (statsPeriod === 'week') {
+    bigIn  = sumRange(inMap,  weekStart, now);
+    bigOut = sumRange(outMap, weekStart, now);
+    bigLabel = 'esta semana';
+    chartTitle = 'Últimas 8 Semanas — Entradas';
+    chartDays = 56;
+  } else if (statsPeriod === 'month') {
+    bigIn  = sumRange(inMap,  monthStart, now);
+    bigOut = sumRange(outMap, monthStart, now);
+    bigLabel = 'este mês';
+    chartTitle = 'Últimos 6 Meses — Entradas';
+    chartDays = 180;
+  } else {
+    bigIn  = totalIn;
+    bigOut = totalOut;
+    bigLabel = 'total histórico';
+    chartTitle = 'Todos os dias com movimento';
+    chartDays = 9999;
+  }
+
+  // Render big numbers
+  document.getElementById('statsBigNums').innerHTML =
+    statsCard(bigIn,  'Carros Entrados — '+bigLabel, 'var(--ok)',
+      'Média/dia: '+avgDayIn.toFixed(1)) +
+    statsCard(bigOut, 'Carros Saídos — '+bigLabel,   'var(--pur)',
+      'Média/dia: '+avgDayOut.toFixed(1));
+
+  // Render averages row
+  document.getElementById('statsAvgRow').innerHTML =
+    avgCard(avgDayIn.toFixed(1),   'Entradas/dia',   'var(--ok)') +
+    avgCard(avgWeekIn.toFixed(1),  'Entradas/semana','var(--ok)') +
+    avgCard(avgMonthIn.toFixed(1), 'Entradas/mês',   'var(--ok)') +
+    avgCard(avgDayOut.toFixed(1),   'Saídas/dia',    'var(--pur)') +
+    avgCard(avgWeekOut.toFixed(1),  'Saídas/semana', 'var(--pur)') +
+    avgCard(avgMonthOut.toFixed(1), 'Saídas/mês',    'var(--pur)');
+
+  // Bar chart — last N days with activity
+  document.getElementById('statsBreakdownTitle').textContent = chartTitle;
+  var chartKeys;
+  if (statsPeriod === 'all') {
+    chartKeys = allDays.slice(-40);
+  } else {
+    var cutoff = new Date(now); cutoff.setDate(now.getDate() - chartDays + 1);
+    chartKeys = [];
+    for (var k in allKeys) {
+      var d = new Date(k+'T00:00:00');
+      if (d >= cutoff && d <= now) chartKeys.push(k);
+    }
+    chartKeys.sort();
+    if (!chartKeys.length) {
+      // show last 14 days even if empty
+      for (var i=13;i>=0;i--) {
+        var dd=new Date(now); dd.setDate(now.getDate()-i);
+        chartKeys.push(keyOf(dd));
+      }
+    }
+  }
+
+  var maxVal = 1;
+  chartKeys.forEach(function(k){
+    maxVal = Math.max(maxVal, (inMap[k]||0), (outMap[k]||0));
+  });
+
+  var html = '';
+  chartKeys.forEach(function(k) {
+    var inn  = inMap[k]  || 0;
+    var outt = outMap[k] || 0;
+    var d = new Date(k+'T00:00:00');
+    var label = d.toLocaleDateString('pt-BR',{weekday:'short',month:'short',day:'numeric'});
+    var barIn  = Math.round((inn  / maxVal) * 100);
+    var barOut = Math.round((outt / maxVal) * 100);
+    html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:2px;">' +
+      '<div style="font-family:\'DM Mono\',monospace;font-size:9px;color:var(--mu);width:80px;flex-shrink:0;text-align:right;">'+label+'</div>' +
+      '<div style="flex:1;display:flex;flex-direction:column;gap:3px;">' +
+        '<div style="display:flex;align-items:center;gap:6px;">' +
+          '<div style="height:10px;background:var(--ok);border-radius:4px;width:'+barIn+'%;min-width:'+(inn?2:0)+'px;transition:width .3s;"></div>' +
+          '<span style="font-size:10px;color:var(--ok);font-family:\'DM Mono\',monospace;">'+inn+'</span>' +
+        '</div>' +
+        (outt > 0 ?
+        '<div style="display:flex;align-items:center;gap:6px;">' +
+          '<div style="height:10px;background:var(--pur);border-radius:4px;width:'+barOut+'%;min-width:2px;transition:width .3s;"></div>' +
+          '<span style="font-size:10px;color:var(--pur);font-family:\'DM Mono\',monospace;">'+outt+'</span>' +
+        '</div>' : '') +
+      '</div>' +
+    '</div>';
+  });
+  if (!html) html = '<div style="text-align:center;padding:20px;color:var(--mu);font-size:12px;">Sem dados suficientes ainda</div>';
+  document.getElementById('statsBarChart').innerHTML =
+    '<div style="display:flex;gap:14px;margin-bottom:10px;">' +
+      '<span style="font-size:10px;color:var(--ok);font-family:\'DM Mono\',monospace;">● Entradas</span>' +
+      '<span style="font-size:10px;color:var(--pur);font-family:\'DM Mono\',monospace;">● Saídas</span>' +
+    '</div>' + html;
+}
 
 function rowChk(cb){
   var id=parseInt(cb.getAttribute('data-id'),10);
