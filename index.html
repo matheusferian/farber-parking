@@ -951,11 +951,11 @@ function renderStats() {
   var late=data.filter(function(r){return isLate(r.ret)&&r.status!=='DELIVERED';}).length;
   var sb=document.getElementById('statsBar');
   if(sb) sb.innerHTML=
-    '<div class="chip" onclick="setFilter('all')"><div class="dot" style="background:var(--navy)"></div><div><div class="num">'+total+'</div><div class="lbl">Total</div></div></div>'+
-    '<div class="chip" onclick="setFilter('PENDING')"><div class="dot" style="background:var(--acc)"></div><div><div class="num" style="color:var(--acc)">'+pend+'</div><div class="lbl">Pending</div></div></div>'+
-    '<div class="chip" onclick="setFilter('NO DATE')"><div class="dot" style="background:var(--pur)"></div><div><div class="num" style="color:var(--pur)">'+nd+'</div><div class="lbl">No Date</div></div></div>'+
-    '<div class="chip" onclick="setFilter('DELIVERED')"><div class="dot" style="background:var(--ok)"></div><div><div class="num" style="color:var(--ok)">'+del+'</div><div class="lbl">Delivered</div></div></div>'+
-    (late?'<div class="chip" onclick="setFilter('overdue')"><div class="dot" style="background:var(--red)"></div><div><div class="num" style="color:var(--red)">'+late+'</div><div class="lbl">Overdue</div></div></div>':'');
+    '<div class="chip" onclick="setFilter(&apos;all&apos;)"><div class="dot" style="background:var(--navy)"></div><div><div class="num">'+total+'</div><div class="lbl">Total</div></div></div>'+
+    '<div class="chip" onclick="setFilter(&apos;PENDING&apos;)"><div class="dot" style="background:var(--acc)"></div><div><div class="num" style="color:var(--acc)">'+pend+'</div><div class="lbl">Pending</div></div></div>'+
+    '<div class="chip" onclick="setFilter(&apos;NO DATE&apos;)"><div class="dot" style="background:var(--pur)"></div><div><div class="num" style="color:var(--pur)">'+nd+'</div><div class="lbl">No Date</div></div></div>'+
+    '<div class="chip" onclick="setFilter(&apos;DELIVERED&apos;)"><div class="dot" style="background:var(--ok)"></div><div><div class="num" style="color:var(--ok)">'+del+'</div><div class="lbl">Delivered</div></div></div>'+
+    (late?'<div class="chip" onclick="setFilter(&apos;overdue&apos;)"><div class="dot" style="background:var(--red)"></div><div><div class="num" style="color:var(--red)">'+late+'</div><div class="lbl">Overdue</div></div></div>':'');
   var ball=document.getElementById('ball'); if(ball) ball.textContent=total;
   var bday=document.getElementById('bday');
   var todayCount=data.filter(function(r){return isToday(r.ret)&&r.status!=='DELIVERED';}).length;
@@ -1467,8 +1467,7 @@ async function quickDeliver(id){
   var r=null; for(var i=0;i<data.length;i++){if(data[i].id===id){r=data[i];break;}}
   if(!r) return;
   var isLateDeliver=isLate(r.ret);
-  if(!confirm((isLateDeliver?'⚠️ LATE — ':'')+'Mark as DELIVERED?
-'+r.name+' (Ticket '+r.ticket+')')) return;
+  if(!confirm((isLateDeliver?'⚠️ LATE — ':'')+'Mark as DELIVERED?\n'+r.name+' (Ticket '+r.ticket+')')) return;
   loading(true);
   try{
     var todayStr=(today.getMonth()+1)+'/'+(today.getDate())+'/'+today.getFullYear();
@@ -1501,9 +1500,7 @@ async function markDel(id){
 async function earlyReturn(id){
   var r=null;for(var i=0;i<data.length;i++){if(data[i].id===id){r=data[i];break;}}
   if(!r)return;
-  if(!confirm('⚡ Early Return — Mark as delivered?
-'+r.name+' (Ticket '+r.ticket+')
-Was expected: '+fmtD(r.ret))) return;
+  if(!confirm('⚡ Early Return — Mark as delivered?\n'+r.name+' (Ticket '+r.ticket+')\nWas expected: '+fmtD(r.ret))) return;
   loading(true);
   try{
     var todayStr=(today.getMonth()+1)+'/'+(today.getDate())+'/'+today.getFullYear();
