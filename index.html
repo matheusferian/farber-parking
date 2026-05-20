@@ -10,6 +10,7 @@
 <title>Valet Control</title>
 <link rel="manifest" href="data:application/json,{&quot;name&quot;:&quot;Valet Control&quot;,&quot;short_name&quot;:&quot;Valet&quot;,&quot;display&quot;:&quot;standalone&quot;,&quot;background_color&quot;:&quot;%230a0f1e&quot;,&quot;theme_color&quot;:&quot;%231a3d7c&quot;}">
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <style>
 /* ── ROOT PALETTE (from Makers Air logo) ── */
 :root{
@@ -338,8 +339,17 @@ input[type=checkbox]{width:17px;height:17px;accent-color:var(--gold);cursor:poin
 /* ── PRINT ── */
 .print-only{display:none;}
 
-/* ── LOGIN (kept for future) ── */
+/* ── LOGIN SCREEN ── */
 .login-err{color:#ff7070;font-size:11px;font-family:'DM Mono',monospace;text-align:center;margin-top:8px;display:none;}
+#loginOv{position:fixed;inset:0;background:linear-gradient(135deg,#0a0f1e,#1B3B6F);z-index:9999;display:flex;align-items:center;justify-content:center;}
+#loginBox{background:var(--s);border:1px solid var(--b);border-top:4px solid var(--gold);border-radius:16px;padding:32px 28px;width:100%;max-width:360px;box-shadow:0 20px 60px rgba(0,0,0,0.4);}
+.login-logo{font-family:'Syne',sans-serif;font-size:20px;font-weight:800;color:var(--navy);margin-bottom:4px;}
+.login-sub{font-size:11px;color:var(--mu);font-family:'DM Mono',monospace;letter-spacing:1px;margin-bottom:24px;}
+.login-inp{width:100%;box-sizing:border-box;background:var(--s2);border:1.5px solid var(--b);border-radius:10px;padding:12px 14px;font-size:14px;color:var(--tx);font-family:'DM Sans',sans-serif;outline:none;margin-bottom:10px;display:block;}
+.login-inp:focus{border-color:var(--gold);}
+#loginBtn{width:100%;background:var(--navy);color:#fff;border:none;border-radius:10px;padding:13px;font-family:'Syne',sans-serif;font-weight:800;font-size:14px;cursor:pointer;margin-top:4px;letter-spacing:0.5px;}
+#loginBtn:hover{background:var(--navy2);}
+#loginBtn:disabled{opacity:0.6;cursor:default;}
 
 /* ── MOBILE OPTIMIZATIONS ── */
 *{-webkit-tap-highlight-color:transparent;}
@@ -388,6 +398,16 @@ body{-webkit-text-size-adjust:100%;}
 </style>
 </head>
 <body>
+<div id="loginOv">
+  <div id="loginBox">
+    <div class="login-logo">&#9992; Valet Operations</div>
+    <div class="login-sub">MAKERS AIR &middot; SECURE ACCESS</div>
+    <input class="login-inp" type="email" id="loginEmail" placeholder="Email" autocomplete="username" />
+    <input class="login-inp" type="password" id="loginPwd" placeholder="Password" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()" />
+    <button id="loginBtn" onclick="doLogin()">Sign In</button>
+    <div class="login-err" id="loginErr"></div>
+  </div>
+</div>
 
 
 
@@ -405,6 +425,7 @@ body{-webkit-text-size-adjust:100%;}
   <div class="hdr-r">
     <div class="hdr-date" id="hdrDate"></div>
     <button class="ref-btn" onclick="loadData()">&#8635; Refresh</button>
+    <button class="ref-btn" id="logoutBtn" onclick="doLogout()" style="display:none">Sign Out</button>
   </div>
 </header>
 <div class="tabs" style="background:linear-gradient(135deg,#1a3d7c,#2a5db0);border-bottom:1px solid rgba(201,168,76,0.3);">
@@ -676,12 +697,14 @@ body{-webkit-text-size-adjust:100%;}
 var SUPABASE_URL = 'https://sfewtirvqhrpanwhbchd.supabase.co';
 var SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNmZXd0aXJ2cWhycGFud2hiY2hkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkyNzExMjcsImV4cCI6MjA5NDg0NzEyN30.UFf22k7Zn7v72IPujuF1YRrK6PPbp8K_uz6TkYlhOl8';
 var TABLE = 'passengers';
+var _authToken = null;
+var _supaClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 function sbHeaders() {
   return {
     'Content-Type': 'application/json',
     'apikey': SUPABASE_KEY,
-    'Authorization': 'Bearer ' + SUPABASE_KEY,
+    'Authorization': 'Bearer ' + (_authToken || SUPABASE_KEY),
     'Prefer': 'return=representation'
   };
 }
@@ -1367,6 +1390,7 @@ async function saveEntry(sendSms){
 
 // ── DETAIL PANEL ───────────────────────────────────────────────
 function showDet(id){
+  _editChanges={};
   var r=null;for(var i=0;i<data.length;i++){if(data[i].id===id){r=data[i];break;}}
   if(!r)return;
   var hist=data.filter(function(d){return d.name.toLowerCase()===r.name.toLowerCase();});
@@ -1571,7 +1595,7 @@ function makeEditable(cell,field){
     '</select>';
   } else if(field==='loc'){
     ctrl='<select class="di-input" id="inp-'+field+'" onclick="event.stopPropagation()">'+
-      [''].concat(HANGARS).map(function(v){return '<option value="'+v+'"'+(rawVal===v?' selected':'')+'>'+v+'</option>';}).join('')+
+      [''].concat(HANGARS).map(function(v){return '<option value="'+v+'"'+(rawVal===v?' selected':'')+'>'+(v||'— no location —')+'</option>';}).join('')+
     '</select>';
   } else if(field==='ret'||field==='ts'){
     ctrl='<input class="di-input" type="date" id="inp-'+field+'" value="'+escapeHTML(rawVal)+'" onclick="event.stopPropagation()" />';
@@ -1748,9 +1772,61 @@ function genReport(type,mode){
   if(mode!=='share') setTimeout(function(){printWin.print();},500);
 }
 
-// ── LOGIN DISABLED ─────────────────────────────────────────────
-function doLogin(){ loadData(); }
-function checkAuth(){ return false; }
+// ── SUPABASE AUTH ──────────────────────────────────────────────
+function showApp() {
+  document.getElementById('loginOv').style.display = 'none';
+  var lb = document.getElementById('logoutBtn'); if(lb) lb.style.display = '';
+}
+function showLogin() {
+  document.getElementById('loginOv').style.display = 'flex';
+  var lb = document.getElementById('logoutBtn'); if(lb) lb.style.display = 'none';
+  var btn = document.getElementById('loginBtn');
+  if(btn){ btn.disabled = false; btn.textContent = 'Sign In'; }
+}
+async function doLogin() {
+  var email = (document.getElementById('loginEmail').value || '').trim();
+  var pwd   = document.getElementById('loginPwd').value;
+  var errEl = document.getElementById('loginErr');
+  errEl.style.display = 'none';
+  if(!email || !pwd){ errEl.textContent = 'Enter email and password.'; errEl.style.display = 'block'; return; }
+  var btn = document.getElementById('loginBtn');
+  btn.disabled = true; btn.textContent = 'Signing in…';
+  var result = await _supaClient.auth.signInWithPassword({ email: email, password: pwd });
+  if(result.error){
+    errEl.textContent = result.error.message || 'Login failed.';
+    errEl.style.display = 'block';
+    btn.disabled = false; btn.textContent = 'Sign In';
+  }
+  // on success onAuthStateChange fires SIGNED_IN → showApp() + loadData()
+}
+async function doLogout() {
+  await _supaClient.auth.signOut();
+  // onAuthStateChange fires SIGNED_OUT → showLogin()
+}
+
+_supaClient.auth.onAuthStateChange(function(event, session) {
+  if(event === 'SIGNED_IN') {
+    _authToken = session.access_token;
+    showApp();
+    loadData();
+  } else if(event === 'TOKEN_REFRESHED' && session) {
+    _authToken = session.access_token;
+  } else if(event === 'SIGNED_OUT') {
+    _authToken = null;
+    showLogin();
+  }
+});
+
+// Check for an existing session on page load (restores from localStorage)
+_supaClient.auth.getSession().then(function(result) {
+  if(result.data && result.data.session) {
+    _authToken = result.data.session.access_token;
+    showApp();
+    loadData();
+  } else {
+    showLogin();
+  }
+});
 
 document.getElementById('hdrDate').textContent=today.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'});
 var rd=document.getElementById('reportDate');
@@ -1761,7 +1837,6 @@ var fcpd=document.getElementById('fcPasteDate');
 if(fcpd){var t4=new Date();t4.setDate(t4.getDate()+1);fcpd.value=t4.getFullYear()+'-'+String(t4.getMonth()+1).padStart(2,'0')+'-'+String(t4.getDate()).padStart(2,'0');}
 var defEl=document.getElementById('s-ts');
 if(defEl) defEl.textContent=' ▼';
-if(!checkAuth()){/* wait for login */}
 
 // ── FLIGHT CHECK ───────────────────────────────────────────────
 function runFCCheck2() {
