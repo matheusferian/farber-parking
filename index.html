@@ -501,6 +501,7 @@ input[type=checkbox] { width: 20px; height: 20px; }
   <div class="tab" data-t="tasks">&#9989; Tasks <span class="tbadge red" id="btasks">0</span></div>
   <div class="tab" data-t="flight">&#9992; Flight List</div>
   <div class="tab" data-t="report">&#128438; Report</div>
+  <div class="tab" data-t="debug" style="color:#e86030">&#128295; Debug</div>
 </div>
 <div class="pane on" id="pane-all">
   <div class="stats" id="statsBar"></div>
@@ -735,11 +736,19 @@ input[type=checkbox] { width: 20px; height: 20px; }
 <div class="ov" id="detOv">
   <div class="modal" id="detPanel"></div>
 </div>
+<!-- DEBUG PANE -->
+<div class="pane" id="pane-debug" style="padding:16px 20px 100px">
+  <div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:800;color:#e86030;margin-bottom:4px">&#128295; Connection Diagnostics</div>
+  <div style="font-size:11px;color:var(--mu);margin-bottom:16px">Use this tab to test if the Google Apps Script is responding correctly.</div>
+  <button onclick="runDiagnostic()" style="background:linear-gradient(135deg,#1a3d7c,#2a5db0);color:#fff;border:1px solid var(--gold);border-radius:10px;padding:12px 20px;font-family:'Syne',sans-serif;font-weight:700;font-size:13px;cursor:pointer;margin-bottom:12px;">&#9654; Run Connection Test</button>
+  <button onclick="runTestAppend()" style="background:linear-gradient(135deg,#1a5c3a,#1a9e6a);color:#fff;border:none;border-radius:10px;padding:12px 20px;font-family:'Syne',sans-serif;font-weight:700;font-size:13px;cursor:pointer;margin-bottom:12px;margin-left:8px;">&#128196; Test Append (writes TEST row)</button>
+  <div id="diagLog" style="background:#0a0f1e;border:1px solid var(--b);border-radius:10px;padding:14px;font-family:'DM Mono',monospace;font-size:12px;color:#6fc898;min-height:120px;white-space:pre-wrap;word-break:break-all;"></div>
+</div>
 <script>
 var ANTHROPIC_KEY = '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';
 var SHEET_ID = '1Rmt85fFNXAXt408hnwRgFDuXbNgTvExoWy4Dio_uPoQ';
 var API_KEY  = 'AIzaSyD5CZxcowhnb6eAVeFRIVm7wtxosrB4SrA';
-var WRITE_URL = 'https://script.google.com/macros/s/AKfycbyoDUrPxgxK3iNTSUlnYOcE4TQd8eDnbT6iB4LwCIanRcVRGJpV8kHR_yF8RH4tpfp0/exec';
+var WRITE_URL = 'https://script.google.com/macros/s/AKfycbyY1OwJeH_95P_0o1tMxk_yp55e4Xmo1_3fC97M82w8F-NNf2nrnEDLMbAzBfegCpzx/exec';
 var HANGARS  = ['HANGAR 19','HANGAR 18','HANGAR 16','HANGAR 7','HH'];
 var today    = new Date(); today.setHours(0,0,0,0);
 var tomorrow = new Date(today); tomorrow.setDate(today.getDate()+1);
@@ -1101,23 +1110,7 @@ function clearSel(){
 
 async function updateSheet(rowNum, col, value) {
   var payload = JSON.stringify({action:'update', row:rowNum, col:colToNum(col), value:value});
-  try {
-    var res = await fetch(WRITE_URL, {
-      method:'POST',
-      headers:{'Content-Type':'text/plain'},
-      body:payload
-    });
-    if(!res.ok) throw new Error('HTTP '+res.status);
-    return {status:'ok'};
-  } catch(e) {
-    // Fall back to no-cors
-    await fetch(WRITE_URL, {
-      method:'POST', mode:'no-cors',
-      headers:{'Content-Type':'text/plain'},
-      body:payload
-    });
-    return {status:'ok'};
-  }
+  return sendToSheet(payload);
 }
 function colToNum(col) {
   var n=0;
@@ -1125,30 +1118,51 @@ function colToNum(col) {
   return n;
 }
 async function appendSheet(vals) {
-  var payload = JSON.stringify({action:'append', values:vals});
-  // Try with CORS first (works if the Apps Script has CORS headers),
-  // then fall back to no-cors (opaque response — can't read errors but still sends)
-  try {
-    var res = await fetch(WRITE_URL, {
-      method:'POST',
-      headers:{'Content-Type':'text/plain'},
-      body:payload
-    });
-    if(!res.ok) throw new Error('HTTP '+res.status);
-    var text = await res.text();
-    if(text && text.indexOf('error')>=0) throw new Error(text);
-    return {status:'ok'};
-  } catch(e) {
-    // CORS block is expected — re-send as no-cors (opaque) and wait longer for processing
-    await fetch(WRITE_URL, {
-      method:'POST', mode:'no-cors',
-      headers:{'Content-Type':'text/plain'},
-      body:payload
-    });
-    // Wait for Apps Script to process before returning
-    await new Promise(function(res){setTimeout(res,2000);});
-    return {status:'ok'};
-  }
+  return new Promise(function(resolve, reject) {
+    var payload = JSON.stringify({action:'append', values:vals});
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', WRITE_URL, true);
+    xhr.setRequestHeader('Content-Type', 'text/plain;charset=utf-8');
+    xhr.timeout = 15000;
+    xhr.onload = function() {
+      console.log('[appendSheet] status:', xhr.status, 'response:', xhr.responseText);
+      resolve({status:'ok', response: xhr.responseText});
+    };
+    xhr.onerror = function() {
+      console.warn('[appendSheet] XHR error — retrying with no-cors fetch');
+      // Fallback: no-cors fetch (opaque, but still hits the server)
+      fetch(WRITE_URL, {
+        method:'POST', mode:'no-cors',
+        headers:{'Content-Type':'text/plain;charset=utf-8'},
+        body: payload
+      }).then(function(){
+        setTimeout(function(){ resolve({status:'ok'}); }, 3000);
+      }).catch(function(e){ reject(e); });
+    };
+    xhr.ontimeout = function() {
+      console.warn('[appendSheet] timeout');
+      reject(new Error('Request timed out'));
+    };
+    xhr.send(payload);
+  });
+}
+async function sendToSheet(payload) {
+  return new Promise(function(resolve) {
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', WRITE_URL, true);
+    xhr.setRequestHeader('Content-Type', 'text/plain;charset=utf-8');
+    xhr.timeout = 12000;
+    xhr.onload = function() {
+      console.log('[sendToSheet] status:', xhr.status, 'response:', xhr.responseText);
+      resolve({status:'ok'});
+    };
+    xhr.onerror = xhr.ontimeout = function() {
+      // Still attempt with no-cors
+      fetch(WRITE_URL, {method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain;charset=utf-8'},body:payload});
+      resolve({status:'ok'});
+    };
+    xhr.send(payload);
+  });
 }
 function loadDataBackground() {
   setTimeout(function(){ loadData(); }, 5000);
@@ -2149,6 +2163,70 @@ function chip2(color, num, lbl) {
   return '<div style="background:var(--s);border:1px solid var(--b);border-radius:8px;padding:8px 14px;text-align:center;">' +
     '<div style="font-family:Syne,sans-serif;font-size:18px;font-weight:800;color:'+color+'">'+num+'</div>' +
     '<div style="font-size:10px;color:var(--mu);text-transform:uppercase">'+lbl+'</div></div>';
+}
+
+// ── DIAGNOSTICS ────────────────────────────────────────────────
+function diagLog(msg, color) {
+  var el = document.getElementById('diagLog');
+  if(!el) return;
+  var ts = new Date().toLocaleTimeString('en-US');
+  var line = '['+ts+'] ' + msg + '\n';
+  el.style.color = color || '#6fc898';
+  el.textContent += line;
+  el.scrollTop = el.scrollHeight;
+}
+
+function runDiagnostic() {
+  var el = document.getElementById('diagLog');
+  if(el) el.textContent = '';
+  diagLog('Testing connection to Google Apps Script...');
+  diagLog('URL: ' + WRITE_URL);
+
+  // Test 1: Can we reach the script at all (GET)?
+  var xhr = new XMLHttpRequest();
+  xhr.open('GET', WRITE_URL, true);
+  xhr.timeout = 10000;
+  xhr.onload = function() {
+    diagLog('✅ GET response: HTTP ' + xhr.status, '#6fc898');
+    diagLog('Response body: ' + (xhr.responseText||'(empty)').substring(0,300));
+  };
+  xhr.onerror = function() { diagLog('❌ GET failed — network error or blocked', '#ff6b6b'); };
+  xhr.ontimeout = function() { diagLog('⏱ GET timed out after 10s', '#ffaa33'); };
+  xhr.send();
+
+  // Test 2: POST ping
+  setTimeout(function(){
+    diagLog('\nSending POST ping...');
+    var xhr2 = new XMLHttpRequest();
+    xhr2.open('POST', WRITE_URL, true);
+    xhr2.setRequestHeader('Content-Type', 'text/plain;charset=utf-8');
+    xhr2.timeout = 10000;
+    xhr2.onload = function() {
+      diagLog('✅ POST response: HTTP ' + xhr2.status, '#6fc898');
+      diagLog('Response body: ' + (xhr2.responseText||'(empty)').substring(0,500));
+      if(xhr2.responseText && xhr2.responseText.indexOf('append')>=0) diagLog('✅ Script understands append action!');
+      if(xhr2.responseText && (xhr2.responseText.indexOf('Error')>=0||xhr2.responseText.indexOf('error')>=0)) diagLog('⚠️ Script returned an error in body!','#ffaa33');
+    };
+    xhr2.onerror = function() { diagLog('❌ POST failed — CORS or network block', '#ff6b6b'); };
+    xhr2.ontimeout = function() { diagLog('⏱ POST timed out', '#ffaa33'); };
+    xhr2.send(JSON.stringify({action:'ping'}));
+  }, 500);
+}
+
+async function runTestAppend() {
+  var el = document.getElementById('diagLog');
+  if(el) el.textContent = '';
+  diagLog('Sending TEST APPEND row...');
+  var ts = new Date().toLocaleString('en-US');
+  try {
+    var result = await appendSheet([ts,'TEST PASSENGER','(000) 000-0000','TEST-000','','TEST CAR','HANGAR 19','PENDING','','DEBUG TEST - DELETE ME']);
+    diagLog('✅ appendSheet returned: ' + JSON.stringify(result), '#6fc898');
+    diagLog('Check your Google Sheet for a "TEST PASSENGER" row.');
+    diagLog('If it appears → the connection works!');
+    diagLog('If it does NOT appear → the Apps Script has an issue.');
+  } catch(e) {
+    diagLog('❌ Error: ' + e.message, '#ff6b6b');
+  }
 }
 
 // ── LOGIN ──────────────────────────────────────────────────────
