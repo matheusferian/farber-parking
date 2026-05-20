@@ -745,17 +745,73 @@ input[type=checkbox] { width: 20px; height: 20px; }
   <div id="diagLog" style="background:#0a0f1e;border:1px solid var(--b);border-radius:10px;padding:14px;font-family:'DM Mono',monospace;font-size:12px;color:#6fc898;min-height:120px;white-space:pre-wrap;word-break:break-all;"></div>
 </div>
 <script>
+// ── SUPABASE CONFIG ────────────────────────────────────────────
+var SUPABASE_URL = 'https://sfewtirvqhrpanwhbchd.supabase.co';
+var SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNmZXd0aXJ2cWhycGFud2hiY2hkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkyNzExMjcsImV4cCI6MjA5NDg0NzEyN30.UFf22k7Zn7v72IPujuF1YRrK6PPbp8K_uz6TkYlhOl8';
+var TABLE = 'passengers';
+
+function sbHeaders() {
+  return {
+    'Content-Type': 'application/json',
+    'apikey': SUPABASE_KEY,
+    'Authorization': 'Bearer ' + SUPABASE_KEY,
+    'Prefer': 'return=representation'
+  };
+}
+
+async function sbGet() {
+  var res = await fetch(SUPABASE_URL + '/rest/v1/' + TABLE + '?order=id.asc&limit=5000', {
+    headers: sbHeaders()
+  });
+  if (!res.ok) throw new Error('Load failed: ' + res.status);
+  return res.json();
+}
+
+async function sbInsert(obj) {
+  var res = await fetch(SUPABASE_URL + '/rest/v1/' + TABLE, {
+    method: 'POST',
+    headers: sbHeaders(),
+    body: JSON.stringify(obj)
+  });
+  if (!res.ok) {
+    var err = await res.text();
+    throw new Error('Insert failed: ' + err);
+  }
+  return res.json();
+}
+
+async function sbUpdate(id, obj) {
+  var res = await fetch(SUPABASE_URL + '/rest/v1/' + TABLE + '?id=eq.' + id, {
+    method: 'PATCH',
+    headers: sbHeaders(),
+    body: JSON.stringify(obj)
+  });
+  if (!res.ok) {
+    var err = await res.text();
+    throw new Error('Update failed: ' + err);
+  }
+  return res.json();
+}
+
+async function sbDelete(id) {
+  var res = await fetch(SUPABASE_URL + '/rest/v1/' + TABLE + '?id=eq.' + id, {
+    method: 'DELETE',
+    headers: sbHeaders()
+  });
+  if (!res.ok) throw new Error('Delete failed: ' + res.status);
+  return true;
+}
+
+// ── GLOBALS ────────────────────────────────────────────────────
 var ANTHROPIC_KEY = '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';
-var SHEET_ID = '1Rmt85fFNXAXt408hnwRgFDuXbNgTvExoWy4Dio_uPoQ';
-var API_KEY  = 'AIzaSyD5CZxcowhnb6eAVeFRIVm7wtxosrB4SrA';
-var WRITE_URL = 'https://script.google.com/macros/s/AKfycbyY1OwJeH_95P_0o1tMxk_yp55e4Xmo1_3fC97M82w8F-NNf2nrnEDLMbAzBfegCpzx/exec';
 var HANGARS  = ['HANGAR 19','HANGAR 18','HANGAR 16','HANGAR 7','HH'];
 var today    = new Date(); today.setHours(0,0,0,0);
 var tomorrow = new Date(today); tomorrow.setDate(today.getDate()+1);
-var data = [], sheetName = 'Form Responses 1';
+var data = [];
 var curFilter = 'all', srchTerm = '', selected = {};
 var sortCol = 'ts', sortAsc = false;
 
+// ── DATE HELPERS ───────────────────────────────────────────────
 function pd(s) {
   if (!s) return null;
   s = String(s).trim();
@@ -775,6 +831,7 @@ function sd(a,b) { return a&&b&&a.getFullYear()===b.getFullYear()&&a.getMonth()=
 function isToday(s)  { return sd(pd(s), today); }
 function isTmrw(s)   { return sd(pd(s), tomorrow); }
 function isLate(s)   { var d=pd(s); return d&&d<today&&!sd(d,today); }
+var isLate2 = isLate;
 function nextSunday() {
   var d=new Date(today); var day=d.getDay(); var diff=day===0?7:7-day;
   d.setDate(d.getDate()+diff); return d;
@@ -810,9 +867,8 @@ function d2us(v) {
   var d=pd(v); if(!d) return '';
   return (d.getMonth()+1)+'/'+d.getDate()+'/'+d.getFullYear();
 }
-function toRow(row,i) {
-  return {id:i+2,ri:i+2,ts:row[0]||'',name:row[1]||'',phone:row[2]||'',ticket:row[3]||'',ret:row[4]||'',car:row[5]||'',loc:row[6]||'',status:row[7]||'PENDING',block:row[8]||'',obs:row[9]||'',deldate:row[10]||''};
-}
+
+// ── LOAD DATA ──────────────────────────────────────────────────
 function loading(on) { document.getElementById('bar').style.display=on?'block':'none'; }
 function showMsg(txt,err) {
   var el=document.getElementById('msg');
@@ -826,42 +882,37 @@ function showMsg(txt,err) {
 async function loadData() {
   loading(true);
   try {
-    // First get sheet names to find the right one
-    var metaUrl='https://sheets.googleapis.com/v4/spreadsheets/'+SHEET_ID+'?key='+API_KEY;
-    var metaR=await fetch(metaUrl);
-    var metaJ=await metaR.json();
-    if(metaJ.sheets && metaJ.sheets.length>0) {
-      sheetName = metaJ.sheets[0].properties.title;
-    }
-    var url='https://sheets.googleapis.com/v4/spreadsheets/'+SHEET_ID+'/values/'+encodeURIComponent(sheetName+'!A1:K6000')+'?key='+API_KEY;
-    var r=await fetch(url);
-    var j=await r.json();
-    if(j.error){ showMsg('Error: '+j.error.message,true); loading(false); return; }
-    var rows=j.values||[];
-    data=rows.length<2?[]:rows.slice(1).map(function(r,i){return toRow(r,i);});
+    var rows = await sbGet();
+    data = rows.map(function(r) {
+      return {
+        id: r.id, ri: r.id,
+        ts: r.ts||'', name: r.name||'', phone: r.phone||'',
+        ticket: r.ticket||'', ret: r.ret||'', car: r.car||'',
+        loc: r.loc||'', status: r.status||'PENDING',
+        block: r.block||'', obs: r.obs||'', deldate: r.deldate||''
+      };
+    });
     render();
-    showMsg('Loaded '+data.length+' records',false);
+    showMsg('Loaded '+data.length+' records', false);
   } catch(e) {
-    showMsg('Connection error: '+e.message,true);
+    showMsg('Connection error: '+e.message, true);
     console.error(e);
   }
   loading(false);
 }
 
+// ── SORT ───────────────────────────────────────────────────────
 function sortBy(col) {
   if(sortCol === col) { sortAsc = !sortAsc; }
   else { sortCol = col; sortAsc = true; }
-  // Update sort indicators
   var cols = ['name','ticket','car','loc','ts','ret','status'];
-  cols.forEach(function(c) {
-    var el = document.getElementById('s-'+c);
-    if(el) el.textContent = '';
-  });
+  cols.forEach(function(c) { var el=document.getElementById('s-'+c); if(el) el.textContent=''; });
   var el = document.getElementById('s-'+col);
   if(el) el.textContent = sortAsc ? ' ▲' : ' ▼';
   renderTable();
 }
 
+// ── FILTER ─────────────────────────────────────────────────────
 function getFiltered() {
   var rows=data.slice();
   if(srchTerm){
@@ -869,82 +920,69 @@ function getFiltered() {
     rows=rows.filter(function(r){return r.name.toLowerCase().indexOf(q)>=0||r.phone.indexOf(q)>=0||r.ticket.toLowerCase().indexOf(q)>=0||r.car.toLowerCase().indexOf(q)>=0||r.loc.toLowerCase().indexOf(q)>=0;});
   }
   if(curFilter==='PENDING') rows=rows.filter(function(r){return r.status==='PENDING';});
-  else if(curFilter==='DELIVERED') rows=rows.filter(function(r){return r.status==='DELIVERED';});
-  else if(curFilter==='ARRIVED_TODAY') rows=rows.filter(function(r){return isArrToday(r.ts);});
-  else if(curFilter==='DELIVERED_TODAY') rows=rows.filter(function(r){if(r.status!=='DELIVERED')return false;var d=pd(r.deldate);return d&&sd(d,today);});
   else if(curFilter==='NO DATE') rows=rows.filter(function(r){return r.status==='NO DATE';});
+  else if(curFilter==='DELIVERED') rows=rows.filter(function(r){return r.status==='DELIVERED';});
   else if(curFilter==='today') rows=rows.filter(function(r){return isToday(r.ret)&&r.status!=='DELIVERED';});
   else if(curFilter==='tomorrow') rows=rows.filter(function(r){return isTmrw(r.ret)&&r.status!=='DELIVERED';});
   else if(curFilter==='sunday') rows=rows.filter(function(r){return isSunday(r.ret)&&r.status!=='DELIVERED';});
   else if(curFilter==='overdue') rows=rows.filter(function(r){return isLate(r.ret)&&r.status!=='DELIVERED';});
-  else if(curFilter==='frequent'){var c={};data.forEach(function(r){var k=r.name.toLowerCase();c[k]=(c[k]||0)+1;});rows=rows.filter(function(r){return c[r.name.toLowerCase()]>1;});}
-  // Apply sort
-  rows.sort(function(a,b) {
-    var av = a[sortCol]||'', bv = b[sortCol]||'';
-    // For date columns parse properly
-    if(sortCol==='ret'||sortCol==='ts') {
-      var ad=pd(av)||new Date(av)||new Date(0);
-      var bd=pd(bv)||new Date(bv)||new Date(0);
-      if(isNaN(ad)) ad=new Date(0);
-      if(isNaN(bd)) bd=new Date(0);
-      return sortAsc ? ad-bd : bd-ad;
+  else if(curFilter==='frequent'){
+    var cnt={};
+    data.forEach(function(r){var k=r.name.toLowerCase();cnt[k]=(cnt[k]||0)+1;});
+    rows=rows.filter(function(r){return cnt[r.name.toLowerCase()]>1;});
+  }
+  rows.sort(function(a,b){
+    var av=a[sortCol]||'', bv=b[sortCol]||'';
+    if(sortCol==='ret'||sortCol==='ts'){
+      var ad=pd(av)||new Date(av||0), bd=pd(bv)||new Date(bv||0);
+      return sortAsc?(ad-bd):(bd-ad);
     }
-    // For ticket (numeric)
-    if(sortCol==='ticket') {
-      var an=parseInt(av,10)||0, bn=parseInt(bv,10)||0;
-      return sortAsc ? an-bn : bn-an;
-    }
-    av=String(av).toLowerCase(); bv=String(bv).toLowerCase();
-    if(av<bv) return sortAsc?-1:1;
-    if(av>bv) return sortAsc?1:-1;
-    return 0;
+    return sortAsc?av.localeCompare(bv):bv.localeCompare(av);
   });
   return rows;
 }
+
+// ── RENDER STATS ───────────────────────────────────────────────
 function renderStats() {
-  var p=0,n=0,d=0,t=0,tm=0,arr=0,o=0,sun=0;
-  data.forEach(function(r){
-    if(r.status==='PENDING')p++;
-    else if(r.status==='NO DATE')n++;
-    else if(r.status==='DELIVERED'){var _dd=pd(r.deldate);if(_dd&&sd(_dd,today))d++;}
-    if(r.status!=='DELIVERED'){if(isToday(r.ret))t++;else if(isTmrw(r.ret))tm++;if(isLate(r.ret))o++;if(isSunday(r.ret))sun++;}
-    if(isArrToday(r.ts))arr++;
-  });
-  document.getElementById('statsBar').innerHTML=
-    chip('var(--navy)',arr,'Arrived Today','ARRIVED_TODAY')+chip('var(--acc)',p,'Pending','PENDING')+chip('var(--pur)',n,'No Date','NO DATE')+
-    chip('var(--ok)',d,'Delivered Today','DELIVERED_TODAY')+chip('var(--acc)',t,'Out Today','today')+
-    chip('var(--pur)',tm,'Tomorrow','tomorrow')+chip('#e86030',sun,'Sunday','sunday')+chip('var(--red)',o,'Overdue','overdue');
-  document.getElementById('ball').textContent=data.length;
-  var u=t+o;
-  document.getElementById('bday').textContent=u>0?u:'OK';
-  document.getElementById('bday').className='tbadge '+(u>0?'red':'');
+  var total=data.length;
+  var pend=data.filter(function(r){return r.status==='PENDING';}).length;
+  var nd=data.filter(function(r){return r.status==='NO DATE';}).length;
+  var del=data.filter(function(r){return r.status==='DELIVERED';}).length;
+  var late=data.filter(function(r){return isLate(r.ret)&&r.status!=='DELIVERED';}).length;
+  var sb=document.getElementById('statsBar');
+  if(sb) sb.innerHTML=
+    '<div class="chip" onclick="setFilter('all')"><div class="dot" style="background:var(--navy)"></div><div><div class="num">'+total+'</div><div class="lbl">Total</div></div></div>'+
+    '<div class="chip" onclick="setFilter('PENDING')"><div class="dot" style="background:var(--acc)"></div><div><div class="num" style="color:var(--acc)">'+pend+'</div><div class="lbl">Pending</div></div></div>'+
+    '<div class="chip" onclick="setFilter('NO DATE')"><div class="dot" style="background:var(--pur)"></div><div><div class="num" style="color:var(--pur)">'+nd+'</div><div class="lbl">No Date</div></div></div>'+
+    '<div class="chip" onclick="setFilter('DELIVERED')"><div class="dot" style="background:var(--ok)"></div><div><div class="num" style="color:var(--ok)">'+del+'</div><div class="lbl">Delivered</div></div></div>'+
+    (late?'<div class="chip" onclick="setFilter('overdue')"><div class="dot" style="background:var(--red)"></div><div><div class="num" style="color:var(--red)">'+late+'</div><div class="lbl">Overdue</div></div></div>':'');
+  var ball=document.getElementById('ball'); if(ball) ball.textContent=total;
+  var bday=document.getElementById('bday');
+  var todayCount=data.filter(function(r){return isToday(r.ret)&&r.status!=='DELIVERED';}).length;
+  if(bday) { bday.textContent=todayCount||'!'; bday.className='tbadge'+(todayCount>0?' red':''); }
 }
-function chip(color,num,lbl,f) {
-  var div = document.createElement('div');
-  div.className = 'chip';
-  div.setAttribute('data-f', f);
-  div.innerHTML = '<div class="dot" style="background:'+color+'"></div><div><div class="num">'+num+'</div><div class="lbl">'+lbl+'</div></div>';
-  div.onclick = function() { setFilter(this.getAttribute('data-f')); };
-  return div.outerHTML;
-}
-function setFilter(f) {
+function setFilter(f){
   curFilter=f;
-  document.querySelectorAll('.fb').forEach(function(b){b.classList.toggle('on',b.getAttribute('data-f')===f);});
+  document.querySelectorAll('.fb').forEach(function(b){b.classList.remove('on');});
+  var btn=document.querySelector('.fb[data-f="'+f+'"]');
+  if(btn) btn.classList.add('on');
   renderTable();
 }
+
+// ── RENDER TABLE ───────────────────────────────────────────────
 function renderTable() {
   var rows=getFiltered();
   var tbody=document.getElementById('tbody');
-  var empty=document.getElementById('emptyMsg');
-  if(!rows.length){tbody.innerHTML='';empty.style.display='block';return;}
-  empty.style.display='none';
-  var cnt={};data.forEach(function(r){var k=r.name.toLowerCase();cnt[k]=(cnt[k]||0)+1;});
+  var emptyMsg=document.getElementById('emptyMsg');
+  if(!tbody) return;
+  if(!rows.length){tbody.innerHTML='';if(emptyMsg)emptyMsg.style.display='block';return;}
+  if(emptyMsg)emptyMsg.style.display='none';
+  var cnt={};
+  data.forEach(function(r){var k=r.name.toLowerCase();cnt[k]=(cnt[k]||0)+1;});
   var h='';
   rows.forEach(function(r){
+    var rt=isToday(r.ret),rm=isTmrw(r.ret),ro=isLate(r.ret);
     var freq=cnt[r.name.toLowerCase()]>1;
-    var rt=isToday(r.ret)&&r.status!=='DELIVERED';
-    var rm=isTmrw(r.ret)&&r.status!=='DELIVERED';
-    var ro=isLate(r.ret)&&r.status!=='DELIVERED';
     var rc='fut',rl=fmtD(r.ret);
     if(!r.ret){rc='nd';rl='No date';}
     else if(rt){rc='today';rl='TODAY';}
@@ -974,6 +1012,8 @@ function renderTable() {
   });
   tbody.innerHTML=h;
 }
+
+// ── RENDER DAY ─────────────────────────────────────────────────
 function renderDay() {
   var arrived=data.filter(function(r){return isArrToday(r.ts);});
   var lt=data.filter(function(r){return isToday(r.ret)&&r.status!=='DELIVERED';});
@@ -984,16 +1024,15 @@ function renderDay() {
     if(!list.length) return '<div class="eday">No cars in this group</div>';
     return list.map(function(r){
       var isApprox=r.obs&&r.obs.indexOf('APPROX DATE')>=0;
-      var qcls=btnCls||'';
       return '<div class="dcard '+cls+(isApprox?' approx-card':'')+'" onclick="showDet('+r.id+')">'+
         '<div class="dc-body">'+
           '<div class="dc-n">'+r.name+(isApprox?' <span style="font-size:9px;background:rgba(201,168,76,0.2);color:var(--gold);border-radius:4px;padding:2px 5px;margin-left:4px">~APPROX</span>':'')+'</div>'+
-          '<div class="dc-c">'+r.car+' &middot; '+fmtP(r.phone)+'</div>'+
+          '<div class="dc-c">'+r.car+' · '+fmtP(r.phone)+'</div>'+
         '</div>'+
         '<div class="dc-meta"><div class="dc-tk">'+r.ticket+'</div><div class="dc-l">'+r.loc+'</div></div>'+
         (r.status!=='DELIVERED'?
           '<div class="dc-qd" onclick="event.stopPropagation()">'+
-            '<button class="qd-btn '+qcls+'" onclick="quickDeliver('+r.id+')">✓ Deliver</button>'+
+            '<button class="qd-btn '+(btnCls||'')+'" onclick="quickDeliver('+r.id+')">✓ Deliver</button>'+
           '</div>':'')+
       '</div>';
     }).join('');
@@ -1002,33 +1041,30 @@ function renderDay() {
   document.getElementById('dToday').innerHTML=mkCards(lt,'ct','');
   document.getElementById('dTomorrow').innerHTML=mkCards(lm,'cm','');
   document.getElementById('dSunday').innerHTML=mkCards(ls,'cm','');
-  // Update section titles with counts
-  document.getElementById('titleArrived').innerHTML='&#128663; Arrived Today <span class="tbadge" style="background:var(--ok);color:#000">'+arrived.length+'</span>';
-  document.getElementById('titleToday').innerHTML='&#128276; Leaving Today <span class="tbadge" style="background:var(--acc);color:#000">'+lt.length+'</span>';
-  document.getElementById('titleTomorrow').innerHTML='&#128198; Leaving Tomorrow <span class="tbadge" style="background:var(--pur);color:#fff">'+lm.length+'</span>';
+  document.getElementById('titleArrived').innerHTML='🚗 Arrived Today <span class="tbadge" style="background:var(--ok);color:#000">'+arrived.length+'</span>';
+  document.getElementById('titleToday').innerHTML='🔔 Leaving Today <span class="tbadge" style="background:var(--acc);color:#000">'+lt.length+'</span>';
+  document.getElementById('titleTomorrow').innerHTML='📆 Leaving Tomorrow <span class="tbadge" style="background:var(--pur);color:#fff">'+lm.length+'</span>';
   var sunLabel=sun.toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'});
-  document.getElementById('titleSunday').innerHTML='&#128197; Returning Sunday <span class="tbadge" style="background:#e86030;color:#fff">'+ls.length+'</span>';
+  document.getElementById('titleSunday').innerHTML='📅 Returning Sunday <span class="tbadge" style="background:#e86030;color:#fff">'+ls.length+'</span>';
   document.getElementById('subSunday').textContent='Return Date = '+sunLabel;
-
-  // Forgot Yesterday - compare by zeroing out time
-  var yst=new Date(today.getFullYear(), today.getMonth(), today.getDate()-1);
-  var ystTime = yst.getTime();
+  var yst=new Date(today.getFullYear(),today.getMonth(),today.getDate()-1);
   var forgot=data.filter(function(r){
     if(r.status==='DELIVERED'||r.status==='NO DATE') return false;
-    var d=pd(r.ret);
-    if(!d) return false;
-    return sd(d, yst);
+    var d=pd(r.ret); if(!d) return false;
+    return sd(d,yst);
   });
-  if(forgot.length) {
-    document.getElementById('forgotSection').style.display = 'block';
-    document.getElementById('dForgot').innerHTML = mkCards(forgot,'cr','late');
-    document.getElementById('titleForgot').innerHTML = '&#9888; Forgot Yesterday <span class="tbadge" style="background:var(--red);color:#fff">'+forgot.length+'</span>';
+  if(forgot.length){
+    document.getElementById('forgotSection').style.display='block';
+    document.getElementById('dForgot').innerHTML=mkCards(forgot,'cr','late');
+    document.getElementById('titleForgot').innerHTML='⚠️ Forgot Yesterday <span class="tbadge" style="background:var(--red);color:#fff">'+forgot.length+'</span>';
   } else {
-    document.getElementById('forgotSection').style.display = 'none';
+    document.getElementById('forgotSection').style.display='none';
   }
 }
+
 function render(){renderStats();renderTable();renderDay();renderTasks();updateReportPreview();}
 
+// ── SELECTION ──────────────────────────────────────────────────
 function rowChk(cb){
   var id=parseInt(cb.getAttribute('data-id'),10);
   if(cb.checked){selected[id]=true;cb.closest('tr').style.background='rgba(232,160,48,.12)';}
@@ -1056,50 +1092,6 @@ function updateBulk(){
   document.getElementById('bdlt').className='bbtn dlt'+(n>0?' on':'');
   if(n===0) closeBulkLoc();
 }
-async function bulkDelete(){
-  var ids=Object.keys(selected);
-  if(!ids.length)return;
-  if(!confirm('DELETE '+ids.length+' record(s)? This cannot be undone!'))return;
-  loading(true);
-  var recs=data.filter(function(r){return selected[r.id];});
-  // Sort by row descending to delete from bottom up (preserve row numbers)
-  recs.sort(function(a,b){return b.ri-a.ri;});
-  for(var i=0;i<recs.length;i++){
-    try{
-      await fetch(WRITE_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain'},body:JSON.stringify({action:'delete',row:recs[i].ri})});
-      await new Promise(function(res){setTimeout(res,600);});
-    }catch(e){console.error(e);}
-  }
-  loading(false);
-  showMsg(recs.length+' record(s) deleted!',false);
-  clearSel();
-  await loadData();
-}
-
-function openBulkLoc(){
-  var n=Object.keys(selected).length;
-  if(!n) return;
-  document.getElementById('bulkLocBar').style.display='flex';
-}
-function closeBulkLoc(){
-  document.getElementById('bulkLocBar').style.display='none';
-}
-async function bulkMoveLoc(hangar){
-  var ids=Object.keys(selected);
-  if(!ids.length) return;
-  if(!confirm('Move '+ids.length+' car(s) to '+hangar+'?')) return;
-  loading(true);
-  var recs=data.filter(function(r){return selected[r.id];});
-  var done=0;
-  for(var i=0;i<recs.length;i++){
-    try{await updateSheet(recs[i].ri,'G',hangar);done++;}catch(e){console.error(e);}
-  }
-  loading(false);
-  showMsg(done+' car(s) moved to '+hangar,false);
-  closeBulkLoc();
-  clearSel();
-  await loadData();
-}
 function clearSel(){
   selected={};
   var boxes=document.querySelectorAll('#tbody input[type=checkbox]');
@@ -1108,66 +1100,7 @@ function clearSel(){
   updateBulk();
 }
 
-async function updateSheet(rowNum, col, value) {
-  var payload = JSON.stringify({action:'update', row:rowNum, col:colToNum(col), value:value});
-  return sendToSheet(payload);
-}
-function colToNum(col) {
-  var n=0;
-  for(var i=0;i<col.length;i++) n=n*26+(col.charCodeAt(i)-64);
-  return n;
-}
-async function appendSheet(vals) {
-  return new Promise(function(resolve, reject) {
-    var payload = JSON.stringify({action:'append', values:vals});
-    var xhr = new XMLHttpRequest();
-    xhr.open('POST', WRITE_URL, true);
-    xhr.setRequestHeader('Content-Type', 'text/plain;charset=utf-8');
-    xhr.timeout = 15000;
-    xhr.onload = function() {
-      console.log('[appendSheet] status:', xhr.status, 'response:', xhr.responseText);
-      resolve({status:'ok', response: xhr.responseText});
-    };
-    xhr.onerror = function() {
-      console.warn('[appendSheet] XHR error — retrying with no-cors fetch');
-      // Fallback: no-cors fetch (opaque, but still hits the server)
-      fetch(WRITE_URL, {
-        method:'POST', mode:'no-cors',
-        headers:{'Content-Type':'text/plain;charset=utf-8'},
-        body: payload
-      }).then(function(){
-        setTimeout(function(){ resolve({status:'ok'}); }, 3000);
-      }).catch(function(e){ reject(e); });
-    };
-    xhr.ontimeout = function() {
-      console.warn('[appendSheet] timeout');
-      reject(new Error('Request timed out'));
-    };
-    xhr.send(payload);
-  });
-}
-async function sendToSheet(payload) {
-  return new Promise(function(resolve) {
-    var xhr = new XMLHttpRequest();
-    xhr.open('POST', WRITE_URL, true);
-    xhr.setRequestHeader('Content-Type', 'text/plain;charset=utf-8');
-    xhr.timeout = 12000;
-    xhr.onload = function() {
-      console.log('[sendToSheet] status:', xhr.status, 'response:', xhr.responseText);
-      resolve({status:'ok'});
-    };
-    xhr.onerror = xhr.ontimeout = function() {
-      // Still attempt with no-cors
-      fetch(WRITE_URL, {method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain;charset=utf-8'},body:payload});
-      resolve({status:'ok'});
-    };
-    xhr.send(payload);
-  });
-}
-function loadDataBackground() {
-  setTimeout(function(){ loadData(); }, 5000);
-}
-
+// ── BULK ACTIONS ───────────────────────────────────────────────
 async function bulkAct(newStatus){
   var ids=Object.keys(selected);
   if(!ids.length) return;
@@ -1175,40 +1108,51 @@ async function bulkAct(newStatus){
   loading(true);
   var recs=data.filter(function(r){return selected[r.id];});
   var done=0;
+  var todayStr=(today.getMonth()+1)+'/'+(today.getDate())+'/'+today.getFullYear();
   for(var i=0;i<recs.length;i++){
-    var target = recs[i];
-    // If delivering, find most recent pending for this name
-    if(newStatus==='DELIVERED'){
-      var same=data.filter(function(d){
-        return d.name.toLowerCase()===recs[i].name.toLowerCase()&&d.status!=='DELIVERED';
-      });
-      same.sort(function(a,b){return b.ri-a.ri;});
-      if(same.length>0) target=same[0];
-    }
     try{
-      await updateSheet(target.ri,'H',newStatus);
-      if(newStatus==='DELIVERED'){
-        var todayStr=(today.getMonth()+1)+'/'+(today.getDate())+'/'+today.getFullYear();
-        await updateSheet(target.ri,'K',todayStr);
-        for(var j=0;j<data.length;j++){
-          if(data[j].id===target.id){data[j].status='DELIVERED';data[j].deldate=todayStr;break;}
-        }
-        await sendLog('DELIVERED', target, 'bulk action');
-      } else {
-        for(var j=0;j<data.length;j++){
-          if(data[j].id===target.id){data[j].status=newStatus;break;}
-        }
-      }
+      var upd={status:newStatus};
+      if(newStatus==='DELIVERED') upd.deldate=todayStr;
+      await sbUpdate(recs[i].id, upd);
       done++;
     }catch(e){console.error(e);}
   }
-  render();
   loading(false);
-  showMsg(done+' car(s) updated to '+newStatus,false);
+  showMsg(done+' car(s) updated to '+newStatus, false);
   clearSel();
   await loadData();
 }
+async function bulkDelete(){
+  var ids=Object.keys(selected);
+  if(!ids.length)return;
+  if(!confirm('DELETE '+ids.length+' record(s)? This cannot be undone!'))return;
+  loading(true);
+  var recs=data.filter(function(r){return selected[r.id];});
+  for(var i=0;i<recs.length;i++){
+    try{ await sbDelete(recs[i].id); }catch(e){console.error(e);}
+  }
+  loading(false);
+  showMsg(recs.length+' record(s) deleted!', false);
+  clearSel();
+  await loadData();
+}
+function openBulkLoc(){ if(!Object.keys(selected).length) return; document.getElementById('bulkLocBar').style.display='flex'; }
+function closeBulkLoc(){ document.getElementById('bulkLocBar').style.display='none'; }
+async function bulkMoveLoc(hangar){
+  var ids=Object.keys(selected);
+  if(!ids.length) return;
+  if(!confirm('Move '+ids.length+' car(s) to '+hangar+'?')) return;
+  loading(true);
+  var recs=data.filter(function(r){return selected[r.id];});
+  for(var i=0;i<recs.length;i++){
+    try{ await sbUpdate(recs[i].id,{loc:hangar}); }catch(e){console.error(e);}
+  }
+  loading(false);
+  showMsg(recs.length+' car(s) moved to '+hangar, false);
+  closeBulkLoc(); clearSel(); await loadData();
+}
 
+// ── TABS & FILTERS ─────────────────────────────────────────────
 document.querySelectorAll('.tab').forEach(function(t){
   t.addEventListener('click',function(){
     document.querySelectorAll('.tab').forEach(function(x){x.classList.remove('on');});
@@ -1227,7 +1171,7 @@ document.querySelectorAll('.fb').forEach(function(b){
 });
 document.getElementById('srch').addEventListener('input',function(e){srchTerm=e.target.value.trim();renderTable();});
 
-// ── DATE AUTO-TAB ────────────────────────────────────────────────────────────
+// ── FORM HELPERS ───────────────────────────────────────────────
 function autoTab(el,nextId,maxLen){
   el.value=el.value.replace(/\D/g,'');
   if(el.value.length>=maxLen && nextId){
@@ -1245,7 +1189,7 @@ function backTab(e,prevId){
 function getReturnDate(){
   var el=document.getElementById('fReturn');
   if(!el||!el.value) return '';
-  var p=el.value.split('-'); // yyyy-mm-dd
+  var p=el.value.split('-');
   if(p.length===3) return p[1]+'/'+p[2]+'/'+p[0];
   return '';
 }
@@ -1257,104 +1201,6 @@ function setReturnDate(val){
     if(el) el.value=p[2]+'-'+p[0].padStart(2,'0')+'-'+p[1].padStart(2,'0');
   }
 }
-// ── AUTOCOMPLETE ─────────────────────────────────────────────────────────────
-function acSearch(q){
-  var drop=document.getElementById('acDrop');
-  if(!drop) return;
-  q=q.trim();
-  if(q.length<2){drop.classList.remove('open');return;}
-  // Get unique passengers by name (most recent record per name)
-  var seen={}, matches=[];
-  var sorted=data.slice().sort(function(a,b){return b.ri-a.ri;});
-  sorted.forEach(function(r){
-    var n=r.name.toUpperCase();
-    if(seen[n]) return;
-    if(n.indexOf(q.toUpperCase())>=0){
-      seen[n]=true;
-      matches.push(r);
-    }
-  });
-  if(matches.length===0){drop.classList.remove('open');return;}
-  drop.innerHTML=matches.slice(0,6).map(function(r,i){
-    return '<div class="ac-item" data-idx="'+i+'"><div class="ac-name">'+r.name+'</div><div class="ac-sub">'+r.phone+(r.car?' &middot; '+r.car:'')+'</div></div>';
-  }).join('');
-  // Store matches for selection
-  drop._matches=matches;
-  drop.querySelectorAll('.ac-item').forEach(function(el){
-    el.addEventListener('click',function(e){
-      e.stopPropagation();
-      var m=drop._matches[parseInt(el.dataset.idx)];
-      if(m) acSelect(m.name,m.phone,m.car);
-    });
-  });
-  drop.classList.add('open');
-}
-function acSelect(name,phone,car){
-  var fName=document.getElementById('fName');
-  var fPhone=document.getElementById('fPhone');
-  var fCar=document.getElementById('fCar');
-  if(fName) fName.value=name;
-  if(fPhone) fPhone.value=phone;
-  if(fCar) fCar.value=car;
-  acClose();
-  chkFreq();
-  // Focus ticket field
-  var fTicket=document.getElementById('fTicket');
-  if(fTicket) fTicket.focus();
-}
-function acClose(){
-  var drop=document.getElementById('acDrop');
-  if(drop) drop.classList.remove('open');
-}
-// Close dropdown when clicking outside
-document.addEventListener('click',function(e){
-  if(!e.target.closest('.ac-wrap')) acClose();
-});
-function openAdd(){
-  // Clear ALL form fields
-  ['fName','fPhone','fTicket','fCar','fObs','fReturn','fEstDate','fLoc'].forEach(function(id){
-    var el=document.getElementById(id); if(el) el.value='';
-  });
-  // Clear location selection
-  document.querySelectorAll('.lb').forEach(function(b){b.classList.remove('on');});
-  // Reset status + hide approx row
-  var fSt=document.getElementById('fStatus'); if(fSt) fSt.value='PENDING';
-  var approxRow=document.getElementById('approxRow');
-  if(approxRow) approxRow.style.display='none';
-  // Clear freq info banner
-  var fi=document.getElementById('freqInfo'); if(fi) fi.classList.remove('on');
-  // Clear autocomplete
-  acClose();
-  document.getElementById('addOv').classList.add('on');
-  // Focus name field
-  setTimeout(function(){ var n=document.getElementById('fName'); if(n) n.focus(); },100);
-}
-function closeAll(){document.getElementById('addOv').classList.remove('on');document.getElementById('detOv').classList.remove('on');}
-document.querySelectorAll('.ov').forEach(function(o){o.addEventListener('click',function(e){if(e.target===e.currentTarget)closeAll();});});
-function selLoc(el,loc){document.querySelectorAll('.lb').forEach(function(b){b.classList.remove('on');});el.classList.add('on');document.getElementById('fLoc').value=loc;}
-function onStatusChange(val) {
-  var retReq=document.getElementById('retRequired');
-  if(retReq) retReq.style.display=(val==='PENDING')?'':'none';
-  var returnField = document.getElementById('fReturn');
-  var approxRow = document.getElementById('approxRow');
-  // Always reset first
-  approxRow.style.display = 'none';
-  document.getElementById('fEstDate').value = '';
-  if(val === 'NO DATE') {
-    returnField.value = '';
-    returnField.disabled = true;
-    returnField.style.opacity = '0.4';
-    approxRow.style.display = 'block';
-  } else if(val === 'PENDING') {
-    returnField.disabled = false;
-    returnField.style.opacity = '1';
-  } else {
-    returnField.disabled = false;
-    returnField.style.opacity = '1';
-  }
-}
-
-
 function fmtPhoneInput(el) {
   var digits = el.value.replace(/\D/g, '').slice(0,10);
   var fmt = '';
@@ -1364,15 +1210,108 @@ function fmtPhoneInput(el) {
   else fmt = '(' + digits.slice(0,3) + ') ' + digits.slice(3,6) + '-' + digits.slice(6);
   el.value = fmt;
 }
+function onStatusChange(val) {
+  var retReq=document.getElementById('retRequired');
+  if(retReq) retReq.style.display=(val==='PENDING')?'':'none';
+  var returnField = document.getElementById('fReturn');
+  var approxRow = document.getElementById('approxRow');
+  approxRow.style.display = 'none';
+  document.getElementById('fEstDate').value = '';
+  if(val === 'NO DATE') {
+    returnField.value = '';
+    returnField.disabled = true;
+    returnField.style.opacity = '0.4';
+    approxRow.style.display = 'block';
+  } else {
+    returnField.disabled = false;
+    returnField.style.opacity = '1';
+  }
+}
+function selLoc(el,loc){document.querySelectorAll('.lb').forEach(function(b){b.classList.remove('on');});el.classList.add('on');document.getElementById('fLoc').value=loc;}
+
+// ── AUTOCOMPLETE ───────────────────────────────────────────────
+function acSearch(q){
+  var drop=document.getElementById('acDrop');
+  if(!drop) return;
+  q=q.trim();
+  if(q.length<2){drop.classList.remove('open');return;}
+  var seen={}, matches=[];
+  var sorted=data.slice().sort(function(a,b){return b.id-a.id;});
+  sorted.forEach(function(r){
+    var n=r.name.toUpperCase();
+    if(seen[n]) return;
+    if(n.indexOf(q.toUpperCase())>=0){ seen[n]=true; matches.push(r); }
+  });
+  if(matches.length===0){drop.classList.remove('open');return;}
+  drop.innerHTML=matches.slice(0,6).map(function(r,i){
+    return '<div class="ac-item" data-idx="'+i+'"><div class="ac-name">'+r.name+'</div><div class="ac-sub">'+r.phone+(r.car?' · '+r.car:'')+'</div></div>';
+  }).join('');
+  drop._matches=matches;
+  drop.querySelectorAll('.ac-item').forEach(function(el){
+    el.addEventListener('mousedown',function(e){
+      e.preventDefault();
+      var idx=parseInt(el.getAttribute('data-idx'),10);
+      var r=drop._matches[idx];
+      document.getElementById('fName').value=r.name;
+      if(r.phone) document.getElementById('fPhone').value=r.phone;
+      if(r.car) document.getElementById('fCar').value=r.car;
+      drop.classList.remove('open');
+      chkFreq();
+    });
+  });
+  drop.classList.add('open');
+}
+function acClose(){ var d=document.getElementById('acDrop'); if(d) d.classList.remove('open'); }
 
 function chkFreq(){
   var name=document.getElementById('fName').value.trim();
-  var phone=document.getElementById('fPhone').value.trim();
   var m=data.filter(function(r){return r.name.toLowerCase()===name.toLowerCase();});
   var info=document.getElementById('freqInfo');
   if(m.length>0&&name.length>2){var last=m[m.length-1];info.textContent=m.length+' previous visit(s). Last: '+last.ticket+' - '+last.car;info.classList.add('on');if(last.car)document.getElementById('fCar').value=last.car;}
   else info.classList.remove('on');
 }
+
+function updateVcf(){
+  var name = (document.getElementById('fName').value||'').trim();
+  var phone = (document.getElementById('fPhone').value||'').trim().replace(/\D/g,'');
+  var wrap = document.getElementById('vcfWrap');
+  var link = document.getElementById('vcfLink');
+  if(name && phone){
+    var vcf = 'BEGIN:VCARD\nVERSION:3.0\nFN:'+name+'\nTEL;TYPE=CELL:'+phone+'\nEND:VCARD';
+    var blob = new Blob([vcf],{type:'text/vcard'});
+    var url = URL.createObjectURL(blob);
+    link.href = url;
+    link.download = name.replace(/\s+/g,'_')+'.vcf';
+    wrap.style.display='block';
+  } else {
+    wrap.style.display='none';
+  }
+}
+
+// ── OPEN / CLOSE MODAL ─────────────────────────────────────────
+function openAdd(){
+  document.getElementById('modalTitle').textContent='New Entry';
+  document.getElementById('modalSub').textContent='Add a new passenger';
+  document.getElementById('fName').value='';
+  document.getElementById('fPhone').value='';
+  document.getElementById('fTicket').value='';
+  var fRet=document.getElementById('fReturn'); if(fRet) fRet.value='';
+  document.getElementById('fCar').value='';
+  document.getElementById('fLoc').value='';
+  document.getElementById('fObs').value='';
+  document.getElementById('fStatus').value='PENDING';
+  document.getElementById('freqInfo').classList.remove('on');
+  var approxRow=document.getElementById('approxRow');
+  if(approxRow) approxRow.style.display='none';
+  var fi=document.getElementById('freqInfo'); if(fi) fi.classList.remove('on');
+  acClose();
+  document.getElementById('addOv').classList.add('on');
+  setTimeout(function(){ var n=document.getElementById('fName'); if(n) n.focus(); },100);
+}
+function closeAll(){document.getElementById('addOv').classList.remove('on');document.getElementById('detOv').classList.remove('on');}
+document.querySelectorAll('.ov').forEach(function(o){o.addEventListener('click',function(e){if(e.target===e.currentTarget)closeAll();});});
+
+// ── SAVE NEW ENTRY ─────────────────────────────────────────────
 async function saveEntry(sendSms){
   var name=document.getElementById('fName').value.trim();
   var ticket=document.getElementById('fTicket').value.trim();
@@ -1384,7 +1323,6 @@ async function saveEntry(sendSms){
     document.getElementById('fReturn').focus();
     return;
   }
-  // Duplicate ticket guard: warn if same ticket number exists AND arrived today
   var todayTickets=data.filter(function(r){
     return r.ticket===ticket && r.status!=='DELIVERED' && isArrToday(r.ts);
   });
@@ -1398,22 +1336,32 @@ async function saveEntry(sendSms){
   btnSms.textContent='Saving...';btnSms.disabled=true;
   try{
     var ts=new Date().toLocaleString('en-US');
-    var phoneFull = document.getElementById('fPhone').value.trim();
-    var car = document.getElementById('fCar').value.trim().toUpperCase();
-    var obs = document.getElementById('fObs').value.trim().toUpperCase();
-    var finalStatus = document.getElementById('fStatus').value;
-    var estDate = document.getElementById('fEstDate').value;
-    var hasEstDate = finalStatus === 'NO DATE' && estDate;
-    var finalObs = obs + (hasEstDate ? (obs?' | ':'') + 'APPROX DATE' : '');
+    var phoneFull=document.getElementById('fPhone').value.trim();
+    var car=document.getElementById('fCar').value.trim().toUpperCase();
+    var obs=document.getElementById('fObs').value.trim().toUpperCase();
+    var finalStatus=document.getElementById('fStatus').value;
+    var estDate=document.getElementById('fEstDate').value;
+    var hasEstDate=finalStatus==='NO DATE'&&estDate;
+    var finalObs=obs+(hasEstDate?(obs?' | ':'')+'APPROX DATE':'');
     var finalDate;
-    if(finalStatus === 'NO DATE') {
-      finalDate = hasEstDate ? d2us(estDate) : '';
-    } else {
-      finalDate = d2us(getReturnDate());
-    }
+    if(finalStatus==='NO DATE'){ finalDate=hasEstDate?d2us(estDate):''; }
+    else { finalDate=d2us(getReturnDate()); }
     var locVal=document.getElementById('fLoc').value;
-    await appendSheet([ts,name.toUpperCase(),phoneFull,ticket,finalDate,car,locVal,finalStatus,'',finalObs]);
-    // Only close and reset AFTER successful save
+
+    await sbInsert({
+      ts: ts,
+      name: name.toUpperCase(),
+      phone: phoneFull,
+      ticket: ticket,
+      ret: finalDate,
+      car: car,
+      loc: locVal,
+      status: finalStatus,
+      block: '',
+      obs: finalObs,
+      deldate: ''
+    });
+
     closeAll();
     document.getElementById('fName').value='';
     document.getElementById('fPhone').value='';
@@ -1425,26 +1373,24 @@ async function saveEntry(sendSms){
     document.getElementById('fStatus').value='PENDING';
     document.querySelectorAll('.lb').forEach(function(b){b.classList.remove('on');});
     document.getElementById('freqInfo').classList.remove('on');
-    showMsg('✓ Saved! Syncing to Google Sheets...',false);
-    // Send log after (non-blocking)
-    sendLog('NEW ENTRY',{name:name.toUpperCase(),ticket:ticket,loc:locVal},'Status: '+finalStatus+(finalDate?' · Returns '+finalDate:''));
-    // Send welcome SMS if phone provided and user chose Save + Text
+    showMsg('✓ Saved!', false);
+
     if(sendSms && phoneFull){
       var cleanPhone=phoneFull.replace(/\D/g,'');
       var smsBody='Welcome to Makers Air Valet! Your vehicle has been successfully checked in.'+(finalDate?' If your return date or arrival time changes from '+finalDate+', please update us through this message so your vehicle will be ready when you arrive.':' If your return date or arrival time changes, please update us through this message so your vehicle will be ready when you arrive.')+' Thank you and safe travels!';
-      var smsLink='sms:'+cleanPhone+'&body='+encodeURIComponent(smsBody);
-      window.open(smsLink,'_self');
+      window.open('sms:'+cleanPhone+'&body='+encodeURIComponent(smsBody),'_self');
     }
-    loadDataBackground();
+    await loadData();
   }catch(e){
-    showMsg('❌ Error saving: '+e.message,true);
-    console.error('saveEntry error:',e);
+    showMsg('❌ Error: '+e.message, true);
+    console.error(e);
   }finally{
     btn.textContent='Save Only';btn.disabled=false;
-    btnSms.textContent='&#128172; Save + Text';btnSms.disabled=false;
+    btnSms.textContent='💬 Save + Text';btnSms.disabled=false;
   }
 }
 
+// ── DETAIL PANEL ───────────────────────────────────────────────
 function showDet(id){
   var r=null;for(var i=0;i<data.length;i++){if(data[i].id===id){r=data[i];break;}}
   if(!r)return;
@@ -1455,15 +1401,14 @@ function showDet(id){
   var retC=rt?'color:var(--acc)':ro?'color:var(--red)':rm?'color:var(--pur)':'';
   var hangH=HANGARS.map(function(h){return '<div class="ho'+(r.loc===h?' on':'')+' ho-item" data-rid="'+r.id+'" data-h="'+h+'">'+h+'</div>';}).join('');
   var histH='';
-  if(hist.length>1){histH='<div class="htitle">Visit History ('+hist.length+' visit'+(hist.length>1?'s':'')+' - all contacts)</div><div class="hlist">'+hist.map(function(h){return '<div class="hi" style="flex-direction:column;gap:3px;align-items:flex-start"><div style="display:flex;justify-content:space-between;width:100%"><span class="h-tk">'+h.ticket+'</span><span class="h-dt">'+fmtA(h.ts)+'</span></div><div style="font-size:11px;color:var(--mu)">'+h.car+(h.phone?' &middot; '+fmtP(h.phone):'')+'</div><div style="font-size:10px;color:'+(h.status==='DELIVERED'?'var(--ok)':'var(--acc)')+'">'+h.status+'</div></div>';}).join('')+'</div>';}
+  if(hist.length>1){histH='<div class="htitle">Visit History ('+hist.length+' visit'+(hist.length>1?'s':'')+' - all contacts)</div><div class="hlist">'+hist.map(function(h){return '<div class="hi" style="flex-direction:column;gap:3px;align-items:flex-start"><div style="display:flex;justify-content:space-between;width:100%"><span class="h-tk">'+h.ticket+'</span><span class="h-dt">'+fmtA(h.ts)+'</span></div><div style="font-size:11px;color:var(--mu)">'+h.car+(h.phone?' · '+fmtP(h.phone):'')+'</div><div style="font-size:10px;color:'+(h.status==='DELIVERED'?'var(--ok)':'var(--acc)')+'">'+h.status+'</div></div>';}).join('')+'</div>';}
   document.getElementById('detPanel').innerHTML=
     '<div class="dname">'+r.name+'</div>'+
     '<div class="dphone" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'+fmtP(r.phone)+
-      (r.phone?'<a href="tel:'+r.phone.replace(/\D/g,'')+'" style="background:var(--ok);color:#000;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;text-decoration:none;font-family:Syne,sans-serif;">&#128222; CALL</a>':'')+
-      (r.phone?'<a href="sms:'+r.phone.replace(/\D/g,'')+'" style="background:var(--pur);color:#fff;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;text-decoration:none;font-family:Syne,sans-serif;">&#128172; TEXT</a>':'')+
-      (r.phone&&r.status!=='DELIVERED'?'<a href="sms:'+r.phone.replace(/\D/g,'')+'&body='+encodeURIComponent('Welcome to Makers Air Valet! Your vehicle has been successfully checked in.'+(r.ret?' If your return date or arrival time changes from '+fmtD(r.ret)+', please update us through this message so your vehicle will be ready when you arrive.':' If your return date or arrival time changes, please update us through this message so your vehicle will be ready when you arrive.')+' Thank you and safe travels!')+'" style="background:linear-gradient(135deg,var(--navy),#2a5db0);color:#fff;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;text-decoration:none;font-family:Syne,sans-serif;">&#9992;&#65039; Welcome Text</a>':'')+
+      (r.phone?'<a href="tel:'+r.phone.replace(/\D/g,'')+'" style="background:var(--ok);color:#000;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;text-decoration:none;font-family:Syne,sans-serif;">📞 CALL</a>':'')+
+      (r.phone?'<a href="sms:'+r.phone.replace(/\D/g,'')+'" style="background:var(--pur);color:#fff;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;text-decoration:none;font-family:Syne,sans-serif;">💬 TEXT</a>':'')+
     '</div>'+
-    '<div id="saveEditsWrap"><button class="save-edits-btn" id="saveEditsBtn" data-rid="'+r.id+'">&#128190; Save Changes</button></div>'+
+    '<div id="saveEditsWrap"><button class="save-edits-btn" id="saveEditsBtn" data-rid="'+r.id+'">💾 Save Changes</button></div>'+
     '<div class="dgrid">'+
       '<div class="di"><div class="di-l">Ticket</div><div class="di-v" style="color:var(--acc)">'+r.ticket+'</div></div>'+
       '<div class="di"><div class="di-l">Status</div><div class="di-v">'+r.status+'</div></div>'+
@@ -1477,29 +1422,23 @@ function showDet(id){
     (r.obs&&r.obs.indexOf('APPROX DATE')>=0&&r.status!=='DELIVERED'?
       '<div style="background:rgba(201,168,76,0.1);border:1px solid rgba(201,168,76,0.4);border-radius:10px;padding:12px 14px;margin-bottom:12px">'+
         '<div style="font-size:11px;color:var(--gold);font-weight:700;margin-bottom:6px">📅 APPROXIMATE DATE — Confirm Return</div>'+
-        '<div style="font-size:11px;color:var(--mu);margin-bottom:10px">Send a text to confirm the exact return date with the passenger.</div>'+
-        (r.phone?'<a href="sms:'+r.phone.replace(/\D/g,'')+
-          '&body=Hi '+encodeURIComponent(r.name)+', this is Makers Air Valet. We have your '+encodeURIComponent(r.car)+
-          ' parked with us. Can you confirm your return date? Thank you!" '+
-          'style="background:var(--pur);color:#fff;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:700;text-decoration:none;display:inline-block">'+
-          '💬 Send Confirmation Text</a>':'')+
+        (r.phone?'<a href="sms:'+r.phone.replace(/\D/g,'')+'&body=Hi '+encodeURIComponent(r.name)+', this is Makers Air Valet. We have your '+encodeURIComponent(r.car)+' parked with us. Can you confirm your return date? Thank you!" style="background:var(--pur);color:#fff;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:700;text-decoration:none;display:inline-block">💬 Send Confirmation Text</a>':'')+
       '</div>':'')+
     '<div class="htitle" style="margin-top:4px">Move Hangar</div>'+
     '<div class="hgrid">'+hangH+'</div>'+
     (r.status!=='DELIVERED'?'<button class="delb" onclick="markDel('+r.id+')">Mark as Delivered</button>':'')+
     (r.status!=='DELIVERED'&&!isToday(r.ret)&&!isLate(r.ret)?
-      '<button onclick="earlyReturn('+r.id+')" style="width:100%;background:linear-gradient(135deg,#7b3fa0,#a855f7);color:#fff;border:none;border-radius:10px;padding:13px;font-family:Syne,sans-serif;font-weight:800;font-size:14px;cursor:pointer;margin-top:8px;display:flex;align-items:center;justify-content:center;gap:8px;">&#9889; Early Return — Arrived Today</button>'
+      '<button onclick="earlyReturn('+r.id+')" style="width:100%;background:linear-gradient(135deg,#7b3fa0,#a855f7);color:#fff;border:none;border-radius:10px;padding:13px;font-family:Syne,sans-serif;font-weight:800;font-size:14px;cursor:pointer;margin-top:8px;display:flex;align-items:center;justify-content:center;gap:8px;">⚡ Early Return — Arrived Today</button>'
     :'')+
     '<div style="margin-top:10px">'+
       '<div class="htitle">Change Return Date</div>'+
       '<div style="display:flex;gap:8px;align-items:center;margin-top:6px">'+
-        '<input type="date" id="newRetDate" style="background:var(--s2);border:1px solid var(--b);border-radius:8px;padding:9px 11px;color:var(--tx);font-size:13px;outline:none;flex:1;" onchange="">'+
+        '<input type="date" id="newRetDate" style="background:var(--s2);border:1px solid var(--b);border-radius:8px;padding:9px 11px;color:var(--tx);font-size:13px;outline:none;flex:1;">'+
         '<button onclick="changeDate('+r.id+')" style="background:var(--acc);color:#000;border:none;border-radius:8px;padding:9px 16px;font-family:Syne,sans-serif;font-weight:700;font-size:13px;cursor:pointer;">Save</button>'+
       '</div>'+
     '</div>'+
-    '<button class="clsb" style="margin-top:6px;color:var(--red);border-color:var(--red)" onclick="deleteRec('+r.id+')">&#128465; Delete Record</button>'+
+    '<button class="clsb" style="margin-top:6px;color:var(--red);border-color:var(--red)" onclick="deleteRec('+r.id+')">🗑 Delete Record</button>'+
     '<button class="clsb" onclick="closeAll()">Close</button>';
-  // Attach click handlers to editable fields
   setTimeout(function(){
     document.getElementById('detPanel').querySelectorAll('.di.editable').forEach(function(cell){
       cell.addEventListener('click',function(){makeEditable(cell,cell.dataset.field);});
@@ -1510,93 +1449,125 @@ function showDet(id){
   document.getElementById('detOv').classList.add('on');
 }
 
-// Delegated click handler for passenger rows
 document.getElementById('tbody').addEventListener('click', function(e) {
   if (e.target.closest('.cbtd')) return;
   var row = e.target.closest('.passenger-row');
   if (!row) return;
-  var id = parseInt(row.getAttribute('data-id'), 10);
-  showDet(id);
+  showDet(parseInt(row.getAttribute('data-id'), 10));
 });
-
 document.getElementById('detPanel').addEventListener('click',function(e){
   var el=e.target;
   if(el.classList.contains('ho-item')){
-    var rid=parseInt(el.getAttribute('data-rid'),10);
-    var h=el.getAttribute('data-h');
-    moveHangar(rid,h);
+    moveHangar(parseInt(el.getAttribute('data-rid'),10), el.getAttribute('data-h'));
   }
 });
 
-async function earlyReturn(id){
-  var r=null;for(var i=0;i<data.length;i++){if(data[i].id===id){r=data[i];break;}}
-  if(!r)return;
-  var was=fmtD(r.ret);
-  if(!confirm('⚡ Early Return — Mark as delivered?\n\n'+r.name+' (Ticket '+r.ticket+')\nWas expected: '+was+'\n\nWill mark as EARLY RETURN (delivered today).')) return;
+// ── QUICK DELIVER ──────────────────────────────────────────────
+async function quickDeliver(id){
+  var r=null; for(var i=0;i<data.length;i++){if(data[i].id===id){r=data[i];break;}}
+  if(!r) return;
+  var isLateDeliver=isLate(r.ret);
+  if(!confirm((isLateDeliver?'⚠️ LATE — ':'')+'Mark as DELIVERED?
+'+r.name+' (Ticket '+r.ticket+')')) return;
   loading(true);
   try{
     var todayStr=(today.getMonth()+1)+'/'+(today.getDate())+'/'+today.getFullYear();
-    // Update return date to today
-    updateSheet(r.ri,'E',todayStr);
-    // Mark as DELIVERED
-    updateSheet(r.ri,'H','DELIVERED');
-    // Set delivery date (col K)
-    updateSheet(r.ri,'K',todayStr);
-    // Add EARLY RETURN note to OBS
-    var curObs=r.obs||'';
-    curObs=curObs.replace('APPROX DATE','').replace(' | ','').trim();
-    var newObs=(curObs?curObs+' | ':'')+'EARLY RETURN';
-    updateSheet(r.ri,'J',newObs);
-    await sendLog('EARLY RETURN',r,'was '+was+' → delivered today early');
-    // Update local data instantly
-    for(var i=0;i<data.length;i++){
-      if(data[i].id===r.id){
-        data[i].ret=todayStr;
-        data[i].status='DELIVERED';
-        data[i].deldate=todayStr;
-        data[i].obs=newObs;
-        break;
-      }
-    }
+    await sbUpdate(r.id,{status:'DELIVERED',deldate:todayStr});
+    for(var i=0;i<data.length;i++){if(data[i].id===r.id){data[i].status='DELIVERED';data[i].deldate=todayStr;break;}}
     render();
-    closeAll();
-    showMsg('⚡ Early Return delivered: '+r.name+' (was '+was+')',false);
-    loadDataBackground();
+    showMsg('✓ Delivered: '+r.name, false);
+    loadData();
   }catch(e){showMsg('Error: '+e.message,true);}
-  loading(false);
+  finally{loading(false);}
 }
 
-
-async function changeDate(id){
-  var input = document.getElementById('newRetDate');
-  if(!input || !input.value){ alert('Please select a date first.'); return; }
+// ── MARK DELIVERED ─────────────────────────────────────────────
+async function markDel(id){
   var r=null;for(var i=0;i<data.length;i++){if(data[i].id===id){r=data[i];break;}}
   if(!r)return;
-  var parts = input.value.split('-');
-  var newDate = parseInt(parts[1],10)+'/'+parseInt(parts[2],10)+'/'+parts[0];
   loading(true);
   try{
-    // Update return date
-    await updateSheet(r.ri,'E',newDate);
-    // If status was NO DATE, change to PENDING
-    if(r.status==='NO DATE'){
-      await updateSheet(r.ri,'H','PENDING');
-    }
-    // Remove APPROX DATE from OBS if present
-    if(r.obs && r.obs.indexOf('APPROX DATE')>=0){
-      var newObs = r.obs.replace('APPROX DATE','').replace(' | ','').trim();
-      await updateSheet(r.ri,'J',newObs);
-    }
-    await sendLog('DATE CHANGED', r, 'was '+fmtD(r.ret)+' → '+newDate);
-    showMsg('Date updated! Status changed to PENDING.',false);
-    closeAll();
-    loadDataBackground();
+    var todayStr=(today.getMonth()+1)+'/'+(today.getDate())+'/'+today.getFullYear();
+    await sbUpdate(r.id,{status:'DELIVERED',deldate:todayStr});
+    for(var i=0;i<data.length;i++){if(data[i].id===r.id){data[i].status='DELIVERED';data[i].deldate=todayStr;break;}}
+    render(); closeAll();
+    showMsg('✓ Delivered: '+r.name, false);
+    loadData();
   }catch(e){showMsg('Error: '+e.message,true);}
-  loading(false);
+  finally{loading(false);}
 }
-// ── INLINE EDIT ──────────────────────────────────────────────────────────────
-var _editChanges={};
-var _editRid=null;
+
+// ── EARLY RETURN ───────────────────────────────────────────────
+async function earlyReturn(id){
+  var r=null;for(var i=0;i<data.length;i++){if(data[i].id===id){r=data[i];break;}}
+  if(!r)return;
+  if(!confirm('⚡ Early Return — Mark as delivered?
+'+r.name+' (Ticket '+r.ticket+')
+Was expected: '+fmtD(r.ret))) return;
+  loading(true);
+  try{
+    var todayStr=(today.getMonth()+1)+'/'+(today.getDate())+'/'+today.getFullYear();
+    var newObs=((r.obs||'').replace('APPROX DATE','').replace(' | ','').trim());
+    newObs=(newObs?newObs+' | ':'')+'EARLY RETURN';
+    await sbUpdate(r.id,{ret:todayStr,status:'DELIVERED',deldate:todayStr,obs:newObs});
+    for(var i=0;i<data.length;i++){if(data[i].id===r.id){data[i].ret=todayStr;data[i].status='DELIVERED';data[i].deldate=todayStr;data[i].obs=newObs;break;}}
+    render(); closeAll();
+    showMsg('⚡ Early Return: '+r.name, false);
+    loadData();
+  }catch(e){showMsg('Error: '+e.message,true);}
+  finally{loading(false);}
+}
+
+// ── DELETE RECORD ──────────────────────────────────────────────
+async function deleteRec(id){
+  var r=null;for(var i=0;i<data.length;i++){if(data[i].id===id){r=data[i];break;}}
+  if(!r)return;
+  if(!confirm('DELETE '+r.name+' ('+r.ticket+')? This cannot be undone!'))return;
+  loading(true);
+  try{
+    await sbDelete(r.id);
+    showMsg('Record deleted!', false);
+    closeAll();
+    await loadData();
+  }catch(e){showMsg('Error: '+e.message,true);}
+  finally{loading(false);}
+}
+
+// ── MOVE HANGAR ────────────────────────────────────────────────
+async function moveHangar(id,hangar){
+  var r=null;for(var i=0;i<data.length;i++){if(data[i].id===id){r=data[i];break;}}
+  if(!r)return;
+  loading(true);
+  try{
+    await sbUpdate(r.id,{loc:hangar});
+    showMsg('Moved to '+hangar, false);
+    closeAll(); loadData();
+  }catch(e){showMsg('Error: '+e.message,true);}
+  finally{loading(false);}
+}
+
+// ── CHANGE DATE ────────────────────────────────────────────────
+async function changeDate(id){
+  var input=document.getElementById('newRetDate');
+  if(!input||!input.value){alert('Please select a date first.');return;}
+  var r=null;for(var i=0;i<data.length;i++){if(data[i].id===id){r=data[i];break;}}
+  if(!r)return;
+  var parts=input.value.split('-');
+  var newDate=parseInt(parts[1],10)+'/'+parseInt(parts[2],10)+'/'+parts[0];
+  loading(true);
+  try{
+    var upd={ret:newDate};
+    if(r.status==='NO DATE') upd.status='PENDING';
+    if(r.obs&&r.obs.indexOf('APPROX DATE')>=0) upd.obs=r.obs.replace('APPROX DATE','').replace(' | ','').trim();
+    await sbUpdate(r.id,upd);
+    showMsg('Date updated!', false);
+    closeAll(); loadData();
+  }catch(e){showMsg('Error: '+e.message,true);}
+  finally{loading(false);}
+}
+
+// ── INLINE EDIT ────────────────────────────────────────────────
+var _editChanges={}, _editRid=null;
 function makeEditable(cell,field){
   if(cell.querySelector('input')) return;
   var valEl=cell.querySelector('.di-v');
@@ -1620,672 +1591,178 @@ function markDirty(field,val){
 }
 async function saveEdits(rid){
   if(Object.keys(_editChanges).length===0) return;
-  var r=null; for(var i=0;i<data.length;i++){if(data[i].id===rid){r=data[i];break;}}
+  var r=null;for(var i=0;i<data.length;i++){if(data[i].id===rid){r=data[i];break;}}
   if(!r) return;
   loading(true);
   try{
-    var colMap={name:'B',phone:'C',car:'F',obs:'J'};
+    var upd={};
     for(var field in _editChanges){
-      var col=colMap[field]; if(!col) continue;
       var val=_editChanges[field];
       if(field==='name'||field==='car') val=val.toUpperCase();
-      await updateSheet(r.ri,col,val);
+      upd[field]=val;
       r[field]=val;
     }
+    await sbUpdate(rid,upd);
     _editChanges={};
     var btn=document.getElementById('saveEditsBtn');
     if(btn) btn.classList.remove('visible');
-    showMsg('Record updated!',false);
+    showMsg('Record updated!', false);
     render();
-    loadDataBackground();
-  }catch(e){showMsg('Error: '+e.message,true);}
-  loading(false);
-}
-async function sendLog(logAction, r, detail) {
-  try {
-    await fetch(WRITE_URL, {
-      method:'POST', mode:'no-cors',
-      headers:{'Content-Type':'text/plain'},
-      body: JSON.stringify({
-        action:'log',
-        logAction: logAction,
-        passenger: r.name,
-        ticket: r.ticket,
-        location: r.loc,
-        detail: detail||''
-      })
-    });
-  } catch(e){ console.warn('Log error:',e); }
-}
-
-async function quickDeliver(id){
-  var r=null; for(var i=0;i<data.length;i++){if(data[i].id===id){r=data[i];break;}}
-  if(!r) return;
-  var isLateDeliver=isLate(r.ret);
-  var msg = isLateDeliver
-    ? '✓ Mark as DELIVERED?\n'+r.name+' (Ticket '+r.ticket+')\n⚠️ Was due: '+fmtD(r.ret)
-    : '✓ Mark as DELIVERED?\n'+r.name+' (Ticket '+r.ticket+')';
-  if(!confirm(msg)) return;
-  loading(true);
-  try{
-    var samePassenger=data.filter(function(d){return d.name.toLowerCase()===r.name.toLowerCase()&&d.status!=='DELIVERED';});
-    samePassenger.sort(function(a,b){return b.ri-a.ri;});
-    var target=samePassenger.length>0?samePassenger[0]:r;
-    var todayStr=(today.getMonth()+1)+'/'+(today.getDate())+'/'+today.getFullYear();
-    await updateSheet(target.ri,'H','DELIVERED');
-    await updateSheet(target.ri,'K',todayStr);
-    var logAction = isLateDeliver ? 'LATE DELIVER' : 'DELIVERED';
-    var detail = isLateDeliver ? 'was due '+fmtD(r.ret) : '';
-    sendLog(logAction, target, detail);
-    for(var i=0;i<data.length;i++){if(data[i].id===target.id){data[i].status='DELIVERED';data[i].deldate=todayStr;break;}}
-    render();
-    showMsg('✓ Delivered: '+target.name+' (Ticket '+target.ticket+')',false);
-    loadDataBackground();
   }catch(e){showMsg('Error: '+e.message,true);}
   finally{loading(false);}
 }
-
-// isLate2 is an alias kept for backwards compatibility
-var isLate2 = isLate;
-
-async function markDel(id){
-  var r=null;for(var i=0;i<data.length;i++){if(data[i].id===id){r=data[i];break;}}
-  if(!r)return;
-  var samePassenger=data.filter(function(d){
-    return d.name.toLowerCase()===r.name.toLowerCase() && d.status!=='DELIVERED';
-  });
-  samePassenger.sort(function(a,b){return b.ri-a.ri;});
-  var target = samePassenger.length>0 ? samePassenger[0] : r;
-  loading(true);
-  try{
-    var todayStr=(today.getMonth()+1)+'/'+(today.getDate())+'/'+today.getFullYear();
-    await updateSheet(target.ri,'H','DELIVERED');
-    await updateSheet(target.ri,'K',todayStr);
-    for(var i=0;i<data.length;i++){
-      if(data[i].id===target.id){ data[i].status='DELIVERED'; data[i].deldate=todayStr; break; }
-    }
-    render();
-    closeAll();
-    var isLateDel=isLate(target.ret);
-    sendLog(isLateDel?'LATE DELIVER':'DELIVERED', target, isLateDel?'was due '+fmtD(target.ret):'');
-    showMsg('✓ Delivered: '+target.name+' (Ticket '+target.ticket+')',false);
-    loadDataBackground();
-  }catch(e){showMsg('Error: '+e.message,true);}
-  finally{loading(false);}
-}
-async function deleteRec(id){
-  var r=null;for(var i=0;i<data.length;i++){if(data[i].id===id){r=data[i];break;}}
-  if(!r)return;
-  if(!confirm('DELETE '+r.name+' ('+r.ticket+')? This cannot be undone!'))return;
-  loading(true);
-  try{
-    await fetch(WRITE_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain'},body:JSON.stringify({action:'delete',row:r.ri})});
-    await new Promise(function(res){setTimeout(res,1500);});
-    showMsg('Record deleted!',false);
-    closeAll();
-    loadDataBackground();
-  }catch(e){showMsg('Error: '+e.message,true);}
-  loading(false);
-}
-
-async function moveHangar(id,hangar){
-  var r=null;for(var i=0;i<data.length;i++){if(data[i].id===id){r=data[i];break;}}
-  if(!r)return;loading(true);
-  try{await updateSheet(r.ri,'G',hangar);showMsg('Moved to '+hangar,false);closeAll();loadDataBackground();}
-  catch(e){showMsg('Error: '+e.message,true);}loading(false);
-}
-
 
 // ── TASKS ──────────────────────────────────────────────────────
-var taskStatus = {}; // tracks sent/done per passenger id
-
+var taskStatus = {};
 function renderTasks() {
   var approxList = data.filter(function(r) {
     return r.obs && r.obs.indexOf('APPROX DATE') >= 0 && r.status !== 'DELIVERED';
   });
-
   var badge = document.getElementById('btasks');
   var pending = approxList.filter(function(r){ return taskStatus[r.id] !== 'done'; });
   if(badge) badge.textContent = pending.length;
-
   var container = document.getElementById('tasksList');
   if(!container) return;
-
   if(!approxList.length) {
-    container.innerHTML = '<div class="task-empty"><div class="big">&#10003;</div><p>No pending confirmations!</p><p style="font-size:12px;margin-top:6px;color:var(--mu)">All approximate dates have been confirmed.</p></div>';
+    container.innerHTML = '<div class="task-empty"><div class="big">✓</div><p>No pending confirmations!</p></div>';
     return;
   }
-
   var html = '';
   approxList.forEach(function(r) {
     var ts = taskStatus[r.id] || 'pending';
-    var isSent = ts === 'sent';
-    var isDone = ts === 'done';
+    var isSent = ts === 'sent', isDone = ts === 'done';
     var smsMsg = 'Hi! This is Makers Air Valet. We are reaching out to confirm your return date so we can update our records. Please let us know when you plan to return. Thank you!';
     var smsLink = r.phone ? 'sms:' + r.phone.replace(/\D/g,'') + '&body=' + encodeURIComponent(smsMsg) : '';
-
     html += '<div class="task-card ' + (isDone ? 'sent' : 'pending') + '" id="task-'+r.id+'">' +
-      '<div class="task-header">' +
-        '<div style="width:100%">' +
-          '<div class="task-name">' + r.name +
-            (isDone ? ' <span class="task-sent-badge">&#10003; CONFIRMED</span>' : '') +
-            (isSent && !isDone ? ' <span class="task-sent-badge">&#128172; TEXT SENT</span>' : '') +
-          '</div>' +
-          '<div class="task-info">Ticket: <strong style="color:var(--gold)">' + r.ticket + '</strong>' +
-            ' &nbsp;&middot;&nbsp; Est. Return: <strong style="color:var(--acc)">' + (r.ret ? fmtD(r.ret) : 'No date') + '</strong>' +
-            ' &nbsp;&middot;&nbsp; ' + (r.loc||'-') +
-            (r.phone ? ' &nbsp;&middot;&nbsp; ' + fmtP(r.phone) : '') +
-          '</div>' +
-          // Inline date update - always visible when not done
-          (!isDone ?
-          '<div style="display:flex;gap:8px;align-items:center;margin-top:10px;margin-bottom:4px">' +
-            '<input type="date" id="taskDate-'+r.id+'" style="background:#0a0f1e;border:1px solid rgba(201,168,76,0.4);border-radius:8px;padding:8px 10px;color:var(--tx);font-size:14px;outline:none;flex:1;">' +
-            '<button onclick="confirmTaskDate('+r.id+')" style="background:linear-gradient(135deg,var(--navy),#2a5db0);color:#fff;border:1px solid var(--gold);border-radius:8px;padding:8px 14px;font-family:Syne,sans-serif;font-weight:700;font-size:12px;cursor:pointer;white-space:nowrap;">&#10003; Set Date</button>' +
-          '</div>' : '') +
-        '</div>' +
-      '</div>' +
+      '<div class="task-header"><div style="width:100%">' +
+        '<div class="task-name">' + r.name + (isDone ? ' <span class="task-sent-badge">✓ CONFIRMED</span>' : '') + (isSent&&!isDone ? ' <span class="task-sent-badge">💬 TEXT SENT</span>' : '') + '</div>' +
+        '<div class="task-info">Ticket: <strong style="color:var(--gold)">' + r.ticket + '</strong> · Est. Return: <strong style="color:var(--acc)">' + (r.ret ? fmtD(r.ret) : 'No date') + '</strong> · ' + (r.loc||'-') + (r.phone ? ' · ' + fmtP(r.phone) : '') + '</div>' +
+        (!isDone ? '<div style="display:flex;gap:8px;align-items:center;margin-top:10px;margin-bottom:4px"><input type="date" id="taskDate-'+r.id+'" style="background:#0a0f1e;border:1px solid rgba(201,168,76,0.4);border-radius:8px;padding:8px 10px;color:var(--tx);font-size:14px;outline:none;flex:1;"><button onclick="confirmTaskDate('+r.id+')" style="background:linear-gradient(135deg,var(--navy),#2a5db0);color:#fff;border:1px solid var(--gold);border-radius:8px;padding:8px 14px;font-family:Syne,sans-serif;font-weight:700;font-size:12px;cursor:pointer;white-space:nowrap;">✓ Set Date</button></div>' : '') +
+      '</div></div>' +
       '<div class="task-actions">' +
-        (r.phone && !isDone ?
-          '<a href="' + smsLink + '" class="task-btn text" onclick="markTaskSent(' + r.id + ')">&#128172; Send Text</a>' : '') +
-        (!isDone ?
-          '<button class="task-btn skip">&#128065; View</button>' : '') +
-        (isDone ?
-          '<button class="task-btn skip" onclick="undoTask(' + r.id + ')">&#8634; Undo</button>' : '') +
-      '</div>' +
-    '</div>';
+        (r.phone&&!isDone ? '<a href="'+smsLink+'" class="task-btn text" onclick="markTaskSent('+r.id+')">💬 Send Text</a>' : '') +
+        (!isDone ? '<button class="task-btn skip">👁 View</button>' : '') +
+        (isDone ? '<button class="task-btn skip" onclick="undoTask('+r.id+')">↺ Undo</button>' : '') +
+      '</div></div>';
   });
   container.innerHTML = html;
 }
-
-function markTaskSent(id) {
-  taskStatus[id] = 'sent';
-  setTimeout(function(){ renderTasks(); }, 500);
-}
-function markTaskDone(id) {
-  taskStatus[id] = 'done';
-  renderTasks();
-}
-function undoTask(id) {
-  delete taskStatus[id];
-  renderTasks();
-}
+function markTaskSent(id){ taskStatus[id]='sent'; setTimeout(function(){renderTasks();},500); }
+function markTaskDone(id){ taskStatus[id]='done'; renderTasks(); }
+function undoTask(id){ delete taskStatus[id]; renderTasks(); }
+function refreshTasks(){ loadData(); }
 
 async function confirmTaskDate(id) {
   var input = document.getElementById('taskDate-'+id);
-  if(!input || !input.value) { alert('Please select a date first.'); return; }
-  var r = null;
-  for(var i=0;i<data.length;i++){if(data[i].id===id){r=data[i];break;}}
+  if(!input||!input.value){alert('Please select a date first.');return;}
+  var r=null;for(var i=0;i<data.length;i++){if(data[i].id===id){r=data[i];break;}}
   if(!r) return;
-
-  // Convert to M/D/YYYY
-  var parts = input.value.split('-');
-  var newDate = parseInt(parts[1],10)+'/'+parseInt(parts[2],10)+'/'+parts[0];
-
+  var parts=input.value.split('-');
+  var newDate=parseInt(parts[1],10)+'/'+parseInt(parts[2],10)+'/'+parts[0];
   loading(true);
-  try {
-    // Update return date (col E = 5)
-    await updateSheet(r.ri, 'E', newDate);
-    // Update status to PENDING if it was NO DATE
-    if(r.status === 'NO DATE') {
-      await updateSheet(r.ri, 'H', 'PENDING');
-    }
-    // Remove APPROX DATE from OBS (col J = 10)
-    var newObs = (r.obs || '').replace('APPROX DATE', '').replace(' | ', '').trim();
-    await updateSheet(r.ri, 'J', newObs);
-
-    showMsg('Return date confirmed: ' + newDate, false);
-    taskStatus[id] = 'done';
-    loadDataBackground();
-  } catch(e) {
-    showMsg('Error: ' + e.message, true);
-    console.error(e);
-  }
-  loading(false);
-}
-function refreshTasks() {
-  loadData();
+  try{
+    var newObs=(r.obs||'').replace('APPROX DATE','').replace(' | ','').trim();
+    var upd={ret:newDate,obs:newObs};
+    if(r.status==='NO DATE') upd.status='PENDING';
+    await sbUpdate(r.id,upd);
+    showMsg('Return date confirmed: '+newDate, false);
+    taskStatus[id]='done';
+    loadData();
+  }catch(e){showMsg('Error: '+e.message,true);}
+  finally{loading(false);}
 }
 
 // ── FLIGHT LIST ────────────────────────────────────────────────
 function fuzzyMatch(a, b) {
-  a = a.toUpperCase().trim();
-  b = b.toUpperCase().trim();
-
-  // Exact match
-  if(a === b) return true;
-
-  var aParts = a.split(' ').filter(function(w){return w.length>1;});
-  var bParts = b.split(' ').filter(function(w){return w.length>1;});
-
-  // Try reversed order (LAST FIRST vs FIRST LAST)
-  var aRev = aParts.slice().reverse().join(' ');
-  var bRev = bParts.slice().reverse().join(' ');
-  if(a === bRev || aRev === b) return true;
-
-  // STRICT: require BOTH first AND last name to match
-  // Get first and last words of each
-  var aFirst = aParts[0]||'';
-  var aLast  = aParts[aParts.length-1]||'';
-  var bFirst = bParts[0]||'';
-  var bLast  = bParts[bParts.length-1]||'';
-
-  // Normal order: aFirst=bFirst AND aLast=bLast
-  if(aFirst.length>2 && aLast.length>2 && aFirst===bFirst && aLast===bLast) return true;
-  // Reversed: aFirst=bLast AND aLast=bFirst
-  if(aFirst.length>2 && aLast.length>2 && aFirst===bLast && aLast===bFirst) return true;
-
-  // 2+ long words in common (min 4 chars each)
-  var common = aParts.filter(function(w){
-    return w.length>=4 && bParts.indexOf(w)>=0;
-  });
-  if(common.length>=2) return true;
-
-  return false;
+  a = a.toUpperCase().trim(); b = b.toUpperCase().trim();
+  if(a===b) return true;
+  var ap=a.split(' '), bp=b.split(' ');
+  var matches=0;
+  ap.forEach(function(p){if(p.length>1&&bp.some(function(q){return q.indexOf(p)>=0||p.indexOf(q)>=0;}))matches++;});
+  return matches>=Math.min(ap.length,bp.length)&&matches>0;
 }
-// ── FLIGHT CHECK MANUAL ────────────────────────────────────────
-async function runFCCheck2() {
-  var tail    = (document.getElementById('fcTail').value||'').trim().toUpperCase();
-  var eta     = (document.getElementById('fcETA').value||'').trim();
-  var dateVal = document.getElementById('fcDate').value;
-  var namesRaw = document.getElementById('fcNames').value;
 
-  var names = namesRaw.split('\n')
-    .map(function(n){ return n.trim().toUpperCase(); })
-    .filter(function(n){ return n.length > 1; });
-
-  if(!names.length) { alert('Please paste at least one name.'); return; }
-
-  var dateParts = dateVal ? dateVal.split('-') : [];
-  var manifestDate = dateParts.length===3 ?
-    parseInt(dateParts[1],10)+'/'+parseInt(dateParts[2],10)+'/'+dateParts[0] : '';
-
-  var matched=0, noDate=0, earlyRet=0;
-  var toUpdate = [];
-  var cardsHtml = '';
-  var results = [];
-
-  names.forEach(function(name) {
-    var valetMatch = data.filter(function(r) {
-      return r.status !== 'DELIVERED' && fuzzyMatch(r.name.toUpperCase(), name);
-    });
-    if(!valetMatch.length) return;
-
-    var r = valetMatch[0];
-    var hasNoDate = !r.ret || r.status === 'NO DATE';
-    var cardBg, cardBorder, icon, info='';
-
-    if(hasNoDate) {
-      cardBg='rgba(201,168,76,0.08)'; cardBorder='rgba(201,168,76,0.4)';
-      icon='⚠️'; noDate++;
-      info='Ticket: <strong style="color:var(--gold)">'+r.ticket+'</strong> &middot; '+r.loc;
-    } else {
-      var regDate=pd(r.ret), manDate=manifestDate?pd(manifestDate):null;
-      if(regDate&&manDate&&manDate<regDate) {
-        cardBg='rgba(255,153,0,0.08)'; cardBorder='rgba(255,153,0,0.4)';
-        icon='⚡'; earlyRet++;
-        info='Was: <strong style="color:var(--red)">'+fmtD(r.ret)+'</strong> &middot; Ticket: '+r.ticket+' &middot; '+r.loc;
-      } else {
-        cardBg='rgba(46,204,138,0.08)'; cardBorder='rgba(46,204,138,0.4)';
-        icon='✅'; matched++;
-        info='Ticket: <strong style="color:var(--ok)">'+r.ticket+'</strong> &middot; '+r.loc;
-      }
-    }
-
-    var isEarlyReturn = !hasNoDate && (function(){
-      var regD=pd(r.ret), manD=manifestDate?pd(manifestDate):null;
-      return regD&&manD&&manD<regD;
-    })();
-    if(tail||eta) toUpdate.push({rec:r, tail:tail, eta:eta, isEarly:isEarlyReturn, manifestDate:manifestDate});
-
-    results.push({name:name, cardBg:cardBg, cardBorder:cardBorder, icon:icon, info:info, eta:eta});
-  });
-
-  // Sort by ETA
-  results.sort(function(a,b){ return (a.eta||'99:99').localeCompare(b.eta||'99:99'); });
-
-  results.forEach(function(res) {
-    cardsHtml += '<div style="background:'+res.cardBg+';border:1px solid '+res.cardBorder+';border-radius:12px;padding:14px 16px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;gap:10px;">'+
-      '<div style="flex:1">'+
-        '<div style="font-weight:700;font-size:14px;margin-bottom:3px;">'+res.name+'</div>'+
-        '<div style="font-size:11px;color:var(--mu)">'+res.info+
-          (tail?' &middot; ✈️ <span style="color:var(--gold)">'+tail+'</span>':'')+
-          (eta?' &middot; 🕐 <strong style="color:var(--ok)">'+eta+'</strong>':'')+
-        '</div>'+
-      '</div>'+
-      '<div style="font-size:20px;flex-shrink:0">'+res.icon+'</div>'+
+// ── REPORT ─────────────────────────────────────────────────────
+function updateReportPreview(){
+  var el=document.getElementById('reportPreview'); if(!el) return;
+  var pend=data.filter(function(r){return r.status==='PENDING';}).length;
+  var nd=data.filter(function(r){return r.status==='NO DATE';}).length;
+  var del=data.filter(function(r){return r.status==='DELIVERED';}).length;
+  var late=data.filter(function(r){return isLate(r.ret)&&r.status!=='DELIVERED';}).length;
+  el.innerHTML=
+    '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:8px">'+
+      '<div class="rstat"><div class="rstat-num" style="color:var(--acc)">'+pend+'</div><div class="rstat-lbl">Pending</div></div>'+
+      '<div class="rstat"><div class="rstat-num" style="color:var(--pur)">'+nd+'</div><div class="rstat-lbl">No Date</div></div>'+
+      '<div class="rstat"><div class="rstat-num" style="color:var(--ok)">'+del+'</div><div class="rstat-lbl">Delivered</div></div>'+
+      '<div class="rstat"><div class="rstat-num" style="color:var(--red)">'+late+'</div><div class="rstat-lbl">Overdue</div></div>'+
     '</div>';
-  });
-
-  var inValet = matched+noDate+earlyRet;
-  document.getElementById('fcSummary').innerHTML =
-    chip2('var(--tx)', inValet, 'In Valet') +
-    chip2('var(--ok)', matched, 'Has Date ✓') +
-    chip2('var(--gold)', noDate, 'No Date ⚠') +
-    (earlyRet?chip2('#ff9900', earlyRet, 'Early ⚡'):'');
-
-  document.getElementById('fcResultTitle').textContent = 'Results' + (tail?' — '+tail:'') + (eta?' @ '+eta:'');
-  document.getElementById('fcCards').innerHTML = cardsHtml || '<div style="text-align:center;padding:30px;color:var(--mu)">No passengers from this manifest found in valet</div>';
-  document.getElementById('fcResults').style.display = 'block';
-  document.getElementById('fcResults').scrollIntoView({behavior:'smooth'});
-
-  // Save tail + ETA + update date for early returns
-  if(toUpdate.length > 0) {
-    loading(true);
-    for(var i=0;i<toUpdate.length;i++) {
-      var u = toUpdate[i];
-      try {
-        // Build OBS note
-        var note = '';
-        if(u.tail) note += 'TAIL: '+u.tail;
-        if(u.eta)  note += (note?' | ':'')+' ETA: '+u.eta;
-        if(u.isEarly) note += (note?' | ':'')+' EARLY RETURN';
-
-        var obs = (u.rec.obs||'')
-          .replace(/TAIL:[^|]*/g,'').replace(/ETA:[^|]*/g,'').replace(/EARLY RETURN/g,'')
-          .split('|').map(function(s){return s.trim();})
-          .filter(function(s){return s.length>0;}).join(' | ');
-        var newObs = obs ? obs+' | '+note : note;
-        await updateSheet(u.rec.ri,'J',newObs);
-
-        // If early return, update the return date to manifest date
-        if(u.isEarly && u.manifestDate) {
-          await updateSheet(u.rec.ri,'E',u.manifestDate);
-          // Keep status as PENDING
-          if(u.rec.status === 'NO DATE') {
-            await updateSheet(u.rec.ri,'H','PENDING');
-          }
-        }
-      } catch(e){console.error(e);}
-    }
-    loading(false);
-    var earlyCount = toUpdate.filter(function(u){return u.isEarly;}).length;
-    var msg = '✓ '+toUpdate.length+' records updated!';
-    if(earlyCount) msg += ' ⚡ '+earlyCount+' early return(s) date updated!';
-    showMsg(msg, false);
-    setTimeout(loadData, 2000);
-  }
 }
 
-function resetFC() {
-  document.getElementById('fcResults').style.display='none';
-  document.getElementById('fcNames').value='';
-  document.getElementById('fcTail').value='';
-  document.getElementById('fcETA').value='';
-}
-
-// ── REPORT ────────────────────────────────────────────────────
-function setRType(btn){
-  document.querySelectorAll('.rpill').forEach(function(b){b.classList.remove('on');});
-  btn.classList.add('on');
-  document.getElementById('reportType').value = btn.getAttribute('data-v');
-  updateReportPreview();
-}
-function updateReportPreview() {
-  var pending = data.filter(function(r){return r.status==='PENDING';}).length;
-  var noDate  = data.filter(function(r){return r.status==='NO DATE';}).length;
-  var tmrw    = data.filter(function(r){return isTmrw(r.ret)&&r.status!=='DELIVERED';}).length;
-  var overdue = data.filter(function(r){return isLate(r.ret)&&r.status!=='DELIVERED';}).length;
-  var today2  = data.filter(function(r){return isToday(r.ret)&&r.status!=='DELIVERED';}).length;
-  var total   = data.filter(function(r){return r.status!=='DELIVERED';}).length;
-  // Stats bar
-  var sb=document.getElementById('reportStatsBar');
-  if(sb) sb.innerHTML=
-    '<div class="rstat"><div class="rstat-num" style="color:var(--tx)">'+total+'</div><div class="rstat-lbl">Total</div></div>'+
-    '<div class="rstat"><div class="rstat-num" style="color:var(--acc)">'+pending+'</div><div class="rstat-lbl">Pending</div></div>'+
-    '<div class="rstat"><div class="rstat-num" style="color:var(--pur)">'+noDate+'</div><div class="rstat-lbl">No Date</div></div>'+
-    '<div class="rstat"><div class="rstat-num" style="color:var(--red)">'+overdue+'</div><div class="rstat-lbl">Overdue</div></div>'+
-    '<div class="rstat"><div class="rstat-num" style="color:var(--ok)">'+today2+'</div><div class="rstat-lbl">Today</div></div>';
-  // Preview text
-  var type = document.getElementById('reportType') ? document.getElementById('reportType').value : 'all_pending';
-  var rows=[];
-  if(type==='all_pending') rows=data.filter(function(r){return r.status==='PENDING'||r.status==='NO DATE';});
-  else if(type==='arriving_tomorrow') rows=data.filter(function(r){return isTmrw(r.ret)&&r.status!=='DELIVERED';});
-  else if(type==='no_date') rows=data.filter(function(r){return r.status==='NO DATE';});
-  else if(type==='today') rows=data.filter(function(r){return isToday(r.ret)&&r.status!=='DELIVERED';});
-  else if(type==='overdue') rows=data.filter(function(r){return isLate(r.ret)&&r.status!=='DELIVERED';});
-  var prev=document.getElementById('reportPreview');
-  if(prev){
-    if(!rows.length){prev.innerHTML='<span style="color:var(--mu)">No records for this filter.</span>';return;}
-    prev.innerHTML=rows.slice(0,5).map(function(r,i){
-      return '<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--b)">'+
-        '<span style="font-weight:600">'+r.name+'</span>'+
-        '<span style="color:var(--mu);font-size:12px;font-family:monospace">'+r.ticket+' · '+r.loc+'</span>'+
-      '</div>';
-    }).join('')+(rows.length>5?'<div style="color:var(--mu);font-size:12px;padding:8px 0">+ '+(rows.length-5)+' more records...</div>':'');
-  }
-}
-
-function generatePDF(mode) {
-  var type = document.getElementById('reportType').value;
-  var dateVal = document.getElementById('reportDate').value;
-  var reportDate = dateVal ? new Date(dateVal+'T00:00:00').toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'}) : today.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
-
-  var rows = [];
-  if(type==='all_pending')       rows = data.filter(function(r){return r.status==='PENDING'||r.status==='NO DATE';});
-  else if(type==='arriving_tomorrow') rows = data.filter(function(r){return isTmrw(r.ret)&&r.status!=='DELIVERED';});
-  else if(type==='no_date')      rows = data.filter(function(r){return r.status==='NO DATE'||!r.ret;});
-  else if(type==='today')        rows = data.filter(function(r){return isToday(r.ret)&&r.status!=='DELIVERED';});
-  else if(type==='overdue')      rows = data.filter(function(r){return isLate(r.ret)&&r.status!=='DELIVERED';});
-
-  var typeLabel = {
-    'all_pending':'All Pending Cars',
-    'arriving_tomorrow':'Arriving Tomorrow',
-    'no_date':'No Return Date',
-    'today':"Today's Activity",
-    'overdue':'Overdue'
-  }[type];
-
-  // Sort by ETA (arrival time) then by name
-  rows.sort(function(a,b) {
-    var getETA = function(r) {
-      if(!r.obs) return '99:99';
-      var em = r.obs.match(/ETA:\s*([^|]+)/);
-      return em ? em[1].trim() : '99:99';
-    };
-    var etaA = getETA(a), etaB = getETA(b);
-    if(etaA !== etaB) return etaA.localeCompare(etaB);
-    return a.name.localeCompare(b.name);
-  });
-
-  var rowsHtml = rows.map(function(r,i) {
-    var flightInfo = '';
-    if(r.obs) {
-      var fm = r.obs.match(/TAIL:\s*([^|]+)/) || r.obs.match(/FLIGHT:\s*([^|]+)/);
-      var em = r.obs.match(/ETA:\s*([^|]+)/);
-      if(fm) flightInfo += fm[1].trim();
-      if(em) flightInfo += (flightInfo?' ':'') + em[1].trim();
-    }
-    var obsClean = (r.obs||'').replace('APPROX DATE','').replace(/\s*\|\s*/g,' | ').trim().replace(/^\s*\|\s*|\s*\|\s*$/g,'').trim();
-    var isEarlyRep = obsClean.indexOf('EARLY RETURN') >= 0;
-    return '<tr>' +
-      '<td>' + (i+1) + '</td>' +
-      '<td><strong>' + r.name + '</strong></td>' +
-      '<td>' + fmtP(r.phone) + '</td>' +
-      '<td>' + r.ticket + '</td>' +
-      '<td>' + r.car + '</td>' +
-      '<td>' + (r.loc||'-') + '</td>' +
-      '<td>' + (r.ret ? fmtD(r.ret) : '-') + '</td>' +
-      '<td>' + r.status + '</td>' +
-      '<td>' + flightInfo + '</td>' +
-      '<td>' + (obsClean||'-') + '</td>' +
+function genReport(type,mode){
+  var rd2=document.getElementById('reportDate');
+  var reportDate=rd2?rd2.value:new Date().toLocaleDateString('en-US');
+  var rows, typeLabel;
+  if(type==='all'){rows=data;typeLabel='All Passengers';}
+  else if(type==='active'){rows=data.filter(function(r){return r.status!=='DELIVERED';});typeLabel='Active (Non-Delivered)';}
+  else if(type==='today'){rows=data.filter(function(r){return isToday(r.ret)&&r.status!=='DELIVERED';});typeLabel='Leaving Today';}
+  else if(type==='delivered'){rows=data.filter(function(r){return r.status==='DELIVERED';});typeLabel='Delivered';}
+  else if(type==='late'){rows=data.filter(function(r){return isLate(r.ret)&&r.status!=='DELIVERED';});typeLabel='Overdue';}
+  else{rows=data;typeLabel='All Passengers';}
+  rows=rows.slice().sort(function(a,b){var ad=pd(a.ret)||new Date(0),bd=pd(b.ret)||new Date(0);return ad-bd;});
+  var rowsHtml=rows.map(function(r,i){
+    return '<tr>'+
+      '<td>'+(i+1)+'</td><td>'+r.name+'</td><td>'+fmtP(r.phone)+'</td><td>'+r.ticket+'</td>'+
+      '<td>'+r.car+'</td><td>'+r.loc+'</td><td>'+fmtD(r.ret)+'</td><td>'+r.status+'</td>'+
+      '<td></td><td>'+(r.obs||'')+'</td>'+
     '</tr>';
   }).join('');
-
-  var printWin = window.open('','_blank');
-  printWin.document.write(`<!DOCTYPE html><html><head>
-  <title>Valet Report - ` + typeLabel + `</title>
-  <style>
-    body { font-family: Arial, sans-serif; margin: 20px; color: #000; }
-    .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; border-bottom: 3px solid #1a3d7c; padding-bottom: 16px; }
-    .header-left h1 { color: #1a3d7c; font-size: 22px; margin: 0 0 4px; }
-    .header-left p { color: #666; font-size: 12px; margin: 0; }
-    .header-right { text-align: right; font-size: 11px; color: #666; }
-    .report-title { background: #1a3d7c; color: white; padding: 8px 14px; border-radius: 6px; font-size: 13px; font-weight: bold; margin-bottom: 16px; display: inline-block; }
-    .summary { display: flex; gap: 16px; margin-bottom: 16px; }
-    .sum-box { border: 1px solid #ddd; border-radius: 8px; padding: 8px 14px; text-align: center; }
-    .sum-num { font-size: 20px; font-weight: bold; color: #1a3d7c; }
-    .sum-lbl { font-size: 10px; color: #999; text-transform: uppercase; }
-    table { width: 100%; border-collapse: collapse; font-size: 11px; }
-    th { background: #1a3d7c; color: white; padding: 7px 8px; text-align: left; }
-    td { padding: 6px 8px; border-bottom: 1px solid #eee; vertical-align: middle; }
-    tr:nth-child(even) td { background: #f9f9f9; }
-    .footer { margin-top: 20px; font-size: 10px; color: #999; text-align: center; border-top: 1px solid #eee; padding-top: 10px; }
-    @media print { button { display: none; } }
-  </style>
-  </head><body>
-  <div class="header">
-    <div class="header-left">
-      <h1>MAKERS AIR VALET — By Farber Parking</h1>
-      <p>Passenger & Vehicle Control System</p>
-    </div>
-    <div class="header-right">
-      <strong>` + reportDate + `</strong><br>
-      <br>
-      Total Records: ` + rows.length + `
-    </div>
-  </div>
-  <div class="report-title">` + typeLabel + `</div>
-  <div style="font-size:11px;color:#666;margin-bottom:12px;">Sorted by arrival time (ETA) &nbsp;·&nbsp; Generated: ` + new Date().toLocaleString('en-US') + `</div>
-  <table>
-    <thead><tr>
-      <th>#</th><th>Name</th><th>Phone</th><th>Ticket</th><th>Car</th><th>Location</th><th>Return Date</th><th>Status</th><th>Flight Info</th><th>OBS</th>
-    </tr></thead>
-    <tbody>` + rowsHtml + `</tbody>
-  </table>
-  <div class="footer">Makers Air Valet by Farber Parking &nbsp;|&nbsp; Confidential &nbsp;|&nbsp; ` + rows.length + ` records</div>
-  <br><button onclick="window.print()" style="background:#1a3d7c;color:white;border:none;padding:10px 20px;border-radius:6px;cursor:pointer;font-size:14px;">&#128438; Print / Save as PDF</button>
-  </body></html>`);
+  var printWin=window.open('','_blank');
+  printWin.document.write('<!DOCTYPE html><html><head><title>Valet Report - '+typeLabel+'</title><style>body{font-family:Arial,sans-serif;margin:20px;color:#000}.header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;border-bottom:3px solid #1a3d7c;padding-bottom:16px}.header-left h1{color:#1a3d7c;font-size:22px;margin:0 0 4px}.report-title{background:#1a3d7c;color:white;padding:8px 14px;border-radius:6px;font-size:13px;font-weight:bold;margin-bottom:16px;display:inline-block}table{width:100%;border-collapse:collapse;font-size:11px}th{background:#1a3d7c;color:white;padding:7px 8px;text-align:left}td{padding:6px 8px;border-bottom:1px solid #eee}tr:nth-child(even) td{background:#f9f9f9}@media print{button{display:none}}</style></head><body>'+
+    '<div class="header"><div class="header-left"><h1>MAKERS AIR VALET — By Farber Parking</h1><p>Passenger & Vehicle Control System</p></div><div style="text-align:right;font-size:11px;color:#666"><strong>'+reportDate+'</strong><br>Total: '+rows.length+'</div></div>'+
+    '<div class="report-title">'+typeLabel+'</div>'+
+    '<table><thead><tr><th>#</th><th>Name</th><th>Phone</th><th>Ticket</th><th>Car</th><th>Location</th><th>Return Date</th><th>Status</th><th>Flight Info</th><th>OBS</th></tr></thead><tbody>'+rowsHtml+'</tbody></table>'+
+    '<div style="margin-top:20px;font-size:10px;color:#999;text-align:center;border-top:1px solid #eee;padding-top:10px">Makers Air Valet by Farber Parking | Confidential | '+rows.length+' records</div>'+
+    '<br><button onclick="window.print()" style="background:#1a3d7c;color:white;border:none;padding:10px 20px;border-radius:6px;cursor:pointer;font-size:14px;">🖨 Print / Save as PDF</button>'+
+    '</body></html>');
   printWin.document.close();
-  if(mode !== 'share') setTimeout(function(){ printWin.print(); }, 500);
-}
-
-function chip2(color, num, lbl) {
-  return '<div style="background:var(--s);border:1px solid var(--b);border-radius:8px;padding:8px 14px;text-align:center;">' +
-    '<div style="font-family:Syne,sans-serif;font-size:18px;font-weight:800;color:'+color+'">'+num+'</div>' +
-    '<div style="font-size:10px;color:var(--mu);text-transform:uppercase">'+lbl+'</div></div>';
-}
-
-// ── DIAGNOSTICS ────────────────────────────────────────────────
-function diagLog(msg, color) {
-  var el = document.getElementById('diagLog');
-  if(!el) return;
-  var ts = new Date().toLocaleTimeString('en-US');
-  var line = '['+ts+'] ' + msg + '\n';
-  el.style.color = color || '#6fc898';
-  el.textContent += line;
-  el.scrollTop = el.scrollHeight;
-}
-
-function runDiagnostic() {
-  var el = document.getElementById('diagLog');
-  if(el) el.textContent = '';
-  diagLog('Testing connection to Google Apps Script...');
-  diagLog('URL: ' + WRITE_URL);
-
-  // Test 1: Can we reach the script at all (GET)?
-  var xhr = new XMLHttpRequest();
-  xhr.open('GET', WRITE_URL, true);
-  xhr.timeout = 10000;
-  xhr.onload = function() {
-    diagLog('✅ GET response: HTTP ' + xhr.status, '#6fc898');
-    diagLog('Response body: ' + (xhr.responseText||'(empty)').substring(0,300));
-  };
-  xhr.onerror = function() { diagLog('❌ GET failed — network error or blocked', '#ff6b6b'); };
-  xhr.ontimeout = function() { diagLog('⏱ GET timed out after 10s', '#ffaa33'); };
-  xhr.send();
-
-  // Test 2: POST ping
-  setTimeout(function(){
-    diagLog('\nSending POST ping...');
-    var xhr2 = new XMLHttpRequest();
-    xhr2.open('POST', WRITE_URL, true);
-    xhr2.setRequestHeader('Content-Type', 'text/plain;charset=utf-8');
-    xhr2.timeout = 10000;
-    xhr2.onload = function() {
-      diagLog('✅ POST response: HTTP ' + xhr2.status, '#6fc898');
-      diagLog('Response body: ' + (xhr2.responseText||'(empty)').substring(0,500));
-      if(xhr2.responseText && xhr2.responseText.indexOf('append')>=0) diagLog('✅ Script understands append action!');
-      if(xhr2.responseText && (xhr2.responseText.indexOf('Error')>=0||xhr2.responseText.indexOf('error')>=0)) diagLog('⚠️ Script returned an error in body!','#ffaa33');
-    };
-    xhr2.onerror = function() { diagLog('❌ POST failed — CORS or network block', '#ff6b6b'); };
-    xhr2.ontimeout = function() { diagLog('⏱ POST timed out', '#ffaa33'); };
-    xhr2.send(JSON.stringify({action:'ping'}));
-  }, 500);
-}
-
-async function runTestAppend() {
-  var el = document.getElementById('diagLog');
-  if(el) el.textContent = '';
-  diagLog('Sending TEST APPEND row...');
-  var ts = new Date().toLocaleString('en-US');
-  try {
-    var result = await appendSheet([ts,'TEST PASSENGER','(000) 000-0000','TEST-000','','TEST CAR','HANGAR 19','PENDING','','DEBUG TEST - DELETE ME']);
-    diagLog('✅ appendSheet returned: ' + JSON.stringify(result), '#6fc898');
-    diagLog('Check your Google Sheet for a "TEST PASSENGER" row.');
-    diagLog('If it appears → the connection works!');
-    diagLog('If it does NOT appear → the Apps Script has an issue.');
-  } catch(e) {
-    diagLog('❌ Error: ' + e.message, '#ff6b6b');
-  }
+  if(mode!=='share') setTimeout(function(){printWin.print();},500);
 }
 
 // ── LOGIN ──────────────────────────────────────────────────────
 var USERS = {'valetmakers': 'farber1109'};
-
 function doLogin() {
-  var user = document.getElementById('loginUser').value.trim().toLowerCase();
-  var pass = document.getElementById('loginPass').value;
-  var err  = document.getElementById('loginErr');
-  if (USERS[user] && USERS[user] === pass) {
-    document.getElementById('loginScreen').style.display = 'none';
-    sessionStorage.setItem('valet_auth', '1');
+  var user=document.getElementById('loginUser').value.trim().toLowerCase();
+  var pass=document.getElementById('loginPass').value;
+  var err=document.getElementById('loginErr');
+  if(USERS[user]&&USERS[user]===pass){
+    document.getElementById('loginScreen').style.display='none';
+    sessionStorage.setItem('valet_auth','1');
     loadData();
   } else {
-    err.style.display = 'block';
-    document.getElementById('loginPass').value = '';
-    setTimeout(function(){ err.style.display='none'; }, 3000);
+    err.style.display='block';
+    document.getElementById('loginPass').value='';
+    setTimeout(function(){err.style.display='none';},3000);
   }
 }
-
-function checkAuth() {
-  if (sessionStorage.getItem('valet_auth') === '1') {
-    document.getElementById('loginScreen').style.display = 'none';
+function checkAuth(){
+  if(sessionStorage.getItem('valet_auth')==='1'){
+    document.getElementById('loginScreen').style.display='none';
     return true;
   }
   return false;
 }
 
 document.getElementById('hdrDate').textContent=today.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'});
-// Set default report date
-var rd = document.getElementById('reportDate');
-if(rd){ var t2=new Date(); rd.value=t2.getFullYear()+'-'+String(t2.getMonth()+1).padStart(2,'0')+'-'+String(t2.getDate()).padStart(2,'0'); }
-// Set flight check date to tomorrow
-var fcd = document.getElementById('fcDate');
-if(fcd){ var t3=new Date(); t3.setDate(t3.getDate()+1); fcd.value=t3.getFullYear()+'-'+String(t3.getMonth()+1).padStart(2,'0')+'-'+String(t3.getDate()).padStart(2,'0'); }
-var fcpd = document.getElementById('fcPasteDate');
-if(fcpd){ var t4=new Date(); t4.setDate(t4.getDate()+1); fcpd.value=t4.getFullYear()+'-'+String(t4.getMonth()+1).padStart(2,'0')+'-'+String(t4.getDate()).padStart(2,'0'); }
-// Set default sort indicator
-var defEl = document.getElementById('s-ts');
-if(defEl) defEl.textContent = ' ▼';
-// Check if already logged in this session
-if(!checkAuth()) { /* wait for login */ }
+var rd=document.getElementById('reportDate');
+if(rd){var t2=new Date();rd.value=t2.getFullYear()+'-'+String(t2.getMonth()+1).padStart(2,'0')+'-'+String(t2.getDate()).padStart(2,'0');}
+var fcd=document.getElementById('fcDate');
+if(fcd){var t3=new Date();t3.setDate(t3.getDate()+1);fcd.value=t3.getFullYear()+'-'+String(t3.getMonth()+1).padStart(2,'0')+'-'+String(t3.getDate()).padStart(2,'0');}
+var fcpd=document.getElementById('fcPasteDate');
+if(fcpd){var t4=new Date();t4.setDate(t4.getDate()+1);fcpd.value=t4.getFullYear()+'-'+String(t4.getMonth()+1).padStart(2,'0')+'-'+String(t4.getDate()).padStart(2,'0');}
+var defEl=document.getElementById('s-ts');
+if(defEl) defEl.textContent=' ▼';
+if(!checkAuth()){/* wait for login */}
 
-function updateVcf(){
-  var name = (document.getElementById('fName').value||'').trim();
-  var phone = (document.getElementById('fPhone').value||'').trim().replace(/\D/g,'');
-  var wrap = document.getElementById('vcfWrap');
-  var link = document.getElementById('vcfLink');
-  if(name && phone){
-    var vcf = 'BEGIN:VCARD\nVERSION:3.0\nFN:'+name+'\nTEL;TYPE=CELL:'+phone+'\nEND:VCARD';
-    var blob = new Blob([vcf],{type:'text/vcard'});
-    var url = URL.createObjectURL(blob);
-    link.href = url;
-    link.download = name.replace(/\s+/g,'_')+'.vcf';
-    wrap.style.display='block';
-  } else {
-    wrap.style.display='none';
-  }
-}
 </script>
 </body>
 </html>
