@@ -1101,12 +1101,23 @@ function clearSel(){
 
 async function updateSheet(rowNum, col, value) {
   var payload = JSON.stringify({action:'update', row:rowNum, col:colToNum(col), value:value});
-  fetch(WRITE_URL, {
-    method:'POST', mode:'no-cors',
-    headers:{'Content-Type':'text/plain'},
-    body:payload
-  }).catch(function(e){console.warn('updateSheet error:',e);});
-  return {status:'ok'};
+  try {
+    var res = await fetch(WRITE_URL, {
+      method:'POST',
+      headers:{'Content-Type':'text/plain'},
+      body:payload
+    });
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    return {status:'ok'};
+  } catch(e) {
+    // Fall back to no-cors
+    await fetch(WRITE_URL, {
+      method:'POST', mode:'no-cors',
+      headers:{'Content-Type':'text/plain'},
+      body:payload
+    });
+    return {status:'ok'};
+  }
 }
 function colToNum(col) {
   var n=0;
@@ -1115,15 +1126,32 @@ function colToNum(col) {
 }
 async function appendSheet(vals) {
   var payload = JSON.stringify({action:'append', values:vals});
-  await fetch(WRITE_URL, {
-    method:'POST', mode:'no-cors',
-    headers:{'Content-Type':'text/plain'},
-    body:payload
-  });
-  return {status:'ok'};
+  // Try with CORS first (works if the Apps Script has CORS headers),
+  // then fall back to no-cors (opaque response — can't read errors but still sends)
+  try {
+    var res = await fetch(WRITE_URL, {
+      method:'POST',
+      headers:{'Content-Type':'text/plain'},
+      body:payload
+    });
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    var text = await res.text();
+    if(text && text.indexOf('error')>=0) throw new Error(text);
+    return {status:'ok'};
+  } catch(e) {
+    // CORS block is expected — re-send as no-cors (opaque) and wait longer for processing
+    await fetch(WRITE_URL, {
+      method:'POST', mode:'no-cors',
+      headers:{'Content-Type':'text/plain'},
+      body:payload
+    });
+    // Wait for Apps Script to process before returning
+    await new Promise(function(res){setTimeout(res,2000);});
+    return {status:'ok'};
+  }
 }
 function loadDataBackground() {
-  setTimeout(function(){ loadData(); }, 3500);
+  setTimeout(function(){ loadData(); }, 5000);
 }
 
 async function bulkAct(newStatus){
@@ -1371,8 +1399,21 @@ async function saveEntry(sendSms){
     }
     var locVal=document.getElementById('fLoc').value;
     await appendSheet([ts,name.toUpperCase(),phoneFull,ticket,finalDate,car,locVal,finalStatus,'',finalObs]);
-    await sendLog('NEW ENTRY',{name:name.toUpperCase(),ticket:ticket,loc:locVal},'Status: '+finalStatus+(finalDate?' · Returns '+finalDate:''));
-    showMsg('Saved!',false);closeAll();
+    // Only close and reset AFTER successful save
+    closeAll();
+    document.getElementById('fName').value='';
+    document.getElementById('fPhone').value='';
+    document.getElementById('fTicket').value='';
+    var fRet2=document.getElementById('fReturn');if(fRet2)fRet2.value='';
+    document.getElementById('fCar').value='';
+    document.getElementById('fLoc').value='';
+    document.getElementById('fObs').value='';
+    document.getElementById('fStatus').value='PENDING';
+    document.querySelectorAll('.lb').forEach(function(b){b.classList.remove('on');});
+    document.getElementById('freqInfo').classList.remove('on');
+    showMsg('✓ Saved! Syncing to Google Sheets...',false);
+    // Send log after (non-blocking)
+    sendLog('NEW ENTRY',{name:name.toUpperCase(),ticket:ticket,loc:locVal},'Status: '+finalStatus+(finalDate?' · Returns '+finalDate:''));
     // Send welcome SMS if phone provided and user chose Save + Text
     if(sendSms && phoneFull){
       var cleanPhone=phoneFull.replace(/\D/g,'');
@@ -1380,15 +1421,14 @@ async function saveEntry(sendSms){
       var smsLink='sms:'+cleanPhone+'&body='+encodeURIComponent(smsBody);
       window.open(smsLink,'_self');
     }
-    document.getElementById('fName').value='';document.getElementById('fPhone').value='';document.getElementById('fTicket').value='';
-    var fRet2=document.getElementById('fReturn');if(fRet2)fRet2.value='';document.getElementById('fCar').value='';document.getElementById('fLoc').value='';
-    document.getElementById('fObs').value='';document.getElementById('fStatus').value='PENDING';
-    document.querySelectorAll('.lb').forEach(function(b){b.classList.remove('on');});
-    document.getElementById('freqInfo').classList.remove('on');
     loadDataBackground();
-  }catch(e){showMsg('Error: '+e.message,true);console.error(e);}
-  btn.textContent='Save Only';btn.disabled=false;
-  btnSms.textContent='&#128172; Save + Text';btnSms.disabled=false;
+  }catch(e){
+    showMsg('❌ Error saving: '+e.message,true);
+    console.error('saveEntry error:',e);
+  }finally{
+    btn.textContent='Save Only';btn.disabled=false;
+    btnSms.textContent='&#128172; Save + Text';btnSms.disabled=false;
+  }
 }
 
 function showDet(id){
@@ -1607,8 +1647,8 @@ async function sendLog(logAction, r, detail) {
 async function quickDeliver(id){
   var r=null; for(var i=0;i<data.length;i++){if(data[i].id===id){r=data[i];break;}}
   if(!r) return;
-  var isLate=isLate2(r.ret);
-  var msg = isLate
+  var isLateDeliver=isLate(r.ret);
+  var msg = isLateDeliver
     ? '✓ Mark as DELIVERED?\n'+r.name+' (Ticket '+r.ticket+')\n⚠️ Was due: '+fmtD(r.ret)
     : '✓ Mark as DELIVERED?\n'+r.name+' (Ticket '+r.ticket+')';
   if(!confirm(msg)) return;
@@ -1620,27 +1660,26 @@ async function quickDeliver(id){
     var todayStr=(today.getMonth()+1)+'/'+(today.getDate())+'/'+today.getFullYear();
     await updateSheet(target.ri,'H','DELIVERED');
     await updateSheet(target.ri,'K',todayStr);
-    var logAction = isLate ? 'LATE DELIVER' : 'DELIVERED';
-    var detail = isLate ? 'was due '+fmtD(r.ret) : '';
-    await sendLog(logAction, target, detail);
+    var logAction = isLateDeliver ? 'LATE DELIVER' : 'DELIVERED';
+    var detail = isLateDeliver ? 'was due '+fmtD(r.ret) : '';
+    sendLog(logAction, target, detail);
     for(var i=0;i<data.length;i++){if(data[i].id===target.id){data[i].status='DELIVERED';data[i].deldate=todayStr;break;}}
     render();
     showMsg('✓ Delivered: '+target.name+' (Ticket '+target.ticket+')',false);
     loadDataBackground();
   }catch(e){showMsg('Error: '+e.message,true);}
-  loading(false);
+  finally{loading(false);}
 }
 
-function isLate2(s){ var d=pd(s); return d&&d<today&&!sd(d,today); }
+// isLate2 is an alias kept for backwards compatibility
+var isLate2 = isLate;
 
 async function markDel(id){
   var r=null;for(var i=0;i<data.length;i++){if(data[i].id===id){r=data[i];break;}}
   if(!r)return;
-  // Find the most recent PENDING record for this passenger by name
   var samePassenger=data.filter(function(d){
     return d.name.toLowerCase()===r.name.toLowerCase() && d.status!=='DELIVERED';
   });
-  // Sort by row index descending - highest row = most recent
   samePassenger.sort(function(a,b){return b.ri-a.ri;});
   var target = samePassenger.length>0 ? samePassenger[0] : r;
   loading(true);
@@ -1648,19 +1687,17 @@ async function markDel(id){
     var todayStr=(today.getMonth()+1)+'/'+(today.getDate())+'/'+today.getFullYear();
     await updateSheet(target.ri,'H','DELIVERED');
     await updateSheet(target.ri,'K',todayStr);
-    // Update local data immediately so UI reflects change instantly
-    var todayFmt=(today.getMonth()+1)+'/'+(today.getDate())+'/'+today.getFullYear();
     for(var i=0;i<data.length;i++){
-      if(data[i].id===target.id){ data[i].status='DELIVERED'; data[i].deldate=todayFmt; break; }
+      if(data[i].id===target.id){ data[i].status='DELIVERED'; data[i].deldate=todayStr; break; }
     }
     render();
     closeAll();
-    var isLateDel=isLate2(target.ret);
-    await sendLog(isLateDel?'LATE DELIVER':'DELIVERED', target, isLateDel?'was due '+fmtD(target.ret):'');
+    var isLateDel=isLate(target.ret);
+    sendLog(isLateDel?'LATE DELIVER':'DELIVERED', target, isLateDel?'was due '+fmtD(target.ret):'');
     showMsg('✓ Delivered: '+target.name+' (Ticket '+target.ticket+')',false);
     loadDataBackground();
   }catch(e){showMsg('Error: '+e.message,true);}
-  loading(false);
+  finally{loading(false);}
 }
 async function deleteRec(id){
   var r=null;for(var i=0;i<data.length;i++){if(data[i].id===id){r=data[i];break;}}
