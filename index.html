@@ -738,8 +738,23 @@ async function sbDelete(id) {
   return true;
 }
 
+// ── XSS HELPER ─────────────────────────────────────────────────
+function escapeHTML(s) {
+  if (s == null) return '';
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 // ── GLOBALS ────────────────────────────────────────────────────
-var ANTHROPIC_KEY = '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';
+// ⚠️  ANTHROPIC_KEY must NEVER live in client-side code.
+// Any Claude API calls must go through a server-side proxy (e.g. a Supabase Edge Function
+// or a dedicated backend endpoint) that holds the key in an environment variable.
+// Rotate the previously-exposed key at: https://console.anthropic.com/settings/keys
+var ANTHROPIC_KEY = null; // placeholder — do not set a real key here
 var HANGARS  = ['HANGAR 19','HANGAR 18','HANGAR 16','HANGAR 7','HH'];
 var today    = new Date(); today.setHours(0,0,0,0);
 var tomorrow = new Date(today); tomorrow.setDate(today.getDate()+1);
@@ -928,19 +943,19 @@ function renderTable() {
     var sel=selected[r.id]?true:false;
     h+='<tr class="passenger-row" data-id="'+r.id+'" style="'+(sel?'background:rgba(232,160,48,.12)':'')+';cursor:pointer">'+
       '<td class="cbtd" onclick="event.stopPropagation()"><input type="checkbox" data-id="'+r.id+'" '+(sel?'checked':'')+' onchange="rowChk(this)"></td>'+
-      '<td style="font-weight:500">'+r.name+
+      '<td style="font-weight:500">'+escapeHTML(r.name)+
         (freq?'<span class="t-freq">x'+cnt[r.name.toLowerCase()]+'</span>':'')+
         (rt?'<span class="tag t-today">TODAY</span>':'')+
         (rm?'<span class="tag t-tmrw">TMR</span>':'')+
         (ro&&r.status!=='DELIVERED'?'<span class="tag t-late">LATE</span>':'')+
         (r.obs&&r.obs.indexOf('APPROX DATE')>=0?'<span class="tag" style="background:rgba(201,168,76,0.15);color:var(--gold)">~APPROX</span>':'')+'</td>'+
-      '<td style="font-family:monospace;font-size:12px;color:var(--mu)">'+fmtP(r.phone)+'</td>'+
-      '<td style="font-family:monospace;font-size:12px;color:var(--gold)">'+r.ticket+'</td>'+
-      '<td style="font-size:12px;color:var(--mu)">'+r.car+'</td>'+
-      '<td style="font-size:12px;color:var(--mu)">'+(r.loc||'-')+'</td>'+
-      '<td style="font-size:11px;color:var(--mu)">'+fmtA(r.ts)+'</td>'+
-      '<td style="cursor:pointer"><span class="rd '+rc+'">'+rl+'</span></td>'+
-      '<td style="cursor:pointer"><span class="badge '+bc+'">'+r.status+'</span></td>'+
+      '<td style="font-family:monospace;font-size:12px;color:var(--mu)">'+escapeHTML(fmtP(r.phone))+'</td>'+
+      '<td style="font-family:monospace;font-size:12px;color:var(--gold)">'+escapeHTML(r.ticket)+'</td>'+
+      '<td style="font-size:12px;color:var(--mu)">'+escapeHTML(r.car)+'</td>'+
+      '<td style="font-size:12px;color:var(--mu)">'+escapeHTML(r.loc||'-')+'</td>'+
+      '<td style="font-size:11px;color:var(--mu)">'+escapeHTML(fmtA(r.ts))+'</td>'+
+      '<td style="cursor:pointer"><span class="rd '+rc+'">'+escapeHTML(rl)+'</span></td>'+
+      '<td style="cursor:pointer"><span class="badge '+bc+'">'+escapeHTML(r.status)+'</span></td>'+
       '<td style="text-align:center;padding:8px" onclick="event.stopPropagation()">'+
         (r.status!=='DELIVERED'?'<button class="qd-btn'+(ro?' late':r.status==='NO DATE'?' nodate':'')+'" onclick="quickDeliver('+r.id+')">✓</button>':'<span style="color:var(--mu);font-size:12px">—</span>')+
       '</td>'+
@@ -962,10 +977,10 @@ function renderDay() {
       var isApprox=r.obs&&r.obs.indexOf('APPROX DATE')>=0;
       return '<div class="dcard '+cls+(isApprox?' approx-card':'')+'" onclick="showDet('+r.id+')">'+
         '<div class="dc-body">'+
-          '<div class="dc-n">'+r.name+(isApprox?' <span style="font-size:9px;background:rgba(201,168,76,0.2);color:var(--gold);border-radius:4px;padding:2px 5px;margin-left:4px">~APPROX</span>':'')+'</div>'+
-          '<div class="dc-c">'+r.car+' · '+fmtP(r.phone)+'</div>'+
+          '<div class="dc-n">'+escapeHTML(r.name)+(isApprox?' <span style="font-size:9px;background:rgba(201,168,76,0.2);color:var(--gold);border-radius:4px;padding:2px 5px;margin-left:4px">~APPROX</span>':'')+'</div>'+
+          '<div class="dc-c">'+escapeHTML(r.car)+' · '+escapeHTML(fmtP(r.phone))+'</div>'+
         '</div>'+
-        '<div class="dc-meta"><div class="dc-tk">'+r.ticket+'</div><div class="dc-l">'+r.loc+'</div></div>'+
+        '<div class="dc-meta"><div class="dc-tk">'+escapeHTML(r.ticket)+'</div><div class="dc-l">'+escapeHTML(r.loc)+'</div></div>'+
         (r.status!=='DELIVERED'?
           '<div class="dc-qd" onclick="event.stopPropagation()">'+
             '<button class="qd-btn '+(btnCls||'')+'" onclick="quickDeliver('+r.id+')">✓ Deliver</button>'+
@@ -1184,7 +1199,7 @@ function acSearch(q){
   });
   if(matches.length===0){drop.classList.remove('open');return;}
   drop.innerHTML=matches.slice(0,6).map(function(r,i){
-    return '<div class="ac-item" data-idx="'+i+'"><div class="ac-name">'+r.name+'</div><div class="ac-sub">'+r.phone+(r.car?' · '+r.car:'')+'</div></div>';
+    return '<div class="ac-item" data-idx="'+i+'"><div class="ac-name">'+escapeHTML(r.name)+'</div><div class="ac-sub">'+escapeHTML(r.phone)+(r.car?' · '+escapeHTML(r.car):'')+'</div></div>';
   }).join('');
   drop._matches=matches;
   drop.querySelectorAll('.ac-item').forEach(function(el){
@@ -1342,25 +1357,25 @@ function showDet(id){
   var retC=rt?'color:var(--acc)':ro?'color:var(--red)':rm?'color:var(--pur)':'';
   var hangH=HANGARS.map(function(h){return '<div class="ho'+(r.loc===h?' on':'')+' ho-item" data-rid="'+r.id+'" data-h="'+h+'">'+h+'</div>';}).join('');
   var histH='';
-  if(hist.length>1){histH='<div class="htitle">Visit History ('+hist.length+' visit'+(hist.length>1?'s':'')+' - all contacts)</div><div class="hlist">'+hist.map(function(h){return '<div class="hi" style="flex-direction:column;gap:3px;align-items:flex-start"><div style="display:flex;justify-content:space-between;width:100%"><span class="h-tk">'+h.ticket+'</span><span class="h-dt">'+fmtA(h.ts)+'</span></div><div style="font-size:11px;color:var(--mu)">'+h.car+(h.phone?' · '+fmtP(h.phone):'')+'</div><div style="font-size:10px;color:'+(h.status==='DELIVERED'?'var(--ok)':'var(--acc)')+'">'+h.status+'</div></div>';}).join('')+'</div>';}
+  if(hist.length>1){histH='<div class="htitle">Visit History ('+hist.length+' visit'+(hist.length>1?'s':'')+' - all contacts)</div><div class="hlist">'+hist.map(function(h){return '<div class="hi" style="flex-direction:column;gap:3px;align-items:flex-start"><div style="display:flex;justify-content:space-between;width:100%"><span class="h-tk">'+escapeHTML(h.ticket)+'</span><span class="h-dt">'+escapeHTML(fmtA(h.ts))+'</span></div><div style="font-size:11px;color:var(--mu)">'+escapeHTML(h.car)+(h.phone?' · '+escapeHTML(fmtP(h.phone)):'')+'</div><div style="font-size:10px;color:'+(h.status==='DELIVERED'?'var(--ok)':'var(--acc)')+'">'+escapeHTML(h.status)+'</div></div>';}).join('')+'</div>';}
   document.getElementById('detPanel').innerHTML=
-    '<div class="dname">'+r.name+'</div>'+
-    '<div class="dphone" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'+fmtP(r.phone)+
+    '<div class="dname">'+escapeHTML(r.name)+'</div>'+
+    '<div class="dphone" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'+escapeHTML(fmtP(r.phone))+
       (r.phone?'<a href="tel:'+r.phone.replace(/\D/g,'')+'" style="background:var(--ok);color:#000;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;text-decoration:none;font-family:Syne,sans-serif;">📞 CALL</a>':'')+
       (r.phone?'<a href="sms:'+r.phone.replace(/\D/g,'')+'" style="background:var(--pur);color:#fff;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;text-decoration:none;font-family:Syne,sans-serif;">💬 TEXT</a>':'')+
     '</div>'+
     '<div id="saveEditsWrap"><button class="save-edits-btn" id="saveEditsBtn" data-rid="'+r.id+'">💾 Save Changes</button></div>'+
     '<div class="dgrid">'+
-      '<div class="di"><div class="di-l">Ticket</div><div class="di-v" style="color:var(--acc)">'+r.ticket+'</div></div>'+
-      '<div class="di"><div class="di-l">Status</div><div class="di-v">'+r.status+'</div></div>'+
-      '<div class="di"><div class="di-l">Return</div><div class="di-v" style="font-size:12px;'+retC+'">'+retDisp+'</div></div>'+
-      '<div class="di"><div class="di-l">Arrived</div><div class="di-v" style="font-size:12px">'+fmtA(r.ts)+'</div></div>'+
-      '<div class="di editable" style="grid-column:1/-1" data-field="name"><div class="di-l">Name ✎</div><div class="di-v" id="edit-name">'+r.name+'</div></div>'+
-      '<div class="di editable" style="grid-column:1/-1" data-field="phone"><div class="di-l">Phone ✎</div><div class="di-v" id="edit-phone">'+fmtP(r.phone)+'</div></div>'+
-      '<div class="di editable" style="grid-column:1/-1" data-field="car"><div class="di-l">Car ✎</div><div class="di-v" id="edit-car">'+r.car+'</div></div>'+
-      '<div class="di editable" style="grid-column:1/-1" data-field="ticket"><div class="di-l">Ticket # ✎</div><div class="di-v" id="edit-ticket">'+r.ticket+'</div></div>'+
-      '<div class="di editable" style="grid-column:1/-1" data-field="loc"><div class="di-l">Location ✎</div><div class="di-v" id="edit-loc">'+(r.loc||'—')+'</div></div>'+
-      '<div class="di editable" style="grid-column:1/-1" data-field="obs"><div class="di-l">OBS ✎</div><div class="di-v" id="edit-obs" style="font-size:12px">'+(r.obs||'—')+'</div></div>'+
+      '<div class="di"><div class="di-l">Ticket</div><div class="di-v" style="color:var(--acc)">'+escapeHTML(r.ticket)+'</div></div>'+
+      '<div class="di"><div class="di-l">Status</div><div class="di-v">'+escapeHTML(r.status)+'</div></div>'+
+      '<div class="di"><div class="di-l">Return</div><div class="di-v" style="font-size:12px;'+retC+'">'+escapeHTML(retDisp)+'</div></div>'+
+      '<div class="di"><div class="di-l">Arrived</div><div class="di-v" style="font-size:12px">'+escapeHTML(fmtA(r.ts))+'</div></div>'+
+      '<div class="di editable" style="grid-column:1/-1" data-field="name"><div class="di-l">Name ✎</div><div class="di-v" id="edit-name">'+escapeHTML(r.name)+'</div></div>'+
+      '<div class="di editable" style="grid-column:1/-1" data-field="phone"><div class="di-l">Phone ✎</div><div class="di-v" id="edit-phone">'+escapeHTML(fmtP(r.phone))+'</div></div>'+
+      '<div class="di editable" style="grid-column:1/-1" data-field="car"><div class="di-l">Car ✎</div><div class="di-v" id="edit-car">'+escapeHTML(r.car)+'</div></div>'+
+      '<div class="di editable" style="grid-column:1/-1" data-field="ticket"><div class="di-l">Ticket # ✎</div><div class="di-v" id="edit-ticket">'+escapeHTML(r.ticket)+'</div></div>'+
+      '<div class="di editable" style="grid-column:1/-1" data-field="loc"><div class="di-l">Location ✎</div><div class="di-v" id="edit-loc">'+escapeHTML(r.loc||'—')+'</div></div>'+
+      '<div class="di editable" style="grid-column:1/-1" data-field="obs"><div class="di-l">OBS ✎</div><div class="di-v" id="edit-obs" style="font-size:12px">'+escapeHTML(r.obs||'—')+'</div></div>'+
     '</div>'+histH+
     (r.obs&&r.obs.indexOf('APPROX DATE')>=0&&r.status!=='DELIVERED'?
       '<div style="background:rgba(201,168,76,0.1);border:1px solid rgba(201,168,76,0.4);border-radius:10px;padding:12px 14px;margin-bottom:12px">'+
@@ -1523,7 +1538,7 @@ function makeEditable(cell,field){
   if(cell.querySelector('input')) return;
   var valEl=cell.querySelector('.di-v');
   var cur=valEl.textContent==='—'?'':valEl.textContent;
-  valEl.innerHTML='<input class="di-input" type="text" value="'+cur.replace(/"/g,'&quot;')+'" id="inp-'+field+'" onclick="event.stopPropagation()" />';
+  valEl.innerHTML='<input class="di-input" type="text" value="'+escapeHTML(cur)+'" id="inp-'+field+'" onclick="event.stopPropagation()" />';
   var inp=valEl.querySelector('input');
   inp.focus(); inp.select();
   inp.addEventListener('blur',function(){commitEdit(field,inp);});
@@ -1629,11 +1644,11 @@ function updateReportPreview(){
     '</tr></thead><tbody>';
   rows.slice(0,50).forEach(function(r){
     h+='<tr style="border-bottom:1px solid var(--s2)">'+
-      '<td style="padding:8px">'+r.name+'</td>'+
-      '<td style="padding:8px;color:var(--gold);font-family:monospace">'+r.ticket+'</td>'+
-      '<td style="padding:8px;color:var(--mu)">'+r.car+'</td>'+
-      '<td style="padding:8px;font-size:11px">'+fmtD(r.ret)+'</td>'+
-      '<td style="padding:8px"><span class="badge '+(r.status==='PENDING'?'bp':r.status==='DELIVERED'?'bd':'bn')+'">'+r.status+'</span></td>'+
+      '<td style="padding:8px">'+escapeHTML(r.name)+'</td>'+
+      '<td style="padding:8px;color:var(--gold);font-family:monospace">'+escapeHTML(r.ticket)+'</td>'+
+      '<td style="padding:8px;color:var(--mu)">'+escapeHTML(r.car)+'</td>'+
+      '<td style="padding:8px;font-size:11px">'+escapeHTML(fmtD(r.ret))+'</td>'+
+      '<td style="padding:8px"><span class="badge '+(r.status==='PENDING'?'bp':r.status==='DELIVERED'?'bd':'bn')+'">'+escapeHTML(r.status)+'</span></td>'+
     '</tr>';
   });
   if(rows.length>50) h+='<tr><td colspan="5" style="padding:10px;text-align:center;color:var(--mu);font-size:11px">...and '+(rows.length-50)+' more</td></tr>';
@@ -1654,9 +1669,9 @@ function genReport(type,mode){
   rows=rows.slice().sort(function(a,b){var ad=pd(a.ret)||new Date(0),bd=pd(b.ret)||new Date(0);return ad-bd;});
   var rowsHtml=rows.map(function(r,i){
     return '<tr>'+
-      '<td>'+(i+1)+'</td><td>'+r.name+'</td><td>'+fmtP(r.phone)+'</td><td>'+r.ticket+'</td>'+
-      '<td>'+r.car+'</td><td>'+r.loc+'</td><td>'+fmtD(r.ret)+'</td><td>'+r.status+'</td>'+
-      '<td></td><td>'+(r.obs||'')+'</td>'+
+      '<td>'+(i+1)+'</td><td>'+escapeHTML(r.name)+'</td><td>'+escapeHTML(fmtP(r.phone))+'</td><td>'+escapeHTML(r.ticket)+'</td>'+
+      '<td>'+escapeHTML(r.car)+'</td><td>'+escapeHTML(r.loc)+'</td><td>'+escapeHTML(fmtD(r.ret))+'</td><td>'+escapeHTML(r.status)+'</td>'+
+      '<td></td><td>'+escapeHTML(r.obs||'')+'</td>'+
     '</tr>';
   }).join('');
   var printWin=window.open('','_blank');
@@ -1722,9 +1737,9 @@ function runFCCheck2() {
   if(el) el.style.display='block';
 
   var info = '';
-  if(tail) info += '<b>Tail:</b> '+tail+'&nbsp;&nbsp;';
-  if(eta) info += '<b>ETA:</b> '+eta+'&nbsp;&nbsp;';
-  if(fcDate) info += '<b>Date:</b> '+fcDate;
+  if(tail) info += '<b>Tail:</b> '+escapeHTML(tail)+'&nbsp;&nbsp;';
+  if(eta) info += '<b>ETA:</b> '+escapeHTML(eta)+'&nbsp;&nbsp;';
+  if(fcDate) info += '<b>Date:</b> '+escapeHTML(fcDate);
 
   var html = (info?'<div style="font-size:12px;color:var(--mu);margin-bottom:10px">'+info+'</div>':'')+
     '<div style="font-size:12px;color:var(--ok);font-weight:700;margin-bottom:8px">✅ FOUND IN VALET ('+found.length+')</div>';
@@ -1733,9 +1748,9 @@ function runFCCheck2() {
     html += found.map(function(r){
       var m=r.match;
       return '<div class="dcard ca" style="margin-bottom:8px" onclick="showDet('+m.id+')">'+
-        '<div class="dc-body"><div class="dc-n">'+m.name+'</div>'+
-        '<div class="dc-c">'+m.car+' · '+fmtP(m.phone)+'</div></div>'+
-        '<div class="dc-meta"><div class="dc-tk">'+m.ticket+'</div><div class="dc-l">'+m.loc+'</div></div>'+
+        '<div class="dc-body"><div class="dc-n">'+escapeHTML(m.name)+'</div>'+
+        '<div class="dc-c">'+escapeHTML(m.car)+' · '+escapeHTML(fmtP(m.phone))+'</div></div>'+
+        '<div class="dc-meta"><div class="dc-tk">'+escapeHTML(m.ticket)+'</div><div class="dc-l">'+escapeHTML(m.loc)+'</div></div>'+
       '</div>';
     }).join('');
   } else {
@@ -1745,7 +1760,7 @@ function runFCCheck2() {
   html += '<div style="font-size:12px;color:var(--red);font-weight:700;margin-bottom:8px;margin-top:4px">❌ NOT IN VALET ('+notFound.length+')</div>';
   if(notFound.length) {
     html += notFound.map(function(r){
-      return '<div style="padding:10px 12px;background:var(--s2);border-radius:8px;margin-bottom:6px;font-size:13px;color:var(--mu)">'+r.input+'</div>';
+      return '<div style="padding:10px 12px;background:var(--s2);border-radius:8px;margin-bottom:6px;font-size:13px;color:var(--mu)">'+escapeHTML(r.input)+'</div>';
     }).join('');
   } else {
     html += '<div style="color:var(--mu);font-size:13px">All passengers accounted for!</div>';
@@ -1887,13 +1902,13 @@ async function loadLogs() {
     var html = logs.map(function(log) {
       var color = actionColors[log.action] || 'var(--mu)';
       return '<div style="display:flex;gap:12px;padding:12px 0;border-bottom:1px solid var(--s2);align-items:flex-start;">'+
-        '<div style="min-width:90px;font-family:monospace;font-size:10px;color:var(--mu);padding-top:2px">'+log.ts+'</div>'+
-        '<div style="min-width:90px;"><span style="background:'+color+';color:#fff;border-radius:4px;padding:2px 7px;font-size:10px;font-family:monospace;font-weight:700">'+log.action+'</span></div>'+
+        '<div style="min-width:90px;font-family:monospace;font-size:10px;color:var(--mu);padding-top:2px">'+escapeHTML(log.ts)+'</div>'+
+        '<div style="min-width:90px;"><span style="background:'+color+';color:#fff;border-radius:4px;padding:2px 7px;font-size:10px;font-family:monospace;font-weight:700">'+escapeHTML(log.action)+'</span></div>'+
         '<div style="flex:1;min-width:0;">'+
-          '<div style="font-weight:600;font-size:13px">'+log.passenger+'</div>'+
-          '<div style="font-size:11px;color:var(--mu)">Ticket: <span style="color:var(--gold)">'+log.ticket+'</span>'+
-          (log.location?' · '+log.location:'')+
-          (log.detail?' · '+log.detail:'')+
+          '<div style="font-weight:600;font-size:13px">'+escapeHTML(log.passenger)+'</div>'+
+          '<div style="font-size:11px;color:var(--mu)">Ticket: <span style="color:var(--gold)">'+escapeHTML(log.ticket)+'</span>'+
+          (log.location?' · '+escapeHTML(log.location):'')+
+          (log.detail?' · '+escapeHTML(log.detail):'')+
           '</div>'+
         '</div>'+
       '</div>';
@@ -1972,14 +1987,14 @@ function renderTasks() {
     var smsLink = r.phone ? 'sms:' + r.phone.replace(/\D/g,'') + '&body=' + encodeURIComponent(smsMsg) : '';
     html += '<div class="task-card ' + (isDone ? 'sent' : 'pending') + '" id="task-'+r.id+'">'+
       '<div class="task-header"><div style="width:100%">'+
-        '<div class="task-name">' + r.name +
+        '<div class="task-name">' + escapeHTML(r.name) +
           (isDone ? ' <span class="task-sent-badge">&#10003; CONFIRMED</span>' : '') +
           (isSent&&!isDone ? ' <span class="task-sent-badge">&#128172; TEXT SENT</span>' : '') +
         '</div>'+
-        '<div class="task-info">Ticket: <strong style="color:var(--gold2)">' + r.ticket + '</strong>' +
-          ' &nbsp;&middot;&nbsp; Est. Return: <strong style="color:#8A6A00">' + (r.ret ? fmtD(r.ret) : 'No date') + '</strong>' +
-          ' &nbsp;&middot;&nbsp; ' + (r.loc||'-') +
-          (r.phone ? ' &nbsp;&middot;&nbsp; ' + fmtP(r.phone) : '') +
+        '<div class="task-info">Ticket: <strong style="color:var(--gold2)">' + escapeHTML(r.ticket) + '</strong>' +
+          ' &nbsp;&middot;&nbsp; Est. Return: <strong style="color:#8A6A00">' + escapeHTML(r.ret ? fmtD(r.ret) : 'No date') + '</strong>' +
+          ' &nbsp;&middot;&nbsp; ' + escapeHTML(r.loc||'-') +
+          (r.phone ? ' &nbsp;&middot;&nbsp; ' + escapeHTML(fmtP(r.phone)) : '') +
         '</div>'+
         (!isDone ?
           '<div style="display:flex;gap:8px;align-items:center;margin-top:10px;margin-bottom:4px">'+
