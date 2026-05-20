@@ -818,6 +818,15 @@ function d2us(v) {
   var d=pd(v); if(!d) return '';
   return (d.getMonth()+1)+'/'+d.getDate()+'/'+d.getFullYear();
 }
+// Converts the stored ts string to YYYY-MM-DD for <input type="date">
+function tsToDateInput(ts) {
+  if (!ts) return '';
+  var s=String(ts).trim(), p=s.split('/'), d;
+  if (p.length>=3) d=new Date(parseInt(p[2],10),parseInt(p[0],10)-1,parseInt(p[1],10));
+  if (!d||isNaN(d.getTime())) d=new Date(ts);
+  if (!d||isNaN(d.getTime())) return '';
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
 
 // ── LOAD DATA ──────────────────────────────────────────────────
 function loading(on) { document.getElementById('bar').style.display=on?'block':'none'; }
@@ -900,12 +909,18 @@ function renderStats() {
   var nd=data.filter(function(r){return r.status==='NO DATE';}).length;
   var del=data.filter(function(r){return r.status==='DELIVERED';}).length;
   var late=data.filter(function(r){return isLate(r.ret)&&r.status!=='DELIVERED';}).length;
+  var outToday=data.filter(function(r){return isToday(r.ret)&&r.status!=='DELIVERED';}).length;
+  var outTmrw=data.filter(function(r){return isTmrw(r.ret)&&r.status!=='DELIVERED';}).length;
+  var outSun=data.filter(function(r){return isSunday(r.ret)&&r.status!=='DELIVERED';}).length;
   var sb=document.getElementById('statsBar');
   if(sb) sb.innerHTML=
     '<div class="chip" onclick="setFilter(&apos;all&apos;)"><div class="dot" style="background:var(--navy)"></div><div><div class="num">'+total+'</div><div class="lbl">Total</div></div></div>'+
     '<div class="chip" onclick="setFilter(&apos;PENDING&apos;)"><div class="dot" style="background:var(--acc)"></div><div><div class="num" style="color:var(--acc)">'+pend+'</div><div class="lbl">Pending</div></div></div>'+
     '<div class="chip" onclick="setFilter(&apos;NO DATE&apos;)"><div class="dot" style="background:var(--pur)"></div><div><div class="num" style="color:var(--pur)">'+nd+'</div><div class="lbl">No Date</div></div></div>'+
     '<div class="chip" onclick="setFilter(&apos;DELIVERED&apos;)"><div class="dot" style="background:var(--ok)"></div><div><div class="num" style="color:var(--ok)">'+del+'</div><div class="lbl">Delivered</div></div></div>'+
+    '<div class="chip" onclick="setFilter(&apos;today&apos;)"><div class="dot" style="background:var(--acc)"></div><div><div class="num" style="color:var(--acc)">'+outToday+'</div><div class="lbl">Out Today</div></div></div>'+
+    '<div class="chip" onclick="setFilter(&apos;tomorrow&apos;)"><div class="dot" style="background:var(--pur)"></div><div><div class="num" style="color:var(--pur)">'+outTmrw+'</div><div class="lbl">Out Tomorrow</div></div></div>'+
+    (outSun?'<div class="chip" onclick="setFilter(&apos;sunday&apos;)"><div class="dot" style="background:#e86030"></div><div><div class="num" style="color:#e86030">'+outSun+'</div><div class="lbl">Next Sunday</div></div></div>':'')+
     (late?'<div class="chip" onclick="setFilter(&apos;overdue&apos;)"><div class="dot" style="background:var(--red)"></div><div><div class="num" style="color:var(--red)">'+late+'</div><div class="lbl">Overdue</div></div></div>':'');
   var ball=document.getElementById('ball'); if(ball) ball.textContent=total;
   var bday=document.getElementById('bday');
@@ -1399,9 +1414,15 @@ function showDet(id){
         '<button onclick="changeStatus('+r.id+')" style="background:var(--pur);color:#fff;border:none;border-radius:8px;padding:9px 16px;font-family:Syne,sans-serif;font-weight:700;font-size:13px;cursor:pointer;">Save</button>'+
       '</div>'+
       '<div class="htitle">Change Return Date</div>'+
-      '<div style="display:flex;gap:8px;align-items:center;margin-top:6px">'+
+      '<div style="display:flex;gap:8px;align-items:center;margin-top:6px;margin-bottom:12px">'+
         '<input type="date" id="newRetDate" style="background:var(--s2);border:1px solid var(--b);border-radius:8px;padding:9px 11px;color:var(--tx);font-size:13px;outline:none;flex:1;">'+
         '<button onclick="changeDate('+r.id+')" style="background:var(--acc);color:#000;border:none;border-radius:8px;padding:9px 16px;font-family:Syne,sans-serif;font-weight:700;font-size:13px;cursor:pointer;">Save</button>'+
+      '</div>'+
+      '<div class="htitle">Change Arrival / Check-In Date</div>'+
+      '<div style="font-size:11px;color:var(--mu);margin-bottom:6px">Use this to correct a backfilled check-in date</div>'+
+      '<div style="display:flex;gap:8px;align-items:center;margin-top:6px">'+
+        '<input type="date" id="newArrDate" value="'+tsToDateInput(r.ts)+'" style="background:var(--s2);border:1px solid var(--b);border-radius:8px;padding:9px 11px;color:var(--tx);font-size:13px;outline:none;flex:1;">'+
+        '<button onclick="changeArrDate('+r.id+')" style="background:var(--navy);color:#fff;border:none;border-radius:8px;padding:9px 16px;font-family:Syne,sans-serif;font-weight:700;font-size:13px;cursor:pointer;">Save</button>'+
       '</div>'+
     '</div>'+
     '<button class="clsb" style="margin-top:6px;color:var(--red);border-color:var(--red)" onclick="deleteRec('+r.id+')">🗑 Delete Record</button>'+
@@ -1530,6 +1551,29 @@ async function changeDate(id){
     closeAll(); loadData();
   }catch(e){showMsg('Error: '+e.message,true);}
   finally{loading(false);}
+}
+
+// ── CHANGE ARRIVAL DATE ────────────────────────────────────────
+async function changeArrDate(id) {
+  var input = document.getElementById('newArrDate');
+  if (!input || !input.value) { alert('Please select a date first.'); return; }
+  var parts = input.value.split('-');
+  if (parts.length !== 3) { alert('Invalid date.'); return; }
+  var y=parseInt(parts[0],10), mo=parseInt(parts[1],10), d=parseInt(parts[2],10);
+  if (isNaN(y)||isNaN(mo)||isNaN(d)||mo<1||mo>12||d<1||d>31||y<2000||y>2099) {
+    alert('Invalid date. Please select a valid date.'); return;
+  }
+  var r=null; for(var i=0;i<data.length;i++){if(data[i].id===id){r=data[i];break;}}
+  if (!r) return;
+  var newTs = mo+'/'+d+'/'+y;
+  loading(true);
+  try {
+    await sbUpdate(r.id, {ts: newTs});
+    sbLog('EDITED', r.name, r.ticket, r.loc, 'arrival date → '+newTs);
+    showMsg('Arrival date updated!', false);
+    closeAll(); loadData();
+  } catch(e) { showMsg('Error: '+e.message, true); }
+  finally { loading(false); }
 }
 
 // ── INLINE EDIT ────────────────────────────────────────────────
