@@ -1104,20 +1104,21 @@ async function bulkAct(newStatus){
   if(!confirm('Update '+ids.length+' car(s) to '+newStatus+'?')) return;
   loading(true);
   var recs=data.filter(function(r){return selected[r.id];});
-  var done=0;
   var todayStr=getTodayStr();
-  for(var i=0;i<recs.length;i++){
-    try{
-      var upd={status:newStatus};
-      if(newStatus==='DELIVERED') upd.deldate=todayStr;
-      await sbUpdate(recs[i].id, upd);
-      done++;
-    }catch(e){console.error(e);}
-  }
+  var upd={status:newStatus};
+  if(newStatus==='DELIVERED') upd.deldate=todayStr;
+  var results=await Promise.all(recs.map(function(r){
+    return sbUpdate(r.id,upd).then(function(){return r;}).catch(function(e){console.error(e);return null;});
+  }));
+  var succeeded=results.filter(Boolean);
+  succeeded.forEach(function(r){
+    r.status=newStatus;
+    if(newStatus==='DELIVERED') r.deldate=todayStr;
+  });
   loading(false);
-  showMsg(done+' car(s) updated to '+newStatus, false);
+  showMsg(succeeded.length+' car(s) updated to '+newStatus, false);
   clearSel();
-  await loadData();
+  render();
 }
 async function bulkDelete(){
   var ids=Object.keys(selected);
@@ -1125,13 +1126,15 @@ async function bulkDelete(){
   if(!confirm('DELETE '+ids.length+' record(s)? This cannot be undone!'))return;
   loading(true);
   var recs=data.filter(function(r){return selected[r.id];});
-  for(var i=0;i<recs.length;i++){
-    try{ await sbDelete(recs[i].id); }catch(e){console.error(e);}
-  }
+  var results=await Promise.all(recs.map(function(r){
+    return sbDelete(r.id).then(function(){return r.id;}).catch(function(e){console.error(e);return null;});
+  }));
+  var deletedIds=new Set(results.filter(function(x){return x!==null;}));
+  data=data.filter(function(r){return !deletedIds.has(r.id);});
   loading(false);
-  showMsg(recs.length+' record(s) deleted!', false);
+  showMsg(deletedIds.size+' record(s) deleted!', false);
   clearSel();
-  await loadData();
+  render();
 }
 function openBulkLoc(){ if(!Object.keys(selected).length) return; document.getElementById('bulkLocBar').style.display='flex'; }
 function closeBulkLoc(){ document.getElementById('bulkLocBar').style.display='none'; }
@@ -1141,12 +1144,13 @@ async function bulkMoveLoc(hangar){
   if(!confirm('Move '+ids.length+' car(s) to '+hangar+'?')) return;
   loading(true);
   var recs=data.filter(function(r){return selected[r.id];});
-  for(var i=0;i<recs.length;i++){
-    try{ await sbUpdate(recs[i].id,{loc:hangar}); }catch(e){console.error(e);}
-  }
+  await Promise.all(recs.map(function(r){
+    return sbUpdate(r.id,{loc:hangar}).catch(function(e){console.error(e);});
+  }));
+  recs.forEach(function(r){r.loc=hangar;});
   loading(false);
   showMsg(recs.length+' car(s) moved to '+hangar, false);
-  closeBulkLoc(); clearSel(); await loadData();
+  closeBulkLoc(); clearSel(); render();
 }
 
 // ── TABS & FILTERS ─────────────────────────────────────────────
@@ -1468,7 +1472,6 @@ async function quickDeliver(id){
     for(var i=0;i<data.length;i++){if(data[i].id===r.id){data[i].status='DELIVERED';data[i].deldate=todayStr;break;}}
     render();
     showMsg('✓ Delivered: '+r.name, false);
-    loadData();
   }catch(e){showMsg('Error: '+e.message,true);}
   finally{loading(false);}
 }
@@ -1485,7 +1488,6 @@ async function markDel(id){
     render(); closeAll();
     sbLog(isLate(r.ret)?'LATE DELIVER':'DELIVERED', r.name, r.ticket, r.loc, 'delivered today');
     showMsg('✓ Delivered: '+r.name, false);
-    loadData();
   }catch(e){showMsg('Error: '+e.message,true);}
   finally{loading(false);}
 }
@@ -1505,7 +1507,6 @@ async function earlyReturn(id){
     render(); closeAll();
     sbLog('EARLY RETURN', r.name, r.ticket, r.loc, 'was '+fmtD(r.ret));
     showMsg('⚡ Early Return: '+r.name, false);
-    loadData();
   }catch(e){showMsg('Error: '+e.message,true);}
   finally{loading(false);}
 }
@@ -1518,9 +1519,9 @@ async function deleteRec(id){
   loading(true);
   try{
     await sbDelete(r.id);
+    data=data.filter(function(x){return x.id!==id;});
     showMsg('Record deleted!', false);
-    closeAll();
-    await loadData();
+    closeAll(); render();
   }catch(e){showMsg('Error: '+e.message,true);}
   finally{loading(false);}
 }
@@ -1532,8 +1533,9 @@ async function moveHangar(id,hangar){
   loading(true);
   try{
     await sbUpdate(r.id,{loc:hangar});
+    r.loc=hangar;
     showMsg('Moved to '+hangar, false);
-    closeAll(); loadData();
+    closeAll(); render();
   }catch(e){showMsg('Error: '+e.message,true);}
   finally{loading(false);}
 }
@@ -1663,7 +1665,6 @@ async function saveEdits(rid){
     if(btn) btn.classList.remove('visible');
     showMsg('✅ Record updated!',false);
     render();
-    loadData();
   }catch(e){showMsg('Error: '+e.message,true);}
   finally{loading(false);}
 }
@@ -1680,9 +1681,10 @@ async function confirmTaskDate(id) {
     var upd={ret:newDate,obs:newObs};
     if(r.status==='NO DATE') upd.status='PENDING';
     await sbUpdate(r.id,upd);
+    r.ret=upd.ret; r.obs=upd.obs; if(upd.status) r.status=upd.status;
     showMsg('Return date confirmed: '+newDate, false);
     taskStatus[id]='done';
-    loadData();
+    render();
   }catch(e){showMsg('Error: '+e.message,true);}
   finally{loading(false);}
 }
