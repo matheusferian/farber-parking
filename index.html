@@ -758,6 +758,9 @@ var ANTHROPIC_KEY = null; // placeholder — do not set a real key here
 var HANGARS  = ['HANGAR 19','HANGAR 18','HANGAR 16','HANGAR 7','HH'];
 var today    = new Date(); today.setHours(0,0,0,0);
 var tomorrow = new Date(today); tomorrow.setDate(today.getDate()+1);
+function getToday()    { var d=new Date(); d.setHours(0,0,0,0); return d; }
+function getTomorrow() { var d=getToday(); d.setDate(d.getDate()+1); return d; }
+function getTodayStr() { var d=getToday(); return (d.getMonth()+1)+'/'+d.getDate()+'/'+d.getFullYear(); }
 var data = [];
 var curFilter = 'all', srchTerm = '', selected = {};
 var sortCol = 'ts', sortAsc = false;
@@ -766,7 +769,7 @@ var sortCol = 'ts', sortAsc = false;
 function pd(s) {
   if (!s) return null;
   s = String(s).trim();
-  if(s.toUpperCase()==='TODAY') return new Date(today.getFullYear(),today.getMonth(),today.getDate());
+  if(s.toUpperCase()==='TODAY') { var _t=getToday(); return new Date(_t.getFullYear(),_t.getMonth(),_t.getDate()); }
   var p = s.split('/');
   if (p.length === 3) {
     var mo = parseInt(p[0],10), d = parseInt(p[1],10), y = parseInt(p[2],10);
@@ -779,20 +782,21 @@ function pd(s) {
   return null;
 }
 function sd(a,b) { return a&&b&&a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth()&&a.getDate()===b.getDate(); }
-function isToday(s)  { return sd(pd(s), today); }
-function isTmrw(s)   { return sd(pd(s), tomorrow); }
-function isLate(s)   { var d=pd(s); return d&&d<today&&!sd(d,today); }
+function isToday(s)  { return sd(pd(s), getToday()); }
+function isTmrw(s)   { return sd(pd(s), getTomorrow()); }
+function isLate(s)   { var t=getToday(); var d=pd(s); return d&&d<t&&!sd(d,t); }
 var isLate2 = isLate;
 function nextSunday() {
-  var d=new Date(today); var day=d.getDay(); var diff=day===0?7:7-day;
+  var d=getToday(); var day=d.getDay(); var diff=day===0?7:7-day;
   d.setDate(d.getDate()+diff); return d;
 }
 function isSunday(s) { return sd(pd(s), nextSunday()); }
 function isArrToday(ts) {
   if (!ts) return false;
+  var t=getToday();
   var s = String(ts).trim(), p = s.split('/');
-  if (p.length >= 3) { var d=new Date(parseInt(p[2],10),parseInt(p[0],10)-1,parseInt(p[1],10)); if(!isNaN(d.getTime())) return sd(d,today); }
-  var d2=new Date(s); return !isNaN(d2.getTime())&&sd(d2,today);
+  if (p.length >= 3) { var d=new Date(parseInt(p[2],10),parseInt(p[0],10)-1,parseInt(p[1],10)); if(!isNaN(d.getTime())) return sd(d,t); }
+  var d2=new Date(s); return !isNaN(d2.getTime())&&sd(d2,t);
 }
 function fmtD(s) {
   if (!s) return '-';
@@ -1017,7 +1021,7 @@ function renderDay() {
   var sunSection=document.getElementById('dSunday');
   if(sunSection) sunSection.parentElement.style.opacity=sunCount>0?'1':'0.5';
   document.getElementById('subSunday').textContent='Return Date = '+sunLabel;
-  var yst=new Date(today.getFullYear(),today.getMonth(),today.getDate()-1);
+  var _td=getToday(); var yst=new Date(_td.getFullYear(),_td.getMonth(),_td.getDate()-1);
   var forgot=data.filter(function(r){
     if(r.status==='DELIVERED'||r.status==='NO DATE') return false;
     var d=pd(r.ret); if(!d) return false;
@@ -1078,7 +1082,7 @@ async function bulkAct(newStatus){
   loading(true);
   var recs=data.filter(function(r){return selected[r.id];});
   var done=0;
-  var todayStr=(today.getMonth()+1)+'/'+(today.getDate())+'/'+today.getFullYear();
+  var todayStr=getTodayStr();
   for(var i=0;i<recs.length;i++){
     try{
       var upd={status:newStatus};
@@ -1381,16 +1385,15 @@ function showDet(id){
     '</div>'+
     '<div id="saveEditsWrap"><button class="save-edits-btn" id="saveEditsBtn" data-rid="'+r.id+'">💾 Save Changes</button></div>'+
     '<div class="dgrid">'+
-      '<div class="di"><div class="di-l">Ticket</div><div class="di-v" style="color:var(--acc)">'+escapeHTML(r.ticket)+'</div></div>'+
-      '<div class="di"><div class="di-l">Status</div><div class="di-v">'+escapeHTML(r.status)+'</div></div>'+
-      '<div class="di"><div class="di-l">Return</div><div class="di-v" style="font-size:12px;'+retC+'">'+escapeHTML(retDisp)+'</div></div>'+
-      '<div class="di"><div class="di-l">Arrived</div><div class="di-v" style="font-size:12px">'+escapeHTML(fmtA(r.ts))+'</div></div>'+
-      '<div class="di editable" style="grid-column:1/-1" data-field="name"><div class="di-l">Name ✎</div><div class="di-v" id="edit-name">'+escapeHTML(r.name)+'</div></div>'+
-      '<div class="di editable" style="grid-column:1/-1" data-field="phone"><div class="di-l">Phone ✎</div><div class="di-v" id="edit-phone">'+escapeHTML(fmtP(r.phone))+'</div></div>'+
-      '<div class="di editable" style="grid-column:1/-1" data-field="car"><div class="di-l">Car ✎</div><div class="di-v" id="edit-car">'+escapeHTML(r.car)+'</div></div>'+
-      '<div class="di editable" style="grid-column:1/-1" data-field="ticket"><div class="di-l">Ticket # ✎</div><div class="di-v" id="edit-ticket">'+escapeHTML(r.ticket)+'</div></div>'+
-      '<div class="di editable" style="grid-column:1/-1" data-field="loc"><div class="di-l">Location ✎</div><div class="di-v" id="edit-loc">'+escapeHTML(r.loc||'—')+'</div></div>'+
-      '<div class="di editable" style="grid-column:1/-1" data-field="obs"><div class="di-l">OBS ✎</div><div class="di-v" id="edit-obs" style="font-size:12px">'+escapeHTML(r.obs||'—')+'</div></div>'+
+      '<div class="di editable" data-field="ticket"><div class="di-l">Ticket ✎</div><div class="di-v" style="color:var(--acc)">'+escapeHTML(r.ticket||'—')+'</div></div>'+
+      '<div class="di editable" data-field="status"><div class="di-l">Status ✎</div><div class="di-v">'+escapeHTML(r.status||'—')+'</div></div>'+
+      '<div class="di editable" data-field="ret" data-raw="'+escapeHTML(tsToDateInput(r.ret))+'"><div class="di-l">Return ✎</div><div class="di-v" style="font-size:12px;'+retC+'">'+escapeHTML(retDisp)+'</div></div>'+
+      '<div class="di editable" data-field="ts" data-raw="'+escapeHTML(tsToDateInput(r.ts))+'"><div class="di-l">Arrived ✎</div><div class="di-v" style="font-size:12px">'+escapeHTML(fmtA(r.ts))+'</div></div>'+
+      '<div class="di editable" style="grid-column:1/-1" data-field="name"><div class="di-l">Name ✎</div><div class="di-v">'+escapeHTML(r.name)+'</div></div>'+
+      '<div class="di editable" style="grid-column:1/-1" data-field="phone"><div class="di-l">Phone ✎</div><div class="di-v">'+escapeHTML(fmtP(r.phone))+'</div></div>'+
+      '<div class="di editable" style="grid-column:1/-1" data-field="car"><div class="di-l">Car ✎</div><div class="di-v">'+escapeHTML(r.car)+'</div></div>'+
+      '<div class="di editable" style="grid-column:1/-1" data-field="loc" data-raw="'+escapeHTML(r.loc||'')+'"><div class="di-l">Location ✎</div><div class="di-v">'+escapeHTML(r.loc||'—')+'</div></div>'+
+      '<div class="di editable" style="grid-column:1/-1" data-field="obs"><div class="di-l">Notes ✎</div><div class="di-v" style="font-size:12px">'+escapeHTML(r.obs||'—')+'</div></div>'+
     '</div>'+histH+
     (r.obs&&r.obs.indexOf('APPROX DATE')>=0&&r.status!=='DELIVERED'?
       '<div style="background:rgba(201,168,76,0.1);border:1px solid rgba(201,168,76,0.4);border-radius:10px;padding:12px 14px;margin-bottom:12px">'+
@@ -1403,28 +1406,6 @@ function showDet(id){
     (r.status!=='DELIVERED'&&!isToday(r.ret)&&!isLate(r.ret)?
       '<button onclick="earlyReturn('+r.id+')" style="width:100%;background:linear-gradient(135deg,#7b3fa0,#a855f7);color:#fff;border:none;border-radius:10px;padding:13px;font-family:Syne,sans-serif;font-weight:800;font-size:14px;cursor:pointer;margin-top:8px;display:flex;align-items:center;justify-content:center;gap:8px;">⚡ Early Return — Arrived Today</button>'
     :'')+
-    '<div style="margin-top:10px">'+
-      '<div class="htitle">Change Status</div>'+
-      '<div style="display:flex;gap:8px;align-items:center;margin-top:6px;margin-bottom:12px">'+
-        '<select id="detStatus" style="background:var(--s2);border:1px solid var(--b);border-radius:8px;padding:9px 11px;color:var(--tx);font-size:13px;outline:none;flex:1;">'+
-          '<option value="PENDING"'+(r.status==='PENDING'?' selected':'')+'>PENDING</option>'+
-          '<option value="NO DATE"'+(r.status==='NO DATE'?' selected':'')+'>NO DATE</option>'+
-          '<option value="DELIVERED"'+(r.status==='DELIVERED'?' selected':'')+'>DELIVERED</option>'+
-        '</select>'+
-        '<button onclick="changeStatus('+r.id+')" style="background:var(--pur);color:#fff;border:none;border-radius:8px;padding:9px 16px;font-family:Syne,sans-serif;font-weight:700;font-size:13px;cursor:pointer;">Save</button>'+
-      '</div>'+
-      '<div class="htitle">Change Return Date</div>'+
-      '<div style="display:flex;gap:8px;align-items:center;margin-top:6px;margin-bottom:12px">'+
-        '<input type="date" id="newRetDate" style="background:var(--s2);border:1px solid var(--b);border-radius:8px;padding:9px 11px;color:var(--tx);font-size:13px;outline:none;flex:1;">'+
-        '<button onclick="changeDate('+r.id+')" style="background:var(--acc);color:#000;border:none;border-radius:8px;padding:9px 16px;font-family:Syne,sans-serif;font-weight:700;font-size:13px;cursor:pointer;">Save</button>'+
-      '</div>'+
-      '<div class="htitle">Change Arrival / Check-In Date</div>'+
-      '<div style="font-size:11px;color:var(--mu);margin-bottom:6px">Use this to correct a backfilled check-in date</div>'+
-      '<div style="display:flex;gap:8px;align-items:center;margin-top:6px">'+
-        '<input type="date" id="newArrDate" value="'+tsToDateInput(r.ts)+'" style="background:var(--s2);border:1px solid var(--b);border-radius:8px;padding:9px 11px;color:var(--tx);font-size:13px;outline:none;flex:1;">'+
-        '<button onclick="changeArrDate('+r.id+')" style="background:var(--navy);color:#fff;border:none;border-radius:8px;padding:9px 16px;font-family:Syne,sans-serif;font-weight:700;font-size:13px;cursor:pointer;">Save</button>'+
-      '</div>'+
-    '</div>'+
     '<button class="clsb" style="margin-top:6px;color:var(--red);border-color:var(--red)" onclick="deleteRec('+r.id+')">🗑 Delete Record</button>'+
     '<button class="clsb" onclick="closeAll()">Close</button>';
   setTimeout(function(){
@@ -1458,7 +1439,7 @@ async function quickDeliver(id){
   if(!confirm((isLateDeliver?'⚠️ LATE — ':'')+'Mark as DELIVERED?\n'+r.name+' (Ticket '+r.ticket+')')) return;
   loading(true);
   try{
-    var todayStr=(today.getMonth()+1)+'/'+(today.getDate())+'/'+today.getFullYear();
+    var todayStr=getTodayStr();
     await sbUpdate(r.id,{status:'DELIVERED',deldate:todayStr});
     for(var i=0;i<data.length;i++){if(data[i].id===r.id){data[i].status='DELIVERED';data[i].deldate=todayStr;break;}}
     render();
@@ -1474,7 +1455,7 @@ async function markDel(id){
   if(!r)return;
   loading(true);
   try{
-    var todayStr=(today.getMonth()+1)+'/'+(today.getDate())+'/'+today.getFullYear();
+    var todayStr=getTodayStr();
     await sbUpdate(r.id,{status:'DELIVERED',deldate:todayStr});
     for(var i=0;i<data.length;i++){if(data[i].id===r.id){data[i].status='DELIVERED';data[i].deldate=todayStr;break;}}
     render(); closeAll();
@@ -1492,7 +1473,7 @@ async function earlyReturn(id){
   if(!confirm('⚡ Early Return — Mark as delivered?\n'+r.name+' (Ticket '+r.ticket+')\nWas expected: '+fmtD(r.ret))) return;
   loading(true);
   try{
-    var todayStr=(today.getMonth()+1)+'/'+(today.getDate())+'/'+today.getFullYear();
+    var todayStr=getTodayStr();
     var newObs=((r.obs||'').replace('APPROX DATE','').replace(' | ','').trim());
     newObs=(newObs?newObs+' | ':'')+'EARLY RETURN';
     await sbUpdate(r.id,{ret:todayStr,status:'DELIVERED',deldate:todayStr,obs:newObs});
@@ -1579,19 +1560,52 @@ async function changeArrDate(id) {
 // ── INLINE EDIT ────────────────────────────────────────────────
 var _editChanges={}, _editRid=null;
 function makeEditable(cell,field){
-  if(cell.querySelector('input')) return;
+  if(cell.querySelector('input,select')) return;
   var valEl=cell.querySelector('.di-v');
   var cur=valEl.textContent==='—'?'':valEl.textContent;
-  valEl.innerHTML='<input class="di-input" type="text" value="'+escapeHTML(cur)+'" id="inp-'+field+'" onclick="event.stopPropagation()" />';
-  var inp=valEl.querySelector('input');
-  inp.focus(); inp.select();
-  inp.addEventListener('blur',function(){commitEdit(field,inp);});
-  inp.addEventListener('input',function(){markDirty(field,inp.value);});
+  var rawVal=cell.getAttribute('data-raw')||'';
+  var ctrl;
+  if(field==='status'){
+    ctrl='<select class="di-input" id="inp-'+field+'" onclick="event.stopPropagation()">'+
+      ['PENDING','NO DATE','DELIVERED'].map(function(v){return '<option value="'+v+'"'+(cur===v?' selected':'')+'>'+v+'</option>';}).join('')+
+    '</select>';
+  } else if(field==='loc'){
+    ctrl='<select class="di-input" id="inp-'+field+'" onclick="event.stopPropagation()">'+
+      [''].concat(HANGARS).map(function(v){return '<option value="'+v+'"'+(rawVal===v?' selected':'')+'>'+v+'</option>';}).join('')+
+    '</select>';
+  } else if(field==='ret'||field==='ts'){
+    ctrl='<input class="di-input" type="date" id="inp-'+field+'" value="'+escapeHTML(rawVal)+'" onclick="event.stopPropagation()" />';
+  } else {
+    ctrl='<input class="di-input" type="text" value="'+escapeHTML(cur)+'" id="inp-'+field+'" onclick="event.stopPropagation()" />';
+  }
+  valEl.innerHTML=ctrl;
+  var el=valEl.querySelector('input,select');
+  if(field==='ret'||field==='ts'||field==='status'||field==='loc'){
+    el.addEventListener('change',function(){markDirty(field,el.value);});
+    el.addEventListener('blur',function(){commitEdit(field,el);});
+  } else {
+    el.focus(); if(el.select) el.select();
+    el.addEventListener('blur',function(){commitEdit(field,el);});
+    el.addEventListener('input',function(){markDirty(field,el.value);});
+  }
+  el.focus();
 }
-function commitEdit(field,inp){
-  var val=inp?inp.value.trim():'';
+function commitEdit(field,el){
+  var val=el?(el.tagName==='SELECT'?el.value:el.value.trim()):'';
+  if((field==='ret'||field==='ts')&&val){
+    var parts=val.split('-');
+    if(parts.length===3){
+      var usDate=parseInt(parts[1],10)+'/'+parseInt(parts[2],10)+'/'+parts[0];
+      _editChanges[field]=usDate;
+      var valEl=el.parentElement;
+      if(valEl) valEl.textContent=fmtD(usDate)||usDate;
+      var cell=valEl?valEl.parentElement:null;
+      if(cell) cell.setAttribute('data-raw',val);
+      return;
+    }
+  }
   _editChanges[field]=val;
-  var valEl=inp?inp.parentElement:null;
+  var valEl=el?el.parentElement:null;
   if(valEl) valEl.textContent=val||'—';
 }
 function markDirty(field,val){
@@ -1613,6 +1627,10 @@ async function saveEdits(rid){
       upd[field]=val;
       changes.push(field+': '+val);
       r[field]=val;
+    }
+    if(upd.status==='DELIVERED'&&!upd.deldate){
+      upd.deldate=getTodayStr();
+      r.deldate=upd.deldate;
     }
     await sbUpdate(rid,upd);
     sbLog('EDITED',r.name,r.ticket,r.loc,changes.join(' | '));
@@ -1995,7 +2013,7 @@ async function changeStatus(id){
   try{
     var upd={status:newStatus};
     if(newStatus==='DELIVERED'){
-      var todayStr=(today.getMonth()+1)+'/'+(today.getDate())+'/'+today.getFullYear();
+      var todayStr=getTodayStr();
       upd.deldate=todayStr;
     }
     await sbUpdate(r.id,upd);
