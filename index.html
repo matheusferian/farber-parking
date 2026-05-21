@@ -1201,6 +1201,10 @@ async function saveEdits(rid){
   if(Object.keys(_editChanges).length===0) return;
   var r=null;for(var i=0;i<data.length;i++){if(data[i].id===rid){r=data[i];break;}}
   if(!r) return;
+  var doReopen=false;
+  if(r.status==='DELIVERED'&&_editChanges.ret&&pd(_editChanges.ret)&&!_editChanges.status){
+    doReopen=confirm('This record is currently DELIVERED. Do you want to reopen it as PENDING?');
+  }
   loading(true);
   try{
     var upd={};
@@ -1212,12 +1216,23 @@ async function saveEdits(rid){
       changes.push(field+': '+val);
       r[field]=val;
     }
+    if(doReopen){
+      upd.status='PENDING';
+      upd.deldate='';
+      upd.obs=((r.obs||'').trim()?(r.obs.trim()+' | '):'')+'REOPENED FROM DELIVERED';
+      r.status='PENDING'; r.deldate=''; r.obs=upd.obs;
+      changes.push('reopened from DELIVERED');
+    }
     if(upd.status==='DELIVERED'&&!upd.deldate){
       upd.deldate=getTodayStr();
       r.deldate=upd.deldate;
     }
     await sbUpdate(rid,upd);
-    sbLog('EDITED',r.name,r.ticket,r.loc,changes.join(' | '));
+    if(doReopen){
+      sbLog('REOPENED',r.name,r.ticket,r.loc,'Reopened from DELIVERED after return date correction. New ret: '+upd.ret);
+    } else {
+      sbLog('EDITED',r.name,r.ticket,r.loc,changes.join(' | '));
+    }
     _editChanges={};
     var btn=document.getElementById('saveEditsBtn');
     if(btn) btn.classList.remove('visible');
