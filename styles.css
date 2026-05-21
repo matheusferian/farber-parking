@@ -322,6 +322,24 @@ input[type=checkbox]{width:17px;height:17px;accent-color:var(--gold);cursor:poin
 .ac-name{font-weight:700;font-size:13px;color:var(--navy);font-family:'Syne',sans-serif;}
 .ac-sub{font-size:11px;color:var(--mu);margin-top:2px;font-family:'DM Mono',monospace;}
 
+/* ── EARLY RETURN WARNING ── */
+.er-warn{
+  background:rgba(201,172,84,.18);
+  border:2px solid var(--gold);
+  border-left:5px solid var(--gold2);
+  border-radius:10px;
+  padding:12px 16px;
+  font-size:13px;
+  font-weight:700;
+  color:#7A5A00;
+  margin-bottom:10px;
+  animation:erPulse 2s ease-in-out infinite;
+}
+@keyframes erPulse{
+  0%,100%{box-shadow:0 0 0 0 rgba(201,172,84,.5);}
+  50%{box-shadow:0 0 0 7px rgba(201,172,84,0);}
+}
+
 /* ── PRINT ── */
 .print-only{display:none;}
 

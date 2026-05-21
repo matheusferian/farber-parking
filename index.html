@@ -233,6 +233,7 @@
       <div class="fg"><label>Full Name <span style="color:var(--red)">*</span></label><div class="ac-wrap"><input type="text" id="fName" oninput="this.value=this.value.toUpperCase();chkFreq();acSearch(this.value);updateVcf()" autocomplete="off" placeholder="" style="text-transform:uppercase;width:100%"><div class="ac-drop" id="acDrop"></div></div></div>
       <div class="fg"><label>Phone <span style="color:var(--red)">*</span></label><input type="text" id="fPhone" oninput="fmtPhoneInput(this);chkFreq();updateVcf()" placeholder="" maxlength="14"></div>
     </div>
+    <div id="erWarn" class="er-warn" style="display:none;">⚠️ HEADS UP: This passenger had an Early Return before. Confirm the return date carefully.</div>
     <div class="fr two">
       <div class="fg"><label>Ticket # <span style="color:var(--red)">*</span></label><input type="text" id="fTicket" placeholder=""></div>
       <div class="fg"><label>Return Date <span style="color:var(--red)" id="retRequired">*</span></label>
@@ -809,6 +810,23 @@ function chkFreq(){
   var info=document.getElementById('freqInfo');
   if(m.length>0&&name.length>2){var last=m[m.length-1];info.textContent=m.length+' previous visit(s). Last: '+last.ticket+' - '+last.car;info.classList.add('on');if(last.car)document.getElementById('fCar').value=last.car;}
   else info.classList.remove('on');
+  chkEarlyReturn();
+}
+
+function chkEarlyReturn(){
+  var name=document.getElementById('fName').value.trim().toUpperCase();
+  var phone=document.getElementById('fPhone').value.trim().replace(/\D/g,'');
+  var warn=document.getElementById('erWarn');
+  if(!warn) return;
+  var found=data.some(function(r){
+    if(!r.obs||r.obs.toUpperCase().indexOf('EARLY RETURN')<0) return false;
+    var rn=(r.name||'').toUpperCase();
+    var rp=(r.phone||'').replace(/\D/g,'');
+    if(name.length>2&&rn&&(rn===name||rn.indexOf(name)>=0||name.indexOf(rn)>=0)) return true;
+    if(phone.length>=10&&rp&&rp===phone) return true;
+    return false;
+  });
+  warn.style.display=found?'block':'none';
 }
 
 function updateVcf(){
@@ -841,6 +859,7 @@ function openAdd(){
   document.getElementById('fObs').value='';
   document.getElementById('fStatus').value='PENDING';
   document.getElementById('freqInfo').classList.remove('on');
+  var erw=document.getElementById('erWarn'); if(erw) erw.style.display='none';
   var approxRow=document.getElementById('approxRow');
   if(approxRow) approxRow.style.display='none';
   var fi=document.getElementById('freqInfo'); if(fi) fi.classList.remove('on');
