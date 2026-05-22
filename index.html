@@ -2020,7 +2020,124 @@ function printReport() {
 }
 
 function exportPDF() {
-  alert('PDF export feature coming soon! Use Print and select "Save as PDF" from your browser.');
+  var today = getToday();
+  var dow = today.getDay();
+  var diff = dow === 0 ? -6 : 1 - dow;
+  var monday = new Date(today.getFullYear(), today.getMonth(), today.getDate() + diff);
+  var sunday = new Date(monday);
+  sunday.setDate(sunday.getDate() + 6);
+
+  var weekRangeStr = monday.toLocaleDateString('en-US',{month:'short',day:'numeric'}) + ' – ' +
+                     sunday.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+
+  var weekData = data.filter(function(r) {
+    var retDate = r.ret ? pd(r.ret) : null;
+    var delDate = r.deldate ? pd(r.deldate) : null;
+    if (retDate && retDate >= monday) return true;
+    if (delDate && delDate >= monday) return true;
+    return false;
+  });
+
+  var checkedIn = weekData.filter(function(r) { return r.status === 'PENDING'; }).length;
+  var delivered = weekData.filter(function(r) { return r.status === 'DELIVERED'; }).length;
+  var netChange = checkedIn - delivered;
+  var avgCheckIn = (checkedIn / 7).toFixed(1);
+  var avgDelivered = (delivered / 7).toFixed(1);
+
+  // Build daily breakdown
+  var dayNames = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+  var dayBreakdownRows = '';
+  for (var i = 0; i < 7; i++) {
+    var d = new Date(monday);
+    d.setDate(d.getDate() + i);
+    var count = weekData.filter(function(r) {
+      var retDate = r.ret ? pd(r.ret) : null;
+      return retDate && sd(retDate, d);
+    }).length;
+    dayBreakdownRows += '<tr><td>' + dayNames[i] + '</td><td style="text-align:center;font-weight:700;">' + count + '</td></tr>';
+  }
+
+  // Build busy days
+  var busyDaysHtml = '';
+  for (var i = 0; i < 7; i++) {
+    var d = new Date(monday);
+    d.setDate(d.getDate() + i);
+    var cnt = weekData.filter(function(r) {
+      var retDate = r.ret ? pd(r.ret) : null;
+      return retDate && sd(retDate, d);
+    }).length;
+    if (cnt > 6) {
+      busyDaysHtml += '<tr><td>' + d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}) +
+                      '</td><td style="text-align:center;font-weight:700;">' + cnt + ' cars</td></tr>';
+    }
+  }
+  var busyDaysSection = busyDaysHtml ?
+    '<h3 style="margin-top:24px;margin-bottom:12px;font-size:14px;font-weight:700;color:#000;">⚠️ Busy Days</h3>' +
+    '<table style="width:100%;border-collapse:collapse;"><tbody>' + busyDaysHtml + '</tbody></table>' : '';
+
+  // Build location analytics
+  var locMap = {};
+  weekData.forEach(function(r) {
+    var loc = r.loc || 'Unknown';
+    locMap[loc] = (locMap[loc] || 0) + 1;
+  });
+  var locArray = [];
+  for (var k in locMap) {
+    if (locMap.hasOwnProperty(k)) locArray.push({loc: k, count: locMap[k]});
+  }
+  locArray.sort(function(a, b) { return b.count - a.count; });
+  var locRows = '';
+  locArray.forEach(function(item) {
+    locRows += '<tr><td>' + escapeHTML(item.loc) + '</td><td style="text-align:center;font-weight:700;">' + item.count + '</td></tr>';
+  });
+
+  // Build return date report if filtered
+  var returnDateReportSection = '';
+  if (reportFilterDate) {
+    var filtered = data.filter(function(r) {
+      var retDate = r.ret ? pd(r.ret) : null;
+      return retDate && sd(retDate, reportFilterDate);
+    });
+    if (filtered.length > 0) {
+      var dateStr = reportFilterDate.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'});
+      var returnRows = '';
+      filtered.forEach(function(r) {
+        returnRows += '<tr><td>' + escapeHTML(r.name) + '</td><td>' + escapeHTML(r.ticket) +
+                      '</td><td>' + escapeHTML(r.loc||'-') + '</td><td style="text-align:center;">' + escapeHTML(r.status) + '</td></tr>';
+      });
+      returnDateReportSection =
+        '<h3 style="margin-top:24px;margin-bottom:12px;font-size:14px;font-weight:700;color:#000;">Return Date Report – ' + dateStr + '</h3>' +
+        '<table style="width:100%;border-collapse:collapse;"><thead><tr style="background:#f0f0f0;"><th style="text-align:left;padding:8px;border-bottom:1px solid #999;">Name</th>' +
+        '<th style="text-align:left;padding:8px;border-bottom:1px solid #999;">Ticket</th><th style="text-align:left;padding:8px;border-bottom:1px solid #999;">Location</th>' +
+        '<th style="text-align:center;padding:8px;border-bottom:1px solid #999;">Status</th></tr></thead><tbody>' + returnRows + '</tbody></table>';
+    }
+  }
+
+  var html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width"><title>Valet Operations Report</title>' +
+    '<style>body{font-family:Arial,sans-serif;margin:0;padding:20px;background:#fff;color:#000;}h1{font-size:24px;font-weight:700;margin:0 0 8px 0;}' +
+    '.week-range{font-size:12px;color:#666;margin-bottom:20px;}.summary{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:24px;}' +
+    '.card{background:#f9f9f9;border:1px solid #ddd;padding:16px;text-align:center;}.card-num{font-size:32px;font-weight:700;}.card-lbl{font-size:11px;color:#666;margin-top:8px;}' +
+    'h3{margin:24px 0 12px 0;font-size:14px;font-weight:700;}table{width:100%;border-collapse:collapse;margin-bottom:20px;}' +
+    'th{background:#f0f0f0;padding:8px;text-align:left;border-bottom:2px solid #999;font-weight:700;font-size:12px;}' +
+    'td{padding:8px;border-bottom:1px solid #ddd;font-size:12px;}tr:last-child td{border-bottom:none;}' +
+    '@media print{body{margin:0;padding:16px;}h1{page-break-after:avoid;}.summary{page-break-inside:avoid;}table{page-break-inside:avoid;}}</style>' +
+    '</head><body><h1>Valet Operations Report</h1><div class="week-range">Week of ' + weekRangeStr + '</div>' +
+    '<div class="summary">' +
+      '<div class="card"><div class="card-num">' + checkedIn + '</div><div class="card-lbl">Checked In</div></div>' +
+      '<div class="card"><div class="card-num">' + delivered + '</div><div class="card-lbl">Delivered</div></div>' +
+      '<div class="card"><div class="card-num">' + netChange + '</div><div class="card-lbl">Net Change</div></div>' +
+    '</div>' +
+    '<h3>Daily Averages</h3><table><tr><td>Avg Check-In:</td><td style="text-align:right;font-weight:700;">' + avgCheckIn + ' per day</td></tr>' +
+    '<tr><td>Avg Delivered:</td><td style="text-align:right;font-weight:700;">' + avgDelivered + ' per day</td></tr></table>' +
+    '<h3>Daily Breakdown</h3><table><thead><tr style="background:#f0f0f0;"><th>Day</th><th style="text-align:center;">Count</th></tr></thead><tbody>' + dayBreakdownRows + '</tbody></table>' +
+    busyDaysSection + returnDateReportSection +
+    '<h3>Location Analytics</h3><table><thead><tr style="background:#f0f0f0;"><th>Location</th><th style="text-align:center;">Count</th></tr></thead><tbody>' + locRows + '</tbody></table>' +
+    '</body></html>';
+
+  var win = window.open('', 'print', 'width=900,height=800');
+  win.document.write(html);
+  win.document.close();
+  setTimeout(function() { win.print(); }, 250);
 }
 
 // Call reportGenerate when tab is shown
