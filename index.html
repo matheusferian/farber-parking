@@ -197,34 +197,74 @@
 <div class="pane" id="pane-report">
   <div class="flight-sec">
 
-    <!-- Stats bar -->
-    <div id="reportStatsBar" style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;"></div>
-
-    <!-- Date + type pills -->
-    <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap;">
-      <input type="date" id="reportDate" style="background:var(--s);border:1px solid var(--b);border-radius:8px;padding:10px 12px;color:var(--tx);font-size:15px;outline:none;flex:1;min-width:140px;">
-      <input type="hidden" id="reportType" value="all_pending">
-    </div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px;" id="reportTypePills">
-      <button class="rpill on" data-v="all_pending" onclick="setRType(this)">All Pending</button>
-      <button class="rpill" data-v="arriving_tomorrow" onclick="setRType(this)">✈️ Tomorrow</button>
-      <button class="rpill" data-v="no_date" onclick="setRType(this)">📅 No Date</button>
-      <button class="rpill" data-v="today" onclick="setRType(this)">🔔 Today</button>
-      <button class="rpill" data-v="overdue" onclick="setRType(this)">⚠️ Overdue</button>
+    <!-- Header -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+      <h1 style="margin:0;font-size:28px;font-weight:800;color:var(--tx);">Reports</h1>
+      <div style="display:flex;gap:8px;">
+        <button onclick="printReport()" style="background:var(--s);border:1px solid var(--b);border-radius:8px;padding:10px 14px;cursor:pointer;font-size:14px;color:var(--tx);">🖨️ Print</button>
+        <button onclick="exportPDF()" style="background:linear-gradient(135deg,var(--navy),#2a5db0);color:#fff;border:1px solid var(--gold);border-radius:8px;padding:10px 14px;cursor:pointer;font-size:14px;font-weight:700;">📄 PDF</button>
+      </div>
     </div>
 
-    <!-- Preview table -->
-    <div id="reportPreviewTable" style="background:var(--s);border:1px solid var(--b);border-radius:12px;overflow:hidden;margin-bottom:16px;">
-      <div style="padding:12px 16px;border-bottom:1px solid var(--b);font-size:11px;color:var(--mu);font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:0.5px;">Preview</div>
-      <div id="reportPreview" style="font-size:13px;color:var(--tx);line-height:2;padding:14px 16px;"></div>
+    <!-- Week Summary Cards -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:24px;" id="rptWeekCards"></div>
+
+    <!-- Daily Averages -->
+    <div style="background:var(--s);border:1px solid var(--b);border-radius:12px;padding:16px;margin-bottom:24px;">
+      <div style="font-size:13px;color:var(--mu);font-weight:700;margin-bottom:12px;text-transform:uppercase;letter-spacing:0.5px;">Daily Averages</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+        <div>
+          <div style="font-size:11px;color:var(--mu);margin-bottom:4px;">Avg Check-In</div>
+          <div style="font-size:24px;font-weight:800;color:var(--tx);" id="rptAvgCheckIn">0.0</div>
+        </div>
+        <div>
+          <div style="font-size:11px;color:var(--mu);margin-bottom:4px;">Avg Delivered</div>
+          <div style="font-size:24px;font-weight:800;color:var(--tx);" id="rptAvgDelivered">0.0</div>
+        </div>
+      </div>
     </div>
 
-    <button onclick="generatePDF()" style="width:100%;background:linear-gradient(135deg,var(--navy),#2a5db0);color:#fff;border:1px solid var(--gold);border-radius:10px;padding:15px;font-family:'Syne',sans-serif;font-weight:800;font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:10px;">
-      🖨️ Print / Save PDF
-    </button>
-    <button onclick="generatePDF('share')" style="width:100%;background:var(--s2);color:var(--mu);border:1px solid var(--b);border-radius:10px;padding:12px;font-family:'Syne',sans-serif;font-size:13px;cursor:pointer;">
-      🔗 Open in New Tab
-    </button>
+    <!-- This Week Breakdown -->
+    <div style="background:var(--s);border:1px solid var(--b);border-radius:12px;padding:16px;margin-bottom:24px;">
+      <div style="font-size:13px;color:var(--mu);font-weight:700;margin-bottom:12px;text-transform:uppercase;letter-spacing:0.5px;">This Week Breakdown</div>
+      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:8px;" id="rptDailyBreak"></div>
+    </div>
+
+    <!-- Return Date Report -->
+    <div style="background:var(--s);border:1px solid var(--b);border-radius:12px;padding:16px;margin-bottom:24px;">
+      <div style="font-size:13px;color:var(--mu);font-weight:700;margin-bottom:12px;text-transform:uppercase;letter-spacing:0.5px;">Return Date Report</div>
+      <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+        <input type="date" id="rptFilterDate" oninput="onRptDateChange()" style="background:var(--s2);border:1px solid var(--b);border-radius:8px;padding:10px 12px;color:var(--tx);font-size:14px;outline:none;flex:1;min-width:140px;">
+        <button onclick="setRptDate('today')" style="background:var(--s2);border:1px solid var(--b);border-radius:8px;padding:10px 14px;cursor:pointer;font-size:13px;color:var(--tx);">📅 Today</button>
+        <button onclick="setRptDate('tomorrow')" style="background:var(--s2);border:1px solid var(--b);border-radius:8px;padding:10px 14px;cursor:pointer;font-size:13px;color:var(--tx);">📅 Tomorrow</button>
+        <button onclick="setRptDate('clear')" style="background:var(--s2);border:1px solid var(--b);border-radius:8px;padding:10px 14px;cursor:pointer;font-size:13px;color:var(--mu);">✕ Clear</button>
+      </div>
+      <div style="max-height:300px;overflow-y:auto;background:var(--bg);border-radius:8px;padding:12px;" id="rptFilterList"></div>
+    </div>
+
+    <!-- Busy Days -->
+    <div id="rptBusySection" style="background:var(--s);border:1px solid var(--b);border-radius:12px;padding:16px;margin-bottom:24px;display:none;">
+      <div style="font-size:13px;color:var(--mu);font-weight:700;margin-bottom:12px;text-transform:uppercase;letter-spacing:0.5px;">⚠️ Busy Days</div>
+      <div style="display:flex;flex-direction:column;gap:8px;" id="rptBusyList"></div>
+    </div>
+
+    <!-- Location Analytics -->
+    <div style="background:var(--s);border:1px solid var(--b);border-radius:12px;padding:16px;">
+      <div style="font-size:13px;color:var(--mu);font-weight:700;margin-bottom:12px;text-transform:uppercase;letter-spacing:0.5px;">Location Analytics</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+        <div>
+          <div style="font-size:11px;color:var(--mu);margin-bottom:8px;">Most Used (This Week)</div>
+          <div style="font-size:14px;font-weight:700;color:var(--tx);" id="rptLocWeek">—</div>
+        </div>
+        <div>
+          <div style="font-size:11px;color:var(--mu);margin-bottom:8px;">Most Used (This Month)</div>
+          <div style="font-size:14px;font-weight:700;color:var(--tx);" id="rptLocMonth">—</div>
+        </div>
+      </div>
+      <div style="font-size:11px;color:var(--mu);margin-bottom:8px;font-weight:700;">Usage Breakdown</div>
+      <div style="display:flex;flex-direction:column;gap:6px;" id="rptLocBreakdown"></div>
+    </div>
+
   </div>
 </div>
 
@@ -754,7 +794,9 @@ document.querySelectorAll('.tab').forEach(function(t){
     document.querySelectorAll('.tab').forEach(function(x){x.classList.remove('on');});
     document.querySelectorAll('.pane').forEach(function(x){x.classList.remove('on');});
     t.classList.add('on');
-    document.getElementById('pane-'+t.getAttribute('data-t')).classList.add('on');
+    var tabType = t.getAttribute('data-t');
+    document.getElementById('pane-'+tabType).classList.add('on');
+    if (tabType === 'report') reportGenerate();
   });
 });
 document.querySelectorAll('.fb').forEach(function(b){
@@ -1779,6 +1821,329 @@ function markTaskSent(id) { taskStatus[id]='sent'; setTimeout(function(){renderT
 function markTaskDone(id) { taskStatus[id]='done'; renderTasks(); }
 function undoTask(id) { delete taskStatus[id]; renderTasks(); }
 function refreshTasks() { loadData(); }
+
+// ── REPORTS ────────────────────────────────────────────────────
+var reportFilterDate = null;
+
+function reportGenerate() {
+  var today = getToday();
+  var dow = today.getDay();
+  var diff = dow === 0 ? -6 : 1 - dow;
+  var monday = new Date(today.getFullYear(), today.getMonth(), today.getDate() + diff);
+  var sunday = new Date(monday);
+  sunday.setDate(sunday.getDate() + 6);
+
+  // Filter data: only records from week Monday forward
+  var weekData = data.filter(function(r) {
+    var retDate = r.ret ? pd(r.ret) : null;
+    var delDate = r.deldate ? pd(r.deldate) : null;
+    if (retDate && retDate >= monday) return true;
+    if (delDate && delDate >= monday) return true;
+    return false;
+  });
+
+  // WEEK SUMMARY CARDS
+  var checkedIn = weekData.filter(function(r) { return r.status === 'PENDING'; }).length;
+  var delivered = weekData.filter(function(r) { return r.status === 'DELIVERED'; }).length;
+  var netChange = checkedIn - delivered;
+
+  var cards = document.getElementById('rptWeekCards');
+  cards.innerHTML =
+    '<div class="rpt-card">' +
+      '<div class="rpt-card-num">' + checkedIn + '</div>' +
+      '<div class="rpt-card-lbl">Checked In</div>' +
+    '</div>' +
+    '<div class="rpt-card">' +
+      '<div class="rpt-card-num">' + delivered + '</div>' +
+      '<div class="rpt-card-lbl">Delivered</div>' +
+    '</div>' +
+    '<div class="rpt-card" style="background:linear-gradient(135deg,var(--ok),#0d9c54)">' +
+      '<div class="rpt-card-num">' + netChange + '</div>' +
+      '<div class="rpt-card-lbl">Net Change</div>' +
+    '</div>';
+
+  // DAILY AVERAGES
+  var days = 7;
+  var avgCheckIn = (checkedIn / days).toFixed(1);
+  var avgDelivered = (delivered / days).toFixed(1);
+  document.getElementById('rptAvgCheckIn').textContent = avgCheckIn;
+  document.getElementById('rptAvgDelivered').textContent = avgDelivered;
+
+  // MON-SUN WEEKLY BREAKDOWN
+  var breakdownHtml = '';
+  var dayNames = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  for (var i = 0; i < 7; i++) {
+    var d = new Date(monday);
+    d.setDate(d.getDate() + i);
+    var count = weekData.filter(function(r) {
+      var retDate = r.ret ? pd(r.ret) : null;
+      return retDate && sd(retDate, d);
+    }).length;
+    breakdownHtml += '<div class="rpt-daily-item">' +
+      '<div class="rpt-daily-day">' + dayNames[i] + '</div>' +
+      '<div class="rpt-daily-num">' + count + '</div>' +
+    '</div>';
+  }
+  document.getElementById('rptDailyBreak').innerHTML = breakdownHtml;
+
+  // BUSY DAYS (>6 cars, current week forward)
+  var busyDays = [];
+  for (var i = 0; i < 7; i++) {
+    var d = new Date(monday);
+    d.setDate(d.getDate() + i);
+    var cnt = weekData.filter(function(r) {
+      var retDate = r.ret ? pd(r.ret) : null;
+      return retDate && sd(retDate, d);
+    }).length;
+    if (cnt > 6) busyDays.push({date: d, count: cnt});
+  }
+  var busySection = document.getElementById('rptBusySection');
+  var busyList = document.getElementById('rptBusyList');
+  if (busyDays.length > 0) {
+    busySection.style.display = 'block';
+    var busyHtml = '';
+    busyDays.forEach(function(bd) {
+      busyHtml += '<div class="rpt-busy-item">' +
+        '<div class="rpt-busy-day">' + bd.date.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}) + '</div>' +
+        '<div class="rpt-busy-sub">' + bd.count + ' cars scheduled to return</div>' +
+      '</div>';
+    });
+    busyList.innerHTML = busyHtml;
+  } else {
+    busySection.style.display = 'none';
+  }
+
+  // LOCATION ANALYTICS
+  var locMap = {};
+  weekData.forEach(function(r) {
+    var loc = r.loc || 'Unknown';
+    locMap[loc] = (locMap[loc] || 0) + 1;
+  });
+  var locArray = [];
+  for (var k in locMap) {
+    if (locMap.hasOwnProperty(k)) locArray.push({loc: k, count: locMap[k]});
+  }
+  locArray.sort(function(a, b) { return b.count - a.count; });
+
+  var mostUsedWeek = locArray[0] ? locArray[0].loc : '—';
+  document.getElementById('rptLocWeek').textContent = mostUsedWeek;
+
+  // Month analytics (all data)
+  var monthLocMap = {};
+  data.forEach(function(r) {
+    var loc = r.loc || 'Unknown';
+    monthLocMap[loc] = (monthLocMap[loc] || 0) + 1;
+  });
+  var monthLocArray = [];
+  for (var k in monthLocMap) {
+    if (monthLocMap.hasOwnProperty(k)) monthLocArray.push({loc: k, count: monthLocMap[k]});
+  }
+  monthLocArray.sort(function(a, b) { return b.count - a.count; });
+  var mostUsedMonth = monthLocArray[0] ? monthLocArray[0].loc : '—';
+  document.getElementById('rptLocMonth').textContent = mostUsedMonth;
+
+  // Breakdown
+  var breakdownHtml = '';
+  locArray.forEach(function(item) {
+    breakdownHtml += '<div class="rpt-loc-item">' +
+      '<div class="rpt-loc-name">' + escapeHTML(item.loc) + '</div>' +
+      '<div class="rpt-loc-count">' + item.count + ' cars</div>' +
+    '</div>';
+  });
+  document.getElementById('rptLocBreakdown').innerHTML = breakdownHtml || '<div style="color:var(--mu);font-size:12px;padding:8px 0;">No data</div>';
+
+  // DATE FILTER REPORT
+  reportFilterDate = null;
+  renderFilterReport();
+}
+
+function setRptDate(action) {
+  if (action === 'today') {
+    reportFilterDate = getToday();
+  } else if (action === 'tomorrow') {
+    reportFilterDate = getTomorrow();
+  } else if (action === 'clear') {
+    reportFilterDate = null;
+  }
+  var dateInput = document.getElementById('rptFilterDate');
+  if (reportFilterDate) {
+    dateInput.value = reportFilterDate.getFullYear() + '-' +
+      String(reportFilterDate.getMonth() + 1).padStart(2,'0') + '-' +
+      String(reportFilterDate.getDate()).padStart(2,'0');
+  } else {
+    dateInput.value = '';
+  }
+  renderFilterReport();
+}
+
+function onRptDateChange() {
+  var dateInput = document.getElementById('rptFilterDate');
+  if (dateInput.value) {
+    reportFilterDate = pd(dateInput.value);
+  } else {
+    reportFilterDate = null;
+  }
+  renderFilterReport();
+}
+
+function renderFilterReport() {
+  var filtered = data;
+  if (reportFilterDate) {
+    filtered = data.filter(function(r) {
+      var retDate = r.ret ? pd(r.ret) : null;
+      return retDate && sd(retDate, reportFilterDate);
+    });
+  }
+
+  var html = '';
+  if (filtered.length === 0) {
+    html = '<div style="color:var(--mu);font-size:12px;padding:12px;text-align:center;">No records</div>';
+  } else {
+    filtered.forEach(function(r) {
+      html += '<div class="rpt-filter-item">' +
+        '<div>' +
+          '<strong>' + escapeHTML(r.name) + '</strong><br>' +
+          '<span style="color:var(--mu);font-size:11px;">' + escapeHTML(r.ticket) + ' · ' + escapeHTML(r.loc||'-') + '</span>' +
+        '</div>' +
+        '<div style="text-align:right;">' +
+          '<div style="font-size:11px;color:var(--mu);">Status</div>' +
+          '<div style="font-weight:700;color:var(--navy);">' + escapeHTML(r.status) + '</div>' +
+        '</div>' +
+      '</div>';
+    });
+  }
+  document.getElementById('rptFilterList').innerHTML = html;
+}
+
+function printReport() {
+  window.print();
+}
+
+function exportPDF() {
+  var today = getToday();
+  var dow = today.getDay();
+  var diff = dow === 0 ? -6 : 1 - dow;
+  var monday = new Date(today.getFullYear(), today.getMonth(), today.getDate() + diff);
+  var sunday = new Date(monday);
+  sunday.setDate(sunday.getDate() + 6);
+
+  var weekRangeStr = monday.toLocaleDateString('en-US',{month:'short',day:'numeric'}) + ' – ' +
+                     sunday.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+
+  var weekData = data.filter(function(r) {
+    var retDate = r.ret ? pd(r.ret) : null;
+    var delDate = r.deldate ? pd(r.deldate) : null;
+    if (retDate && retDate >= monday) return true;
+    if (delDate && delDate >= monday) return true;
+    return false;
+  });
+
+  var checkedIn = weekData.filter(function(r) { return r.status === 'PENDING'; }).length;
+  var delivered = weekData.filter(function(r) { return r.status === 'DELIVERED'; }).length;
+  var netChange = checkedIn - delivered;
+  var avgCheckIn = (checkedIn / 7).toFixed(1);
+  var avgDelivered = (delivered / 7).toFixed(1);
+
+  // Build daily breakdown
+  var dayNames = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+  var dayBreakdownRows = '';
+  for (var i = 0; i < 7; i++) {
+    var d = new Date(monday);
+    d.setDate(d.getDate() + i);
+    var count = weekData.filter(function(r) {
+      var retDate = r.ret ? pd(r.ret) : null;
+      return retDate && sd(retDate, d);
+    }).length;
+    dayBreakdownRows += '<tr><td>' + dayNames[i] + '</td><td style="text-align:center;font-weight:700;">' + count + '</td></tr>';
+  }
+
+  // Build busy days
+  var busyDaysHtml = '';
+  for (var i = 0; i < 7; i++) {
+    var d = new Date(monday);
+    d.setDate(d.getDate() + i);
+    var cnt = weekData.filter(function(r) {
+      var retDate = r.ret ? pd(r.ret) : null;
+      return retDate && sd(retDate, d);
+    }).length;
+    if (cnt > 6) {
+      busyDaysHtml += '<tr><td>' + d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}) +
+                      '</td><td style="text-align:center;font-weight:700;">' + cnt + ' cars</td></tr>';
+    }
+  }
+  var busyDaysSection = busyDaysHtml ?
+    '<h3 style="margin-top:24px;margin-bottom:12px;font-size:14px;font-weight:700;color:#000;">⚠️ Busy Days</h3>' +
+    '<table style="width:100%;border-collapse:collapse;"><tbody>' + busyDaysHtml + '</tbody></table>' : '';
+
+  // Build location analytics
+  var locMap = {};
+  weekData.forEach(function(r) {
+    var loc = r.loc || 'Unknown';
+    locMap[loc] = (locMap[loc] || 0) + 1;
+  });
+  var locArray = [];
+  for (var k in locMap) {
+    if (locMap.hasOwnProperty(k)) locArray.push({loc: k, count: locMap[k]});
+  }
+  locArray.sort(function(a, b) { return b.count - a.count; });
+  var locRows = '';
+  locArray.forEach(function(item) {
+    locRows += '<tr><td>' + escapeHTML(item.loc) + '</td><td style="text-align:center;font-weight:700;">' + item.count + '</td></tr>';
+  });
+
+  // Build return date report if filtered
+  var returnDateReportSection = '';
+  if (reportFilterDate) {
+    var filtered = data.filter(function(r) {
+      var retDate = r.ret ? pd(r.ret) : null;
+      return retDate && sd(retDate, reportFilterDate);
+    });
+    if (filtered.length > 0) {
+      var dateStr = reportFilterDate.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'});
+      var returnRows = '';
+      filtered.forEach(function(r) {
+        returnRows += '<tr><td>' + escapeHTML(r.name) + '</td><td>' + escapeHTML(r.ticket) +
+                      '</td><td>' + escapeHTML(r.loc||'-') + '</td><td style="text-align:center;">' + escapeHTML(r.status) + '</td></tr>';
+      });
+      returnDateReportSection =
+        '<h3 style="margin-top:24px;margin-bottom:12px;font-size:14px;font-weight:700;color:#000;">Return Date Report – ' + dateStr + '</h3>' +
+        '<table style="width:100%;border-collapse:collapse;"><thead><tr style="background:#f0f0f0;"><th style="text-align:left;padding:8px;border-bottom:1px solid #999;">Name</th>' +
+        '<th style="text-align:left;padding:8px;border-bottom:1px solid #999;">Ticket</th><th style="text-align:left;padding:8px;border-bottom:1px solid #999;">Location</th>' +
+        '<th style="text-align:center;padding:8px;border-bottom:1px solid #999;">Status</th></tr></thead><tbody>' + returnRows + '</tbody></table>';
+    }
+  }
+
+  var html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width"><title>Valet Operations Report</title>' +
+    '<style>body{font-family:Arial,sans-serif;margin:0;padding:20px;background:#fff;color:#000;}h1{font-size:24px;font-weight:700;margin:0 0 8px 0;}' +
+    '.week-range{font-size:12px;color:#666;margin-bottom:20px;}.summary{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:24px;}' +
+    '.card{background:#f9f9f9;border:1px solid #ddd;padding:16px;text-align:center;}.card-num{font-size:32px;font-weight:700;}.card-lbl{font-size:11px;color:#666;margin-top:8px;}' +
+    'h3{margin:24px 0 12px 0;font-size:14px;font-weight:700;}table{width:100%;border-collapse:collapse;margin-bottom:20px;}' +
+    'th{background:#f0f0f0;padding:8px;text-align:left;border-bottom:2px solid #999;font-weight:700;font-size:12px;}' +
+    'td{padding:8px;border-bottom:1px solid #ddd;font-size:12px;}tr:last-child td{border-bottom:none;}' +
+    '@media print{body{margin:0;padding:16px;}h1{page-break-after:avoid;}.summary{page-break-inside:avoid;}table{page-break-inside:avoid;}}</style>' +
+    '</head><body><h1>Valet Operations Report</h1><div class="week-range">Week of ' + weekRangeStr + '</div>' +
+    '<div class="summary">' +
+      '<div class="card"><div class="card-num">' + checkedIn + '</div><div class="card-lbl">Checked In</div></div>' +
+      '<div class="card"><div class="card-num">' + delivered + '</div><div class="card-lbl">Delivered</div></div>' +
+      '<div class="card"><div class="card-num">' + netChange + '</div><div class="card-lbl">Net Change</div></div>' +
+    '</div>' +
+    '<h3>Daily Averages</h3><table><tr><td>Avg Check-In:</td><td style="text-align:right;font-weight:700;">' + avgCheckIn + ' per day</td></tr>' +
+    '<tr><td>Avg Delivered:</td><td style="text-align:right;font-weight:700;">' + avgDelivered + ' per day</td></tr></table>' +
+    '<h3>Daily Breakdown</h3><table><thead><tr style="background:#f0f0f0;"><th>Day</th><th style="text-align:center;">Count</th></tr></thead><tbody>' + dayBreakdownRows + '</tbody></table>' +
+    busyDaysSection + returnDateReportSection +
+    '<h3>Location Analytics</h3><table><thead><tr style="background:#f0f0f0;"><th>Location</th><th style="text-align:center;">Count</th></tr></thead><tbody>' + locRows + '</tbody></table>' +
+    '</body></html>';
+
+  var win = window.open('', 'print', 'width=900,height=800');
+  win.document.write(html);
+  win.document.close();
+  setTimeout(function() { win.print(); }, 250);
+}
+
+// Call reportGenerate when tab is shown
+function onTabChange(tab) {
+  if (tab === 'report') reportGenerate();
+}
 
 </script>
 <datalist id="carModelList"></datalist>
