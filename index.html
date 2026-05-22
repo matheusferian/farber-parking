@@ -196,74 +196,63 @@
 <!-- REPORT PANE -->
 <div class="pane" id="pane-report">
   <div class="flight-sec">
+    <h1 style="margin:0 0 16px 0;font-size:24px;font-weight:800;color:var(--tx);">Report Builder</h1>
 
-    <!-- Header -->
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
-      <h1 style="margin:0;font-size:28px;font-weight:800;color:var(--tx);">Reports</h1>
-      <div style="display:flex;gap:8px;">
-        <button onclick="printReport()" style="background:var(--s);border:1px solid var(--b);border-radius:8px;padding:10px 14px;cursor:pointer;font-size:14px;color:var(--tx);">🖨️ Print</button>
-        <button onclick="exportPDF()" style="background:linear-gradient(135deg,var(--navy),#2a5db0);color:#fff;border:1px solid var(--gold);border-radius:8px;padding:10px 14px;cursor:pointer;font-size:14px;font-weight:700;">📄 PDF</button>
+    <!-- CONTROLS PANEL -->
+    <div style="background:var(--s);border:1px solid var(--b);border-radius:12px;padding:16px;margin-bottom:20px;">
+      <!-- Date Range -->
+      <div style="margin-bottom:16px;">
+        <div style="font-size:11px;color:var(--mu);font-weight:700;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;">Date Range</div>
+        <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
+          <input type="date" id="rptStartInput" onchange="onRptDateInputChange()" style="background:var(--s2);border:1px solid var(--b);border-radius:6px;padding:8px 10px;color:var(--tx);font-size:13px;outline:none;">
+          <input type="date" id="rptEndInput" onchange="onRptDateInputChange()" style="background:var(--s2);border:1px solid var(--b);border-radius:6px;padding:8px 10px;color:var(--tx);font-size:13px;outline:none;">
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;font-size:12px;">
+          <button onclick="setRptRange('today')" style="background:var(--s2);border:1px solid var(--b);border-radius:6px;padding:6px 10px;cursor:pointer;color:var(--tx);">Today</button>
+          <button onclick="setRptRange('tomorrow-returns')" style="background:var(--s2);border:1px solid var(--b);border-radius:6px;padding:6px 10px;cursor:pointer;color:var(--tx);">Tomorrow Returns</button>
+          <button onclick="setRptRange('this-week')" style="background:var(--s2);border:1px solid var(--b);border-radius:6px;padding:6px 10px;cursor:pointer;color:var(--tx);">This Week</button>
+          <button onclick="setRptRange('last-week')" style="background:var(--s2);border:1px solid var(--b);border-radius:6px;padding:6px 10px;cursor:pointer;color:var(--tx);">Last Week</button>
+          <button onclick="setRptRange('this-month')" style="background:var(--s2);border:1px solid var(--b);border-radius:6px;padding:6px 10px;cursor:pointer;color:var(--tx);">This Month</button>
+          <button onclick="setRptRange('last-month')" style="background:var(--s2);border:1px solid var(--b);border-radius:6px;padding:6px 10px;cursor:pointer;color:var(--tx);">Last Month</button>
+          <button onclick="setRptRange('clear')" style="background:var(--s2);border:1px solid var(--b);border-radius:6px;padding:6px 10px;cursor:pointer;color:var(--mu);">Clear</button>
+        </div>
+      </div>
+
+      <!-- Section Selector -->
+      <div style="margin-bottom:16px;">
+        <div style="font-size:11px;color:var(--mu);font-weight:700;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;">Report Sections</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px;">
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" id="rptChk-summary" checked onchange="onRptSectionToggle('summary')"> Summary</label>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" id="rptChk-dailyBreakdown" checked onchange="onRptSectionToggle('dailyBreakdown')"> Daily Breakdown</label>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" id="rptChk-returnDateReport" onchange="onRptSectionToggle('returnDateReport')"> Return Date Report</label>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" id="rptChk-busyDays" onchange="onRptSectionToggle('busyDays')"> Busy Days</label>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" id="rptChk-locationAnalytics" onchange="onRptSectionToggle('locationAnalytics')"> Location Analytics</label>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" id="rptChk-weeklyTotalCars" onchange="onRptSectionToggle('weeklyTotalCars')"> Weekly Total Cars</label>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" id="rptChk-monthlyTotalCars" onchange="onRptSectionToggle('monthlyTotalCars')"> Monthly Total Cars</label>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" id="rptChk-vehicleList" onchange="onRptSectionToggle('vehicleList')"> Vehicle List</label>
+        </div>
+      </div>
+
+      <!-- Vehicle List Mode -->
+      <div style="margin-bottom:16px;">
+        <div style="font-size:11px;color:var(--mu);font-weight:700;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;">Vehicle List Mode</div>
+        <select id="rptVehicleMode" onchange="onRptSectionToggle('vehicleList')" style="background:var(--s2);border:1px solid var(--b);border-radius:6px;padding:8px 10px;color:var(--tx);font-size:13px;outline:none;cursor:pointer;">
+          <option value="ret">Return Date</option>
+          <option value="ts">Check-in Date</option>
+          <option value="deldate">Delivery Date</option>
+        </select>
+      </div>
+
+      <!-- Action Buttons -->
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button onclick="updateRptPreview()" style="background:var(--navy);color:#fff;border:none;border-radius:6px;padding:8px 14px;cursor:pointer;font-size:13px;font-weight:600;">Generate Preview</button>
+        <button onclick="printReport()" style="background:var(--s2);border:1px solid var(--b);border-radius:6px;padding:8px 14px;cursor:pointer;font-size:13px;color:var(--tx);">🖨️ Print</button>
+        <button onclick="exportPDF()" style="background:linear-gradient(135deg,var(--navy),#2a5db0);color:#fff;border:none;border-radius:6px;padding:8px 14px;cursor:pointer;font-size:13px;font-weight:600;">📄 PDF</button>
       </div>
     </div>
 
-    <!-- Week Summary Cards -->
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:24px;" id="rptWeekCards"></div>
-
-    <!-- Daily Averages -->
-    <div style="background:var(--s);border:1px solid var(--b);border-radius:12px;padding:16px;margin-bottom:24px;">
-      <div style="font-size:13px;color:var(--mu);font-weight:700;margin-bottom:12px;text-transform:uppercase;letter-spacing:0.5px;">Daily Averages</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
-        <div>
-          <div style="font-size:11px;color:var(--mu);margin-bottom:4px;">Avg Check-In</div>
-          <div style="font-size:24px;font-weight:800;color:var(--tx);" id="rptAvgCheckIn">0.0</div>
-        </div>
-        <div>
-          <div style="font-size:11px;color:var(--mu);margin-bottom:4px;">Avg Delivered</div>
-          <div style="font-size:24px;font-weight:800;color:var(--tx);" id="rptAvgDelivered">0.0</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- This Week Breakdown -->
-    <div style="background:var(--s);border:1px solid var(--b);border-radius:12px;padding:16px;margin-bottom:24px;">
-      <div style="font-size:13px;color:var(--mu);font-weight:700;margin-bottom:12px;text-transform:uppercase;letter-spacing:0.5px;">This Week Breakdown</div>
-      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:8px;" id="rptDailyBreak"></div>
-    </div>
-
-    <!-- Return Date Report -->
-    <div style="background:var(--s);border:1px solid var(--b);border-radius:12px;padding:16px;margin-bottom:24px;">
-      <div style="font-size:13px;color:var(--mu);font-weight:700;margin-bottom:12px;text-transform:uppercase;letter-spacing:0.5px;">Return Date Report</div>
-      <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
-        <input type="date" id="rptFilterDate" oninput="onRptDateChange()" style="background:var(--s2);border:1px solid var(--b);border-radius:8px;padding:10px 12px;color:var(--tx);font-size:14px;outline:none;flex:1;min-width:140px;">
-        <button onclick="setRptDate('today')" style="background:var(--s2);border:1px solid var(--b);border-radius:8px;padding:10px 14px;cursor:pointer;font-size:13px;color:var(--tx);">📅 Today</button>
-        <button onclick="setRptDate('tomorrow')" style="background:var(--s2);border:1px solid var(--b);border-radius:8px;padding:10px 14px;cursor:pointer;font-size:13px;color:var(--tx);">📅 Tomorrow</button>
-        <button onclick="setRptDate('clear')" style="background:var(--s2);border:1px solid var(--b);border-radius:8px;padding:10px 14px;cursor:pointer;font-size:13px;color:var(--mu);">✕ Clear</button>
-      </div>
-      <div style="max-height:300px;overflow-y:auto;background:var(--bg);border-radius:8px;padding:12px;" id="rptFilterList"></div>
-    </div>
-
-    <!-- Busy Days -->
-    <div id="rptBusySection" style="background:var(--s);border:1px solid var(--b);border-radius:12px;padding:16px;margin-bottom:24px;display:none;">
-      <div style="font-size:13px;color:var(--mu);font-weight:700;margin-bottom:12px;text-transform:uppercase;letter-spacing:0.5px;">⚠️ Busy Days</div>
-      <div style="display:flex;flex-direction:column;gap:8px;" id="rptBusyList"></div>
-    </div>
-
-    <!-- Location Analytics -->
-    <div style="background:var(--s);border:1px solid var(--b);border-radius:12px;padding:16px;">
-      <div style="font-size:13px;color:var(--mu);font-weight:700;margin-bottom:12px;text-transform:uppercase;letter-spacing:0.5px;">Location Analytics</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
-        <div>
-          <div style="font-size:11px;color:var(--mu);margin-bottom:8px;">Most Used (This Week)</div>
-          <div style="font-size:14px;font-weight:700;color:var(--tx);" id="rptLocWeek">—</div>
-        </div>
-        <div>
-          <div style="font-size:11px;color:var(--mu);margin-bottom:8px;">Most Used (This Month)</div>
-          <div style="font-size:14px;font-weight:700;color:var(--tx);" id="rptLocMonth">—</div>
-        </div>
-      </div>
-      <div style="font-size:11px;color:var(--mu);margin-bottom:8px;font-weight:700;">Usage Breakdown</div>
-      <div style="display:flex;flex-direction:column;gap:6px;" id="rptLocBreakdown"></div>
-    </div>
+    <!-- PREVIEW AREA -->
+    <div id="rptPreviewArea" style="display:none;"></div>
 
   </div>
 </div>
@@ -796,7 +785,6 @@ document.querySelectorAll('.tab').forEach(function(t){
     t.classList.add('on');
     var tabType = t.getAttribute('data-t');
     document.getElementById('pane-'+tabType).classList.add('on');
-    if (tabType === 'report') reportGenerate();
   });
 });
 document.querySelectorAll('.fb').forEach(function(b){
@@ -1822,334 +1810,456 @@ function markTaskDone(id) { taskStatus[id]='done'; renderTasks(); }
 function undoTask(id) { delete taskStatus[id]; renderTasks(); }
 function refreshTasks() { loadData(); }
 
-// ── REPORTS ────────────────────────────────────────────────────
-var reportFilterDate = null;
 
-function reportGenerate() {
+// ══════════════════════════════════════════════════════════════════════════════
+// REPORT BUILDER STATE
+// ══════════════════════════════════════════════════════════════════════════════
+var rptStartDate = null;
+var rptEndDate = null;
+var rptRangePreset = null;
+var rptSections = {
+  summary: true,
+  dailyBreakdown: true,
+  returnDateReport: false,
+  busyDays: false,
+  locationAnalytics: false,
+  weeklyTotalCars: false,
+  monthlyTotalCars: false,
+  vehicleList: false
+};
+var rptVehicleMode = 'ret';
+
+// ══════════════════════════════════════════════════════════════════════════════
+// TIMEZONE-SAFE DATE PARSING
+// ══════════════════════════════════════════════════════════════════════════════
+function parseLocalInputDate(v) {
+  if (!v) return null;
+  var p = String(v).split('-');
+  if (p.length !== 3) return null;
+  var year = parseInt(p[0], 10);
+  var month = parseInt(p[1], 10);
+  var day = parseInt(p[2], 10);
+  var d = new Date(year, month - 1, day);
+  d.setHours(0, 0, 0, 0);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// QUICK RANGE BUTTONS
+// ══════════════════════════════════════════════════════════════════════════════
+function setRptRange(preset) {
   var today = getToday();
-  var dow = today.getDay();
-  var diff = dow === 0 ? -6 : 1 - dow;
-  var monday = new Date(today.getFullYear(), today.getMonth(), today.getDate() + diff);
-  var sunday = new Date(monday);
-  sunday.setDate(sunday.getDate() + 6);
+  var start = null, end = null;
 
-  // Filter data: only records from week Monday forward
-  var weekData = data.filter(function(r) {
-    var retDate = r.ret ? pd(r.ret) : null;
-    var delDate = r.deldate ? pd(r.deldate) : null;
-    if (retDate && retDate >= monday) return true;
-    if (delDate && delDate >= monday) return true;
-    return false;
+  if (preset === 'today') {
+    start = new Date(today);
+    end = new Date(today);
+    end.setHours(23, 59, 59, 999);
+  } else if (preset === 'tomorrow-returns') {
+    var tmr = getTomorrow();
+    start = new Date(tmr);
+    end = new Date(tmr);
+    end.setHours(23, 59, 59, 999);
+  } else if (preset === 'this-week') {
+    var dow = today.getDay();
+    var diff = dow === 0 ? -6 : 1 - dow;
+    start = new Date(today);
+    start.setDate(start.getDate() + diff);
+    start.setHours(0, 0, 0, 0);
+    end = new Date(start);
+    end.setDate(end.getDate() + 6);
+    end.setHours(23, 59, 59, 999);
+  } else if (preset === 'last-week') {
+    var dow = today.getDay();
+    var diff = dow === 0 ? -6 : 1 - dow;
+    var thisMonday = new Date(today);
+    thisMonday.setDate(thisMonday.getDate() + diff);
+    start = new Date(thisMonday);
+    start.setDate(start.getDate() - 7);
+    start.setHours(0, 0, 0, 0);
+    end = new Date(start);
+    end.setDate(end.getDate() + 6);
+    end.setHours(23, 59, 59, 999);
+  } else if (preset === 'this-month') {
+    start = new Date(today.getFullYear(), today.getMonth(), 1);
+    start.setHours(0, 0, 0, 0);
+    end = new Date(today);
+    end.setHours(23, 59, 59, 999);
+  } else if (preset === 'last-month') {
+    start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+    start.setHours(0, 0, 0, 0);
+    end = new Date(today.getFullYear(), today.getMonth(), 0);
+    end.setHours(23, 59, 59, 999);
+  } else if (preset === 'clear') {
+    start = null;
+    end = null;
+  }
+
+  rptStartDate = start;
+  rptEndDate = end;
+  rptRangePreset = preset !== 'clear' ? preset : null;
+  updateRptDateInputs();
+}
+
+function updateRptDateInputs() {
+  var startInput = document.getElementById('rptStartInput');
+  var endInput = document.getElementById('rptEndInput');
+  if (rptStartDate) {
+    startInput.value = rptStartDate.getFullYear() + '-' +
+      String(rptStartDate.getMonth() + 1).padStart(2, '0') + '-' +
+      String(rptStartDate.getDate()).padStart(2, '0');
+  } else {
+    startInput.value = '';
+  }
+  if (rptEndDate) {
+    endInput.value = rptEndDate.getFullYear() + '-' +
+      String(rptEndDate.getMonth() + 1).padStart(2, '0') + '-' +
+      String(rptEndDate.getDate()).padStart(2, '0');
+  } else {
+    endInput.value = '';
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// DATE INPUT CHANGE HANDLERS
+// ══════════════════════════════════════════════════════════════════════════════
+function onRptDateInputChange() {
+  var startInput = document.getElementById('rptStartInput');
+  var endInput = document.getElementById('rptEndInput');
+  var s = parseLocalInputDate(startInput.value);
+  var e = parseLocalInputDate(endInput.value);
+  if (s) {
+    s.setHours(0, 0, 0, 0);
+    rptStartDate = s;
+  } else {
+    rptStartDate = null;
+  }
+  if (e) {
+    e.setHours(23, 59, 59, 999);
+    rptEndDate = e;
+  } else {
+    rptEndDate = null;
+  }
+  rptRangePreset = null;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SECTION & MODE TOGGLES
+// ══════════════════════════════════════════════════════════════════════════════
+function onRptSectionToggle(section) {
+  if (rptSections.hasOwnProperty(section)) {
+    rptSections[section] = document.getElementById('rptChk-' + section).checked;
+  }
+  rptVehicleMode = document.getElementById('rptVehicleMode').value;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// REPORT PREVIEW GENERATION
+// ══════════════════════════════════════════════════════════════════════════════
+function updateRptPreview() {
+  if (!rptStartDate || !rptEndDate) {
+    alert('Please select a date range.');
+    return;
+  }
+
+  var previewArea = document.getElementById('rptPreviewArea');
+  previewArea.style.display = 'block';
+  var html = '';
+
+  // Filter data by date range
+  var rangeData = data.filter(function(r) {
+    var tsDate = r.ts ? pd(r.ts) : null;
+    return tsDate && tsDate >= rptStartDate && tsDate <= rptEndDate;
   });
 
-  // WEEK SUMMARY CARDS
-  var checkedIn = weekData.filter(function(r) { return r.status === 'PENDING'; }).length;
-  var delivered = weekData.filter(function(r) { return r.status === 'DELIVERED'; }).length;
-  var netChange = checkedIn - delivered;
+  var rangeStart = rptStartDate.toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'});
+  var rangeEnd = rptEndDate.toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'});
+  var rangeLabel = rangeStart === rangeEnd ? rangeStart : rangeStart + ' – ' + rangeEnd;
 
-  var cards = document.getElementById('rptWeekCards');
-  cards.innerHTML =
-    '<div class="rpt-card">' +
-      '<div class="rpt-card-num">' + checkedIn + '</div>' +
-      '<div class="rpt-card-lbl">Checked In</div>' +
-    '</div>' +
-    '<div class="rpt-card">' +
-      '<div class="rpt-card-num">' + delivered + '</div>' +
-      '<div class="rpt-card-lbl">Delivered</div>' +
-    '</div>' +
-    '<div class="rpt-card" style="background:linear-gradient(135deg,var(--ok),#0d9c54)">' +
-      '<div class="rpt-card-num">' + netChange + '</div>' +
-      '<div class="rpt-card-lbl">Net Change</div>' +
-    '</div>';
+  // SUMMARY
+  if (rptSections.summary) {
+    var checkedIn = rangeData.filter(function(r) { return r.ts && pd(r.ts) >= rptStartDate && pd(r.ts) <= rptEndDate; }).length;
+    var delivered = rangeData.filter(function(r) { return r.deldate && pd(r.deldate) >= rptStartDate && pd(r.deldate) <= rptEndDate; }).length;
+    var netChange = checkedIn - delivered;
+    var dayCount = Math.ceil((rptEndDate - rptStartDate) / (1000 * 60 * 60 * 24)) + 1;
+    var avgCheckIn = (checkedIn / dayCount).toFixed(1);
+    var avgDelivered = (delivered / dayCount).toFixed(1);
 
-  // DAILY AVERAGES
-  var days = 7;
-  var avgCheckIn = (checkedIn / days).toFixed(1);
-  var avgDelivered = (delivered / days).toFixed(1);
-  document.getElementById('rptAvgCheckIn').textContent = avgCheckIn;
-  document.getElementById('rptAvgDelivered').textContent = avgDelivered;
-
-  // MON-SUN WEEKLY BREAKDOWN
-  var breakdownHtml = '';
-  var dayNames = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
-  for (var i = 0; i < 7; i++) {
-    var d = new Date(monday);
-    d.setDate(d.getDate() + i);
-    var count = weekData.filter(function(r) {
-      var retDate = r.ret ? pd(r.ret) : null;
-      return retDate && sd(retDate, d);
-    }).length;
-    breakdownHtml += '<div class="rpt-daily-item">' +
-      '<div class="rpt-daily-day">' + dayNames[i] + '</div>' +
-      '<div class="rpt-daily-num">' + count + '</div>' +
+    html += '<div style="background:var(--s);border:1px solid var(--b);border-radius:10px;padding:14px;margin-bottom:16px;">' +
+      '<div style="font-size:12px;color:var(--mu);font-weight:700;margin-bottom:10px;text-transform:uppercase;letter-spacing:0.5px;">Summary</div>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:13px;">' +
+        '<div><div style="color:var(--mu);font-size:11px;margin-bottom:2px;">Checked In</div><div style="font-size:18px;font-weight:700;color:var(--tx);">' + checkedIn + '</div></div>' +
+        '<div><div style="color:var(--mu);font-size:11px;margin-bottom:2px;">Delivered</div><div style="font-size:18px;font-weight:700;color:var(--tx);">' + delivered + '</div></div>' +
+        '<div><div style="color:var(--mu);font-size:11px;margin-bottom:2px;">Net Change</div><div style="font-size:18px;font-weight:700;color:var(--navy);">' + netChange + '</div></div>' +
+        '<div><div style="color:var(--mu);font-size:11px;margin-bottom:2px;">Avg/Day</div><div style="font-size:14px;font-weight:700;color:var(--tx);">' + avgCheckIn + ' / ' + avgDelivered + '</div></div>' +
+      '</div>' +
     '</div>';
   }
-  document.getElementById('rptDailyBreak').innerHTML = breakdownHtml;
 
-  // BUSY DAYS (>6 cars, current week forward)
-  var busyDays = [];
-  for (var i = 0; i < 7; i++) {
-    var d = new Date(monday);
-    d.setDate(d.getDate() + i);
-    var cnt = weekData.filter(function(r) {
-      var retDate = r.ret ? pd(r.ret) : null;
-      return retDate && sd(retDate, d);
-    }).length;
-    if (cnt > 6) busyDays.push({date: d, count: cnt});
-  }
-  var busySection = document.getElementById('rptBusySection');
-  var busyList = document.getElementById('rptBusyList');
-  if (busyDays.length > 0) {
-    busySection.style.display = 'block';
-    var busyHtml = '';
-    busyDays.forEach(function(bd) {
-      busyHtml += '<div class="rpt-busy-item">' +
-        '<div class="rpt-busy-day">' + bd.date.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}) + '</div>' +
-        '<div class="rpt-busy-sub">' + bd.count + ' cars scheduled to return</div>' +
-      '</div>';
-    });
-    busyList.innerHTML = busyHtml;
-  } else {
-    busySection.style.display = 'none';
+  // DAILY BREAKDOWN
+  if (rptSections.dailyBreakdown) {
+    html += '<div style="background:var(--s);border:1px solid var(--b);border-radius:10px;padding:14px;margin-bottom:16px;">' +
+      '<div style="font-size:12px;color:var(--mu);font-weight:700;margin-bottom:10px;text-transform:uppercase;letter-spacing:0.5px;">Daily Breakdown</div>' +
+      '<table style="width:100%;font-size:12px;border-collapse:collapse;">' +
+      '<tr style="border-bottom:1px solid var(--b);"><th style="text-align:left;padding:6px 0;font-weight:600;color:var(--tx);">Date</th><th style="text-align:right;padding:6px 0;font-weight:600;color:var(--tx);">Check-ins</th><th style="text-align:right;padding:6px 0;font-weight:600;color:var(--tx);">Delivered</th></tr>';
+
+    var d = new Date(rptStartDate);
+    while (d <= rptEndDate) {
+      var dayCheckIns = rangeData.filter(function(r) {
+        var tsDate = r.ts ? pd(r.ts) : null;
+        return tsDate && sd(tsDate, d);
+      }).length;
+      var dayDelivered = rangeData.filter(function(r) {
+        var delDate = r.deldate ? pd(r.deldate) : null;
+        return delDate && sd(delDate, d);
+      }).length;
+      html += '<tr style="border-bottom:1px solid var(--b2);"><td style="padding:6px 0;color:var(--tx);">' + d.toLocaleDateString('en-US', {weekday:'short', month:'short', day:'numeric'}) + '</td><td style="text-align:right;padding:6px 0;color:var(--tx);">' + dayCheckIns + '</td><td style="text-align:right;padding:6px 0;color:var(--tx);">' + dayDelivered + '</td></tr>';
+      d.setDate(d.getDate() + 1);
+    }
+    html += '</table></div>';
   }
 
   // LOCATION ANALYTICS
-  var locMap = {};
-  weekData.forEach(function(r) {
-    var loc = r.loc || 'Unknown';
-    locMap[loc] = (locMap[loc] || 0) + 1;
-  });
-  var locArray = [];
-  for (var k in locMap) {
-    if (locMap.hasOwnProperty(k)) locArray.push({loc: k, count: locMap[k]});
-  }
-  locArray.sort(function(a, b) { return b.count - a.count; });
-
-  var mostUsedWeek = locArray[0] ? locArray[0].loc : '—';
-  document.getElementById('rptLocWeek').textContent = mostUsedWeek;
-
-  // Month analytics (all data)
-  var monthLocMap = {};
-  data.forEach(function(r) {
-    var loc = r.loc || 'Unknown';
-    monthLocMap[loc] = (monthLocMap[loc] || 0) + 1;
-  });
-  var monthLocArray = [];
-  for (var k in monthLocMap) {
-    if (monthLocMap.hasOwnProperty(k)) monthLocArray.push({loc: k, count: monthLocMap[k]});
-  }
-  monthLocArray.sort(function(a, b) { return b.count - a.count; });
-  var mostUsedMonth = monthLocArray[0] ? monthLocArray[0].loc : '—';
-  document.getElementById('rptLocMonth').textContent = mostUsedMonth;
-
-  // Breakdown
-  var breakdownHtml = '';
-  locArray.forEach(function(item) {
-    breakdownHtml += '<div class="rpt-loc-item">' +
-      '<div class="rpt-loc-name">' + escapeHTML(item.loc) + '</div>' +
-      '<div class="rpt-loc-count">' + item.count + ' cars</div>' +
-    '</div>';
-  });
-  document.getElementById('rptLocBreakdown').innerHTML = breakdownHtml || '<div style="color:var(--mu);font-size:12px;padding:8px 0;">No data</div>';
-
-  // DATE FILTER REPORT
-  reportFilterDate = null;
-  renderFilterReport();
-}
-
-function setRptDate(action) {
-  if (action === 'today') {
-    reportFilterDate = getToday();
-  } else if (action === 'tomorrow') {
-    reportFilterDate = getTomorrow();
-  } else if (action === 'clear') {
-    reportFilterDate = null;
-  }
-  var dateInput = document.getElementById('rptFilterDate');
-  if (reportFilterDate) {
-    dateInput.value = reportFilterDate.getFullYear() + '-' +
-      String(reportFilterDate.getMonth() + 1).padStart(2,'0') + '-' +
-      String(reportFilterDate.getDate()).padStart(2,'0');
-  } else {
-    dateInput.value = '';
-  }
-  renderFilterReport();
-}
-
-function onRptDateChange() {
-  var dateInput = document.getElementById('rptFilterDate');
-  if (dateInput.value) {
-    reportFilterDate = pd(dateInput.value);
-  } else {
-    reportFilterDate = null;
-  }
-  renderFilterReport();
-}
-
-function renderFilterReport() {
-  var filtered = data;
-  if (reportFilterDate) {
-    filtered = data.filter(function(r) {
-      var retDate = r.ret ? pd(r.ret) : null;
-      return retDate && sd(retDate, reportFilterDate);
+  if (rptSections.locationAnalytics) {
+    var locMap = {};
+    rangeData.forEach(function(r) {
+      var loc = r.loc || 'Unknown';
+      locMap[loc] = (locMap[loc] || 0) + 1;
     });
-  }
-
-  var html = '';
-  if (filtered.length === 0) {
-    html = '<div style="color:var(--mu);font-size:12px;padding:12px;text-align:center;">No records</div>';
-  } else {
-    filtered.forEach(function(r) {
-      html += '<div class="rpt-filter-item">' +
-        '<div>' +
-          '<strong>' + escapeHTML(r.name) + '</strong><br>' +
-          '<span style="color:var(--mu);font-size:11px;">' + escapeHTML(r.ticket) + ' · ' + escapeHTML(r.loc||'-') + '</span>' +
-        '</div>' +
-        '<div style="text-align:right;">' +
-          '<div style="font-size:11px;color:var(--mu);">Status</div>' +
-          '<div style="font-weight:700;color:var(--navy);">' + escapeHTML(r.status) + '</div>' +
-        '</div>' +
-      '</div>';
-    });
-  }
-  document.getElementById('rptFilterList').innerHTML = html;
-}
-
-function printReport() {
-  window.print();
-}
-
-function exportPDF() {
-  var today = getToday();
-  var dow = today.getDay();
-  var diff = dow === 0 ? -6 : 1 - dow;
-  var monday = new Date(today.getFullYear(), today.getMonth(), today.getDate() + diff);
-  var sunday = new Date(monday);
-  sunday.setDate(sunday.getDate() + 6);
-
-  var weekRangeStr = monday.toLocaleDateString('en-US',{month:'short',day:'numeric'}) + ' – ' +
-                     sunday.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
-  var generatedStr = today.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) + ' ' +
-                     today.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true});
-
-  // Calculate month start (first day of current month)
-  var monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
-
-  // CORRECTED: Check-in data based on `ts` field (check-in/creation timestamp)
-  var weekCheckedIn = data.filter(function(r) {
-    var tsDate = r.ts ? pd(r.ts) : null;
-    return tsDate && tsDate >= monday && tsDate <= sunday;
-  });
-  var checkedIn = weekCheckedIn.length;
-
-  // Delivered data based on `deldate` field within the week
-  var weekDelivered = data.filter(function(r) {
-    var delDate = r.deldate ? pd(r.deldate) : null;
-    return delDate && delDate >= monday && delDate <= sunday;
-  });
-  var delivered = weekDelivered.length;
-
-  var netChange = checkedIn - delivered;
-  var avgCheckIn = (checkedIn / 7).toFixed(1);
-  var avgDelivered = (delivered / 7).toFixed(1);
-
-  // CORRECTED: Weekly breakdown - proper separation
-  var dayNames = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
-  var weeklyBreakdown = '';
-  for (var i = 0; i < 7; i++) {
-    var d = new Date(monday);
-    d.setDate(d.getDate() + i);
-    // Check-ins: based on ts
-    var checkInCount = data.filter(function(r) {
-      var tsDate = r.ts ? pd(r.ts) : null;
-      return tsDate && sd(tsDate, d);
-    }).length;
-    // Delivered: based on deldate
-    var deliveredCount = data.filter(function(r) {
-      var delDate = r.deldate ? pd(r.deldate) : null;
-      return delDate && sd(delDate, d);
-    }).length;
-    weeklyBreakdown += '<tr><td>' + dayNames[i] + '</td><td class="num">' + checkInCount + '</td><td class="num">' + deliveredCount + '</td></tr>';
-  }
-
-  // Busy days (based on ret - scheduled returns)
-  var busyDaysRows = '';
-  for (var i = 0; i < 7; i++) {
-    var d = new Date(monday);
-    d.setDate(d.getDate() + i);
-    var cnt = data.filter(function(r) {
-      var retDate = r.ret ? pd(r.ret) : null;
-      return retDate && sd(retDate, d);
-    }).length;
-    if (cnt > 6) {
-      busyDaysRows += '<tr><td>' + d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}) +
-                      '</td><td class="num">' + cnt + '</td></tr>';
+    var locArray = [];
+    for (var k in locMap) {
+      if (locMap.hasOwnProperty(k)) locArray.push({loc: k, count: locMap[k]});
     }
-  }
+    locArray.sort(function(a, b) { return b.count - a.count; });
 
-  // CORRECTED: Location analytics - This Week
-  var weekLocMap = {};
-  weekCheckedIn.forEach(function(r) {
-    var loc = r.loc || 'Unknown';
-    weekLocMap[loc] = (weekLocMap[loc] || 0) + 1;
-  });
-  var weekLocArray = [];
-  for (var k in weekLocMap) {
-    if (weekLocMap.hasOwnProperty(k)) weekLocArray.push({loc: k, count: weekLocMap[k]});
-  }
-  weekLocArray.sort(function(a, b) { return b.count - a.count; });
-
-  // CORRECTED: Location analytics - This Month (from first day of month forward)
-  var monthLocMap = {};
-  data.filter(function(r) {
-    var tsDate = r.ts ? pd(r.ts) : null;
-    return tsDate && tsDate >= monthStart;
-  }).forEach(function(r) {
-    var loc = r.loc || 'Unknown';
-    monthLocMap[loc] = (monthLocMap[loc] || 0) + 1;
-  });
-  var monthLocArray = [];
-  for (var k in monthLocMap) {
-    if (monthLocMap.hasOwnProperty(k)) monthLocArray.push({loc: k, count: monthLocMap[k]});
-  }
-  monthLocArray.sort(function(a, b) { return b.count - a.count; });
-
-  var locTableRows = '';
-  var maxLocs = Math.max(weekLocArray.length, monthLocArray.length);
-  for (var i = 0; i < maxLocs; i++) {
-    var weekLoc = weekLocArray[i];
-    var monthLoc = monthLocArray[i];
-    locTableRows += '<tr><td>' + (weekLoc ? escapeHTML(weekLoc.loc) : '—') +
-                    '</td><td class="num">' + (weekLoc ? weekLoc.count : '—') +
-                    '</td><td>' + (monthLoc ? escapeHTML(monthLoc.loc) : '—') +
-                    '</td><td class="num">' + (monthLoc ? monthLoc.count : '—') + '</td></tr>';
-  }
-
-  // Return date report (only if filtered)
-  var returnDateSection = '';
-  if (reportFilterDate) {
-    var filtered = data.filter(function(r) {
-      var retDate = r.ret ? pd(r.ret) : null;
-      return retDate && sd(retDate, reportFilterDate);
-    });
-    if (filtered.length > 0) {
-      var dateStr = reportFilterDate.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'});
-      var returnRows = '';
-      filtered.forEach(function(r) {
-        var vehicle = (r.color ? r.color + ' ' : '') + (r.car || '—');
-        returnRows += '<tr><td>' + escapeHTML(r.name) + '</td><td>' + escapeHTML(r.ticket) +
-                      '</td><td>' + escapeHTML(vehicle) + '</td><td>' + escapeHTML(r.loc||'—') +
-                      '</td><td>' + escapeHTML(r.status) + '</td></tr>';
+    html += '<div style="background:var(--s);border:1px solid var(--b);border-radius:10px;padding:14px;margin-bottom:16px;">' +
+      '<div style="font-size:12px;color:var(--mu);font-weight:700;margin-bottom:10px;text-transform:uppercase;letter-spacing:0.5px;">Location Analytics</div>';
+    if (locArray.length > 0) {
+      html += '<div style="font-size:12px;margin-bottom:8px;"><strong>Most Used:</strong> ' + escapeHTML(locArray[0].loc) + ' (' + locArray[0].count + ')</div>' +
+        '<table style="width:100%;font-size:12px;border-collapse:collapse;">' +
+        '<tr style="border-bottom:1px solid var(--b);"><th style="text-align:left;padding:6px 0;font-weight:600;color:var(--tx);">Location</th><th style="text-align:right;padding:6px 0;font-weight:600;color:var(--tx);">Count</th></tr>';
+      locArray.forEach(function(item) {
+        html += '<tr style="border-bottom:1px solid var(--b2);"><td style="padding:6px 0;color:var(--tx);">' + escapeHTML(item.loc) + '</td><td style="text-align:right;padding:6px 0;color:var(--tx);">' + item.count + '</td></tr>';
       });
-      returnDateSection = '<section><h2>Return Date Report</h2><p class="subtitle">' + dateStr + '</p>' +
-        '<table><tr><th>Name</th><th>Ticket</th><th>Vehicle</th><th>Location</th><th>Status</th></tr>' +
-        returnRows + '</table></section>';
+      html += '</table>';
+    } else {
+      html += '<div style="color:var(--mu);font-size:12px;">No data</div>';
+    }
+    html += '</div>';
+  }
+
+  // BUSY DAYS
+  if (rptSections.busyDays) {
+    var busyDays = [];
+    var d = new Date(rptStartDate);
+    while (d <= rptEndDate) {
+      var cnt = data.filter(function(r) {
+        var retDate = r.ret ? pd(r.ret) : null;
+        return retDate && sd(retDate, d);
+      }).length;
+      if (cnt > 6) busyDays.push({date: new Date(d), count: cnt});
+      d.setDate(d.getDate() + 1);
+    }
+    if (busyDays.length > 0) {
+      html += '<div style="background:var(--s);border:1px solid var(--b);border-radius:10px;padding:14px;margin-bottom:16px;">' +
+        '<div style="font-size:12px;color:var(--mu);font-weight:700;margin-bottom:10px;text-transform:uppercase;letter-spacing:0.5px;">⚠️ Busy Days</div>' +
+        '<table style="width:100%;font-size:12px;border-collapse:collapse;">' +
+        '<tr style="border-bottom:1px solid var(--b);"><th style="text-align:left;padding:6px 0;font-weight:600;color:var(--tx);">Date</th><th style="text-align:right;padding:6px 0;font-weight:600;color:var(--tx);">Returns</th></tr>';
+      busyDays.forEach(function(bd) {
+        html += '<tr style="border-bottom:1px solid var(--b2);"><td style="padding:6px 0;color:var(--tx);">' + bd.date.toLocaleDateString('en-US', {weekday:'short', month:'short', day:'numeric'}) + '</td><td style="text-align:right;padding:6px 0;color:var(--tx);">' + bd.count + '</td></tr>';
+      });
+      html += '</table></div>';
     }
   }
 
-  // Busy days section
-  var busyDaysSection = busyDaysRows ?
-    '<section><h2>Busy Days</h2><table><tr><th>Date</th><th>Cars Scheduled</th></tr>' + busyDaysRows + '</table></section>' : '';
+  // VEHICLE LIST
+  if (rptSections.vehicleList) {
+    var listMode = rptVehicleMode;
+    var listData = data.filter(function(r) {
+      if (listMode === 'ts') {
+        var tsDate = r.ts ? pd(r.ts) : null;
+        return tsDate && tsDate >= rptStartDate && tsDate <= rptEndDate;
+      } else if (listMode === 'deldate') {
+        var delDate = r.deldate ? pd(r.deldate) : null;
+        return delDate && delDate >= rptStartDate && delDate <= rptEndDate;
+      } else { // ret
+        var retDate = r.ret ? pd(r.ret) : null;
+        return retDate && retDate >= rptStartDate && retDate <= rptEndDate;
+      }
+    }).slice(0, 100);
+
+    var modeLabel = listMode === 'ts' ? 'Check-in Date' : (listMode === 'deldate' ? 'Delivery Date' : 'Return Date');
+    html += '<div style="background:var(--s);border:1px solid var(--b);border-radius:10px;padding:14px;margin-bottom:16px;">' +
+      '<div style="font-size:12px;color:var(--mu);font-weight:700;margin-bottom:10px;text-transform:uppercase;letter-spacing:0.5px;">Vehicle List (' + modeLabel + ')</div>';
+    if (listData.length > 0) {
+      html += '<table style="width:100%;font-size:12px;border-collapse:collapse;">' +
+        '<tr style="border-bottom:1px solid var(--b);"><th style="text-align:left;padding:6px 0;font-weight:600;color:var(--tx);">Name</th><th style="text-align:left;padding:6px 0;font-weight:600;color:var(--tx);">Vehicle</th><th style="text-align:left;padding:6px 0;font-weight:600;color:var(--tx);">Ticket</th><th style="text-align:left;padding:6px 0;font-weight:600;color:var(--tx);">Status</th></tr>';
+      listData.forEach(function(r) {
+        var vehicle = (r.color ? r.color + ' ' : '') + (r.car || '—');
+        html += '<tr style="border-bottom:1px solid var(--b2);"><td style="padding:6px 0;color:var(--tx);">' + escapeHTML(r.name) + '</td><td style="padding:6px 0;color:var(--tx);">' + escapeHTML(vehicle) + '</td><td style="padding:6px 0;color:var(--tx);">' + escapeHTML(r.ticket) + '</td><td style="padding:6px 0;color:var(--tx);">' + escapeHTML(r.status) + '</td></tr>';
+      });
+      html += '</table>';
+      if (data.filter(function(r) {
+        if (listMode === 'ts') {
+          var tsDate = r.ts ? pd(r.ts) : null;
+          return tsDate && tsDate >= rptStartDate && tsDate <= rptEndDate;
+        } else if (listMode === 'deldate') {
+          var delDate = r.deldate ? pd(r.deldate) : null;
+          return delDate && delDate >= rptStartDate && delDate <= rptEndDate;
+        } else {
+          var retDate = r.ret ? pd(r.ret) : null;
+          return retDate && retDate >= rptStartDate && retDate <= rptEndDate;
+        }
+      }).length > 100) {
+        html += '<div style="color:var(--mu);font-size:11px;margin-top:8px;">Showing first 100 records</div>';
+      }
+    } else {
+      html += '<div style="color:var(--mu);font-size:12px;">No data</div>';
+    }
+    html += '</div>';
+  }
+
+  previewArea.innerHTML = html;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// PDF/PRINT EXPORT
+// ══════════════════════════════════════════════════════════════════════════════
+function buildAndExportPDF() {
+  if (!rptStartDate || !rptEndDate) {
+    alert('Please select a date range.');
+    return;
+  }
+
+  var rangeData = data.filter(function(r) {
+    var tsDate = r.ts ? pd(r.ts) : null;
+    return tsDate && tsDate >= rptStartDate && tsDate <= rptEndDate;
+  });
+
+  var rangeStart = rptStartDate.toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'});
+  var rangeEnd = rptEndDate.toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'});
+  var rangeLabel = rangeStart === rangeEnd ? rangeStart : rangeStart + ' – ' + rangeEnd;
+  var generatedStr = new Date().toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}) + ' ' +
+                     new Date().toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit', hour12:true});
+
+  var sections = '';
+
+  // SUMMARY
+  if (rptSections.summary) {
+    var checkedIn = rangeData.filter(function(r) { return r.ts && pd(r.ts) >= rptStartDate && pd(r.ts) <= rptEndDate; }).length;
+    var delivered = rangeData.filter(function(r) { return r.deldate && pd(r.deldate) >= rptStartDate && pd(r.deldate) <= rptEndDate; }).length;
+    var netChange = checkedIn - delivered;
+    var dayCount = Math.ceil((rptEndDate - rptStartDate) / (1000 * 60 * 60 * 24)) + 1;
+    var avgCheckIn = (checkedIn / dayCount).toFixed(1);
+    var avgDelivered = (delivered / dayCount).toFixed(1);
+
+    sections += '<section><h2>Summary</h2><table>' +
+      '<tr><td>Checked In</td><td class="num">' + checkedIn + '</td></tr>' +
+      '<tr><td>Delivered</td><td class="num">' + delivered + '</td></tr>' +
+      '<tr><td>Net Change</td><td class="num">' + netChange + '</td></tr>' +
+      '<tr><td>Avg Check-ins / Day</td><td class="num">' + avgCheckIn + '</td></tr>' +
+      '<tr><td>Avg Deliveries / Day</td><td class="num">' + avgDelivered + '</td></tr>' +
+    '</table></section>';
+  }
+
+  // DAILY BREAKDOWN
+  if (rptSections.dailyBreakdown) {
+    var breakdownRows = '';
+    var d = new Date(rptStartDate);
+    while (d <= rptEndDate) {
+      var dayCheckIns = rangeData.filter(function(r) {
+        var tsDate = r.ts ? pd(r.ts) : null;
+        return tsDate && sd(tsDate, d);
+      }).length;
+      var dayDelivered = rangeData.filter(function(r) {
+        var delDate = r.deldate ? pd(r.deldate) : null;
+        return delDate && sd(delDate, d);
+      }).length;
+      breakdownRows += '<tr><td>' + d.toLocaleDateString('en-US', {weekday:'short', month:'short', day:'numeric'}) + '</td><td class="num">' + dayCheckIns + '</td><td class="num">' + dayDelivered + '</td></tr>';
+      d.setDate(d.getDate() + 1);
+    }
+    sections += '<section><h2>Daily Breakdown</h2><table><tr><th>Date</th><th>Check-ins</th><th>Delivered</th></tr>' + breakdownRows + '</table></section>';
+  }
+
+  // LOCATION ANALYTICS
+  if (rptSections.locationAnalytics) {
+    var locMap = {};
+    rangeData.forEach(function(r) {
+      var loc = r.loc || 'Unknown';
+      locMap[loc] = (locMap[loc] || 0) + 1;
+    });
+    var locArray = [];
+    for (var k in locMap) {
+      if (locMap.hasOwnProperty(k)) locArray.push({loc: k, count: locMap[k]});
+    }
+    locArray.sort(function(a, b) { return b.count - a.count; });
+
+    var locRows = '';
+    locArray.forEach(function(item) {
+      locRows += '<tr><td>' + escapeHTML(item.loc) + '</td><td class="num">' + item.count + '</td></tr>';
+    });
+    sections += '<section><h2>Location Analytics</h2><table><tr><th>Location</th><th>Count</th></tr>' + locRows + '</table></section>';
+  }
+
+  // BUSY DAYS
+  if (rptSections.busyDays) {
+    var busyDays = [];
+    var d = new Date(rptStartDate);
+    while (d <= rptEndDate) {
+      var cnt = data.filter(function(r) {
+        var retDate = r.ret ? pd(r.ret) : null;
+        return retDate && sd(retDate, d);
+      }).length;
+      if (cnt > 6) busyDays.push({date: new Date(d), count: cnt});
+      d.setDate(d.getDate() + 1);
+    }
+    if (busyDays.length > 0) {
+      var busyRows = '';
+      busyDays.forEach(function(bd) {
+        busyRows += '<tr><td>' + bd.date.toLocaleDateString('en-US', {weekday:'short', month:'short', day:'numeric'}) + '</td><td class="num">' + bd.count + '</td></tr>';
+      });
+      sections += '<section><h2>Busy Days</h2><table><tr><th>Date</th><th>Returns Scheduled</th></tr>' + busyRows + '</table></section>';
+    }
+  }
+
+  // VEHICLE LIST
+  if (rptSections.vehicleList) {
+    var listMode = rptVehicleMode;
+    var listData = data.filter(function(r) {
+      if (listMode === 'ts') {
+        var tsDate = r.ts ? pd(r.ts) : null;
+        return tsDate && tsDate >= rptStartDate && tsDate <= rptEndDate;
+      } else if (listMode === 'deldate') {
+        var delDate = r.deldate ? pd(r.deldate) : null;
+        return delDate && delDate >= rptStartDate && delDate <= rptEndDate;
+      } else {
+        var retDate = r.ret ? pd(r.ret) : null;
+        return retDate && retDate >= rptStartDate && retDate <= rptEndDate;
+      }
+    }).slice(0, 100);
+
+    if (listData.length > 0) {
+      var vehicleRows = '';
+      listData.forEach(function(r) {
+        var vehicle = (r.color ? r.color + ' ' : '') + (r.car || '—');
+        vehicleRows += '<tr><td>' + escapeHTML(r.name) + '</td><td>' + escapeHTML(vehicle) + '</td><td>' + escapeHTML(r.ticket) + '</td><td>' + escapeHTML(r.status) + '</td></tr>';
+      });
+      var modeLabel = listMode === 'ts' ? 'Check-in Date' : (listMode === 'deldate' ? 'Delivery Date' : 'Return Date');
+      var recordNote = data.filter(function(r) {
+        if (listMode === 'ts') {
+          var tsDate = r.ts ? pd(r.ts) : null;
+          return tsDate && tsDate >= rptStartDate && tsDate <= rptEndDate;
+        } else if (listMode === 'deldate') {
+          var delDate = r.deldate ? pd(r.deldate) : null;
+          return delDate && delDate >= rptStartDate && delDate <= rptEndDate;
+        } else {
+          var retDate = r.ret ? pd(r.ret) : null;
+          return retDate && retDate >= rptStartDate && retDate <= rptEndDate;
+        }
+      }).length > 100 ? '<p style="font-size:11px;color:#999;margin-top:12px;">Showing first 100 records</p>' : '';
+      sections += '<section><h2>Vehicle List (' + modeLabel + ')</h2><table><tr><th>Name</th><th>Vehicle</th><th>Ticket</th><th>Status</th></tr>' + vehicleRows + '</table>' + recordNote + '</section>';
+    }
+  }
 
   var css = 'body{font-family:Arial,sans-serif;margin:0;padding:40px;background:#fff;color:#000;line-height:1.4;}' +
     'h1{font-size:20px;font-weight:700;margin:0 0 4px 0;}' +
@@ -2166,24 +2276,8 @@ function exportPDF() {
   var html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
     '<title>Valet Operations Report</title><style>' + css + '</style></head><body>' +
     '<h1>Valet Operations Report</h1>' +
-    '<div class="header-info">Week: ' + weekRangeStr + '<br>Generated: ' + generatedStr + '</div>' +
-    '<section><h2>Summary</h2><table>' +
-      '<tr><td>Checked In</td><td class="num">' + checkedIn + '</td></tr>' +
-      '<tr><td>Delivered</td><td class="num">' + delivered + '</td></tr>' +
-      '<tr><td>Net Change</td><td class="num">' + netChange + '</td></tr>' +
-      '<tr><td>Avg Check-ins / Day</td><td class="num">' + avgCheckIn + '</td></tr>' +
-      '<tr><td>Avg Deliveries / Day</td><td class="num">' + avgDelivered + '</td></tr>' +
-    '</table></section>' +
-    '<section><h2>Weekly Breakdown</h2><table>' +
-      '<tr><th>Day</th><th>Check-ins</th><th>Delivered</th></tr>' +
-      weeklyBreakdown +
-    '</table></section>' +
-    returnDateSection +
-    busyDaysSection +
-    '<section><h2>Location Analytics</h2><table>' +
-      '<tr><th>This Week</th><th>Count</th><th>This Month</th><th>Count</th></tr>' +
-      locTableRows +
-    '</table></section>' +
+    '<div class="header-info">Range: ' + rangeLabel + '<br>Generated: ' + generatedStr + '</div>' +
+    sections +
     '</body></html>';
 
   var win = window.open('', 'valet_report', 'width:900,height:1200');
@@ -2192,9 +2286,12 @@ function exportPDF() {
   setTimeout(function() { win.print(); }, 300);
 }
 
-// Call reportGenerate when tab is shown
-function onTabChange(tab) {
-  if (tab === 'report') reportGenerate();
+function printReport() {
+  buildAndExportPDF();
+}
+
+function exportPDF() {
+  buildAndExportPDF();
 }
 
 </script>
