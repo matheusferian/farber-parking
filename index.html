@@ -2029,70 +2029,104 @@ function exportPDF() {
 
   var weekRangeStr = monday.toLocaleDateString('en-US',{month:'short',day:'numeric'}) + ' – ' +
                      sunday.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+  var generatedStr = today.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) + ' ' +
+                     today.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true});
 
-  var weekData = data.filter(function(r) {
-    var retDate = r.ret ? pd(r.ret) : null;
-    var delDate = r.deldate ? pd(r.deldate) : null;
-    if (retDate && retDate >= monday) return true;
-    if (delDate && delDate >= monday) return true;
-    return false;
+  // Calculate month start (first day of current month)
+  var monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+
+  // CORRECTED: Check-in data based on `ts` field (check-in/creation timestamp)
+  var weekCheckedIn = data.filter(function(r) {
+    var tsDate = r.ts ? pd(r.ts) : null;
+    return tsDate && tsDate >= monday && tsDate <= sunday;
   });
+  var checkedIn = weekCheckedIn.length;
 
-  var checkedIn = weekData.filter(function(r) { return r.status === 'PENDING'; }).length;
-  var delivered = weekData.filter(function(r) { return r.status === 'DELIVERED'; }).length;
+  // Delivered data based on `deldate` field within the week
+  var weekDelivered = data.filter(function(r) {
+    var delDate = r.deldate ? pd(r.deldate) : null;
+    return delDate && delDate >= monday && delDate <= sunday;
+  });
+  var delivered = weekDelivered.length;
+
   var netChange = checkedIn - delivered;
   var avgCheckIn = (checkedIn / 7).toFixed(1);
   var avgDelivered = (delivered / 7).toFixed(1);
 
-  // Build daily breakdown
+  // CORRECTED: Weekly breakdown - proper separation
   var dayNames = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
-  var dayBreakdownRows = '';
+  var weeklyBreakdown = '';
   for (var i = 0; i < 7; i++) {
     var d = new Date(monday);
     d.setDate(d.getDate() + i);
-    var count = weekData.filter(function(r) {
-      var retDate = r.ret ? pd(r.ret) : null;
-      return retDate && sd(retDate, d);
+    // Check-ins: based on ts
+    var checkInCount = data.filter(function(r) {
+      var tsDate = r.ts ? pd(r.ts) : null;
+      return tsDate && sd(tsDate, d);
     }).length;
-    dayBreakdownRows += '<tr><td>' + dayNames[i] + '</td><td style="text-align:center;font-weight:700;">' + count + '</td></tr>';
+    // Delivered: based on deldate
+    var deliveredCount = data.filter(function(r) {
+      var delDate = r.deldate ? pd(r.deldate) : null;
+      return delDate && sd(delDate, d);
+    }).length;
+    weeklyBreakdown += '<tr><td>' + dayNames[i] + '</td><td class="num">' + checkInCount + '</td><td class="num">' + deliveredCount + '</td></tr>';
   }
 
-  // Build busy days
-  var busyDaysHtml = '';
+  // Busy days (based on ret - scheduled returns)
+  var busyDaysRows = '';
   for (var i = 0; i < 7; i++) {
     var d = new Date(monday);
     d.setDate(d.getDate() + i);
-    var cnt = weekData.filter(function(r) {
+    var cnt = data.filter(function(r) {
       var retDate = r.ret ? pd(r.ret) : null;
       return retDate && sd(retDate, d);
     }).length;
     if (cnt > 6) {
-      busyDaysHtml += '<tr><td>' + d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}) +
-                      '</td><td style="text-align:center;font-weight:700;">' + cnt + ' cars</td></tr>';
+      busyDaysRows += '<tr><td>' + d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}) +
+                      '</td><td class="num">' + cnt + '</td></tr>';
     }
   }
-  var busyDaysSection = busyDaysHtml ?
-    '<h3 style="margin-top:24px;margin-bottom:12px;font-size:14px;font-weight:700;color:#000;">⚠️ Busy Days</h3>' +
-    '<table style="width:100%;border-collapse:collapse;"><tbody>' + busyDaysHtml + '</tbody></table>' : '';
 
-  // Build location analytics
-  var locMap = {};
-  weekData.forEach(function(r) {
+  // CORRECTED: Location analytics - This Week
+  var weekLocMap = {};
+  weekCheckedIn.forEach(function(r) {
     var loc = r.loc || 'Unknown';
-    locMap[loc] = (locMap[loc] || 0) + 1;
+    weekLocMap[loc] = (weekLocMap[loc] || 0) + 1;
   });
-  var locArray = [];
-  for (var k in locMap) {
-    if (locMap.hasOwnProperty(k)) locArray.push({loc: k, count: locMap[k]});
+  var weekLocArray = [];
+  for (var k in weekLocMap) {
+    if (weekLocMap.hasOwnProperty(k)) weekLocArray.push({loc: k, count: weekLocMap[k]});
   }
-  locArray.sort(function(a, b) { return b.count - a.count; });
-  var locRows = '';
-  locArray.forEach(function(item) {
-    locRows += '<tr><td>' + escapeHTML(item.loc) + '</td><td style="text-align:center;font-weight:700;">' + item.count + '</td></tr>';
-  });
+  weekLocArray.sort(function(a, b) { return b.count - a.count; });
 
-  // Build return date report if filtered
-  var returnDateReportSection = '';
+  // CORRECTED: Location analytics - This Month (from first day of month forward)
+  var monthLocMap = {};
+  data.filter(function(r) {
+    var tsDate = r.ts ? pd(r.ts) : null;
+    return tsDate && tsDate >= monthStart;
+  }).forEach(function(r) {
+    var loc = r.loc || 'Unknown';
+    monthLocMap[loc] = (monthLocMap[loc] || 0) + 1;
+  });
+  var monthLocArray = [];
+  for (var k in monthLocMap) {
+    if (monthLocMap.hasOwnProperty(k)) monthLocArray.push({loc: k, count: monthLocMap[k]});
+  }
+  monthLocArray.sort(function(a, b) { return b.count - a.count; });
+
+  var locTableRows = '';
+  var maxLocs = Math.max(weekLocArray.length, monthLocArray.length);
+  for (var i = 0; i < maxLocs; i++) {
+    var weekLoc = weekLocArray[i];
+    var monthLoc = monthLocArray[i];
+    locTableRows += '<tr><td>' + (weekLoc ? escapeHTML(weekLoc.loc) : '—') +
+                    '</td><td class="num">' + (weekLoc ? weekLoc.count : '—') +
+                    '</td><td>' + (monthLoc ? escapeHTML(monthLoc.loc) : '—') +
+                    '</td><td class="num">' + (monthLoc ? monthLoc.count : '—') + '</td></tr>';
+  }
+
+  // Return date report (only if filtered)
+  var returnDateSection = '';
   if (reportFilterDate) {
     var filtered = data.filter(function(r) {
       var retDate = r.ret ? pd(r.ret) : null;
@@ -2102,42 +2136,60 @@ function exportPDF() {
       var dateStr = reportFilterDate.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'});
       var returnRows = '';
       filtered.forEach(function(r) {
+        var vehicle = (r.color ? r.color + ' ' : '') + (r.car || '—');
         returnRows += '<tr><td>' + escapeHTML(r.name) + '</td><td>' + escapeHTML(r.ticket) +
-                      '</td><td>' + escapeHTML(r.loc||'-') + '</td><td style="text-align:center;">' + escapeHTML(r.status) + '</td></tr>';
+                      '</td><td>' + escapeHTML(vehicle) + '</td><td>' + escapeHTML(r.loc||'—') +
+                      '</td><td>' + escapeHTML(r.status) + '</td></tr>';
       });
-      returnDateReportSection =
-        '<h3 style="margin-top:24px;margin-bottom:12px;font-size:14px;font-weight:700;color:#000;">Return Date Report – ' + dateStr + '</h3>' +
-        '<table style="width:100%;border-collapse:collapse;"><thead><tr style="background:#f0f0f0;"><th style="text-align:left;padding:8px;border-bottom:1px solid #999;">Name</th>' +
-        '<th style="text-align:left;padding:8px;border-bottom:1px solid #999;">Ticket</th><th style="text-align:left;padding:8px;border-bottom:1px solid #999;">Location</th>' +
-        '<th style="text-align:center;padding:8px;border-bottom:1px solid #999;">Status</th></tr></thead><tbody>' + returnRows + '</tbody></table>';
+      returnDateSection = '<section><h2>Return Date Report</h2><p class="subtitle">' + dateStr + '</p>' +
+        '<table><tr><th>Name</th><th>Ticket</th><th>Vehicle</th><th>Location</th><th>Status</th></tr>' +
+        returnRows + '</table></section>';
     }
   }
 
-  var html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width"><title>Valet Operations Report</title>' +
-    '<style>body{font-family:Arial,sans-serif;margin:0;padding:20px;background:#fff;color:#000;}h1{font-size:24px;font-weight:700;margin:0 0 8px 0;}' +
-    '.week-range{font-size:12px;color:#666;margin-bottom:20px;}.summary{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:24px;}' +
-    '.card{background:#f9f9f9;border:1px solid #ddd;padding:16px;text-align:center;}.card-num{font-size:32px;font-weight:700;}.card-lbl{font-size:11px;color:#666;margin-top:8px;}' +
-    'h3{margin:24px 0 12px 0;font-size:14px;font-weight:700;}table{width:100%;border-collapse:collapse;margin-bottom:20px;}' +
-    'th{background:#f0f0f0;padding:8px;text-align:left;border-bottom:2px solid #999;font-weight:700;font-size:12px;}' +
-    'td{padding:8px;border-bottom:1px solid #ddd;font-size:12px;}tr:last-child td{border-bottom:none;}' +
-    '@media print{body{margin:0;padding:16px;}h1{page-break-after:avoid;}.summary{page-break-inside:avoid;}table{page-break-inside:avoid;}}</style>' +
-    '</head><body><h1>Valet Operations Report</h1><div class="week-range">Week of ' + weekRangeStr + '</div>' +
-    '<div class="summary">' +
-      '<div class="card"><div class="card-num">' + checkedIn + '</div><div class="card-lbl">Checked In</div></div>' +
-      '<div class="card"><div class="card-num">' + delivered + '</div><div class="card-lbl">Delivered</div></div>' +
-      '<div class="card"><div class="card-num">' + netChange + '</div><div class="card-lbl">Net Change</div></div>' +
-    '</div>' +
-    '<h3>Daily Averages</h3><table><tr><td>Avg Check-In:</td><td style="text-align:right;font-weight:700;">' + avgCheckIn + ' per day</td></tr>' +
-    '<tr><td>Avg Delivered:</td><td style="text-align:right;font-weight:700;">' + avgDelivered + ' per day</td></tr></table>' +
-    '<h3>Daily Breakdown</h3><table><thead><tr style="background:#f0f0f0;"><th>Day</th><th style="text-align:center;">Count</th></tr></thead><tbody>' + dayBreakdownRows + '</tbody></table>' +
-    busyDaysSection + returnDateReportSection +
-    '<h3>Location Analytics</h3><table><thead><tr style="background:#f0f0f0;"><th>Location</th><th style="text-align:center;">Count</th></tr></thead><tbody>' + locRows + '</tbody></table>' +
+  // Busy days section
+  var busyDaysSection = busyDaysRows ?
+    '<section><h2>Busy Days</h2><table><tr><th>Date</th><th>Cars Scheduled</th></tr>' + busyDaysRows + '</table></section>' : '';
+
+  var css = 'body{font-family:Arial,sans-serif;margin:0;padding:40px;background:#fff;color:#000;line-height:1.4;}' +
+    'h1{font-size:20px;font-weight:700;margin:0 0 4px 0;}' +
+    '.subtitle{font-size:12px;color:#666;margin:0 0 16px 0;}' +
+    '.header-info{font-size:12px;color:#666;margin-bottom:24px;}' +
+    'h2{font-size:13px;font-weight:700;margin:20px 0 12px 0;text-transform:uppercase;letter-spacing:0.5px;}' +
+    'section{margin-bottom:20px;page-break-inside:avoid;}' +
+    'table{width:100%;border-collapse:collapse;margin-bottom:16px;font-size:12px;}' +
+    'th{background:#f5f5f5;border:1px solid #ddd;padding:8px 12px;text-align:left;font-weight:700;}' +
+    'td{border:1px solid #ddd;padding:8px 12px;}' +
+    'td.num{text-align:right;}' +
+    '@media print{body{padding:20px;}h1{font-size:18px;}h2{margin:16px 0 8px 0;}table{font-size:11px;}th,td{padding:6px 8px;}}';
+
+  var html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
+    '<title>Valet Operations Report</title><style>' + css + '</style></head><body>' +
+    '<h1>Valet Operations Report</h1>' +
+    '<div class="header-info">Week: ' + weekRangeStr + '<br>Generated: ' + generatedStr + '</div>' +
+    '<section><h2>Summary</h2><table>' +
+      '<tr><td>Checked In</td><td class="num">' + checkedIn + '</td></tr>' +
+      '<tr><td>Delivered</td><td class="num">' + delivered + '</td></tr>' +
+      '<tr><td>Net Change</td><td class="num">' + netChange + '</td></tr>' +
+      '<tr><td>Avg Check-ins / Day</td><td class="num">' + avgCheckIn + '</td></tr>' +
+      '<tr><td>Avg Deliveries / Day</td><td class="num">' + avgDelivered + '</td></tr>' +
+    '</table></section>' +
+    '<section><h2>Weekly Breakdown</h2><table>' +
+      '<tr><th>Day</th><th>Check-ins</th><th>Delivered</th></tr>' +
+      weeklyBreakdown +
+    '</table></section>' +
+    returnDateSection +
+    busyDaysSection +
+    '<section><h2>Location Analytics</h2><table>' +
+      '<tr><th>This Week</th><th>Count</th><th>This Month</th><th>Count</th></tr>' +
+      locTableRows +
+    '</table></section>' +
     '</body></html>';
 
-  var win = window.open('', 'print', 'width=900,height=800');
+  var win = window.open('', 'valet_report', 'width:900,height:1200');
   win.document.write(html);
   win.document.close();
-  setTimeout(function() { win.print(); }, 250);
+  setTimeout(function() { win.print(); }, 300);
 }
 
 // Call reportGenerate when tab is shown
