@@ -602,10 +602,14 @@ function renderDay() {
   } else {
     document.getElementById('forgotSection').style.display='none';
   }
+  var _now=new Date(),_today=new Date(_now.getFullYear(),_now.getMonth(),_now.getDate());
+  var _dow=_today.getDay(),_diff=_dow===0?-6:1-_dow;
+  var weekStart=new Date(_today); weekStart.setDate(_today.getDate()+_diff);
   var busyMap={};
   data.forEach(function(r){
     if(r.status==='DELIVERED'||r.status==='NO DATE') return;
     var d=pd(r.ret); if(!d) return;
+    if(d<weekStart) return;
     var key=(d.getMonth()+1)+'/'+d.getDate()+'/'+d.getFullYear();
     if(!busyMap[key]) busyMap[key]={date:d,count:0};
     busyMap[key].count++;
@@ -621,7 +625,7 @@ function renderDay() {
       var dayName=d.toLocaleDateString('en-US',{weekday:'long'});
       var mo=d.getMonth()+1,dy=d.getDate(),yr=d.getFullYear();
       var label=dayName+' '+(mo<10?'0'+mo:mo)+'/'+(dy<10?'0'+dy:dy)+'/'+yr;
-      return '<div class="busy-item"><div class="busy-day">⚠️ '+label+'</div><div class="busy-sub">'+cnt+' cars scheduled to return — prepare extra space and staff</div></div>';
+      return '<div class="busy-item"><div class="busy-day">⚠️ '+label+'</div><div class="busy-sub">'+cnt+' cars scheduled to return</div></div>';
     }).join('');
   } else {
     busySec.style.display='none';
