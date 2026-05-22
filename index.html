@@ -125,6 +125,11 @@
     <div class="dsub" id="subSunday">Return Date = next Sunday</div>
     <div class="dcards" id="dSunday"></div>
   </div>
+  <div class="dsec" id="busySection" style="display:none">
+    <div class="dtitle" style="color:var(--red)">⚠️ Busy Days</div>
+    <div class="dsub">Return dates with more than 6 cars scheduled</div>
+    <div class="busy-wrap" id="dBusy"></div>
+  </div>
   <div class="dsec" id="forgotSection" style="display:none">
     <div class="dtitle" style="color:var(--red)" id="titleForgot">&#9888; Forgot Yesterday <span class="tbadge" style="background:var(--red);color:#fff">0</span></div>
     <div class="dsub">Return date was yesterday — did you forget to deliver?</div>
@@ -573,12 +578,12 @@ function renderDay() {
   document.getElementById('dArrived').innerHTML=mkCards(arrived,'ca','');
   document.getElementById('dToday').innerHTML=mkCards(lt,'ct','');
   document.getElementById('dTomorrow').innerHTML=mkCards(lm,'cm','');
+  var sunCount=ls.length;
   document.getElementById('dSunday').innerHTML=mkCards(ls,'cm','');
   document.getElementById('titleArrived').innerHTML='🚗 Arrived Today <span class="tbadge" style="background:var(--ok);color:#000">'+arrived.length+'</span>';
   document.getElementById('titleToday').innerHTML='🔔 Leaving Today <span class="tbadge" style="background:var(--acc);color:#000">'+lt.length+'</span>';
   document.getElementById('titleTomorrow').innerHTML='📆 Leaving Tomorrow <span class="tbadge" style="background:var(--pur);color:#fff">'+lm.length+'</span>';
   var sunLabel=sun.toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'});
-  var sunCount=ls.length;
   document.getElementById('titleSunday').innerHTML='📅 Returning Sunday — '+sunLabel+' <span class="tbadge" style="background:#e86030;color:#fff">'+sunCount+'</span>';
   // Show/hide sunday section based on count
   var sunSection=document.getElementById('dSunday');
@@ -596,6 +601,31 @@ function renderDay() {
     document.getElementById('titleForgot').innerHTML='⚠️ Forgot Yesterday <span class="tbadge" style="background:var(--red);color:#fff">'+forgot.length+'</span>';
   } else {
     document.getElementById('forgotSection').style.display='none';
+  }
+  var busyMap={};
+  data.forEach(function(r){
+    if(r.status==='DELIVERED'||r.status==='NO DATE') return;
+    var d=pd(r.ret); if(!d) return;
+    var key=(d.getMonth()+1)+'/'+d.getDate()+'/'+d.getFullYear();
+    if(!busyMap[key]) busyMap[key]={date:d,count:0};
+    busyMap[key].count++;
+  });
+  var busyDays=Object.keys(busyMap).filter(function(k){return busyMap[k].count>6;});
+  busyDays.sort(function(a,b){return busyMap[a].date-busyMap[b].date;});
+  var busySec=document.getElementById('busySection');
+  var dBusy=document.getElementById('dBusy');
+  if(busyDays.length){
+    busySec.style.display='block';
+    dBusy.innerHTML=busyDays.map(function(k){
+      var d=busyMap[k].date,cnt=busyMap[k].count;
+      var dayName=d.toLocaleDateString('en-US',{weekday:'long'});
+      var mo=d.getMonth()+1,dy=d.getDate(),yr=d.getFullYear();
+      var label=dayName+' '+(mo<10?'0'+mo:mo)+'/'+(dy<10?'0'+dy:dy)+'/'+yr;
+      return '<div class="busy-item"><div class="busy-day">⚠️ '+label+'</div><div class="busy-sub">'+cnt+' cars scheduled to return — prepare extra space and staff</div></div>';
+    }).join('');
+  } else {
+    busySec.style.display='none';
+    dBusy.innerHTML='';
   }
 }
 
