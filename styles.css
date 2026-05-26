@@ -18,6 +18,7 @@
   --acc2:#1B3B6F;
 }
 *{box-sizing:border-box;margin:0;padding:0;}
+html,body{max-width:100%;overflow-x:hidden;}
 body{background:var(--bg);color:var(--tx);font-family:'DM Sans',sans-serif;min-height:100vh;}
 
 /* ── LOADING BAR ── */
@@ -29,32 +30,35 @@ body{background:var(--bg);color:var(--tx);font-family:'DM Sans',sans-serif;min-h
 header{
   background:linear-gradient(90deg,#416DA9 0%,#5F89C4 100%);
   border-bottom:1px solid rgba(255,255,255,.28);
-  padding:0 28px;
-  min-height:82px;
+  padding:14px 24px;
+  min-height:72px;
   display:flex;align-items:center;justify-content:space-between;
+  gap:18px;
   position:sticky;top:0;z-index:100;
   box-shadow:0 6px 18px rgba(32,50,77,.12);
+  overflow:hidden;
 }
 header img{display:none!important;}
-.brand-wrap{display:flex;align-items:center;gap:24px;min-width:0;}
+.brand-wrap{display:flex;align-items:center;gap:18px;min-width:0;flex:1;overflow:hidden;}
 .brand-name{
-  font-family:'Syne',sans-serif;font-size:28px;font-weight:800;
-  color:#fff;letter-spacing:.8px;line-height:1;white-space:nowrap;
+  font-family:'Syne',sans-serif;font-size:22px;font-weight:800;
+  color:#fff;letter-spacing:.5px;line-height:1;white-space:nowrap;flex-shrink:0;
 }
-.brand-divider{width:1px;height:42px;background:rgba(255,255,255,.55);}
+.brand-divider{width:1px;height:34px;background:rgba(255,255,255,.45);flex-shrink:0;}
 .brand-system{
-  font-family:'Syne',sans-serif;font-size:20px;font-weight:800;
-  color:rgba(255,255,255,.85);line-height:1;white-space:nowrap;
+  font-family:'Syne',sans-serif;font-size:22px;font-weight:800;
+  color:#fff;line-height:1;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis;min-width:0;
 }
-.hdr-r{display:flex;align-items:center;gap:14px;}
+.hdr-r{display:flex;align-items:center;gap:10px;flex-shrink:0;}
 .hdr-date{
-  font-family:'DM Sans',sans-serif;font-size:15px;font-weight:600;
-  color:rgba(255,255,255,.9);margin-right:10px;
+  font-family:'DM Sans',sans-serif;font-size:13px;font-weight:700;
+  color:rgba(255,255,255,.9);white-space:nowrap;margin-right:4px;
 }
 .ref-btn{
   background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.48);
-  border-radius:10px;padding:10px 18px;color:#fff;font-size:14px;
-  font-weight:700;cursor:pointer;transition:all .18s ease;
+  border-radius:10px;padding:8px 14px;color:#fff;font-size:13px;
+  font-weight:800;cursor:pointer;transition:all .18s ease;white-space:nowrap;
 }
 .ref-btn:hover{background:rgba(255,255,255,.18);transform:translateY(-1px);}
 
@@ -399,18 +403,28 @@ body{-webkit-text-size-adjust:100%;}
 .tw table{min-width:650px;}
 .tw td,.tw th{padding:12px 10px;}
 
-@media(max-width:900px){
-  header{padding:14px 18px;min-height:auto;flex-direction:column;align-items:flex-start;gap:12px;}
-  .brand-wrap{gap:14px;}
-  .brand-name{font-size:22px;}
-  .brand-system{font-size:18px;}
-  .hdr-r{width:100%;justify-content:space-between;flex-wrap:wrap;}
+/* ── iPad / tablet ── */
+@media(max-width:1100px){
+  header{flex-wrap:wrap;align-items:flex-start;padding:12px 20px;gap:10px;overflow:visible;}
+  .brand-wrap{width:100%;flex-basis:100%;}
+  .brand-name{font-size:20px;}
+  .brand-system{font-size:20px;}
+  .brand-divider{height:30px;}
+  .hdr-r{width:100%;justify-content:flex-end;}
+  .hdr-date{font-size:12px;}
+  .ref-btn{padding:7px 12px;font-size:12px;}
   .tabs{padding:0 16px;gap:14px;}
   .tab{font-size:14px;padding:18px 6px 16px;}
 }
+/* ── iPhone / small phones ── */
 @media(max-width:600px){
-  header{padding:12px 14px;}
+  header{padding:12px 14px;min-height:auto;gap:10px;}
+  .brand-wrap{width:100%;flex-basis:100%;gap:0;}
+  .brand-name{font-size:18px;letter-spacing:.3px;max-width:100%;overflow:hidden;text-overflow:ellipsis;}
+  .brand-divider,.brand-system{display:none;}
+  .hdr-r{width:100%;justify-content:space-between;gap:8px;}
   .hdr-date{display:none;}
+  .ref-btn{flex:1;text-align:center;padding:8px 10px;font-size:12px;border-radius:9px;}
   .modal{border-radius:16px 16px 0 0;padding:20px 14px 40px;max-height:92vh;overflow-y:auto;}
   .fr{grid-template-columns:1fr;}
   .fr.two{grid-template-columns:1fr 1fr;}
@@ -433,4 +447,9 @@ body{-webkit-text-size-adjust:100%;}
   .stats .chip{min-width:88px;}
   .bulk{overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:nowrap;}
   .dname{font-size:20px;}
+}
+/* ── very small phones ── */
+@media(max-width:390px){
+  .brand-name{font-size:16px;}
+  .ref-btn{font-size:11px;padding:7px 8px;}
 }
