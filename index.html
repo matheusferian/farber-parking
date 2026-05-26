@@ -49,7 +49,7 @@
   <div class="tab" data-t="day">&#128197; Dashboard <span class="tbadge red" id="bday">!</span></div>
   <div class="tab" data-t="tasks">&#9989; Tasks <span class="tbadge red" id="btasks">0</span></div>
   <div class="tab" data-t="flight">&#9992; Flight List</div>
-  <div class="tab" data-t="report">📊 Report</div>
+  <div class="tab" data-t="report">&#128438; Report</div>
   <div class="tab" data-t="debug" style="color:#e86030">&#128295; Debug</div>
   <div class="tab" data-t="logs">&#128203; Logs</div>
 </div>
@@ -125,11 +125,6 @@
     <div class="dsub" id="subSunday">Return Date = next Sunday</div>
     <div class="dcards" id="dSunday"></div>
   </div>
-  <div class="dsec" id="busySection" style="display:none">
-    <div class="dtitle" style="color:var(--red)">⚠️ Busy Days</div>
-    <div class="dsub">Return dates with more than 6 cars scheduled</div>
-    <div class="busy-wrap" id="dBusy"></div>
-  </div>
   <div class="dsec" id="forgotSection" style="display:none">
     <div class="dtitle" style="color:var(--red)" id="titleForgot">&#9888; Forgot Yesterday <span class="tbadge" style="background:var(--red);color:#fff">0</span></div>
     <div class="dsub">Return date was yesterday — did you forget to deliver?</div>
@@ -196,64 +191,35 @@
 <!-- REPORT PANE -->
 <div class="pane" id="pane-report">
   <div class="flight-sec">
-    <h1 style="margin:0 0 16px 0;font-size:24px;font-weight:800;color:var(--tx);">Report Builder</h1>
 
-    <!-- CONTROLS PANEL -->
-    <div style="background:var(--s);border:1px solid var(--b);border-radius:12px;padding:16px;margin-bottom:20px;">
-      <!-- Date Range -->
-      <div style="margin-bottom:16px;">
-        <div style="font-size:11px;color:var(--mu);font-weight:700;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;">Date Range</div>
-        <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
-          <input type="date" id="rptStartInput" onchange="onRptDateInputChange()" style="background:var(--s2);border:1px solid var(--b);border-radius:6px;padding:8px 10px;color:var(--tx);font-size:13px;outline:none;">
-          <input type="date" id="rptEndInput" onchange="onRptDateInputChange()" style="background:var(--s2);border:1px solid var(--b);border-radius:6px;padding:8px 10px;color:var(--tx);font-size:13px;outline:none;">
-        </div>
-        <div style="display:flex;gap:6px;flex-wrap:wrap;font-size:12px;">
-          <button onclick="setRptRange('today')" style="background:var(--s2);border:1px solid var(--b);border-radius:6px;padding:6px 10px;cursor:pointer;color:var(--tx);">Today</button>
-          <button onclick="setRptRange('tomorrow-returns')" style="background:var(--s2);border:1px solid var(--b);border-radius:6px;padding:6px 10px;cursor:pointer;color:var(--tx);">Tomorrow Returns</button>
-          <button onclick="setRptRange('this-week')" style="background:var(--s2);border:1px solid var(--b);border-radius:6px;padding:6px 10px;cursor:pointer;color:var(--tx);">This Week</button>
-          <button onclick="setRptRange('last-week')" style="background:var(--s2);border:1px solid var(--b);border-radius:6px;padding:6px 10px;cursor:pointer;color:var(--tx);">Last Week</button>
-          <button onclick="setRptRange('this-month')" style="background:var(--s2);border:1px solid var(--b);border-radius:6px;padding:6px 10px;cursor:pointer;color:var(--tx);">This Month</button>
-          <button onclick="setRptRange('last-month')" style="background:var(--s2);border:1px solid var(--b);border-radius:6px;padding:6px 10px;cursor:pointer;color:var(--tx);">Last Month</button>
-          <button onclick="setRptRange('clear')" style="background:var(--s2);border:1px solid var(--b);border-radius:6px;padding:6px 10px;cursor:pointer;color:var(--mu);">Clear</button>
-        </div>
-      </div>
+    <!-- Stats bar -->
+    <div id="reportStatsBar" style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;"></div>
 
-      <!-- Section Selector -->
-      <div style="margin-bottom:16px;">
-        <div style="font-size:11px;color:var(--mu);font-weight:700;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;">Report Sections</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px;">
-          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" id="rptChk-summary" checked onchange="onRptSectionToggle('summary')"> Summary</label>
-          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" id="rptChk-dailyBreakdown" checked onchange="onRptSectionToggle('dailyBreakdown')"> Daily Breakdown</label>
-          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" id="rptChk-returnDateReport" onchange="onRptSectionToggle('returnDateReport')"> Return Date Report</label>
-          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" id="rptChk-busyDays" onchange="onRptSectionToggle('busyDays')"> Busy Days</label>
-          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" id="rptChk-locationAnalytics" onchange="onRptSectionToggle('locationAnalytics')"> Location Analytics</label>
-          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" id="rptChk-weeklyTotalCars" onchange="onRptSectionToggle('weeklyTotalCars')"> Weekly Total Cars</label>
-          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" id="rptChk-monthlyTotalCars" onchange="onRptSectionToggle('monthlyTotalCars')"> Monthly Total Cars</label>
-          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" id="rptChk-vehicleList" onchange="onRptSectionToggle('vehicleList')"> Vehicle List</label>
-        </div>
-      </div>
-
-      <!-- Vehicle List Mode -->
-      <div style="margin-bottom:16px;">
-        <div style="font-size:11px;color:var(--mu);font-weight:700;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;">Vehicle List Mode</div>
-        <select id="rptVehicleMode" onchange="onRptSectionToggle('vehicleList')" style="background:var(--s2);border:1px solid var(--b);border-radius:6px;padding:8px 10px;color:var(--tx);font-size:13px;outline:none;cursor:pointer;">
-          <option value="ret">Return Date</option>
-          <option value="ts">Check-in Date</option>
-          <option value="deldate">Delivery Date</option>
-        </select>
-      </div>
-
-      <!-- Action Buttons -->
-      <div style="display:flex;gap:8px;flex-wrap:wrap;">
-        <button onclick="updateRptPreview()" style="background:var(--navy);color:#fff;border:none;border-radius:6px;padding:8px 14px;cursor:pointer;font-size:13px;font-weight:600;">Generate Preview</button>
-        <button onclick="printReport()" style="background:var(--s2);border:1px solid var(--b);border-radius:6px;padding:8px 14px;cursor:pointer;font-size:13px;color:var(--tx);">🖨️ Print</button>
-        <button onclick="exportPDF()" style="background:linear-gradient(135deg,var(--navy),#2a5db0);color:#fff;border:none;border-radius:6px;padding:8px 14px;cursor:pointer;font-size:13px;font-weight:600;">📄 PDF</button>
-      </div>
+    <!-- Date + type pills -->
+    <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap;">
+      <input type="date" id="reportDate" style="background:var(--s);border:1px solid var(--b);border-radius:8px;padding:10px 12px;color:var(--tx);font-size:15px;outline:none;flex:1;min-width:140px;">
+      <input type="hidden" id="reportType" value="all_pending">
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px;" id="reportTypePills">
+      <button class="rpill on" data-v="all_pending" onclick="setRType(this)">All Pending</button>
+      <button class="rpill" data-v="arriving_tomorrow" onclick="setRType(this)">✈️ Tomorrow</button>
+      <button class="rpill" data-v="no_date" onclick="setRType(this)">📅 No Date</button>
+      <button class="rpill" data-v="today" onclick="setRType(this)">🔔 Today</button>
+      <button class="rpill" data-v="overdue" onclick="setRType(this)">⚠️ Overdue</button>
     </div>
 
-    <!-- PREVIEW AREA -->
-    <div id="rptPreviewArea" style="display:none;"></div>
+    <!-- Preview table -->
+    <div id="reportPreviewTable" style="background:var(--s);border:1px solid var(--b);border-radius:12px;overflow:hidden;margin-bottom:16px;">
+      <div style="padding:12px 16px;border-bottom:1px solid var(--b);font-size:11px;color:var(--mu);font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:0.5px;">Preview</div>
+      <div id="reportPreview" style="font-size:13px;color:var(--tx);line-height:2;padding:14px 16px;"></div>
+    </div>
 
+    <button onclick="generatePDF()" style="width:100%;background:linear-gradient(135deg,var(--navy),#2a5db0);color:#fff;border:1px solid var(--gold);border-radius:10px;padding:15px;font-family:'Syne',sans-serif;font-weight:800;font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:10px;">
+      🖨️ Print / Save PDF
+    </button>
+    <button onclick="generatePDF('share')" style="width:100%;background:var(--s2);color:var(--mu);border:1px solid var(--b);border-radius:10px;padding:12px;font-family:'Syne',sans-serif;font-size:13px;cursor:pointer;">
+      🔗 Open in New Tab
+    </button>
   </div>
 </div>
 
@@ -265,18 +231,17 @@
     <div class="fi" id="freqInfo"></div>
     <div class="fr two">
       <div class="fg"><label>Full Name <span style="color:var(--red)">*</span></label><div class="ac-wrap"><input type="text" id="fName" oninput="this.value=this.value.toUpperCase();chkFreq();acSearch(this.value);updateVcf()" autocomplete="off" placeholder="" style="text-transform:uppercase;width:100%"><div class="ac-drop" id="acDrop"></div></div></div>
-      <div class="fg"><label>Phone <span style="color:var(--red)">*</span></label><input type="text" id="fPhone" inputmode="numeric" pattern="[0-9]*" autocomplete="tel" oninput="fmtPhoneInput(this);chkFreq();updateVcf()" placeholder="" maxlength="14"></div>
+      <div class="fg"><label>Phone <span style="color:var(--red)">*</span></label><input type="text" id="fPhone" oninput="fmtPhoneInput(this);chkFreq();updateVcf()" placeholder="" maxlength="14"></div>
     </div>
     <div id="erWarn" class="er-warn" style="display:none;">⚠️ HEADS UP: This passenger had an Early Return before. Confirm the return date carefully.</div>
     <div class="fr two">
-      <div class="fg"><label>Ticket # <span style="color:var(--red)">*</span></label><input type="text" id="fTicket" inputmode="numeric" pattern="[0-9]*" autocomplete="off" oninput="this.value=this.value.replace(/[^0-9]/g,'')" placeholder=""></div>
+      <div class="fg"><label>Ticket # <span style="color:var(--red)">*</span></label><input type="text" id="fTicket" placeholder=""></div>
       <div class="fg"><label>Return Date <span style="color:var(--red)" id="retRequired">*</span></label>
         <input type="date" id="fReturn" style="width:100%;background:var(--s2);border:1px solid var(--b);border-radius:10px;padding:11px 14px;font-size:16px;color:var(--tx);outline:none;font-family:'Syne',sans-serif;box-sizing:border-box;">
       </div>
     </div>
-    <div class="fr two">
-      <div class="fg"><label>Vehicle Model <span style="color:var(--red)">*</span></label><input type="text" id="fCar" list="carModelList" autocomplete="off" oninput="this.value=this.value.toUpperCase()" placeholder="" style="text-transform:uppercase"></div>
-      <div class="fg"><label>Vehicle Color <span style="color:var(--mu);font-size:11px">(optional)</span></label><input type="text" id="fColor" list="carColorList" autocomplete="off" oninput="this.value=this.value.toUpperCase()" placeholder="" style="text-transform:uppercase"></div>
+    <div class="fr full">
+      <div class="fg"><label>Car Model / Color <span style="color:var(--red)">*</span></label><input type="text" id="fCar" oninput="this.value=this.value.toUpperCase()" placeholder="" style="text-transform:uppercase"></div>
     </div>
     <div class="fr full">
       <div class="fg">
@@ -441,24 +406,6 @@ function showMsg(txt,err) {
   setTimeout(function(){el.style.display='none';},4000);
 }
 
-var CAR_MODEL_DEFAULTS=['TOYOTA COROLLA','TOYOTA CAMRY','TOYOTA RAV4','TOYOTA HIGHLANDER','TOYOTA TACOMA','TOYOTA SIENNA','HONDA CIVIC','HONDA ACCORD','HONDA CR-V','HONDA PILOT','NISSAN ALTIMA','NISSAN ROGUE','NISSAN PATHFINDER','CHEVROLET TAHOE','CHEVROLET SUBURBAN','CHEVROLET SILVERADO','FORD F-150','FORD EXPLORER','FORD EXPEDITION','GMC YUKON','GMC SIERRA','JEEP GRAND CHEROKEE','JEEP WRANGLER','BMW X3','BMW X5','BMW 3 SERIES','BMW 5 SERIES','MERCEDES-BENZ C-CLASS','MERCEDES-BENZ E-CLASS','MERCEDES-BENZ GLE','MERCEDES-BENZ GLS','AUDI Q5','AUDI Q7','LEXUS RX','LEXUS ES','LEXUS GX','TESLA MODEL 3','TESLA MODEL Y','TESLA MODEL X','RANGE ROVER','PORSCHE CAYENNE','PORSCHE MACAN','CADILLAC ESCALADE','LINCOLN NAVIGATOR','HYUNDAI TUCSON','HYUNDAI SANTA FE','KIA TELLURIDE','KIA SORENTO'];
-var CAR_COLOR_DEFAULTS=['WHITE','BLACK','SILVER','GRAY','BLUE','RED','GREEN','BROWN','GOLD','BEIGE','TAN','ORANGE','YELLOW','MAROON','BURGUNDY'];
-
-function populateDataLists(){
-  var seen={},models=CAR_MODEL_DEFAULTS.slice();
-  models.forEach(function(m){seen[m]=true;});
-  data.forEach(function(r){if(r.car){var u=r.car.trim();if(u&&!seen[u]){seen[u]=true;models.push(u);}}});
-  models.sort();
-  var ml=document.getElementById('carModelList');
-  if(ml) ml.innerHTML=models.map(function(m){return '<option value="'+escapeHTML(m)+'"></option>';}).join('');
-  var cseen={},colors=CAR_COLOR_DEFAULTS.slice();
-  colors.forEach(function(c){cseen[c]=true;});
-  data.forEach(function(r){if(r.color){var u=r.color.trim();if(u&&!cseen[u]){cseen[u]=true;colors.push(u);}}});
-  colors.sort();
-  var cl=document.getElementById('carColorList');
-  if(cl) cl.innerHTML=colors.map(function(c){return '<option value="'+escapeHTML(c)+'"></option>';}).join('');
-}
-
 async function loadData() {
   loading(true);
   try {
@@ -468,13 +415,11 @@ async function loadData() {
         id: r.id, ri: r.id,
         ts: r.ts||'', name: r.name||'', phone: r.phone||'',
         ticket: r.ticket||'', ret: r.ret||'', car: r.car||'',
-        color: r.color||'',
         loc: r.loc||'', status: r.status||'PENDING',
         block: r.block||'', obs: r.obs||'', deldate: r.deldate||''
       };
     });
     render();
-    populateDataLists();
     showMsg('Loaded '+data.length+' records', false);
   } catch(e) {
     showMsg('Connection error: '+e.message, true);
@@ -588,7 +533,7 @@ function renderTable() {
         (r.obs&&r.obs.indexOf('APPROX DATE')>=0?'<span class="tag" style="background:rgba(201,168,76,0.15);color:var(--gold)">~APPROX</span>':'')+'</td>'+
       '<td style="font-family:monospace;font-size:12px;color:var(--mu)">'+escapeHTML(fmtP(r.phone))+'</td>'+
       '<td style="font-family:monospace;font-size:12px;color:var(--gold)">'+escapeHTML(r.ticket)+'</td>'+
-      '<td style="font-size:12px;color:var(--mu)">'+escapeHTML((r.color?r.color+' ':'')+r.car)+'</td>'+
+      '<td style="font-size:12px;color:var(--mu)">'+escapeHTML(r.car)+'</td>'+
       '<td style="font-size:12px;color:var(--mu)">'+escapeHTML(r.loc||'-')+'</td>'+
       '<td style="font-size:11px;color:var(--mu)">'+escapeHTML(fmtA(r.ts))+'</td>'+
       '<td style="cursor:pointer"><span class="rd '+rc+'">'+escapeHTML(rl)+'</span></td>'+
@@ -615,7 +560,7 @@ function renderDay() {
       return '<div class="dcard '+cls+(isApprox?' approx-card':'')+'" onclick="showDet('+r.id+')">'+
         '<div class="dc-body">'+
           '<div class="dc-n">'+escapeHTML(r.name)+(isApprox?' <span style="font-size:9px;background:rgba(201,168,76,0.2);color:var(--gold);border-radius:4px;padding:2px 5px;margin-left:4px">~APPROX</span>':'')+'</div>'+
-          '<div class="dc-c">'+escapeHTML((r.color?r.color+' ':'')+r.car)+' · '+escapeHTML(fmtP(r.phone))+'</div>'+
+          '<div class="dc-c">'+escapeHTML(r.car)+' · '+escapeHTML(fmtP(r.phone))+'</div>'+
         '</div>'+
         '<div class="dc-meta"><div class="dc-tk">'+escapeHTML(r.ticket)+'</div><div class="dc-l">'+escapeHTML(r.loc)+'</div></div>'+
         (r.status!=='DELIVERED'?
@@ -628,12 +573,12 @@ function renderDay() {
   document.getElementById('dArrived').innerHTML=mkCards(arrived,'ca','');
   document.getElementById('dToday').innerHTML=mkCards(lt,'ct','');
   document.getElementById('dTomorrow').innerHTML=mkCards(lm,'cm','');
-  var sunCount=ls.length;
   document.getElementById('dSunday').innerHTML=mkCards(ls,'cm','');
   document.getElementById('titleArrived').innerHTML='🚗 Arrived Today <span class="tbadge" style="background:var(--ok);color:#000">'+arrived.length+'</span>';
   document.getElementById('titleToday').innerHTML='🔔 Leaving Today <span class="tbadge" style="background:var(--acc);color:#000">'+lt.length+'</span>';
   document.getElementById('titleTomorrow').innerHTML='📆 Leaving Tomorrow <span class="tbadge" style="background:var(--pur);color:#fff">'+lm.length+'</span>';
   var sunLabel=sun.toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'});
+  var sunCount=ls.length;
   document.getElementById('titleSunday').innerHTML='📅 Returning Sunday — '+sunLabel+' <span class="tbadge" style="background:#e86030;color:#fff">'+sunCount+'</span>';
   // Show/hide sunday section based on count
   var sunSection=document.getElementById('dSunday');
@@ -651,35 +596,6 @@ function renderDay() {
     document.getElementById('titleForgot').innerHTML='⚠️ Forgot Yesterday <span class="tbadge" style="background:var(--red);color:#fff">'+forgot.length+'</span>';
   } else {
     document.getElementById('forgotSection').style.display='none';
-  }
-  var _now=new Date(),_today=new Date(_now.getFullYear(),_now.getMonth(),_now.getDate());
-  var _dow=_today.getDay(),_diff=_dow===0?-6:1-_dow;
-  var weekStart=new Date(_today); weekStart.setDate(_today.getDate()+_diff);
-  var busyMap={};
-  data.forEach(function(r){
-    if(r.status==='DELIVERED'||r.status==='NO DATE') return;
-    var d=pd(r.ret); if(!d) return;
-    if(d<weekStart) return;
-    var key=(d.getMonth()+1)+'/'+d.getDate()+'/'+d.getFullYear();
-    if(!busyMap[key]) busyMap[key]={date:d,count:0};
-    busyMap[key].count++;
-  });
-  var busyDays=Object.keys(busyMap).filter(function(k){return busyMap[k].count>6;});
-  busyDays.sort(function(a,b){return busyMap[a].date-busyMap[b].date;});
-  var busySec=document.getElementById('busySection');
-  var dBusy=document.getElementById('dBusy');
-  if(busyDays.length){
-    busySec.style.display='block';
-    dBusy.innerHTML=busyDays.map(function(k){
-      var d=busyMap[k].date,cnt=busyMap[k].count;
-      var dayName=d.toLocaleDateString('en-US',{weekday:'long'});
-      var mo=d.getMonth()+1,dy=d.getDate(),yr=d.getFullYear();
-      var label=dayName+' '+(mo<10?'0'+mo:mo)+'/'+(dy<10?'0'+dy:dy)+'/'+yr;
-      return '<div class="busy-item"><div class="busy-day">⚠️ '+label+'</div><div class="busy-sub">'+cnt+' cars scheduled to return</div></div>';
-    }).join('');
-  } else {
-    busySec.style.display='none';
-    dBusy.innerHTML='';
   }
 }
 
@@ -783,8 +699,7 @@ document.querySelectorAll('.tab').forEach(function(t){
     document.querySelectorAll('.tab').forEach(function(x){x.classList.remove('on');});
     document.querySelectorAll('.pane').forEach(function(x){x.classList.remove('on');});
     t.classList.add('on');
-    var tabType = t.getAttribute('data-t');
-    document.getElementById('pane-'+tabType).classList.add('on');
+    document.getElementById('pane-'+t.getAttribute('data-t')).classList.add('on');
   });
 });
 document.querySelectorAll('.fb').forEach(function(b){
@@ -881,7 +796,6 @@ function acSearch(q){
       document.getElementById('fName').value=r.name;
       if(r.phone) document.getElementById('fPhone').value=r.phone;
       if(r.car) document.getElementById('fCar').value=r.car;
-      if(r.color) document.getElementById('fColor').value=r.color;
       drop.classList.remove('open');
       chkFreq();
     });
@@ -894,7 +808,7 @@ function chkFreq(){
   var name=document.getElementById('fName').value.trim();
   var m=data.filter(function(r){return r.name.toLowerCase()===name.toLowerCase();});
   var info=document.getElementById('freqInfo');
-  if(m.length>0&&name.length>2){var last=m[m.length-1];info.textContent=m.length+' previous visit(s). Last: '+last.ticket+' - '+last.car;info.classList.add('on');if(last.car)document.getElementById('fCar').value=last.car;if(last.color)document.getElementById('fColor').value=last.color;}
+  if(m.length>0&&name.length>2){var last=m[m.length-1];info.textContent=m.length+' previous visit(s). Last: '+last.ticket+' - '+last.car;info.classList.add('on');if(last.car)document.getElementById('fCar').value=last.car;}
   else info.classList.remove('on');
   chkEarlyReturn();
 }
@@ -941,7 +855,6 @@ function openAdd(){
   document.getElementById('fTicket').value='';
   var fRet=document.getElementById('fReturn'); if(fRet) fRet.value='';
   document.getElementById('fCar').value='';
-  document.getElementById('fColor').value='';
   document.getElementById('fLoc').value='';
   document.getElementById('fObs').value='';
   document.getElementById('fStatus').value='PENDING';
@@ -984,7 +897,6 @@ async function saveEntry(sendSms){
     var ts=new Date().toLocaleString('en-US');
     var phoneFull=document.getElementById('fPhone').value.trim();
     var car=document.getElementById('fCar').value.trim().toUpperCase();
-    var color=document.getElementById('fColor').value.trim().toUpperCase();
     var obs=document.getElementById('fObs').value.trim().toUpperCase();
     var finalStatus=document.getElementById('fStatus').value;
     var estDate=document.getElementById('fEstDate').value;
@@ -1002,7 +914,6 @@ async function saveEntry(sendSms){
       ticket: ticket,
       ret: finalDate,
       car: car,
-      color: color,
       loc: locVal,
       status: finalStatus,
       block: '',
@@ -1017,7 +928,6 @@ async function saveEntry(sendSms){
     document.getElementById('fTicket').value='';
     var fRet2=document.getElementById('fReturn');if(fRet2)fRet2.value='';
     document.getElementById('fCar').value='';
-    document.getElementById('fColor').value='';
     document.getElementById('fLoc').value='';
     document.getElementById('fObs').value='';
     document.getElementById('fStatus').value='PENDING';
@@ -1067,7 +977,7 @@ function showDet(id){
       '<div class="di editable" data-field="ts" data-raw="'+escapeHTML(tsToDateInput(r.ts))+'"><div class="di-l">Arrived ✎</div><div class="di-v" style="font-size:12px">'+escapeHTML(fmtA(r.ts))+'</div></div>'+
       '<div class="di editable" style="grid-column:1/-1" data-field="name"><div class="di-l">Name ✎</div><div class="di-v">'+escapeHTML(r.name)+'</div></div>'+
       '<div class="di editable" style="grid-column:1/-1" data-field="phone"><div class="di-l">Phone ✎</div><div class="di-v">'+escapeHTML(fmtP(r.phone))+'</div></div>'+
-      '<div class="di editable" style="grid-column:1/-1" data-field="car"><div class="di-l">Car ✎</div><div class="di-v">'+escapeHTML((r.color?r.color+' ':'')+r.car)+'</div></div>'+
+      '<div class="di editable" style="grid-column:1/-1" data-field="car"><div class="di-l">Car ✎</div><div class="di-v">'+escapeHTML(r.car)+'</div></div>'+
       '<div class="di editable" style="grid-column:1/-1" data-field="loc" data-raw="'+escapeHTML(r.loc||'')+'"><div class="di-l">Location ✎</div><div class="di-v">'+escapeHTML(r.loc||'—')+'</div></div>'+
       '<div class="di editable" style="grid-column:1/-1" data-field="obs"><div class="di-l">Notes ✎</div><div class="di-v" style="font-size:12px">'+escapeHTML(r.obs||'—')+'</div></div>'+
     '</div>'+histH+
@@ -1117,11 +1027,31 @@ async function quickDeliver(id){
   try{
     var todayStr=getTodayStr();
     await sbUpdate(r.id,{status:'DELIVERED',deldate:todayStr});
-    for(var i=0;i<data.length;i++){if(data[i].id===r.id){data[i].status='DELIVERED';data[i].deldate=todayStr;break;}}
+
+    await sbLog(
+      'DELIVERED',
+      r.name,
+      r.ticket,
+      r.loc,
+      'Vehicle delivered on ' + todayStr + ' | Previous status: ' + (r.status || 'PENDING')
+    );
+
+    for(var i=0;i<data.length;i++){
+      if(data[i].id===r.id){
+        data[i].status='DELIVERED';
+        data[i].deldate=todayStr;
+        break;
+      }
+    }
+
     render();
     showMsg('✓ Delivered: '+r.name, false);
-  }catch(e){showMsg('Error: '+e.message,true);}
-  finally{loading(false);}
+  }catch(e){
+    showMsg('Error: '+e.message,true);
+  }
+  finally{
+    loading(false);
+  }
 }
 
 // ── MARK DELIVERED ─────────────────────────────────────────────
@@ -1748,7 +1678,7 @@ async function changeStatus(id){
       upd.deldate=todayStr;
     }
     await sbUpdate(r.id,upd);
-    sbLog('STATUS CHANGE',r.name,r.ticket,r.loc,r.status+' → '+newStatus);
+    sbLog(newStatus === 'DELIVERED' ? 'DELIVERED' : 'STATUS CHANGE', r.name, r.ticket, r.loc, r.status + ' → ' + newStatus);
     showMsg('Status updated to '+newStatus,false);
     closeAll();
     loadData();
@@ -1810,492 +1740,6 @@ function markTaskDone(id) { taskStatus[id]='done'; renderTasks(); }
 function undoTask(id) { delete taskStatus[id]; renderTasks(); }
 function refreshTasks() { loadData(); }
 
-
-// ══════════════════════════════════════════════════════════════════════════════
-// REPORT BUILDER STATE
-// ══════════════════════════════════════════════════════════════════════════════
-var rptStartDate = null;
-var rptEndDate = null;
-var rptRangePreset = null;
-var rptSections = {
-  summary: true,
-  dailyBreakdown: true,
-  returnDateReport: false,
-  busyDays: false,
-  locationAnalytics: false,
-  weeklyTotalCars: false,
-  monthlyTotalCars: false,
-  vehicleList: false
-};
-var rptVehicleMode = 'ret';
-
-// ══════════════════════════════════════════════════════════════════════════════
-// TIMEZONE-SAFE DATE PARSING
-// ══════════════════════════════════════════════════════════════════════════════
-function parseLocalInputDate(v) {
-  if (!v) return null;
-  var p = String(v).split('-');
-  if (p.length !== 3) return null;
-  var year = parseInt(p[0], 10);
-  var month = parseInt(p[1], 10);
-  var day = parseInt(p[2], 10);
-  var d = new Date(year, month - 1, day);
-  d.setHours(0, 0, 0, 0);
-  return isNaN(d.getTime()) ? null : d;
-}
-
-// ══════════════════════════════════════════════════════════════════════════════
-// QUICK RANGE BUTTONS
-// ══════════════════════════════════════════════════════════════════════════════
-function setRptRange(preset) {
-  var today = getToday();
-  var start = null, end = null;
-
-  if (preset === 'today') {
-    start = new Date(today);
-    end = new Date(today);
-    end.setHours(23, 59, 59, 999);
-  } else if (preset === 'tomorrow-returns') {
-    var tmr = getTomorrow();
-    start = new Date(tmr);
-    end = new Date(tmr);
-    end.setHours(23, 59, 59, 999);
-  } else if (preset === 'this-week') {
-    var dow = today.getDay();
-    var diff = dow === 0 ? -6 : 1 - dow;
-    start = new Date(today);
-    start.setDate(start.getDate() + diff);
-    start.setHours(0, 0, 0, 0);
-    end = new Date(start);
-    end.setDate(end.getDate() + 6);
-    end.setHours(23, 59, 59, 999);
-  } else if (preset === 'last-week') {
-    var dow = today.getDay();
-    var diff = dow === 0 ? -6 : 1 - dow;
-    var thisMonday = new Date(today);
-    thisMonday.setDate(thisMonday.getDate() + diff);
-    start = new Date(thisMonday);
-    start.setDate(start.getDate() - 7);
-    start.setHours(0, 0, 0, 0);
-    end = new Date(start);
-    end.setDate(end.getDate() + 6);
-    end.setHours(23, 59, 59, 999);
-  } else if (preset === 'this-month') {
-    start = new Date(today.getFullYear(), today.getMonth(), 1);
-    start.setHours(0, 0, 0, 0);
-    end = new Date(today);
-    end.setHours(23, 59, 59, 999);
-  } else if (preset === 'last-month') {
-    start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-    start.setHours(0, 0, 0, 0);
-    end = new Date(today.getFullYear(), today.getMonth(), 0);
-    end.setHours(23, 59, 59, 999);
-  } else if (preset === 'clear') {
-    start = null;
-    end = null;
-  }
-
-  rptStartDate = start;
-  rptEndDate = end;
-  rptRangePreset = preset !== 'clear' ? preset : null;
-  updateRptDateInputs();
-}
-
-function updateRptDateInputs() {
-  var startInput = document.getElementById('rptStartInput');
-  var endInput = document.getElementById('rptEndInput');
-  if (rptStartDate) {
-    startInput.value = rptStartDate.getFullYear() + '-' +
-      String(rptStartDate.getMonth() + 1).padStart(2, '0') + '-' +
-      String(rptStartDate.getDate()).padStart(2, '0');
-  } else {
-    startInput.value = '';
-  }
-  if (rptEndDate) {
-    endInput.value = rptEndDate.getFullYear() + '-' +
-      String(rptEndDate.getMonth() + 1).padStart(2, '0') + '-' +
-      String(rptEndDate.getDate()).padStart(2, '0');
-  } else {
-    endInput.value = '';
-  }
-}
-
-// ══════════════════════════════════════════════════════════════════════════════
-// DATE INPUT CHANGE HANDLERS
-// ══════════════════════════════════════════════════════════════════════════════
-function onRptDateInputChange() {
-  var startInput = document.getElementById('rptStartInput');
-  var endInput = document.getElementById('rptEndInput');
-  var s = parseLocalInputDate(startInput.value);
-  var e = parseLocalInputDate(endInput.value);
-  if (s) {
-    s.setHours(0, 0, 0, 0);
-    rptStartDate = s;
-  } else {
-    rptStartDate = null;
-  }
-  if (e) {
-    e.setHours(23, 59, 59, 999);
-    rptEndDate = e;
-  } else {
-    rptEndDate = null;
-  }
-  rptRangePreset = null;
-}
-
-// ══════════════════════════════════════════════════════════════════════════════
-// SECTION & MODE TOGGLES
-// ══════════════════════════════════════════════════════════════════════════════
-function onRptSectionToggle(section) {
-  if (rptSections.hasOwnProperty(section)) {
-    rptSections[section] = document.getElementById('rptChk-' + section).checked;
-  }
-  rptVehicleMode = document.getElementById('rptVehicleMode').value;
-}
-
-// ══════════════════════════════════════════════════════════════════════════════
-// REPORT PREVIEW GENERATION
-// ══════════════════════════════════════════════════════════════════════════════
-function updateRptPreview() {
-  if (!rptStartDate || !rptEndDate) {
-    alert('Please select a date range.');
-    return;
-  }
-
-  var previewArea = document.getElementById('rptPreviewArea');
-  previewArea.style.display = 'block';
-  var html = '';
-
-  // Filter data by date range
-  var rangeData = data.filter(function(r) {
-    var tsDate = r.ts ? pd(r.ts) : null;
-    return tsDate && tsDate >= rptStartDate && tsDate <= rptEndDate;
-  });
-
-  var rangeStart = rptStartDate.toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'});
-  var rangeEnd = rptEndDate.toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'});
-  var rangeLabel = rangeStart === rangeEnd ? rangeStart : rangeStart + ' – ' + rangeEnd;
-
-  // SUMMARY
-  if (rptSections.summary) {
-    var checkedIn = rangeData.filter(function(r) { return r.ts && pd(r.ts) >= rptStartDate && pd(r.ts) <= rptEndDate; }).length;
-    var delivered = rangeData.filter(function(r) { return r.deldate && pd(r.deldate) >= rptStartDate && pd(r.deldate) <= rptEndDate; }).length;
-    var netChange = checkedIn - delivered;
-    var dayCount = Math.ceil((rptEndDate - rptStartDate) / (1000 * 60 * 60 * 24)) + 1;
-    var avgCheckIn = (checkedIn / dayCount).toFixed(1);
-    var avgDelivered = (delivered / dayCount).toFixed(1);
-
-    html += '<div style="background:var(--s);border:1px solid var(--b);border-radius:10px;padding:14px;margin-bottom:16px;">' +
-      '<div style="font-size:12px;color:var(--mu);font-weight:700;margin-bottom:10px;text-transform:uppercase;letter-spacing:0.5px;">Summary</div>' +
-      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:13px;">' +
-        '<div><div style="color:var(--mu);font-size:11px;margin-bottom:2px;">Checked In</div><div style="font-size:18px;font-weight:700;color:var(--tx);">' + checkedIn + '</div></div>' +
-        '<div><div style="color:var(--mu);font-size:11px;margin-bottom:2px;">Delivered</div><div style="font-size:18px;font-weight:700;color:var(--tx);">' + delivered + '</div></div>' +
-        '<div><div style="color:var(--mu);font-size:11px;margin-bottom:2px;">Net Change</div><div style="font-size:18px;font-weight:700;color:var(--navy);">' + netChange + '</div></div>' +
-        '<div><div style="color:var(--mu);font-size:11px;margin-bottom:2px;">Avg/Day</div><div style="font-size:14px;font-weight:700;color:var(--tx);">' + avgCheckIn + ' / ' + avgDelivered + '</div></div>' +
-      '</div>' +
-    '</div>';
-  }
-
-  // DAILY BREAKDOWN
-  if (rptSections.dailyBreakdown) {
-    html += '<div style="background:var(--s);border:1px solid var(--b);border-radius:10px;padding:14px;margin-bottom:16px;">' +
-      '<div style="font-size:12px;color:var(--mu);font-weight:700;margin-bottom:10px;text-transform:uppercase;letter-spacing:0.5px;">Daily Breakdown</div>' +
-      '<table style="width:100%;font-size:12px;border-collapse:collapse;">' +
-      '<tr style="border-bottom:1px solid var(--b);"><th style="text-align:left;padding:6px 0;font-weight:600;color:var(--tx);">Date</th><th style="text-align:right;padding:6px 0;font-weight:600;color:var(--tx);">Check-ins</th><th style="text-align:right;padding:6px 0;font-weight:600;color:var(--tx);">Delivered</th></tr>';
-
-    var d = new Date(rptStartDate);
-    while (d <= rptEndDate) {
-      var dayCheckIns = rangeData.filter(function(r) {
-        var tsDate = r.ts ? pd(r.ts) : null;
-        return tsDate && sd(tsDate, d);
-      }).length;
-      var dayDelivered = rangeData.filter(function(r) {
-        var delDate = r.deldate ? pd(r.deldate) : null;
-        return delDate && sd(delDate, d);
-      }).length;
-      html += '<tr style="border-bottom:1px solid var(--b2);"><td style="padding:6px 0;color:var(--tx);">' + d.toLocaleDateString('en-US', {weekday:'short', month:'short', day:'numeric'}) + '</td><td style="text-align:right;padding:6px 0;color:var(--tx);">' + dayCheckIns + '</td><td style="text-align:right;padding:6px 0;color:var(--tx);">' + dayDelivered + '</td></tr>';
-      d.setDate(d.getDate() + 1);
-    }
-    html += '</table></div>';
-  }
-
-  // LOCATION ANALYTICS
-  if (rptSections.locationAnalytics) {
-    var locMap = {};
-    rangeData.forEach(function(r) {
-      var loc = r.loc || 'Unknown';
-      locMap[loc] = (locMap[loc] || 0) + 1;
-    });
-    var locArray = [];
-    for (var k in locMap) {
-      if (locMap.hasOwnProperty(k)) locArray.push({loc: k, count: locMap[k]});
-    }
-    locArray.sort(function(a, b) { return b.count - a.count; });
-
-    html += '<div style="background:var(--s);border:1px solid var(--b);border-radius:10px;padding:14px;margin-bottom:16px;">' +
-      '<div style="font-size:12px;color:var(--mu);font-weight:700;margin-bottom:10px;text-transform:uppercase;letter-spacing:0.5px;">Location Analytics</div>';
-    if (locArray.length > 0) {
-      html += '<div style="font-size:12px;margin-bottom:8px;"><strong>Most Used:</strong> ' + escapeHTML(locArray[0].loc) + ' (' + locArray[0].count + ')</div>' +
-        '<table style="width:100%;font-size:12px;border-collapse:collapse;">' +
-        '<tr style="border-bottom:1px solid var(--b);"><th style="text-align:left;padding:6px 0;font-weight:600;color:var(--tx);">Location</th><th style="text-align:right;padding:6px 0;font-weight:600;color:var(--tx);">Count</th></tr>';
-      locArray.forEach(function(item) {
-        html += '<tr style="border-bottom:1px solid var(--b2);"><td style="padding:6px 0;color:var(--tx);">' + escapeHTML(item.loc) + '</td><td style="text-align:right;padding:6px 0;color:var(--tx);">' + item.count + '</td></tr>';
-      });
-      html += '</table>';
-    } else {
-      html += '<div style="color:var(--mu);font-size:12px;">No data</div>';
-    }
-    html += '</div>';
-  }
-
-  // BUSY DAYS
-  if (rptSections.busyDays) {
-    var busyDays = [];
-    var d = new Date(rptStartDate);
-    while (d <= rptEndDate) {
-      var cnt = data.filter(function(r) {
-        var retDate = r.ret ? pd(r.ret) : null;
-        return retDate && sd(retDate, d);
-      }).length;
-      if (cnt > 6) busyDays.push({date: new Date(d), count: cnt});
-      d.setDate(d.getDate() + 1);
-    }
-    if (busyDays.length > 0) {
-      html += '<div style="background:var(--s);border:1px solid var(--b);border-radius:10px;padding:14px;margin-bottom:16px;">' +
-        '<div style="font-size:12px;color:var(--mu);font-weight:700;margin-bottom:10px;text-transform:uppercase;letter-spacing:0.5px;">⚠️ Busy Days</div>' +
-        '<table style="width:100%;font-size:12px;border-collapse:collapse;">' +
-        '<tr style="border-bottom:1px solid var(--b);"><th style="text-align:left;padding:6px 0;font-weight:600;color:var(--tx);">Date</th><th style="text-align:right;padding:6px 0;font-weight:600;color:var(--tx);">Returns</th></tr>';
-      busyDays.forEach(function(bd) {
-        html += '<tr style="border-bottom:1px solid var(--b2);"><td style="padding:6px 0;color:var(--tx);">' + bd.date.toLocaleDateString('en-US', {weekday:'short', month:'short', day:'numeric'}) + '</td><td style="text-align:right;padding:6px 0;color:var(--tx);">' + bd.count + '</td></tr>';
-      });
-      html += '</table></div>';
-    }
-  }
-
-  // VEHICLE LIST
-  if (rptSections.vehicleList) {
-    var listMode = rptVehicleMode;
-    var listData = data.filter(function(r) {
-      if (listMode === 'ts') {
-        var tsDate = r.ts ? pd(r.ts) : null;
-        return tsDate && tsDate >= rptStartDate && tsDate <= rptEndDate;
-      } else if (listMode === 'deldate') {
-        var delDate = r.deldate ? pd(r.deldate) : null;
-        return delDate && delDate >= rptStartDate && delDate <= rptEndDate;
-      } else { // ret
-        var retDate = r.ret ? pd(r.ret) : null;
-        return retDate && retDate >= rptStartDate && retDate <= rptEndDate;
-      }
-    }).slice(0, 100);
-
-    var modeLabel = listMode === 'ts' ? 'Check-in Date' : (listMode === 'deldate' ? 'Delivery Date' : 'Return Date');
-    html += '<div style="background:var(--s);border:1px solid var(--b);border-radius:10px;padding:14px;margin-bottom:16px;">' +
-      '<div style="font-size:12px;color:var(--mu);font-weight:700;margin-bottom:10px;text-transform:uppercase;letter-spacing:0.5px;">Vehicle List (' + modeLabel + ')</div>';
-    if (listData.length > 0) {
-      html += '<table style="width:100%;font-size:12px;border-collapse:collapse;">' +
-        '<tr style="border-bottom:1px solid var(--b);"><th style="text-align:left;padding:6px 0;font-weight:600;color:var(--tx);">Name</th><th style="text-align:left;padding:6px 0;font-weight:600;color:var(--tx);">Vehicle</th><th style="text-align:left;padding:6px 0;font-weight:600;color:var(--tx);">Ticket</th><th style="text-align:left;padding:6px 0;font-weight:600;color:var(--tx);">Status</th></tr>';
-      listData.forEach(function(r) {
-        var vehicle = (r.color ? r.color + ' ' : '') + (r.car || '—');
-        html += '<tr style="border-bottom:1px solid var(--b2);"><td style="padding:6px 0;color:var(--tx);">' + escapeHTML(r.name) + '</td><td style="padding:6px 0;color:var(--tx);">' + escapeHTML(vehicle) + '</td><td style="padding:6px 0;color:var(--tx);">' + escapeHTML(r.ticket) + '</td><td style="padding:6px 0;color:var(--tx);">' + escapeHTML(r.status) + '</td></tr>';
-      });
-      html += '</table>';
-      if (data.filter(function(r) {
-        if (listMode === 'ts') {
-          var tsDate = r.ts ? pd(r.ts) : null;
-          return tsDate && tsDate >= rptStartDate && tsDate <= rptEndDate;
-        } else if (listMode === 'deldate') {
-          var delDate = r.deldate ? pd(r.deldate) : null;
-          return delDate && delDate >= rptStartDate && delDate <= rptEndDate;
-        } else {
-          var retDate = r.ret ? pd(r.ret) : null;
-          return retDate && retDate >= rptStartDate && retDate <= rptEndDate;
-        }
-      }).length > 100) {
-        html += '<div style="color:var(--mu);font-size:11px;margin-top:8px;">Showing first 100 records</div>';
-      }
-    } else {
-      html += '<div style="color:var(--mu);font-size:12px;">No data</div>';
-    }
-    html += '</div>';
-  }
-
-  previewArea.innerHTML = html;
-}
-
-// ══════════════════════════════════════════════════════════════════════════════
-// PDF/PRINT EXPORT
-// ══════════════════════════════════════════════════════════════════════════════
-function buildAndExportPDF() {
-  if (!rptStartDate || !rptEndDate) {
-    alert('Please select a date range.');
-    return;
-  }
-
-  var rangeData = data.filter(function(r) {
-    var tsDate = r.ts ? pd(r.ts) : null;
-    return tsDate && tsDate >= rptStartDate && tsDate <= rptEndDate;
-  });
-
-  var rangeStart = rptStartDate.toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'});
-  var rangeEnd = rptEndDate.toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'});
-  var rangeLabel = rangeStart === rangeEnd ? rangeStart : rangeStart + ' – ' + rangeEnd;
-  var generatedStr = new Date().toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}) + ' ' +
-                     new Date().toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit', hour12:true});
-
-  var sections = '';
-
-  // SUMMARY
-  if (rptSections.summary) {
-    var checkedIn = rangeData.filter(function(r) { return r.ts && pd(r.ts) >= rptStartDate && pd(r.ts) <= rptEndDate; }).length;
-    var delivered = rangeData.filter(function(r) { return r.deldate && pd(r.deldate) >= rptStartDate && pd(r.deldate) <= rptEndDate; }).length;
-    var netChange = checkedIn - delivered;
-    var dayCount = Math.ceil((rptEndDate - rptStartDate) / (1000 * 60 * 60 * 24)) + 1;
-    var avgCheckIn = (checkedIn / dayCount).toFixed(1);
-    var avgDelivered = (delivered / dayCount).toFixed(1);
-
-    sections += '<section><h2>Summary</h2><table>' +
-      '<tr><td>Checked In</td><td class="num">' + checkedIn + '</td></tr>' +
-      '<tr><td>Delivered</td><td class="num">' + delivered + '</td></tr>' +
-      '<tr><td>Net Change</td><td class="num">' + netChange + '</td></tr>' +
-      '<tr><td>Avg Check-ins / Day</td><td class="num">' + avgCheckIn + '</td></tr>' +
-      '<tr><td>Avg Deliveries / Day</td><td class="num">' + avgDelivered + '</td></tr>' +
-    '</table></section>';
-  }
-
-  // DAILY BREAKDOWN
-  if (rptSections.dailyBreakdown) {
-    var breakdownRows = '';
-    var d = new Date(rptStartDate);
-    while (d <= rptEndDate) {
-      var dayCheckIns = rangeData.filter(function(r) {
-        var tsDate = r.ts ? pd(r.ts) : null;
-        return tsDate && sd(tsDate, d);
-      }).length;
-      var dayDelivered = rangeData.filter(function(r) {
-        var delDate = r.deldate ? pd(r.deldate) : null;
-        return delDate && sd(delDate, d);
-      }).length;
-      breakdownRows += '<tr><td>' + d.toLocaleDateString('en-US', {weekday:'short', month:'short', day:'numeric'}) + '</td><td class="num">' + dayCheckIns + '</td><td class="num">' + dayDelivered + '</td></tr>';
-      d.setDate(d.getDate() + 1);
-    }
-    sections += '<section><h2>Daily Breakdown</h2><table><tr><th>Date</th><th>Check-ins</th><th>Delivered</th></tr>' + breakdownRows + '</table></section>';
-  }
-
-  // LOCATION ANALYTICS
-  if (rptSections.locationAnalytics) {
-    var locMap = {};
-    rangeData.forEach(function(r) {
-      var loc = r.loc || 'Unknown';
-      locMap[loc] = (locMap[loc] || 0) + 1;
-    });
-    var locArray = [];
-    for (var k in locMap) {
-      if (locMap.hasOwnProperty(k)) locArray.push({loc: k, count: locMap[k]});
-    }
-    locArray.sort(function(a, b) { return b.count - a.count; });
-
-    var locRows = '';
-    locArray.forEach(function(item) {
-      locRows += '<tr><td>' + escapeHTML(item.loc) + '</td><td class="num">' + item.count + '</td></tr>';
-    });
-    sections += '<section><h2>Location Analytics</h2><table><tr><th>Location</th><th>Count</th></tr>' + locRows + '</table></section>';
-  }
-
-  // BUSY DAYS
-  if (rptSections.busyDays) {
-    var busyDays = [];
-    var d = new Date(rptStartDate);
-    while (d <= rptEndDate) {
-      var cnt = data.filter(function(r) {
-        var retDate = r.ret ? pd(r.ret) : null;
-        return retDate && sd(retDate, d);
-      }).length;
-      if (cnt > 6) busyDays.push({date: new Date(d), count: cnt});
-      d.setDate(d.getDate() + 1);
-    }
-    if (busyDays.length > 0) {
-      var busyRows = '';
-      busyDays.forEach(function(bd) {
-        busyRows += '<tr><td>' + bd.date.toLocaleDateString('en-US', {weekday:'short', month:'short', day:'numeric'}) + '</td><td class="num">' + bd.count + '</td></tr>';
-      });
-      sections += '<section><h2>Busy Days</h2><table><tr><th>Date</th><th>Returns Scheduled</th></tr>' + busyRows + '</table></section>';
-    }
-  }
-
-  // VEHICLE LIST
-  if (rptSections.vehicleList) {
-    var listMode = rptVehicleMode;
-    var listData = data.filter(function(r) {
-      if (listMode === 'ts') {
-        var tsDate = r.ts ? pd(r.ts) : null;
-        return tsDate && tsDate >= rptStartDate && tsDate <= rptEndDate;
-      } else if (listMode === 'deldate') {
-        var delDate = r.deldate ? pd(r.deldate) : null;
-        return delDate && delDate >= rptStartDate && delDate <= rptEndDate;
-      } else {
-        var retDate = r.ret ? pd(r.ret) : null;
-        return retDate && retDate >= rptStartDate && retDate <= rptEndDate;
-      }
-    }).slice(0, 100);
-
-    if (listData.length > 0) {
-      var vehicleRows = '';
-      listData.forEach(function(r) {
-        var vehicle = (r.color ? r.color + ' ' : '') + (r.car || '—');
-        vehicleRows += '<tr><td>' + escapeHTML(r.name) + '</td><td>' + escapeHTML(vehicle) + '</td><td>' + escapeHTML(r.ticket) + '</td><td>' + escapeHTML(r.status) + '</td></tr>';
-      });
-      var modeLabel = listMode === 'ts' ? 'Check-in Date' : (listMode === 'deldate' ? 'Delivery Date' : 'Return Date');
-      var recordNote = data.filter(function(r) {
-        if (listMode === 'ts') {
-          var tsDate = r.ts ? pd(r.ts) : null;
-          return tsDate && tsDate >= rptStartDate && tsDate <= rptEndDate;
-        } else if (listMode === 'deldate') {
-          var delDate = r.deldate ? pd(r.deldate) : null;
-          return delDate && delDate >= rptStartDate && delDate <= rptEndDate;
-        } else {
-          var retDate = r.ret ? pd(r.ret) : null;
-          return retDate && retDate >= rptStartDate && retDate <= rptEndDate;
-        }
-      }).length > 100 ? '<p style="font-size:11px;color:#999;margin-top:12px;">Showing first 100 records</p>' : '';
-      sections += '<section><h2>Vehicle List (' + modeLabel + ')</h2><table><tr><th>Name</th><th>Vehicle</th><th>Ticket</th><th>Status</th></tr>' + vehicleRows + '</table>' + recordNote + '</section>';
-    }
-  }
-
-  var css = 'body{font-family:Arial,sans-serif;margin:0;padding:40px;background:#fff;color:#000;line-height:1.4;}' +
-    'h1{font-size:20px;font-weight:700;margin:0 0 4px 0;}' +
-    '.subtitle{font-size:12px;color:#666;margin:0 0 16px 0;}' +
-    '.header-info{font-size:12px;color:#666;margin-bottom:24px;}' +
-    'h2{font-size:13px;font-weight:700;margin:20px 0 12px 0;text-transform:uppercase;letter-spacing:0.5px;}' +
-    'section{margin-bottom:20px;page-break-inside:avoid;}' +
-    'table{width:100%;border-collapse:collapse;margin-bottom:16px;font-size:12px;}' +
-    'th{background:#f5f5f5;border:1px solid #ddd;padding:8px 12px;text-align:left;font-weight:700;}' +
-    'td{border:1px solid #ddd;padding:8px 12px;}' +
-    'td.num{text-align:right;}' +
-    '@media print{body{padding:20px;}h1{font-size:18px;}h2{margin:16px 0 8px 0;}table{font-size:11px;}th,td{padding:6px 8px;}}';
-
-  var html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
-    '<title>Valet Operations Report</title><style>' + css + '</style></head><body>' +
-    '<h1>Valet Operations Report</h1>' +
-    '<div class="header-info">Range: ' + rangeLabel + '<br>Generated: ' + generatedStr + '</div>' +
-    sections +
-    '</body></html>';
-
-  var win = window.open('', 'valet_report', 'width:900,height:1200');
-  win.document.write(html);
-  win.document.close();
-  setTimeout(function() { win.print(); }, 300);
-}
-
-function printReport() {
-  buildAndExportPDF();
-}
-
-function exportPDF() {
-  buildAndExportPDF();
-}
-
 </script>
-<datalist id="carModelList"></datalist>
-<datalist id="carColorList"></datalist>
 </body>
 </html>
