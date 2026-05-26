@@ -853,11 +853,17 @@ function openAdd(){
   document.getElementById('fName').value='';
   document.getElementById('fPhone').value='';
   document.getElementById('fTicket').value='';
-  var fRet=document.getElementById('fReturn'); if(fRet) fRet.value='';
+  var fRet=document.getElementById('fReturn');
+  if(fRet){
+    fRet.value = '';
+    fRet.disabled = false;
+    fRet.style.opacity = '1';
+  }
   document.getElementById('fCar').value='';
   document.getElementById('fLoc').value='';
   document.getElementById('fObs').value='';
   document.getElementById('fStatus').value='PENDING';
+  onStatusChange('PENDING');
   document.getElementById('freqInfo').classList.remove('on');
   var erw=document.getElementById('erWarn'); if(erw) erw.style.display='none';
   var approxRow=document.getElementById('approxRow');
