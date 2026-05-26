@@ -97,6 +97,7 @@
         <th>Phone</th>
         <th onclick="sortBy('ticket')" style="cursor:pointer;user-select:none">Ticket <span id="s-ticket"></span></th>
         <th onclick="sortBy('car')" style="cursor:pointer;user-select:none">Car <span id="s-car"></span></th>
+        <th>Color</th>
         <th onclick="sortBy('loc')" style="cursor:pointer;user-select:none">Location <span id="s-loc"></span></th>
         <th onclick="sortBy('ts')" style="cursor:pointer;user-select:none">Arrived <span id="s-ts"></span></th>
         <th onclick="sortBy('ret')" style="cursor:pointer;user-select:none">Return <span id="s-ret"></span></th>
@@ -238,8 +239,33 @@
         <input type="date" id="fReturn" style="width:100%;background:var(--s2);border:1px solid var(--b);border-radius:10px;padding:11px 14px;font-size:16px;color:var(--tx);outline:none;font-family:'Syne',sans-serif;box-sizing:border-box;">
       </div>
     </div>
-    <div class="fr full">
-      <div class="fg"><label>Car Model / Color <span style="color:var(--red)">*</span></label><input type="text" id="fCar" oninput="this.value=this.value.toUpperCase()" placeholder="" style="text-transform:uppercase"></div>
+    <div class="fr two">
+      <div class="fg">
+        <label>Vehicle <span style="color:var(--red)">*</span></label>
+        <input list="vehicleSuggestions" id="fCar" placeholder="Start typing vehicle..." autocomplete="off">
+        <datalist id="vehicleSuggestions">
+          <option value="Escalade">
+          <option value="Suburban">
+          <option value="Tahoe">
+          <option value="Yukon">
+          <option value="Navigator">
+          <option value="Mercedes Sprinter">
+          <option value="Transit Van">
+          <option value="Highlander">
+          <option value="Camry">
+          <option value="Corolla">
+          <option value="F-150">
+          <option value="Ram 1500">
+          <option value="Tesla Model X">
+          <option value="Tesla Model Y">
+          <option value="Range Rover">
+          <option value="G Wagon">
+        </datalist>
+      </div>
+      <div class="fg">
+        <label>Color <span style="color:var(--mu);font-weight:400">(optional)</span></label>
+        <input id="fColor" placeholder="Color optional, ex: Black" autocomplete="off">
+      </div>
     </div>
     <div class="fr full">
       <div class="fg">
@@ -412,7 +438,7 @@ async function loadData() {
       return {
         id: r.id, ri: r.id,
         ts: r.ts||'', name: r.name||'', phone: r.phone||'',
-        ticket: r.ticket||'', ret: r.ret||'', car: r.car||'',
+        ticket: r.ticket||'', ret: r.ret||'', car: r.car||'', color: r.color||'',
         loc: r.loc||'', status: r.status||'PENDING',
         block: r.block||'', obs: r.obs||'', deldate: r.deldate||''
       };
@@ -442,7 +468,7 @@ function getFiltered() {
   var rows=data.slice();
   if(srchTerm){
     var q=srchTerm.toLowerCase();
-    rows=rows.filter(function(r){return r.name.toLowerCase().indexOf(q)>=0||r.phone.indexOf(q)>=0||r.ticket.toLowerCase().indexOf(q)>=0||r.car.toLowerCase().indexOf(q)>=0||r.loc.toLowerCase().indexOf(q)>=0;});
+    rows=rows.filter(function(r){return r.name.toLowerCase().indexOf(q)>=0||r.phone.indexOf(q)>=0||r.ticket.toLowerCase().indexOf(q)>=0||r.car.toLowerCase().indexOf(q)>=0||r.loc.toLowerCase().indexOf(q)>=0||(r.color&&r.color.toLowerCase().indexOf(q)>=0);});
   }
   if(curFilter==='PENDING') rows=rows.filter(function(r){return r.status==='PENDING';});
   else if(curFilter==='NO DATE') rows=rows.filter(function(r){return r.status==='NO DATE';});
@@ -532,6 +558,7 @@ function renderTable() {
       '<td style="font-family:monospace;font-size:12px;color:var(--mu)">'+escapeHTML(fmtP(r.phone))+'</td>'+
       '<td style="font-family:monospace;font-size:12px;color:var(--gold)">'+escapeHTML(r.ticket)+'</td>'+
       '<td style="font-size:12px;color:var(--mu)">'+escapeHTML(r.car)+'</td>'+
+      '<td style="font-size:12px;color:var(--mu)">'+escapeHTML(r.color||'')+'</td>'+
       '<td style="font-size:12px;color:var(--mu)">'+escapeHTML(r.loc||'-')+'</td>'+
       '<td style="font-size:11px;color:var(--mu)">'+escapeHTML(fmtA(r.ts))+'</td>'+
       '<td style="cursor:pointer"><span class="rd '+rc+'">'+escapeHTML(rl)+'</span></td>'+
@@ -794,6 +821,7 @@ function acSearch(q){
       document.getElementById('fName').value=r.name;
       if(r.phone) document.getElementById('fPhone').value=r.phone;
       if(r.car) document.getElementById('fCar').value=r.car;
+      document.getElementById('fColor').value=r.color||'';
       drop.classList.remove('open');
       chkFreq();
     });
@@ -858,6 +886,7 @@ function openAdd(){
     fRet.style.opacity = '1';
   }
   document.getElementById('fCar').value='';
+  document.getElementById('fColor').value='';
   document.getElementById('fLoc').value='';
   document.getElementById('fObs').value='';
   document.getElementById('fStatus').value='PENDING';
@@ -900,7 +929,8 @@ async function saveEntry(sendSms){
   try{
     var ts=new Date().toLocaleString('en-US');
     var phoneFull=document.getElementById('fPhone').value.trim();
-    var car=document.getElementById('fCar').value.trim().toUpperCase();
+    var carVal=document.getElementById('fCar').value.trim().toUpperCase();
+    var colorVal=(document.getElementById('fColor')||{value:''}).value.trim();
     var obs=document.getElementById('fObs').value.trim().toUpperCase();
     var finalStatus=document.getElementById('fStatus').value;
     var estDate=document.getElementById('fEstDate').value;
@@ -917,7 +947,8 @@ async function saveEntry(sendSms){
       phone: phoneFull,
       ticket: ticket,
       ret: finalDate,
-      car: car,
+      car: carVal,
+      color: colorVal || null,
       loc: locVal,
       status: finalStatus,
       block: '',
@@ -932,6 +963,7 @@ async function saveEntry(sendSms){
     document.getElementById('fTicket').value='';
     var fRet2=document.getElementById('fReturn');if(fRet2)fRet2.value='';
     document.getElementById('fCar').value='';
+    document.getElementById('fColor').value='';
     document.getElementById('fLoc').value='';
     document.getElementById('fObs').value='';
     document.getElementById('fStatus').value='PENDING';
@@ -981,7 +1013,8 @@ function showDet(id){
       '<div class="di editable" data-field="ts" data-raw="'+escapeHTML(tsToDateInput(r.ts))+'"><div class="di-l">Arrived ✎</div><div class="di-v" style="font-size:12px">'+escapeHTML(fmtA(r.ts))+'</div></div>'+
       '<div class="di editable" style="grid-column:1/-1" data-field="name"><div class="di-l">Name ✎</div><div class="di-v">'+escapeHTML(r.name)+'</div></div>'+
       '<div class="di editable" style="grid-column:1/-1" data-field="phone"><div class="di-l">Phone ✎</div><div class="di-v">'+escapeHTML(fmtP(r.phone))+'</div></div>'+
-      '<div class="di editable" style="grid-column:1/-1" data-field="car"><div class="di-l">Car ✎</div><div class="di-v">'+escapeHTML(r.car)+'</div></div>'+
+      '<div class="di editable" style="grid-column:1/-1" data-field="car"><div class="di-l">Car ✎</div><div class="di-v">'+escapeHTML(r.car||'')+'</div></div>'+
+      '<div class="di" style="grid-column:1/-1"><div class="di-l">Color</div><div class="di-v">'+escapeHTML(r.color||'—')+'</div></div>'+
       '<div class="di editable" style="grid-column:1/-1" data-field="loc" data-raw="'+escapeHTML(r.loc||'')+'"><div class="di-l">Location ✎</div><div class="di-v">'+escapeHTML(r.loc||'—')+'</div></div>'+
       '<div class="di editable" style="grid-column:1/-1" data-field="obs"><div class="di-l">Notes ✎</div><div class="di-v" style="font-size:12px">'+escapeHTML(r.obs||'—')+'</div></div>'+
     '</div>'+histH+
