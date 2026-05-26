@@ -269,7 +269,7 @@
     </div>
     <div id="erWarn" class="er-warn" style="display:none;">⚠️ HEADS UP: This passenger had an Early Return before. Confirm the return date carefully.</div>
     <div class="fr two">
-      <div class="fg"><label>Ticket # <span style="color:var(--red)">*</span></label><input type="text" id="fTicket" inputmode="numeric" pattern="[0-9]*" autocomplete="off" oninput="this.value=this.value.replace(/[^0-9]/g,'')" placeholder=""></div>
+      <div class="fg"><label>Ticket # <span style="color:var(--red)">*</span></label><input type="text" id="fTicket" inputmode="numeric" pattern="[0-9]*" autocomplete="off" oninput="this.value=this.value.replace(/[^0-9]/g,'')" placeholder=""><span style="font-size:10px;color:var(--mu);margin-top:3px;">Auto-generated. Can be manually adjusted if needed.</span></div>
       <div class="fg"><label>Return Date <span style="color:var(--red)" id="retRequired">*</span></label>
         <input type="date" id="fReturn" style="width:100%;background:var(--s2);border:1px solid var(--b);border-radius:10px;padding:11px 14px;font-size:16px;color:var(--tx);outline:none;font-family:'Syne',sans-serif;box-sizing:border-box;">
       </div>
@@ -933,12 +933,33 @@ function updateVcf(){
 }
 
 // ── OPEN / CLOSE MODAL ─────────────────────────────────────────
+// ── TICKET NUMBER HELPERS ──────────────────────────────────────────────────
+// Isolated — safe to remove. Uses global data[] array only.
+function isNumericTicket(v) {
+  return !!v && /^\d+$/.test(String(v).trim());
+}
+function formatTicketNumber(num) {
+  var s = String(num);
+  while (s.length < 4) s = '0' + s;
+  return s;
+}
+function getNextTicketNumber() {
+  var max = 0;
+  for (var i = 0; i < data.length; i++) {
+    if (isNumericTicket(data[i].ticket)) {
+      var n = parseInt(data[i].ticket, 10);
+      if (n > max) max = n;
+    }
+  }
+  return formatTicketNumber(max + 1);
+}
+
 function openAdd(){
   document.getElementById('modalTitle').textContent='New Entry';
   document.getElementById('modalSub').textContent='Add a new passenger';
   document.getElementById('fName').value='';
   document.getElementById('fPhone').value='';
-  document.getElementById('fTicket').value='';
+  document.getElementById('fTicket').value=getNextTicketNumber();
   var fRet=document.getElementById('fReturn'); if(fRet) fRet.value='';
   document.getElementById('fCar').value='';
   document.getElementById('fColor').value='';
@@ -961,6 +982,7 @@ document.querySelectorAll('.ov').forEach(function(o){o.addEventListener('click',
 async function saveEntry(sendSms){
   var name=document.getElementById('fName').value.trim();
   var ticket=document.getElementById('fTicket').value.trim();
+  if(!ticket){ticket=getNextTicketNumber();document.getElementById('fTicket').value=ticket;}
   if(!name||!ticket){alert('Name and Ticket required.');return;}
   var status0=document.getElementById('fStatus').value;
   var retVal=document.getElementById('fReturn').value;
@@ -980,6 +1002,9 @@ async function saveEntry(sendSms){
   var btnSms=document.getElementById('saveBtnSms');
   btn.textContent='Saving...';btn.disabled=true;
   btnSms.textContent='Saving...';btnSms.disabled=true;
+  // PRINT TICKET PROTOTYPE: open blank window NOW (synchronous, before any await)
+  // so iOS Safari doesn't block it as a popup after the async save.
+  var _ptWin = typeof ptOpenBlankWindow === 'function' ? ptOpenBlankWindow() : null;
   try{
     var ts=new Date().toLocaleString('en-US');
     var phoneFull=document.getElementById('fPhone').value.trim();
@@ -995,7 +1020,7 @@ async function saveEntry(sendSms){
     else { finalDate=d2us(getReturnDate()); }
     var locVal=document.getElementById('fLoc').value;
 
-    await sbInsert({
+    var _ptRec = await sbInsert({
       ts: ts,
       name: name.toUpperCase(),
       phone: phoneFull,
@@ -1010,6 +1035,11 @@ async function saveEntry(sendSms){
       deldate: ''
     });
     sbLog('CHECK-IN', name.toUpperCase(), ticket, locVal, finalStatus+(finalDate?' · Returns '+finalDate:''));
+    // PRINT TICKET PROTOTYPE: fill the pre-opened blank window with ticket content
+    if (_ptWin && typeof ptWriteTicketToWindow === 'function') {
+      var _inserted = Array.isArray(_ptRec) ? _ptRec[0] : _ptRec;
+      if (_inserted) ptWriteTicketToWindow(_ptWin, _inserted);
+    }
 
     closeAll();
     document.getElementById('fName').value='';
@@ -1032,6 +1062,8 @@ async function saveEntry(sendSms){
     }
     await loadData();
   }catch(e){
+    // PRINT TICKET PROTOTYPE: close the blank window if save failed
+    if (_ptWin) { try { _ptWin.close(); } catch(ex) {} _ptWin = null; }
     showMsg('❌ Error: '+e.message, true);
     console.error(e);
   }finally{
@@ -1082,6 +1114,7 @@ function showDet(id){
     (r.status!=='DELIVERED'&&!isToday(r.ret)&&!isLate(r.ret)?
       '<button onclick="earlyReturn('+r.id+')" style="width:100%;background:linear-gradient(135deg,#7b3fa0,#a855f7);color:#fff;border:none;border-radius:10px;padding:13px;font-family:Syne,sans-serif;font-weight:800;font-size:14px;cursor:pointer;margin-top:8px;display:flex;align-items:center;justify-content:center;gap:8px;">⚡ Early Return — Arrived Today</button>'
     :'')+
+    '<button onclick="openTicketPrintWindow('+r.id+')" style="width:100%;background:var(--navy);color:var(--gold);border:2px solid var(--gold);border-radius:10px;padding:13px;font-family:\'DM Mono\',monospace;font-weight:700;font-size:13px;cursor:pointer;margin-top:10px;letter-spacing:1.5px;-webkit-tap-highlight-color:transparent;">PRINT TICKET</button>'+
     '<button class="clsb" style="margin-top:6px;color:var(--red);border-color:var(--red)" onclick="deleteRec('+r.id+')">🗑 Delete Record</button>'+
     '<button class="clsb" onclick="closeAll()">Close</button>';
   setTimeout(function(){
@@ -2297,5 +2330,7 @@ function exportPDF() {
 </script>
 <datalist id="carModelList"></datalist>
 <datalist id="carColorList"></datalist>
+<!-- PRINT TICKET PROTOTYPE — remove this tag to disable -->
+<script src="print-ticket.js"></script>
 </body>
 </html>
