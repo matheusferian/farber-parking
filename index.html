@@ -956,6 +956,7 @@ async function saveEntry(sendSms){
       deldate: ''
     });
     sbLog('CHECK-IN', name.toUpperCase(), ticket, locVal, finalStatus+(finalDate?' · Returns '+finalDate:''));
+    maybeAddVehicle(carVal);
 
     closeAll();
     document.getElementById('fName').value='';
@@ -1014,7 +1015,7 @@ function showDet(id){
       '<div class="di editable" style="grid-column:1/-1" data-field="name"><div class="di-l">Name ✎</div><div class="di-v">'+escapeHTML(r.name)+'</div></div>'+
       '<div class="di editable" style="grid-column:1/-1" data-field="phone"><div class="di-l">Phone ✎</div><div class="di-v">'+escapeHTML(fmtP(r.phone))+'</div></div>'+
       '<div class="di editable" style="grid-column:1/-1" data-field="car"><div class="di-l">Car ✎</div><div class="di-v">'+escapeHTML(r.car||'')+'</div></div>'+
-      '<div class="di" style="grid-column:1/-1"><div class="di-l">Color</div><div class="di-v">'+escapeHTML(r.color||'—')+'</div></div>'+
+      '<div class="di editable" style="grid-column:1/-1" data-field="color"><div class="di-l">Color ✎</div><div class="di-v">'+escapeHTML(r.color||'—')+'</div></div>'+
       '<div class="di editable" style="grid-column:1/-1" data-field="loc" data-raw="'+escapeHTML(r.loc||'')+'"><div class="di-l">Location ✎</div><div class="di-v">'+escapeHTML(r.loc||'—')+'</div></div>'+
       '<div class="di editable" style="grid-column:1/-1" data-field="obs"><div class="di-l">Notes ✎</div><div class="di-v" style="font-size:12px">'+escapeHTML(r.obs||'—')+'</div></div>'+
     '</div>'+histH+
@@ -1269,6 +1270,7 @@ async function saveEdits(rid){
     for(var field in _editChanges){
       var val=_editChanges[field];
       if(field==='name'||field==='car'||field==='ticket') val=val.toUpperCase();
+      if(field==='color') val=val||null;
       upd[field]=val;
       changes.push(field+': '+val);
       r[field]=val;
@@ -1396,9 +1398,44 @@ function genReport(type,mode){
 }
 
 // ── SUPABASE AUTH ──────────────────────────────────────────────
+// ── VEHICLE SUGGESTIONS (localStorage) ────────────────────────
+var BUILTIN_VEHICLES = ['Escalade','Suburban','Tahoe','Yukon','Navigator','Mercedes Sprinter','Transit Van','Highlander','Camry','Corolla','F-150','Ram 1500','Tesla Model X','Tesla Model Y','Range Rover','G Wagon'];
+function getCustomVehicles(){
+  try{ return JSON.parse(localStorage.getItem('customVehicles')||'[]'); }catch(e){ return []; }
+}
+function saveCustomVehicles(arr){
+  try{ localStorage.setItem('customVehicles', JSON.stringify(arr)); }catch(e){}
+}
+function loadVehicleSuggestions(){
+  var dl=document.getElementById('vehicleSuggestions');
+  if(!dl) return;
+  var custom=getCustomVehicles();
+  custom.forEach(function(v){
+    if(!v) return;
+    var exists=false;
+    for(var i=0;i<dl.options.length;i++){ if(dl.options[i].value===v){exists=true;break;} }
+    if(!exists){ var opt=document.createElement('option'); opt.value=v; dl.appendChild(opt); }
+  });
+}
+function maybeAddVehicle(carVal){
+  if(!carVal) return;
+  var dl=document.getElementById('vehicleSuggestions');
+  if(!dl) return;
+  // Check if already in datalist (builtin or custom)
+  for(var i=0;i<dl.options.length;i++){
+    if(dl.options[i].value.toUpperCase()===carVal.toUpperCase()) return;
+  }
+  // New vehicle — add to datalist and persist
+  var opt=document.createElement('option'); opt.value=carVal; dl.appendChild(opt);
+  var custom=getCustomVehicles();
+  custom.push(carVal);
+  saveCustomVehicles(custom);
+}
+
 function showApp() {
   document.getElementById('loginOv').style.display = 'none';
   var lb = document.getElementById('logoutBtn'); if(lb) lb.style.display = '';
+  loadVehicleSuggestions();
 }
 function showLogin() {
   document.getElementById('loginOv').style.display = 'flex';
