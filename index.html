@@ -1708,13 +1708,13 @@ function generatePDF(mode) {
 function generateMayReport(){
   var WDAYS=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 
-  // Date helpers
+  // Date parser: ISO timestamptz, M/D/YYYY, MM/DD/YYYY
   function parseDt(str){
     if(!str||!String(str).trim()) return null;
     str=String(str).trim();
     if(/^\d{4}-\d{2}-\d{2}/.test(str)){
       var p=str.split('T')[0].split('-').map(Number);
-      return p[0]&&p[1]&&p[2]?new Date(p[0],p[1]-1,p[2]):null;
+      return(p[0]&&p[1]&&p[2])?new Date(p[0],p[1]-1,p[2]):null;
     }
     var pts=str.split('/');
     if(pts.length===3){
@@ -1725,252 +1725,329 @@ function generateMayReport(){
   }
   function isMay(dt){ return dt&&dt.getFullYear()===2026&&dt.getMonth()===4; }
 
-  // Process records — use checkin_date/checkout_date, fallback to ts/deldate
-  var validArr=0,validDel=0;
-  var ciHasNew=0,ciHasFallback=0,ciMissing=0;
-  var coHasNew=0,coHasFallback=0,coMissing=0;
-  var dtNormal=0,dtCustoms=0,dtMissing=0;
+  // ── Validation counters ──────────────────────────────────────────────────
+  var ciFromNew=0, ciFromFallback=0, ciMissing=0;
+  var coFromNew=0, coFromFallback=0, coMissing=0;
+  var delNormalMay=0, delCustomsMay=0, delUnknownMay=0;
+
+  // ── Process records ──────────────────────────────────────────────────────
   var proc=data.map(function(r){
-    // Check-in source
-    var adSrc=''; var adNew=false; var adFb=false;
-    if(r.checkin_date&&r.checkin_date!==r.ts&&r.checkin_date.trim()){adSrc=r.checkin_date;adNew=true;}
-    else if(r.ts&&r.ts.trim()){adSrc=r.ts;adFb=true;}
-    // Checkout source — never use ret
-    var ddSrc=''; var ddNew=false; var ddFb=false;
-    if(r.checkout_date&&r.checkout_date!==r.deldate&&r.checkout_date.trim()){ddSrc=r.checkout_date;ddNew=true;}
-    else if(r.deldate&&r.deldate.trim()){ddSrc=r.deldate;ddFb=true;}
+    // Check-in: prefer checkin_date, fallback ts, never ret
+    var ciSrc='', ciIsNew=false;
+    if(r.checkin_date&&String(r.checkin_date).trim()){ciSrc=r.checkin_date;ciIsNew=true;}
+    else if(r.ts&&String(r.ts).trim()){ciSrc=r.ts;}
+    if(ciIsNew) ciFromNew++; else if(ciSrc) ciFromFallback++; else ciMissing++;
 
-    var ad=parseDt(adSrc), dd=parseDt(ddSrc);
-    var ai=ad&&isMay(ad), di=dd&&isMay(dd);
+    // Checkout: prefer checkout_date, fallback deldate, NEVER ret
+    var coSrc='', coIsNew=false;
+    if(r.checkout_date&&String(r.checkout_date).trim()){coSrc=r.checkout_date;coIsNew=true;}
+    else if(r.deldate&&String(r.deldate).trim()){coSrc=r.deldate;}
+    if(coIsNew) coFromNew++; else if(coSrc) coFromFallback++; else coMissing++;
 
-    // Validation counters
-    if(adNew) ciHasNew++; else if(adFb) ciHasFallback++; else ciMissing++;
-    if(ddNew) coHasNew++; else if(ddFb) coHasFallback++; else coMissing++;
-    if(ai) validArr++;
-    if(di) validDel++;
+    var ad=parseDt(ciSrc), dd=parseDt(coSrc);
+    var ai=!!(ad&&isMay(ad));
+    var di=!!(dd&&isMay(dd));
 
-    // delivery_type counters
-    if(r.delivery_type==='NORMAL') dtNormal++;
-    else if(r.delivery_type==='CUSTOMS') dtCustoms++;
-    else dtMissing++;
-
-    return {ad:ad,dd:dd,ai:ai,di:di};
+    // delivery_type — only count for records delivered in May
+    if(di){
+      if(r.delivery_type==='NORMAL') delNormalMay++;
+      else if(r.delivery_type==='CUSTOMS') delCustomsMay++;
+      else delUnknownMay++;
+    }
+    return {ad:ad, dd:dd, ai:ai, di:di, dt:r.delivery_type||''};
   });
 
-  // Build daily table May 1–31
+  // ── Build daily table May 1–31 ───────────────────────────────────────────
   var daily=[];
   for(var d=1;d<=31;d++){
     var dt=new Date(2026,4,d);
-    daily.push({dt:dt,key:'2026-05-'+String(d).padStart(2,'0'),
+    daily.push({
+      dt:dt, key:'2026-05-'+String(d).padStart(2,'0'),
       label:dt.toLocaleDateString('en-US',{month:'short',day:'numeric'}),
-      wd:WDAYS[dt.getDay()],wdi:dt.getDay(),arr:0,del:0});
+      wd:WDAYS[dt.getDay()], wdi:dt.getDay(),
+      ci:0, delNorm:0, delCust:0
+    });
   }
   proc.forEach(function(r){
-    if(r.ai){var i=r.ad.getDate()-1;if(daily[i])daily[i].arr++;}
-    if(r.di){var i=r.dd.getDate()-1;if(daily[i])daily[i].del++;}
+    if(r.ai){ var i=r.ad.getDate()-1; if(daily[i]) daily[i].ci++; }
+    if(r.di){
+      var i=r.dd.getDate()-1;
+      if(daily[i]){
+        if(r.dt==='CUSTOMS') daily[i].delCust++;
+        else daily[i].delNorm++;
+      }
+    }
   });
+  daily.forEach(function(d){ d.del=d.delNorm+d.delCust; d.net=d.ci-d.del; });
 
-  // Weekday averages
-  var wdCnt=[0,0,0,0,0,0,0],wdArr=[0,0,0,0,0,0,0],wdDel=[0,0,0,0,0,0,0];
-  daily.forEach(function(d){wdCnt[d.wdi]++;wdArr[d.wdi]+=d.arr;wdDel[d.wdi]+=d.del;});
-  var wdAvgA=wdCnt.map(function(c,i){return c?wdArr[i]/c:0;});
-  var wdAvgD=wdCnt.map(function(c,i){return c?wdDel[i]/c:0;});
+  // ── Monthly totals ───────────────────────────────────────────────────────
+  var totalCI  = daily.reduce(function(s,d){return s+d.ci;},0);
+  var totalDel = daily.reduce(function(s,d){return s+d.del;},0);
+  var avgDailyCI  = (totalCI/31).toFixed(1);
+  var avgDailyDel = (totalDel/31).toFixed(1);
 
-  // Stats
-  var avgDailyA=(validArr/31).toFixed(1);
-  var avgDailyD=(validDel/31).toFixed(1);
-  var maxAvgA=Math.max.apply(null,wdAvgA);
-  var maxAvgD=Math.max.apply(null,wdAvgD);
-  var busiestAWD=WDAYS[wdAvgA.indexOf(maxAvgA)];
-  var busiestDWD=WDAYS[wdAvgD.indexOf(maxAvgD)];
-  var busiest=[].concat(daily).sort(function(a,b){return(b.arr+b.del)-(a.arr+a.del);})[0];
-  var top5A=[].concat(daily).sort(function(a,b){return b.arr-a.arr;}).slice(0,5);
-  var top5D=[].concat(daily).sort(function(a,b){return b.del-a.del;}).slice(0,5);
-  var top5C=[].concat(daily).sort(function(a,b){return(b.arr+b.del)-(a.arr+a.del);}).slice(0,5);
+  // ── Weekday averages ─────────────────────────────────────────────────────
+  var wdCnt =[0,0,0,0,0,0,0];
+  var wdCI  =[0,0,0,0,0,0,0], wdNorm=[0,0,0,0,0,0,0];
+  var wdCust=[0,0,0,0,0,0,0], wdDel =[0,0,0,0,0,0,0];
+  daily.forEach(function(d){
+    wdCnt [d.wdi]++; wdCI  [d.wdi]+=d.ci;
+    wdNorm[d.wdi]+=d.delNorm; wdCust[d.wdi]+=d.delCust; wdDel[d.wdi]+=d.del;
+  });
+  var wdAvgCI  =wdCnt.map(function(c,i){return c?wdCI[i]/c:0;});
+  var wdAvgNorm=wdCnt.map(function(c,i){return c?wdNorm[i]/c:0;});
+  var wdAvgCust=wdCnt.map(function(c,i){return c?wdCust[i]/c:0;});
+  var wdAvgDel =wdCnt.map(function(c,i){return c?wdDel[i]/c:0;});
+
+  // ── Key stats ────────────────────────────────────────────────────────────
+  var maxCI =Math.max.apply(null,wdAvgCI);
+  var maxDel=Math.max.apply(null,wdAvgDel);
+  var busiestCIWD =WDAYS[wdAvgCI .indexOf(maxCI)];
+  var busiestDelWD=WDAYS[wdAvgDel.indexOf(maxDel)];
+  var sortedComb=[].concat(daily).sort(function(a,b){return(b.ci+b.del)-(a.ci+a.del);});
+  var busiest=sortedComb[0];
+  var top5CI =[].concat(daily).sort(function(a,b){return b.ci-a.ci;}).slice(0,5);
+  var top5Del=[].concat(daily).sort(function(a,b){return b.del-a.del;}).slice(0,5);
+  var top5Cmb=sortedComb.slice(0,5);
 
   // Spread CV
-  var mean=validArr/31;
-  var stdDev=Math.sqrt(daily.reduce(function(s,d){return s+Math.pow(d.arr-mean,2);},0)/31);
+  var mean=totalCI/31;
+  var stdDev=Math.sqrt(daily.reduce(function(s,d){return s+Math.pow(d.ci-mean,2);},0)/31);
   var cvPct=mean>0?Math.round((stdDev/mean)*100):0;
-  var spreadNote=cvPct>60?'Traffic is notably concentrated on specific days (high variability).':
+  var spreadNote=cvPct>60?'Traffic is notably concentrated on specific days.':
     cvPct>30?'Traffic shows moderate daily variation with some peak days.':
     'Traffic is relatively evenly distributed throughout the month.';
+  var wkdayAvgCI=([1,2,3,4,5].reduce(function(s,i){return s+wdAvgCI[i];},0)/5).toFixed(1);
 
-  // Weekend vs weekday avg
-  var wdAvgSum=[1,2,3,4,5].reduce(function(s,i){return s+wdAvgA[i];},0);
-  var wkdayAvg=(wdAvgSum/5).toFixed(1);
-
-  // Table rows helpers
-  function topRows(arr,fields){
-    return arr.map(function(d,i){
-      return '<tr><td>'+(i+1)+'</td><td>'+d.key+'</td><td>'+d.wd+'</td>'+
-        fields.map(function(f){return '<td>'+d[f]+'</td>';}).join('')+'</tr>';
-    }).join('');
-  }
+  // ── HTML row builders ────────────────────────────────────────────────────
   var wdOrder=[1,2,3,4,5,6,0];
   var wdTableRows=wdOrder.map(function(i){
-    return '<tr><td>'+WDAYS[i]+'</td><td>'+wdCnt[i]+'</td><td>'+wdArr[i]+'</td>'+
-      '<td>'+wdAvgA[i].toFixed(1)+'</td><td>'+wdDel[i]+'</td><td>'+wdAvgD[i].toFixed(1)+'</td></tr>';
-  }).join('');
-  var dailyRows=daily.map(function(d,idx){
-    var net=d.arr-d.del;
-    var netStyle=net>0?'color:#1a7c4a':net<0?'color:#c0392b':'color:#888';
-    var netStr=(net>0?'+':'')+net;
-    return '<tr class="'+(idx%2===0?'even':'')+'"><td>'+d.key+'</td><td>'+d.wd+'</td>'+
-      '<td>'+d.arr+'</td><td>'+d.del+'</td>'+
-      '<td style="'+netStyle+';font-weight:700">'+netStr+'</td></tr>';
-  }).join('');
-  var top5CRows=top5C.map(function(d,i){
-    return '<tr><td>'+(i+1)+'</td><td>'+d.key+'</td><td>'+d.wd+'</td><td>'+(d.arr+d.del)+'</td></tr>';
+    return '<tr>'+
+      '<td>'+WDAYS[i]+'</td><td>'+wdCnt[i]+'</td>'+
+      '<td>'+wdCI[i]+'</td><td>'+wdAvgCI[i].toFixed(1)+'</td>'+
+      '<td>'+wdNorm[i]+'</td><td>'+wdAvgNorm[i].toFixed(1)+'</td>'+
+      '<td>'+wdCust[i]+'</td><td>'+wdAvgCust[i].toFixed(1)+'</td>'+
+      '<td>'+wdDel[i]+'</td><td>'+wdAvgDel[i].toFixed(1)+'</td>'+
+    '</tr>';
   }).join('');
 
-  var arrDataJ=JSON.stringify(daily.map(function(d){return d.arr;}));
-  var delDataJ=JSON.stringify(daily.map(function(d){return d.del;}));
-  var dayLabJ=JSON.stringify(daily.map(function(d){return d.label;}));
-  var wdLabJ=JSON.stringify(WDAYS.map(function(w){return w.slice(0,3);}));
-  var wdAvgAJ=JSON.stringify(WDAYS.map(function(_,i){return+wdAvgA[i].toFixed(1);}));
-  var wdAvgDJ=JSON.stringify(WDAYS.map(function(_,i){return+wdAvgD[i].toFixed(1);}));
+  var dailyRows=daily.map(function(d,idx){
+    var netStyle=d.net>0?'color:#1a7c4a;font-weight:700':d.net<0?'color:#c0392b;font-weight:700':'color:#888';
+    var netStr=(d.net>0?'+':'')+d.net;
+    return '<tr class="'+(idx%2===0?'even':'')+'">'+
+      '<td>'+d.key+'</td><td>'+d.wd+'</td>'+
+      '<td style="color:#1a3d7c;font-weight:600">'+d.ci+'</td>'+
+      '<td>'+d.delNorm+'</td>'+
+      '<td style="color:#c9a84c;font-weight:600">'+d.delCust+'</td>'+
+      '<td>'+d.del+'</td>'+
+      '<td style="'+netStyle+'">'+netStr+'</td>'+
+    '</tr>';
+  }).join('');
+
+  var top5CIRows=top5CI.map(function(d,i){
+    return '<tr><td>'+(i+1)+'</td><td>'+d.key+'</td><td>'+d.wd+'</td><td>'+d.ci+'</td></tr>';
+  }).join('');
+  var top5DelRows=top5Del.map(function(d,i){
+    return '<tr><td>'+(i+1)+'</td><td>'+d.key+'</td><td>'+d.wd+'</td>'+
+      '<td>'+d.del+'</td><td>'+d.delNorm+'</td><td>'+d.delCust+'</td></tr>';
+  }).join('');
+  var top5CmbRows=top5Cmb.map(function(d,i){
+    return '<tr><td>'+(i+1)+'</td><td>'+d.key+'</td><td>'+d.wd+'</td><td>'+(d.ci+d.del)+'</td></tr>';
+  }).join('');
+
+  // ── Chart data ───────────────────────────────────────────────────────────
+  var ciDataJ   =JSON.stringify(daily.map(function(d){return d.ci;}));
+  var normDataJ =JSON.stringify(daily.map(function(d){return d.delNorm;}));
+  var custDataJ =JSON.stringify(daily.map(function(d){return d.delCust;}));
+  var dayLabJ   =JSON.stringify(daily.map(function(d){return d.label;}));
+  var wdLabJ    =JSON.stringify(WDAYS.map(function(w){return w.slice(0,3);}));
+  var wdAvgCIJ  =JSON.stringify(WDAYS.map(function(_,i){return+wdAvgCI[i].toFixed(1);}));
+  var wdAvgNormJ=JSON.stringify(WDAYS.map(function(_,i){return+wdAvgNorm[i].toFixed(1);}));
+  var wdAvgCustJ=JSON.stringify(WDAYS.map(function(_,i){return+wdAvgCust[i].toFixed(1);}));
   var genDate=new Date().toLocaleString('en-US');
 
+  // ── CSS ──────────────────────────────────────────────────────────────────
+  var CSS=
+    '*{box-sizing:border-box;margin:0;padding:0}'+
+    'body{font-family:"Segoe UI",Arial,sans-serif;background:#f4f6fa;color:#1a1a2e;font-size:13px}'+
+    '.page{max-width:1060px;margin:0 auto;padding:32px 28px}'+
+    '.header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #1a3d7c;padding-bottom:18px;margin-bottom:26px}'+
+    '.header h1{color:#1a3d7c;font-size:20px;font-weight:800;letter-spacing:.5px}'+
+    '.header .sub{color:#666;font-size:11px;margin-top:4px}'+
+    '.badge-title{background:#1a3d7c;color:#fff;padding:8px 16px;border-radius:6px;font-size:12px;font-weight:700;text-align:right;white-space:nowrap}'+
+    '.section{margin-bottom:30px}'+
+    '.section h2{font-size:14px;font-weight:700;color:#1a3d7c;border-left:4px solid #c9a84c;padding-left:10px;margin-bottom:14px;text-transform:uppercase;letter-spacing:.5px}'+
+    '.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:8px}'+
+    '.kpi{background:#fff;border:1px solid #e0e6f0;border-radius:10px;padding:13px 14px;text-align:center}'+
+    '.kpi .num{font-size:26px;font-weight:800;color:#1a3d7c;line-height:1}'+
+    '.kpi .lbl{font-size:10px;color:#888;margin-top:5px;text-transform:uppercase;letter-spacing:.4px}'+
+    '.kpi.acc .num{color:#c9a84c}.kpi.grn .num{color:#1a7c4a}.kpi.red .num{color:#c0392b}'+
+    'table{width:100%;border-collapse:collapse;font-size:11.5px;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.06)}'+
+    'th{background:#1a3d7c;color:#fff;padding:8px 9px;text-align:left;font-weight:600;font-size:10.5px}'+
+    'td{padding:7px 9px;border-bottom:1px solid #eef1f7}'+
+    'tr.even td{background:#f9fafd}tr:last-child td{border-bottom:none}'+
+    '.chart-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:6px}'+
+    '.chart-wrap{background:#fff;border:1px solid #e0e6f0;border-radius:10px;padding:14px}'+
+    '.chart-wrap h3,.chart-full h3{font-size:10.5px;font-weight:700;color:#555;margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px}'+
+    '.chart-full{background:#fff;border:1px solid #e0e6f0;border-radius:10px;padding:14px;margin-bottom:6px}'+
+    '.top5-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}'+
+    '.top5-grid p{font-size:10.5px;font-weight:700;color:#555;text-transform:uppercase;letter-spacing:.5px;margin-bottom:7px}'+
+    '.insights-box{background:#fff;border:1px solid #e0e6f0;border-radius:10px;padding:16px 18px}'+
+    '.ins-item{display:flex;gap:9px;margin-bottom:9px;align-items:flex-start}'+
+    '.ins-dot{width:7px;height:7px;border-radius:50%;background:#c9a84c;margin-top:4px;flex-shrink:0}'+
+    '.ins-text{font-size:12px;color:#333;line-height:1.5}'+
+    '.footer{text-align:center;color:#aaa;font-size:10px;margin-top:34px;padding-top:12px;border-top:1px solid #dde3ef}'+
+    '.no-print{text-align:right;margin-bottom:16px}'+
+    '@media print{body{background:#fff}.page{padding:10px 8px}.no-print{display:none}}';
+
+  // ── HTML report ──────────────────────────────────────────────────────────
   var html='<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">'+
     '<title>Makers Air Valet — May 2026 Operations Report</title>'+
     '<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"><\/script>'+
-    '<style>'+
-      '*{box-sizing:border-box;margin:0;padding:0}'+
-      'body{font-family:"Segoe UI",Arial,sans-serif;background:#f4f6fa;color:#1a1a2e;font-size:13px}'+
-      '.page{max-width:1050px;margin:0 auto;padding:32px 28px}'+
-      '.header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #1a3d7c;padding-bottom:18px;margin-bottom:26px}'+
-      '.header h1{color:#1a3d7c;font-size:20px;font-weight:800;letter-spacing:.5px}'+
-      '.header .sub{color:#666;font-size:11px;margin-top:4px}'+
-      '.badge-title{background:#1a3d7c;color:#fff;padding:8px 16px;border-radius:6px;font-size:12px;font-weight:700;text-align:right}'+
-      '.section{margin-bottom:30px}'+
-      '.section h2{font-size:14px;font-weight:700;color:#1a3d7c;border-left:4px solid #c9a84c;padding-left:10px;margin-bottom:14px;text-transform:uppercase;letter-spacing:.5px}'+
-      '.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:6px}'+
-      '.kpi{background:#fff;border:1px solid #e0e6f0;border-radius:10px;padding:14px 16px;text-align:center}'+
-      '.kpi .num{font-size:28px;font-weight:800;color:#1a3d7c;line-height:1}'+
-      '.kpi .lbl{font-size:10px;color:#888;margin-top:5px;text-transform:uppercase;letter-spacing:.5px}'+
-      '.kpi.accent .num{color:#c9a84c}'+
-      'table{width:100%;border-collapse:collapse;font-size:12px;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.06)}'+
-      'th{background:#1a3d7c;color:#fff;padding:9px 10px;text-align:left;font-weight:600;font-size:11px}'+
-      'td{padding:8px 10px;border-bottom:1px solid #eef1f7}'+
-      'tr.even td{background:#f9fafd}'+
-      'tr:last-child td{border-bottom:none}'+
-      '.chart-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:6px}'+
-      '.chart-wrap{background:#fff;border:1px solid #e0e6f0;border-radius:10px;padding:16px}'+
-      '.chart-wrap h3,.chart-full h3{font-size:11px;font-weight:700;color:#555;margin-bottom:12px;text-transform:uppercase;letter-spacing:.5px}'+
-      '.chart-full{background:#fff;border:1px solid #e0e6f0;border-radius:10px;padding:16px;margin-bottom:6px}'+
-      '.top5-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}'+
-      '.insights-box{background:#fff;border:1px solid #e0e6f0;border-radius:10px;padding:18px 20px}'+
-      '.ins-item{display:flex;gap:10px;margin-bottom:10px;align-items:flex-start}'+
-      '.ins-dot{width:8px;height:8px;border-radius:50%;background:#c9a84c;margin-top:4px;flex-shrink:0}'+
-      '.ins-text{font-size:12px;color:#333;line-height:1.5}'+
-      '.footer{text-align:center;color:#aaa;font-size:10px;margin-top:36px;padding-top:14px;border-top:1px solid #dde3ef}'+
-      '.no-print{text-align:right;margin-bottom:18px}'+
-      '@media print{body{background:#fff}.page{padding:12px 10px}.no-print{display:none}}'+
-    '</style></head><body><div class="page">'+
+    '<style>'+CSS+'<\/style><\/head><body><div class="page">'+
 
-    '<div class="no-print">'+
-      '<button onclick="window.print()" style="background:#1a3d7c;color:#fff;border:none;padding:11px 22px;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer;">'+
-        '🖨 Save as PDF / Print'+
-      '</button>'+
-    '</div>'+
+    '<div class="no-print"><button onclick="window.print()" style="background:#1a3d7c;color:#fff;border:none;padding:10px 20px;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer;">🖶 Save as PDF \/ Print<\/button><\/div>'+
 
     '<div class="header">'+
-      '<div><h1>MAKERS AIR VALET &mdash; By Farber Parking</h1>'+
-      '<div class="sub">Monthly Operations Report &nbsp;&middot;&nbsp; May 2026 &nbsp;&middot;&nbsp; Generated '+genDate+'</div></div>'+
-      '<div class="badge-title">MAY 2026<br>Operations</div>'+
-    '</div>'+
+      '<div><h1>MAKERS AIR VALET &mdash; By Farber Parking<\/h1>'+
+      '<div class="sub">Monthly Operations Report &nbsp;&middot;&nbsp; May 2026 &nbsp;&middot;&nbsp; Generated '+genDate+'<\/div><\/div>'+
+      '<div class="badge-title">MAY 2026<br>Operations<\/div>'+
+    '<\/div>'+
 
-    '<div class="section"><h2>Executive Summary</h2>'+
+    '<div class="section"><h2>Executive Summary<\/h2>'+
       '<div class="kpi-grid">'+
-        '<div class="kpi"><div class="num">'+validArr+'</div><div class="lbl">Check-ins in May</div></div>'+
-        '<div class="kpi"><div class="num">'+validDel+'</div><div class="lbl">Deliveries in May</div></div>'+
-        '<div class="kpi accent"><div class="num">'+avgDailyA+'</div><div class="lbl">Avg Daily Check-ins</div></div>'+
-        '<div class="kpi accent"><div class="num">'+avgDailyD+'</div><div class="lbl">Avg Daily Deliveries</div></div>'+
-      '</div>'+
-      '<div class="kpi-grid" style="margin-top:10px">'+
-        '<div class="kpi"><div class="num" style="font-size:18px">'+busiestAWD+'</div><div class="lbl">Busiest Arrival Weekday</div></div>'+
-        '<div class="kpi"><div class="num" style="font-size:18px">'+busiestDWD+'</div><div class="lbl">Busiest Delivery Weekday</div></div>'+
-        '<div class="kpi"><div class="num" style="font-size:16px">'+busiest.key+'</div><div class="lbl">Busiest Single Day<br>'+(busiest.arr+busiest.del)+' combined ops</div></div>'+
-        '<div class="kpi"><div class="num">'+data.length+'</div><div class="lbl">Total Records in DB</div></div>'+
-      '</div>'+
-    '</div>'+
+        '<div class="kpi"><div class="num">'+totalCI+'<\/div><div class="lbl">Total Check-ins<\/div><\/div>'+
+        '<div class="kpi"><div class="num">'+totalDel+'<\/div><div class="lbl">Total Deliveries<\/div><\/div>'+
+        '<div class="kpi grn"><div class="num">'+delNormalMay+'<\/div><div class="lbl">Normal Deliveries<\/div><\/div>'+
+        '<div class="kpi acc"><div class="num">'+delCustomsMay+'<\/div><div class="lbl">Customs Deliveries<\/div><\/div>'+
+      '<\/div>'+
+      '<div class="kpi-grid" style="margin-top:8px">'+
+        '<div class="kpi acc"><div class="num">'+avgDailyCI+'<\/div><div class="lbl">Avg Daily Check-ins<\/div><\/div>'+
+        '<div class="kpi acc"><div class="num">'+avgDailyDel+'<\/div><div class="lbl">Avg Daily Deliveries<\/div><\/div>'+
+        '<div class="kpi"><div class="num" style="font-size:17px">'+busiestCIWD+'<\/div><div class="lbl">Busiest Check-in Day<\/div><\/div>'+
+        '<div class="kpi"><div class="num" style="font-size:17px">'+busiestDelWD+'<\/div><div class="lbl">Busiest Delivery Day<\/div><\/div>'+
+      '<\/div>'+
+      '<div class="kpi-grid" style="margin-top:8px">'+
+        '<div class="kpi"><div class="num" style="font-size:15px">'+busiest.key+'<\/div><div class="lbl">Busiest Single Day<br>'+(busiest.ci+busiest.del)+' total ops<\/div><\/div>'+
+        '<div class="kpi"><div class="num">'+data.length+'<\/div><div class="lbl">Total Records in DB<\/div><\/div>'+
+        '<div class="kpi '+(delUnknownMay>0?'red':'')+'"><div class="num">'+delUnknownMay+'<\/div><div class="lbl">Deliveries without type<\/div><\/div>'+
+        '<div class="kpi"><div class="num" style="font-size:12px;padding-top:4px">'+(ciFromNew+ciFromFallback)+' \/ '+data.length+'<\/div><div class="lbl">Records with check-in date<\/div><\/div>'+
+      '<\/div>'+
+    '<\/div>'+
 
-    '<div class="section"><h2>Daily Activity Charts</h2>'+
-      '<div class="chart-full"><h3>Daily Arrivals vs Deliveries &mdash; May 2026</h3><canvas id="dailyChart" height="90"></canvas></div>'+
+    '<div class="section"><h2>Daily Activity Charts<\/h2>'+
+      '<div class="chart-full"><h3>Daily Check-ins vs Deliveries &mdash; May 2026<\/h3><canvas id="dailyChart" height="85"><\/canvas><\/div>'+
       '<div class="chart-grid" style="margin-top:14px">'+
-        '<div class="chart-wrap"><h3>Average Arrivals by Weekday</h3><canvas id="wdArrChart" height="160"></canvas></div>'+
-        '<div class="chart-wrap"><h3>Average Deliveries by Weekday</h3><canvas id="wdDelChart" height="160"></canvas></div>'+
-      '</div>'+
-    '</div>'+
+        '<div class="chart-wrap"><h3>Avg Check-ins by Weekday<\/h3><canvas id="wdCIChart" height="155"><\/canvas><\/div>'+
+        '<div class="chart-wrap"><h3>Avg Deliveries by Weekday (Normal + Customs)<\/h3><canvas id="wdDelChart" height="155"><\/canvas><\/div>'+
+      '<\/div>'+
+    '<\/div>'+
 
-    '<div class="section"><h2>Weekday Average Analysis</h2>'+
-      '<table><thead><tr><th>Weekday</th><th># Occurrences</th><th>Total Arrivals</th><th>Avg Arrivals/Week</th><th>Total Deliveries</th><th>Avg Deliveries/Week</th></tr></thead>'+
-      '<tbody>'+wdTableRows+'</tbody></table>'+
-    '</div>'+
+    '<div class="section"><h2>Weekday Average Analysis<\/h2>'+
+      '<table><thead><tr>'+
+        '<th>Weekday<\/th><th># Wks<\/th>'+
+        '<th>Total CI<\/th><th>Avg CI<\/th>'+
+        '<th>Total Norm<\/th><th>Avg Norm<\/th>'+
+        '<th>Total Cust<\/th><th>Avg Cust<\/th>'+
+        '<th>Total Del<\/th><th>Avg Del<\/th>'+
+      '<\/tr><\/thead><tbody>'+wdTableRows+'<\/tbody><\/table>'+
+    '<\/div>'+
 
-    '<div class="section"><h2>Busiest Days</h2>'+
+    '<div class="section"><h2>Busiest Days<\/h2>'+
       '<div class="top5-grid">'+
-        '<div><p style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Top 5 Arrival Days</p>'+
-          '<table><thead><tr><th>#</th><th>Date</th><th>Weekday</th><th>Arr</th></tr></thead><tbody>'+topRows(top5A,['arr'])+'</tbody></table></div>'+
-        '<div><p style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Top 5 Delivery Days</p>'+
-          '<table><thead><tr><th>#</th><th>Date</th><th>Weekday</th><th>Del</th></tr></thead><tbody>'+topRows(top5D,['del'])+'</tbody></table></div>'+
-        '<div><p style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Top 5 Combined Days</p>'+
-          '<table><thead><tr><th>#</th><th>Date</th><th>Weekday</th><th>Comb</th></tr></thead><tbody>'+top5CRows+'</tbody></table></div>'+
-      '</div>'+
-    '</div>'+
+        '<div><p>Top 5 Check-in Days<\/p>'+
+          '<table><thead><tr><th>#<\/th><th>Date<\/th><th>Weekday<\/th><th>CI<\/th><\/tr><\/thead>'+
+          '<tbody>'+top5CIRows+'<\/tbody><\/table><\/div>'+
+        '<div><p>Top 5 Delivery Days<\/p>'+
+          '<table><thead><tr><th>#<\/th><th>Date<\/th><th>Day<\/th><th>Tot<\/th><th>Nrm<\/th><th>Cst<\/th><\/tr><\/thead>'+
+          '<tbody>'+top5DelRows+'<\/tbody><\/table><\/div>'+
+        '<div><p>Top 5 Combined Days<\/p>'+
+          '<table><thead><tr><th>#<\/th><th>Date<\/th><th>Weekday<\/th><th>CI+Del<\/th><\/tr><\/thead>'+
+          '<tbody>'+top5CmbRows+'<\/tbody><\/table><\/div>'+
+      '<\/div>'+
+    '<\/div>'+
 
-    '<div class="section"><h2>Daily Operations &mdash; May 1 to May 31</h2>'+
-      '<table><thead><tr><th>Date</th><th>Weekday</th><th>Check-ins</th><th>Deliveries</th><th>Net Change</th></tr></thead>'+
-      '<tbody>'+dailyRows+'</tbody></table>'+
-    '</div>'+
+    '<div class="section"><h2>Daily Operations &mdash; May 1 to May 31<\/h2>'+
+      '<table><thead><tr>'+
+        '<th>Date<\/th><th>Weekday<\/th>'+
+        '<th>Check-ins<\/th>'+
+        '<th>Normal Del<\/th>'+
+        '<th>Customs Del<\/th>'+
+        '<th>Total Del<\/th>'+
+        '<th>Net Change<\/th>'+
+      '<\/tr><\/thead><tbody>'+dailyRows+'<\/tbody><\/table>'+
+    '<\/div>'+
 
-    '<div class="section"><h2>Operational Insights</h2>'+
+    '<div class="section"><h2>Operational Insights<\/h2>'+
       '<div class="insights-box">'+
-        '<div class="ins-item"><div class="ins-dot"></div><div class="ins-text"><strong>Busiest arrival weekday:</strong> '+busiestAWD+' with an average of '+maxAvgA.toFixed(1)+' arrivals per '+busiestAWD+'.</div></div>'+
-        '<div class="ins-item"><div class="ins-dot"></div><div class="ins-text"><strong>Busiest delivery weekday:</strong> '+busiestDWD+' with an average of '+maxAvgD.toFixed(1)+' deliveries per '+busiestDWD+'.</div></div>'+
-        '<div class="ins-item"><div class="ins-dot"></div><div class="ins-text"><strong>Peak operational day:</strong> '+busiest.key+' ('+busiest.wd+') with '+busiest.arr+' arrivals and '+busiest.del+' deliveries ('+(busiest.arr+busiest.del)+' total).</div></div>'+
-        '<div class="ins-item"><div class="ins-dot"></div><div class="ins-text"><strong>Monthly volume:</strong> '+validArr+' check-ins and '+validDel+' deliveries across 31 days. Average of '+avgDailyA+' arrivals and '+avgDailyD+' deliveries per day.</div></div>'+
-        '<div class="ins-item"><div class="ins-dot"></div><div class="ins-text"><strong>Traffic distribution (CV '+cvPct+'%):</strong> '+spreadNote+'</div></div>'+
-        '<div class="ins-item"><div class="ins-dot"></div><div class="ins-text"><strong>Weekend vs weekday:</strong> Avg arrivals &mdash; Sat: '+wdAvgA[6].toFixed(1)+', Sun: '+wdAvgA[0].toFixed(1)+' vs Mon&ndash;Fri avg: '+wkdayAvg+'.</div></div>'+
-      '</div>'+
-    '</div>'+
+        '<div class="ins-item"><div class="ins-dot"><\/div><div class="ins-text">'+
+          '<strong>Busiest check-in weekday:<\/strong> '+busiestCIWD+' with an average of '+maxCI.toFixed(1)+' check-ins per '+busiestCIWD+'.'+
+        '<\/div><\/div>'+
+        '<div class="ins-item"><div class="ins-dot"><\/div><div class="ins-text">'+
+          '<strong>Busiest delivery weekday:<\/strong> '+busiestDelWD+' with an average of '+maxDel.toFixed(1)+' deliveries per '+busiestDelWD+'.'+
+        '<\/div><\/div>'+
+        '<div class="ins-item"><div class="ins-dot"><\/div><div class="ins-text">'+
+          '<strong>Peak operational day:<\/strong> '+busiest.key+' ('+busiest.wd+') — '+busiest.ci+' check-ins, '+busiest.delNorm+' normal deliveries, '+busiest.delCust+' customs ('+(busiest.ci+busiest.del)+' total ops).'+
+        '<\/div><\/div>'+
+        '<div class="ins-item"><div class="ins-dot"><\/div><div class="ins-text">'+
+          '<strong>Monthly volume:<\/strong> '+totalCI+' check-ins and '+totalDel+' deliveries ('+delNormalMay+' normal + '+delCustomsMay+' customs) across 31 days.'+
+        '<\/div><\/div>'+
+        '<div class="ins-item"><div class="ins-dot"><\/div><div class="ins-text">'+
+          '<strong>Customs rate:<\/strong> '+(totalDel>0?((delCustomsMay\/totalDel)*100).toFixed(1):0)+'% of deliveries were Customs.'+
+        '<\/div><\/div>'+
+        '<div class="ins-item"><div class="ins-dot"><\/div><div class="ins-text">'+
+          '<strong>Traffic distribution (CV '+cvPct+'%):<\/strong> '+spreadNote+
+        '<\/div><\/div>'+
+        '<div class="ins-item"><div class="ins-dot"><\/div><div class="ins-text">'+
+          '<strong>Weekend vs weekday check-ins:<\/strong> Sat avg: '+wdAvgCI[6].toFixed(1)+', Sun avg: '+wdAvgCI[0].toFixed(1)+' vs Mon–Fri avg: '+wkdayAvgCI+'.'+
+        '<\/div><\/div>'+
+      '<\/div>'+
+    '<\/div>'+
 
-    '<div class="section"><h2>Data Quality Validation</h2>'+
-      '<table><thead><tr><th>Check</th><th>Count</th><th>Notes</th></tr></thead><tbody>'+
-        '<tr><td><strong>Total records in database</strong></td><td>'+data.length+'</td><td>All passengers loaded</td></tr>'+
-        '<tr class="even"><td>Check-ins in May (valid)</td><td>'+validArr+'</td><td>Counted in check-in metrics</td></tr>'+
-        '<tr><td>Deliveries in May (valid)</td><td>'+validDel+'</td><td>Counted in delivery metrics</td></tr>'+
-        '<tr class="even" style="border-top:2px solid #1a3d7c"><td><strong>Check-in source: checkin_date</strong></td><td>'+ciHasNew+'</td><td style="color:#1a7c4a">✓ Accurate — real check-in timestamp</td></tr>'+
-        '<tr><td>Check-in source: ts (fallback)</td><td>'+ciHasFallback+'</td><td style="color:#c9a84c">⚠ Old records — legacy field used</td></tr>'+
-        '<tr class="even"><td>Check-in date missing</td><td>'+ciMissing+'</td><td style="color:#c0392b">✗ Not counted in check-in metrics</td></tr>'+
-        '<tr style="border-top:2px solid #1a3d7c"><td><strong>Checkout source: checkout_date</strong></td><td>'+coHasNew+'</td><td style="color:#1a7c4a">✓ Accurate — real delivery timestamp</td></tr>'+
-        '<tr class="even"><td>Checkout source: deldate (fallback)</td><td>'+coHasFallback+'</td><td style="color:#c9a84c">⚠ Old records — legacy field used</td></tr>'+
-        '<tr><td>Checkout date missing</td><td>'+coMissing+'</td><td style="color:#c0392b">✗ Not counted in delivery metrics</td></tr>'+
-        '<tr class="even" style="border-top:2px solid #1a3d7c"><td><strong>delivery_type = NORMAL</strong></td><td>'+dtNormal+'</td><td>Standard delivery</td></tr>'+
-        '<tr><td>delivery_type = CUSTOMS</td><td>'+dtCustoms+'</td><td>Customs delivery</td></tr>'+
-        '<tr class="even"><td>delivery_type missing/empty</td><td>'+dtMissing+'</td><td style="color:#c9a84c">⚠ Old records or not yet delivered</td></tr>'+
-      '</tbody></table>'+
-    '</div>'+
+    '<div class="section"><h2>Data Quality Validation<\/h2>'+
+      '<table><thead><tr><th>Check<\/th><th>Count<\/th><th>Notes<\/th><\/tr><\/thead><tbody>'+
+        '<tr><td><strong>Total records in database<\/strong><\/td><td>'+data.length+'<\/td><td>All passengers loaded<\/td><\/tr>'+
+        '<tr class="even"><td>Total check-ins in May<\/td><td>'+totalCI+'<\/td><td>From checkin_date or ts fallback<\/td><\/tr>'+
+        '<tr><td>Total deliveries in May<\/td><td>'+totalDel+'<\/td><td>From checkout_date or deldate fallback — never ret<\/td><\/tr>'+
+        '<tr class="even" style="border-top:2px solid #1a3d7c"><td><strong>Check-in source: checkin_date ✓<\/strong><\/td><td>'+ciFromNew+'<\/td><td style="color:#1a7c4a">Accurate — real ISO timestamp<\/td><\/tr>'+
+        '<tr><td>Check-in source: ts (fallback)<\/td><td>'+ciFromFallback+'<\/td><td style="color:#c9a84c">⚠ Old records — legacy locale string<\/td><\/tr>'+
+        '<tr class="even"><td>Check-in date missing<\/td><td>'+ciMissing+'<\/td><td style="color:#c0392b">✗ Not counted in check-in metrics<\/td><\/tr>'+
+        '<tr style="border-top:2px solid #1a3d7c"><td><strong>Delivery source: checkout_date ✓<\/strong><\/td><td>'+coFromNew+'<\/td><td style="color:#1a7c4a">Accurate — real ISO timestamp<\/td><\/tr>'+
+        '<tr class="even"><td>Delivery source: deldate (fallback)<\/td><td>'+coFromFallback+'<\/td><td style="color:#c9a84c">⚠ Old records — legacy date string<\/td><\/tr>'+
+        '<tr><td>Delivery date missing<\/td><td>'+coMissing+'<\/td><td style="color:#c0392b">✗ Not counted in delivery metrics<\/td><\/tr>'+
+        '<tr class="even" style="border-top:2px solid #1a3d7c"><td><strong>delivery_type = NORMAL (May)<\/strong><\/td><td>'+delNormalMay+'<\/td><td>Standard delivery<\/td><\/tr>'+
+        '<tr><td>delivery_type = CUSTOMS (May)<\/td><td>'+delCustomsMay+'<\/td><td>Customs delivery<\/td><\/tr>'+
+        '<tr class="even"><td>delivery_type missing (May delivered)<\/td><td>'+delUnknownMay+'<\/td><td style="color:#c9a84c">⚠ Pre-feature records — counted under Normal<\/td><\/tr>'+
+      '<\/tbody><\/table>'+
+    '<\/div>'+
 
     '<div class="footer">Makers Air Valet by Farber Parking &nbsp;&middot;&nbsp; Confidential &nbsp;&middot;&nbsp; '+
       data.length+' total records &nbsp;&middot;&nbsp; Generated '+genDate+
-    '</div></div>'+
+    '<\/div><\/div>'+
 
     '<script>'+
       'var dayLabels='+dayLabJ+';'+
-      'var arrData='+arrDataJ+';'+
-      'var delData='+delDataJ+';'+
+      'var ciData='+ciDataJ+';'+
+      'var normData='+normDataJ+';'+
+      'var custData='+custDataJ+';'+
       'var wdLabels='+wdLabJ+';'+
-      'var wdAvgAR='+wdAvgAJ+';'+
-      'var wdAvgDR='+wdAvgDJ+';'+
+      'var wdAvgCI='+wdAvgCIJ+';'+
+      'var wdAvgNorm='+wdAvgNormJ+';'+
+      'var wdAvgCust='+wdAvgCustJ+';'+
       'new Chart(document.getElementById("dailyChart"),{type:"line",data:{labels:dayLabels,datasets:['+
-        '{label:"Check-ins",data:arrData,borderColor:"#1a3d7c",backgroundColor:"rgba(26,61,124,.08)",tension:.35,fill:true,pointRadius:3,borderWidth:2},'+
-        '{label:"Deliveries",data:delData,borderColor:"#c9a84c",backgroundColor:"rgba(201,168,76,.08)",tension:.35,fill:true,pointRadius:3,borderWidth:2}'+
-      ']},options:{responsive:true,interaction:{mode:"index",intersect:false},plugins:{legend:{labels:{font:{size:11}}}},scales:{x:{ticks:{font:{size:10},maxRotation:45}},y:{beginAtZero:true,ticks:{font:{size:10},stepSize:1}}}}});'+
-      'new Chart(document.getElementById("wdArrChart"),{type:"bar",data:{labels:wdLabels,datasets:[{label:"Avg Check-ins",data:wdAvgAR,backgroundColor:"rgba(26,61,124,.75)",borderRadius:5,borderSkipped:false}]},options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{font:{size:10}}},x:{ticks:{font:{size:10}}}}}});'+
-      'new Chart(document.getElementById("wdDelChart"),{type:"bar",data:{labels:wdLabels,datasets:[{label:"Avg Deliveries",data:wdAvgDR,backgroundColor:"rgba(201,168,76,.80)",borderRadius:5,borderSkipped:false}]},options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{font:{size:10}}},x:{ticks:{font:{size:10}}}}}});'+
-    '<\/script></body></html>';
+        '{label:"Check-ins",data:ciData,borderColor:"#1a3d7c",backgroundColor:"rgba(26,61,124,.07)",tension:.35,fill:true,pointRadius:2,borderWidth:2},'+
+        '{label:"Normal Deliveries",data:normData,borderColor:"#1a9e6a",backgroundColor:"rgba(26,158,106,.05)",tension:.35,fill:false,pointRadius:2,borderWidth:2},'+
+        '{label:"Customs Deliveries",data:custData,borderColor:"#c9a84c",backgroundColor:"rgba(201,168,76,.07)",tension:.35,fill:false,pointRadius:2,borderWidth:2,borderDash:[4,3]}'+
+      ']},options:{responsive:true,interaction:{mode:"index",intersect:false},plugins:{legend:{labels:{font:{size:11}}}},scales:{x:{ticks:{font:{size:9},maxRotation:45}},y:{beginAtZero:true,ticks:{font:{size:10},stepSize:1}}}}});'+
+      'new Chart(document.getElementById("wdCIChart"),{type:"bar",data:{labels:wdLabels,'+
+        'datasets:[{label:"Avg Check-ins",data:wdAvgCI,backgroundColor:"rgba(26,61,124,.78)",borderRadius:5,borderSkipped:false}]},'+
+        'options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{font:{size:10}}},x:{ticks:{font:{size:10}}}}}});'+
+      'new Chart(document.getElementById("wdDelChart"),{type:"bar",data:{labels:wdLabels,'+
+        'datasets:['+
+          '{label:"Avg Normal",data:wdAvgNorm,backgroundColor:"rgba(26,158,106,.78)",borderRadius:0,borderSkipped:false,stack:"d"},'+
+          '{label:"Avg Customs",data:wdAvgCust,backgroundColor:"rgba(201,168,76,.85)",borderRadius:5,borderSkipped:false,stack:"d"}'+
+        ']},options:{responsive:true,plugins:{legend:{labels:{font:{size:10}}}},scales:{x:{ticks:{font:{size:10}}},y:{beginAtZero:true,stacked:true,ticks:{font:{size:10}}}}}});'+
+    '<\/script><\/body><\/html>';
 
   var win=window.open('','_blank');
   if(!win){ alert('Pop-up blocked. Please allow pop-ups for this site and try again.'); return; }
