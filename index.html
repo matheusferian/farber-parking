@@ -579,28 +579,34 @@ function renderDay() {
   var lm=data.filter(function(r){return isTmrw(r.ret)&&r.status!=='DELIVERED';});
   var ls=data.filter(function(r){return isSunday(r.ret)&&r.status!=='DELIVERED';});
   var sun=nextSunday();
-  function mkCards(list,cls,btnCls,showCustoms){
+  function mkCards(list,cls,btnCls,showCustoms,showDeliver,showCheckin){
     if(!list.length) return '<div class="eday">No cars in this group</div>';
     return list.map(function(r){
       var isApprox=r.obs&&r.obs.indexOf('APPROX DATE')>=0;
+      var actionHtml='';
+      if(showCheckin){
+        actionHtml='<div class="dc-qd"><div class="checkin-badge">CHECKED IN</div></div>';
+      } else if(showDeliver&&r.status!=='DELIVERED'){
+        actionHtml=
+          '<div class="dc-qd" onclick="event.stopPropagation()">'+
+            '<button class="qd-btn '+(btnCls||'')+'" onclick="quickDeliver('+r.id+',\'NORMAL\')">✓ Deliver</button>'+
+            (showCustoms?'<button class="qd-btn customs" onclick="quickDeliver('+r.id+',\'CUSTOMS\')">Customs</button>':'')+
+          '</div>';
+      }
       return '<div class="dcard '+cls+(isApprox?' approx-card':'')+'" onclick="showDet('+r.id+')">'+
         '<div class="dc-body">'+
           '<div class="dc-n">'+escapeHTML(r.name)+(isApprox?' <span style="font-size:9px;background:rgba(201,168,76,0.2);color:var(--gold);border-radius:4px;padding:2px 5px;margin-left:4px">~APPROX</span>':'')+'</div>'+
           '<div class="dc-c">'+escapeHTML(r.car)+' · '+escapeHTML(fmtP(r.phone))+'</div>'+
         '</div>'+
         '<div class="dc-meta"><div class="dc-tk">'+escapeHTML(r.ticket)+'</div><div class="dc-l">'+escapeHTML(r.loc)+'</div></div>'+
-        (r.status!=='DELIVERED'?
-          '<div class="dc-qd" onclick="event.stopPropagation()">'+
-            '<button class="qd-btn '+(btnCls||'')+'" onclick="quickDeliver('+r.id+',\'NORMAL\')">✓ Deliver</button>'+
-            (showCustoms?'<button class="qd-btn customs" onclick="quickDeliver('+r.id+',\'CUSTOMS\')">Customs</button>':'')+
-          '</div>':'')+
+        actionHtml+
       '</div>';
     }).join('');
   }
-  document.getElementById('dArrived').innerHTML=mkCards(arrived,'ca','',false);
-  document.getElementById('dToday').innerHTML=mkCards(lt,'ct','',true);
-  document.getElementById('dTomorrow').innerHTML=mkCards(lm,'cm','',false);
-  document.getElementById('dSunday').innerHTML=mkCards(ls,'cm','',false);
+  document.getElementById('dArrived').innerHTML=mkCards(arrived,'ca','',false,false,true);
+  document.getElementById('dToday').innerHTML=mkCards(lt,'ct','',true,true,false);
+  document.getElementById('dTomorrow').innerHTML=mkCards(lm,'cm','',false,true,false);
+  document.getElementById('dSunday').innerHTML=mkCards(ls,'cm','',false,true,false);
   document.getElementById('titleArrived').innerHTML='🚗 Arrived Today <span class="tbadge" style="background:var(--ok);color:#000">'+arrived.length+'</span>';
   document.getElementById('titleToday').innerHTML='🔔 Leaving Today <span class="tbadge" style="background:var(--acc);color:#000">'+lt.length+'</span>';
   document.getElementById('titleTomorrow').innerHTML='📆 Leaving Tomorrow <span class="tbadge" style="background:var(--pur);color:#fff">'+lm.length+'</span>';
@@ -619,7 +625,7 @@ function renderDay() {
   });
   if(forgot.length){
     document.getElementById('forgotSection').style.display='block';
-    document.getElementById('dForgot').innerHTML=mkCards(forgot,'cr','late',false);
+    document.getElementById('dForgot').innerHTML=mkCards(forgot,'cr','late',false,true,false);
     document.getElementById('titleForgot').innerHTML='⚠️ Forgot Yesterday <span class="tbadge" style="background:var(--red);color:#fff">'+forgot.length+'</span>';
   } else {
     document.getElementById('forgotSection').style.display='none';
