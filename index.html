@@ -252,7 +252,7 @@
           <option value="CUSTOMS">Customs Only</option>
         </select>
       </div>
-      <button onclick="generateOperationsReport()" style="width:100%;background:linear-gradient(135deg,#1a3d7c,#0f2a56);color:#fff;border:1px solid var(--gold);border-radius:10px;padding:14px;font-family:'Syne',sans-serif;font-weight:800;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;">
+      <button onclick="try{generateOperationsReport();}catch(err){console.error(err);alert('Report generation failed: '+err.message);}" style="width:100%;background:linear-gradient(135deg,#1a3d7c,#0f2a56);color:#fff;border:1px solid var(--gold);border-radius:10px;padding:14px;font-family:'Syne',sans-serif;font-weight:800;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;">
         📊 Generate Operations PDF
       </button>
     </div>
@@ -1970,7 +1970,7 @@ function generateOperationsReport(){
       '<div class="kpi-grid four" style="margin-top:8px">'+
         '<div class="kpi"><div class="num" style="font-size:14px">'+busiest.key+'<\/div><div class="lbl">Busiest Single Day<br>'+(busiest.ci+busiest.del)+' total ops<\/div><\/div>'+
         '<div class="kpi"><div class="num">'+data.length+'<\/div><div class="lbl">Total Records in DB<\/div><\/div>'+
-        '<div class="kpi"><div class="num" style="font-size:11px;padding-top:2px">'+(totalDel>0?((totalCust\/totalDel)*100).toFixed(1):0)+'%<\/div><div class="lbl">Customs Rate<\/div><\/div>'+
+        '<div class="kpi"><div class="num" style="font-size:11px;padding-top:2px">'+(totalDel>0?((totalCust/totalDel)*100).toFixed(1):0)+'%<\/div><div class="lbl">Customs Rate<\/div><\/div>'+
         '<div class="kpi"><div class="num" style="font-size:11px;padding-top:2px">'+filterLabel.replace(' — ','')+'<\/div><div class="lbl">Active Filter<\/div><\/div>'.replace('<div class="num" style="font-size:11px;padding-top:2px"><\/div>','<div class="num" style="font-size:11px;padding-top:2px">All<\/div>')+
       '<\/div>'+
     '<\/div>'+
@@ -2027,7 +2027,7 @@ function generateOperationsReport(){
         '<div class="ins-item"><div class="ins-dot"><\/div><div class="ins-text"><strong>Busiest delivery weekday:<\/strong> '+busiestDelWD+' with an average of '+maxDel.toFixed(1)+' deliveries per '+busiestDelWD+'.<\/div><\/div>'+
         '<div class="ins-item"><div class="ins-dot"><\/div><div class="ins-text"><strong>Peak operational day:<\/strong> '+busiest.key+' ('+busiest.wd+') — '+busiest.ci+' check-ins, '+busiest.delNorm+' normal, '+busiest.delCust+' customs ('+(busiest.ci+busiest.del)+' total).<\/div><\/div>'+
         '<div class="ins-item"><div class="ins-dot"><\/div><div class="ins-text"><strong>Monthly volume:<\/strong> '+totalCI+' check-ins and '+totalDel+' deliveries ('+totalNorm+' normal + '+totalCust+' customs) across '+daysInMonth+' days.<\/div><\/div>'+
-        '<div class="ins-item"><div class="ins-dot"><\/div><div class="ins-text"><strong>Customs rate:<\/strong> '+(totalDel>0?((totalCust\/totalDel)*100).toFixed(1):0)+'% of deliveries were Customs.<\/div><\/div>'+
+        '<div class="ins-item"><div class="ins-dot"><\/div><div class="ins-text"><strong>Customs rate:<\/strong> '+(totalDel>0?((totalCust/totalDel)*100).toFixed(1):0)+'% of deliveries were Customs.<\/div><\/div>'+
         '<div class="ins-item"><div class="ins-dot"><\/div><div class="ins-text"><strong>Traffic distribution (CV '+cvPct+'%):<\/strong> '+spreadNote+'<\/div><\/div>'+
         '<div class="ins-item"><div class="ins-dot"><\/div><div class="ins-text"><strong>Weekend vs weekday check-ins:<\/strong> Sat avg: '+wdAvgCI[6].toFixed(1)+', Sun avg: '+wdAvgCI[0].toFixed(1)+' vs Mon–Fri avg: '+wkdayAvgCI+'.<\/div><\/div>'+
       '<\/div>'+
