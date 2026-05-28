@@ -448,7 +448,9 @@ async function loadData() {
         ticket: r.ticket||'', ret: r.ret||'', car: r.car||'', color: r.color||'',
         loc: r.loc||'', status: r.status||'PENDING',
         block: r.block||'', obs: r.obs||'', deldate: r.deldate||'',
-        delivery_type: r.delivery_type||''
+        delivery_type: r.delivery_type||'',
+        checkin_date: r.checkin_date||r.ts||'',
+        checkout_date: r.checkout_date||r.deldate||''
       };
     });
     render();
@@ -711,15 +713,16 @@ async function bulkAct(newStatus){
   loading(true);
   var recs=data.filter(function(r){return selected[r.id];});
   var todayStr=getTodayStr();
+  var checkoutIso=new Date().toISOString();
   var upd={status:newStatus};
-  if(newStatus==='DELIVERED') upd.deldate=todayStr;
+  if(newStatus==='DELIVERED'){upd.deldate=todayStr;upd.checkout_date=checkoutIso;upd.delivery_type='NORMAL';}
   var results=await Promise.all(recs.map(function(r){
     return sbUpdate(r.id,upd).then(function(){return r;}).catch(function(e){console.error(e);return null;});
   }));
   var succeeded=results.filter(Boolean);
   succeeded.forEach(function(r){
     r.status=newStatus;
-    if(newStatus==='DELIVERED') r.deldate=todayStr;
+    if(newStatus==='DELIVERED'){r.deldate=todayStr;r.checkout_date=checkoutIso;r.delivery_type='NORMAL';}
   });
   loading(false);
   showMsg(succeeded.length+' car(s) updated to '+newStatus, false);
@@ -984,6 +987,7 @@ async function saveEntry(sendSms){
 
     await sbInsert({
       ts: ts,
+      checkin_date: new Date().toISOString(),
       name: name.toUpperCase(),
       phone: phoneFull,
       ticket: ticket,
@@ -1106,7 +1110,8 @@ async function quickDeliver(id, deliveryType){
   loading(true);
   try{
     var todayStr=getTodayStr();
-    await sbUpdate(r.id,{status:'DELIVERED',deldate:todayStr,delivery_type:deliveryType});
+    var checkoutIso=new Date().toISOString();
+    await sbUpdate(r.id,{status:'DELIVERED',deldate:todayStr,checkout_date:checkoutIso,delivery_type:deliveryType});
 
     await sbLog('DELIVERED',r.name,r.ticket,r.loc,'Vehicle delivered'+(isLateDeliver?' (late)':'')+' via '+deliveryType);
 
@@ -1114,6 +1119,7 @@ async function quickDeliver(id, deliveryType){
       if(data[i].id===r.id){
         data[i].status='DELIVERED';
         data[i].deldate=todayStr;
+        data[i].checkout_date=checkoutIso;
         data[i].delivery_type=deliveryType;
         break;
       }
@@ -1136,8 +1142,9 @@ async function markDel(id){
   loading(true);
   try{
     var todayStr=getTodayStr();
-    await sbUpdate(r.id,{status:'DELIVERED',deldate:todayStr});
-    for(var i=0;i<data.length;i++){if(data[i].id===r.id){data[i].status='DELIVERED';data[i].deldate=todayStr;break;}}
+    var checkoutIso=new Date().toISOString();
+    await sbUpdate(r.id,{status:'DELIVERED',deldate:todayStr,checkout_date:checkoutIso,delivery_type:'NORMAL'});
+    for(var i=0;i<data.length;i++){if(data[i].id===r.id){data[i].status='DELIVERED';data[i].deldate=todayStr;data[i].checkout_date=checkoutIso;data[i].delivery_type='NORMAL';break;}}
     render(); closeAll();
     sbLog('DELIVERED',r.name,r.ticket,r.loc,'Vehicle delivered'+(isLate(r.ret)?' (late)':''));
     showMsg('✓ Delivered: '+r.name, false);
@@ -1153,10 +1160,11 @@ async function earlyReturn(id){
   loading(true);
   try{
     var todayStr=getTodayStr();
+    var checkoutIso=new Date().toISOString();
     var newObs=((r.obs||'').replace('APPROX DATE','').replace(' | ','').trim());
     newObs=(newObs?newObs+' | ':'')+'EARLY RETURN';
-    await sbUpdate(r.id,{ret:todayStr,status:'DELIVERED',deldate:todayStr,obs:newObs});
-    for(var i=0;i<data.length;i++){if(data[i].id===r.id){data[i].ret=todayStr;data[i].status='DELIVERED';data[i].deldate=todayStr;data[i].obs=newObs;break;}}
+    await sbUpdate(r.id,{ret:todayStr,status:'DELIVERED',deldate:todayStr,checkout_date:checkoutIso,delivery_type:'NORMAL',obs:newObs});
+    for(var i=0;i<data.length;i++){if(data[i].id===r.id){data[i].ret=todayStr;data[i].status='DELIVERED';data[i].deldate=todayStr;data[i].checkout_date=checkoutIso;data[i].delivery_type='NORMAL';data[i].obs=newObs;break;}}
     render(); closeAll();
     sbLog('EARLY RETURN', r.name, r.ticket, r.loc, 'was '+fmtD(r.ret));
     showMsg('⚡ Early Return: '+r.name, false);
@@ -1341,6 +1349,11 @@ async function saveEdits(rid){
     if(upd.status==='DELIVERED'&&!upd.deldate){
       upd.deldate=getTodayStr();
       r.deldate=upd.deldate;
+    }
+    if(upd.status==='DELIVERED'&&!upd.checkout_date){
+      upd.checkout_date=new Date().toISOString();
+      r.checkout_date=upd.checkout_date;
+      if(!upd.delivery_type&&!r.delivery_type) upd.delivery_type='NORMAL';
     }
     await sbUpdate(rid,upd);
     var logPromises=[];
@@ -1712,13 +1725,35 @@ function generateMayReport(){
   }
   function isMay(dt){ return dt&&dt.getFullYear()===2026&&dt.getMonth()===4; }
 
-  // Process records
-  var validArr=0,validDel=0,ignoredTs=0,ignoredDel=0;
+  // Process records — use checkin_date/checkout_date, fallback to ts/deldate
+  var validArr=0,validDel=0;
+  var ciHasNew=0,ciHasFallback=0,ciMissing=0;
+  var coHasNew=0,coHasFallback=0,coMissing=0;
+  var dtNormal=0,dtCustoms=0,dtMissing=0;
   var proc=data.map(function(r){
-    var ad=parseDt(r.ts), dd=parseDt(r.deldate);
+    // Check-in source
+    var adSrc=''; var adNew=false; var adFb=false;
+    if(r.checkin_date&&r.checkin_date!==r.ts&&r.checkin_date.trim()){adSrc=r.checkin_date;adNew=true;}
+    else if(r.ts&&r.ts.trim()){adSrc=r.ts;adFb=true;}
+    // Checkout source — never use ret
+    var ddSrc=''; var ddNew=false; var ddFb=false;
+    if(r.checkout_date&&r.checkout_date!==r.deldate&&r.checkout_date.trim()){ddSrc=r.checkout_date;ddNew=true;}
+    else if(r.deldate&&r.deldate.trim()){ddSrc=r.deldate;ddFb=true;}
+
+    var ad=parseDt(adSrc), dd=parseDt(ddSrc);
     var ai=ad&&isMay(ad), di=dd&&isMay(dd);
-    if(!ad) ignoredTs++; if(!dd) ignoredDel++;
-    if(ai) validArr++; if(di) validDel++;
+
+    // Validation counters
+    if(adNew) ciHasNew++; else if(adFb) ciHasFallback++; else ciMissing++;
+    if(ddNew) coHasNew++; else if(ddFb) coHasFallback++; else coMissing++;
+    if(ai) validArr++;
+    if(di) validDel++;
+
+    // delivery_type counters
+    if(r.delivery_type==='NORMAL') dtNormal++;
+    else if(r.delivery_type==='CUSTOMS') dtCustoms++;
+    else dtMissing++;
+
     return {ad:ad,dd:dd,ai:ai,di:di};
   });
 
@@ -1778,8 +1813,12 @@ function generateMayReport(){
       '<td>'+wdAvgA[i].toFixed(1)+'</td><td>'+wdDel[i]+'</td><td>'+wdAvgD[i].toFixed(1)+'</td></tr>';
   }).join('');
   var dailyRows=daily.map(function(d,idx){
+    var net=d.arr-d.del;
+    var netStyle=net>0?'color:#1a7c4a':net<0?'color:#c0392b':'color:#888';
+    var netStr=(net>0?'+':'')+net;
     return '<tr class="'+(idx%2===0?'even':'')+'"><td>'+d.key+'</td><td>'+d.wd+'</td>'+
-      '<td>'+d.arr+'</td><td>'+d.del+'</td><td>'+(d.arr+d.del)+'</td></tr>';
+      '<td>'+d.arr+'</td><td>'+d.del+'</td>'+
+      '<td style="'+netStyle+';font-weight:700">'+netStr+'</td></tr>';
   }).join('');
   var top5CRows=top5C.map(function(d,i){
     return '<tr><td>'+(i+1)+'</td><td>'+d.key+'</td><td>'+d.wd+'</td><td>'+(d.arr+d.del)+'</td></tr>';
@@ -1844,9 +1883,9 @@ function generateMayReport(){
 
     '<div class="section"><h2>Executive Summary</h2>'+
       '<div class="kpi-grid">'+
-        '<div class="kpi"><div class="num">'+validArr+'</div><div class="lbl">Arrivals in May</div></div>'+
+        '<div class="kpi"><div class="num">'+validArr+'</div><div class="lbl">Check-ins in May</div></div>'+
         '<div class="kpi"><div class="num">'+validDel+'</div><div class="lbl">Deliveries in May</div></div>'+
-        '<div class="kpi accent"><div class="num">'+avgDailyA+'</div><div class="lbl">Avg Daily Arrivals</div></div>'+
+        '<div class="kpi accent"><div class="num">'+avgDailyA+'</div><div class="lbl">Avg Daily Check-ins</div></div>'+
         '<div class="kpi accent"><div class="num">'+avgDailyD+'</div><div class="lbl">Avg Daily Deliveries</div></div>'+
       '</div>'+
       '<div class="kpi-grid" style="margin-top:10px">'+
@@ -1882,7 +1921,7 @@ function generateMayReport(){
     '</div>'+
 
     '<div class="section"><h2>Daily Operations &mdash; May 1 to May 31</h2>'+
-      '<table><thead><tr><th>Date</th><th>Weekday</th><th>Arrivals</th><th>Deliveries</th><th>Combined</th></tr></thead>'+
+      '<table><thead><tr><th>Date</th><th>Weekday</th><th>Check-ins</th><th>Deliveries</th><th>Net Change</th></tr></thead>'+
       '<tbody>'+dailyRows+'</tbody></table>'+
     '</div>'+
 
@@ -1897,13 +1936,20 @@ function generateMayReport(){
       '</div>'+
     '</div>'+
 
-    '<div class="section"><h2>Validation</h2>'+
-      '<table style="max-width:460px"><thead><tr><th>Check</th><th>Count</th></tr></thead><tbody>'+
-        '<tr><td>Total records in database</td><td>'+data.length+'</td></tr>'+
-        '<tr class="even"><td>Valid May 2026 arrivals</td><td>'+validArr+'</td></tr>'+
-        '<tr><td>Valid May 2026 deliveries</td><td>'+validDel+'</td></tr>'+
-        '<tr class="even"><td>Skipped (missing/invalid ts)</td><td>'+ignoredTs+'</td></tr>'+
-        '<tr><td>Skipped (missing/invalid deldate)</td><td>'+ignoredDel+'</td></tr>'+
+    '<div class="section"><h2>Data Quality Validation</h2>'+
+      '<table><thead><tr><th>Check</th><th>Count</th><th>Notes</th></tr></thead><tbody>'+
+        '<tr><td><strong>Total records in database</strong></td><td>'+data.length+'</td><td>All passengers loaded</td></tr>'+
+        '<tr class="even"><td>Check-ins in May (valid)</td><td>'+validArr+'</td><td>Counted in check-in metrics</td></tr>'+
+        '<tr><td>Deliveries in May (valid)</td><td>'+validDel+'</td><td>Counted in delivery metrics</td></tr>'+
+        '<tr class="even" style="border-top:2px solid #1a3d7c"><td><strong>Check-in source: checkin_date</strong></td><td>'+ciHasNew+'</td><td style="color:#1a7c4a">✓ Accurate — real check-in timestamp</td></tr>'+
+        '<tr><td>Check-in source: ts (fallback)</td><td>'+ciHasFallback+'</td><td style="color:#c9a84c">⚠ Old records — legacy field used</td></tr>'+
+        '<tr class="even"><td>Check-in date missing</td><td>'+ciMissing+'</td><td style="color:#c0392b">✗ Not counted in check-in metrics</td></tr>'+
+        '<tr style="border-top:2px solid #1a3d7c"><td><strong>Checkout source: checkout_date</strong></td><td>'+coHasNew+'</td><td style="color:#1a7c4a">✓ Accurate — real delivery timestamp</td></tr>'+
+        '<tr class="even"><td>Checkout source: deldate (fallback)</td><td>'+coHasFallback+'</td><td style="color:#c9a84c">⚠ Old records — legacy field used</td></tr>'+
+        '<tr><td>Checkout date missing</td><td>'+coMissing+'</td><td style="color:#c0392b">✗ Not counted in delivery metrics</td></tr>'+
+        '<tr class="even" style="border-top:2px solid #1a3d7c"><td><strong>delivery_type = NORMAL</strong></td><td>'+dtNormal+'</td><td>Standard delivery</td></tr>'+
+        '<tr><td>delivery_type = CUSTOMS</td><td>'+dtCustoms+'</td><td>Customs delivery</td></tr>'+
+        '<tr class="even"><td>delivery_type missing/empty</td><td>'+dtMissing+'</td><td style="color:#c9a84c">⚠ Old records or not yet delivered</td></tr>'+
       '</tbody></table>'+
     '</div>'+
 
@@ -1919,10 +1965,10 @@ function generateMayReport(){
       'var wdAvgAR='+wdAvgAJ+';'+
       'var wdAvgDR='+wdAvgDJ+';'+
       'new Chart(document.getElementById("dailyChart"),{type:"line",data:{labels:dayLabels,datasets:['+
-        '{label:"Arrivals",data:arrData,borderColor:"#1a3d7c",backgroundColor:"rgba(26,61,124,.08)",tension:.35,fill:true,pointRadius:3,borderWidth:2},'+
+        '{label:"Check-ins",data:arrData,borderColor:"#1a3d7c",backgroundColor:"rgba(26,61,124,.08)",tension:.35,fill:true,pointRadius:3,borderWidth:2},'+
         '{label:"Deliveries",data:delData,borderColor:"#c9a84c",backgroundColor:"rgba(201,168,76,.08)",tension:.35,fill:true,pointRadius:3,borderWidth:2}'+
       ']},options:{responsive:true,interaction:{mode:"index",intersect:false},plugins:{legend:{labels:{font:{size:11}}}},scales:{x:{ticks:{font:{size:10},maxRotation:45}},y:{beginAtZero:true,ticks:{font:{size:10},stepSize:1}}}}});'+
-      'new Chart(document.getElementById("wdArrChart"),{type:"bar",data:{labels:wdLabels,datasets:[{label:"Avg Arrivals",data:wdAvgAR,backgroundColor:"rgba(26,61,124,.75)",borderRadius:5,borderSkipped:false}]},options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{font:{size:10}}},x:{ticks:{font:{size:10}}}}}});'+
+      'new Chart(document.getElementById("wdArrChart"),{type:"bar",data:{labels:wdLabels,datasets:[{label:"Avg Check-ins",data:wdAvgAR,backgroundColor:"rgba(26,61,124,.75)",borderRadius:5,borderSkipped:false}]},options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{font:{size:10}}},x:{ticks:{font:{size:10}}}}}});'+
       'new Chart(document.getElementById("wdDelChart"),{type:"bar",data:{labels:wdLabels,datasets:[{label:"Avg Deliveries",data:wdAvgDR,backgroundColor:"rgba(201,168,76,.80)",borderRadius:5,borderSkipped:false}]},options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{font:{size:10}}},x:{ticks:{font:{size:10}}}}}});'+
     '<\/script></body></html>';
 
