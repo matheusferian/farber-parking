@@ -574,7 +574,15 @@ function renderTable() {
 
 // ── RENDER DAY ─────────────────────────────────────────────────
 function renderDay() {
-  var arrived=data.filter(function(r){return isArrToday(r.ts);});
+  var arrived=data
+    .filter(function(r){return isArrToday(r.ts);})
+    .sort(function(a,b){
+      var at=parseInt(String(a.ticket||'').replace(/\D/g,''),10);
+      var bt=parseInt(String(b.ticket||'').replace(/\D/g,''),10);
+      if(isNaN(at)) at=999999999;
+      if(isNaN(bt)) bt=999999999;
+      return at-bt;
+    });
   var lt=data.filter(function(r){return isToday(r.ret)&&r.status!=='DELIVERED';});
   var lm=data.filter(function(r){return isTmrw(r.ret)&&r.status!=='DELIVERED';});
   var ls=data.filter(function(r){return isSunday(r.ret)&&r.status!=='DELIVERED';});
