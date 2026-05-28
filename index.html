@@ -230,11 +230,11 @@
     <div class="fi" id="freqInfo"></div>
     <div class="fr two">
       <div class="fg"><label>Full Name <span style="color:var(--red)">*</span></label><div class="ac-wrap"><input type="text" id="fName" oninput="this.value=this.value.toUpperCase();chkFreq();acSearch(this.value);updateVcf()" autocomplete="off" placeholder="" style="text-transform:uppercase;width:100%"><div class="ac-drop" id="acDrop"></div></div></div>
-      <div class="fg"><label>Phone <span style="color:var(--red)">*</span></label><input type="text" id="fPhone" oninput="fmtPhoneInput(this);chkFreq();updateVcf()" placeholder="" maxlength="14"></div>
+      <div class="fg"><label>Phone <span style="color:var(--red)">*</span></label><input type="tel" inputmode="numeric" pattern="[0-9]*" id="fPhone" oninput="fmtPhoneInput(this);chkFreq();updateVcf()" placeholder="" maxlength="14"></div>
     </div>
     <div id="erWarn" class="er-warn" style="display:none;">⚠️ HEADS UP: This passenger had an Early Return before. Confirm the return date carefully.</div>
     <div class="fr two">
-      <div class="fg"><label>Ticket # <span style="color:var(--red)">*</span></label><input type="text" id="fTicket" placeholder=""></div>
+      <div class="fg"><label>Ticket # <span style="color:var(--red)">*</span></label><input type="tel" inputmode="numeric" pattern="[0-9]*" id="fTicket" placeholder=""></div>
       <div class="fg"><label>Return Date <span style="color:var(--red)" id="retRequired">*</span></label>
         <input type="date" id="fReturn" style="width:100%;background:var(--s2);border:1px solid var(--b);border-radius:10px;padding:11px 14px;font-size:16px;color:var(--tx);outline:none;font-family:'Syne',sans-serif;box-sizing:border-box;">
       </div>
@@ -440,7 +440,8 @@ async function loadData() {
         ts: r.ts||'', name: r.name||'', phone: r.phone||'',
         ticket: r.ticket||'', ret: r.ret||'', car: r.car||'', color: r.color||'',
         loc: r.loc||'', status: r.status||'PENDING',
-        block: r.block||'', obs: r.obs||'', deldate: r.deldate||''
+        block: r.block||'', obs: r.obs||'', deldate: r.deldate||'',
+        delivery_type: r.delivery_type||''
       };
     });
     render();
@@ -578,7 +579,7 @@ function renderDay() {
   var lm=data.filter(function(r){return isTmrw(r.ret)&&r.status!=='DELIVERED';});
   var ls=data.filter(function(r){return isSunday(r.ret)&&r.status!=='DELIVERED';});
   var sun=nextSunday();
-  function mkCards(list,cls,btnCls){
+  function mkCards(list,cls,btnCls,showCustoms){
     if(!list.length) return '<div class="eday">No cars in this group</div>';
     return list.map(function(r){
       var isApprox=r.obs&&r.obs.indexOf('APPROX DATE')>=0;
@@ -590,15 +591,16 @@ function renderDay() {
         '<div class="dc-meta"><div class="dc-tk">'+escapeHTML(r.ticket)+'</div><div class="dc-l">'+escapeHTML(r.loc)+'</div></div>'+
         (r.status!=='DELIVERED'?
           '<div class="dc-qd" onclick="event.stopPropagation()">'+
-            '<button class="qd-btn '+(btnCls||'')+'" onclick="quickDeliver('+r.id+')">✓ Deliver</button>'+
+            '<button class="qd-btn '+(btnCls||'')+'" onclick="quickDeliver('+r.id+',\'NORMAL\')">✓ Deliver</button>'+
+            (showCustoms?'<button class="qd-btn customs" onclick="quickDeliver('+r.id+',\'CUSTOMS\')">Customs</button>':'')+
           '</div>':'')+
       '</div>';
     }).join('');
   }
-  document.getElementById('dArrived').innerHTML=mkCards(arrived,'ca','');
-  document.getElementById('dToday').innerHTML=mkCards(lt,'ct','');
-  document.getElementById('dTomorrow').innerHTML=mkCards(lm,'cm','');
-  document.getElementById('dSunday').innerHTML=mkCards(ls,'cm','');
+  document.getElementById('dArrived').innerHTML=mkCards(arrived,'ca','',false);
+  document.getElementById('dToday').innerHTML=mkCards(lt,'ct','',true);
+  document.getElementById('dTomorrow').innerHTML=mkCards(lm,'cm','',false);
+  document.getElementById('dSunday').innerHTML=mkCards(ls,'cm','',false);
   document.getElementById('titleArrived').innerHTML='🚗 Arrived Today <span class="tbadge" style="background:var(--ok);color:#000">'+arrived.length+'</span>';
   document.getElementById('titleToday').innerHTML='🔔 Leaving Today <span class="tbadge" style="background:var(--acc);color:#000">'+lt.length+'</span>';
   document.getElementById('titleTomorrow').innerHTML='📆 Leaving Tomorrow <span class="tbadge" style="background:var(--pur);color:#fff">'+lm.length+'</span>';
@@ -617,7 +619,7 @@ function renderDay() {
   });
   if(forgot.length){
     document.getElementById('forgotSection').style.display='block';
-    document.getElementById('dForgot').innerHTML=mkCards(forgot,'cr','late');
+    document.getElementById('dForgot').innerHTML=mkCards(forgot,'cr','late',false);
     document.getElementById('titleForgot').innerHTML='⚠️ Forgot Yesterday <span class="tbadge" style="background:var(--red);color:#fff">'+forgot.length+'</span>';
   } else {
     document.getElementById('forgotSection').style.display='none';
@@ -1056,22 +1058,24 @@ document.getElementById('detPanel').addEventListener('click',function(e){
 });
 
 // ── QUICK DELIVER ──────────────────────────────────────────────
-async function quickDeliver(id){
+async function quickDeliver(id, deliveryType){
+  deliveryType = deliveryType || 'NORMAL';
   var r=null; for(var i=0;i<data.length;i++){if(data[i].id===id){r=data[i];break;}}
   if(!r) return;
   var isLateDeliver=isLate(r.ret);
-  if(!confirm((isLateDeliver?'⚠️ LATE — ':'')+'Mark as DELIVERED?\n'+r.name+' (Ticket '+r.ticket+')')) return;
+  if(!confirm((isLateDeliver?'⚠️ LATE — ':'')+'Mark as DELIVERED'+(deliveryType==='CUSTOMS'?' (CUSTOMS)':'')+'?\n'+r.name+' (Ticket '+r.ticket+')')) return;
   loading(true);
   try{
     var todayStr=getTodayStr();
-    await sbUpdate(r.id,{status:'DELIVERED',deldate:todayStr});
+    await sbUpdate(r.id,{status:'DELIVERED',deldate:todayStr,delivery_type:deliveryType});
 
-    await sbLog('DELIVERED',r.name,r.ticket,r.loc,'Vehicle delivered'+(isLateDeliver?' (late)':''));
+    await sbLog('DELIVERED',r.name,r.ticket,r.loc,'Vehicle delivered'+(isLateDeliver?' (late)':'')+' via '+deliveryType);
 
     for(var i=0;i<data.length;i++){
       if(data[i].id===r.id){
         data[i].status='DELIVERED';
         data[i].deldate=todayStr;
+        data[i].delivery_type=deliveryType;
         break;
       }
     }
@@ -1215,6 +1219,8 @@ function makeEditable(cell,field){
     '</select>';
   } else if(field==='ret'||field==='ts'){
     ctrl='<input class="di-input" type="date" id="inp-'+field+'" value="'+escapeHTML(rawVal)+'" onclick="event.stopPropagation()" />';
+  } else if(field==='phone'||field==='ticket'){
+    ctrl='<input class="di-input" type="tel" inputmode="numeric" pattern="[0-9]*" value="'+escapeHTML(cur)+'" id="inp-'+field+'" onclick="event.stopPropagation()" />';
   } else {
     ctrl='<input class="di-input" type="text" value="'+escapeHTML(cur)+'" id="inp-'+field+'" onclick="event.stopPropagation()" />';
   }
@@ -1352,6 +1358,7 @@ function updateReportPreview(){
     '<th style="padding:8px;text-align:left;color:var(--mu);font-weight:400">Car</th>'+
     '<th style="padding:8px;text-align:left;color:var(--mu);font-weight:400">Return</th>'+
     '<th style="padding:8px;text-align:left;color:var(--mu);font-weight:400">Status</th>'+
+    '<th style="padding:8px;text-align:left;color:var(--mu);font-weight:400">Delivery</th>'+
     '</tr></thead><tbody>';
   rows.slice(0,50).forEach(function(r){
     h+='<tr style="border-bottom:1px solid var(--s2)">'+
@@ -1360,9 +1367,10 @@ function updateReportPreview(){
       '<td style="padding:8px;color:var(--mu)">'+escapeHTML(r.car)+'</td>'+
       '<td style="padding:8px;font-size:11px">'+escapeHTML(fmtD(r.ret))+'</td>'+
       '<td style="padding:8px"><span class="badge '+(r.status==='PENDING'?'bp':r.status==='DELIVERED'?'bd':'bn')+'">'+escapeHTML(r.status)+'</span></td>'+
+      '<td style="padding:8px;font-size:11px;color:var(--mu)">'+escapeHTML(r.delivery_type||'-')+'</td>'+
     '</tr>';
   });
-  if(rows.length>50) h+='<tr><td colspan="5" style="padding:10px;text-align:center;color:var(--mu);font-size:11px">...and '+(rows.length-50)+' more</td></tr>';
+  if(rows.length>50) h+='<tr><td colspan="6" style="padding:10px;text-align:center;color:var(--mu);font-size:11px">...and '+(rows.length-50)+' more</td></tr>';
   h+='</tbody></table>';
   ptEl.innerHTML=h;
 }
@@ -1382,6 +1390,7 @@ function genReport(type,mode){
     return '<tr>'+
       '<td>'+(i+1)+'</td><td>'+escapeHTML(r.name)+'</td><td>'+escapeHTML(fmtP(r.phone))+'</td><td>'+escapeHTML(r.ticket)+'</td>'+
       '<td>'+escapeHTML(r.car)+'</td><td>'+escapeHTML(r.loc)+'</td><td>'+escapeHTML(fmtD(r.ret))+'</td><td>'+escapeHTML(r.status)+'</td>'+
+      '<td>'+escapeHTML(r.delivery_type||'-')+'</td>'+
       '<td></td><td>'+escapeHTML(r.obs||'')+'</td>'+
     '</tr>';
   }).join('');
@@ -1389,7 +1398,7 @@ function genReport(type,mode){
   printWin.document.write('<!DOCTYPE html><html><head><title>Valet Report - '+typeLabel+'</title><style>body{font-family:Arial,sans-serif;margin:20px;color:#000}.header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;border-bottom:3px solid #1a3d7c;padding-bottom:16px}.header-left h1{color:#1a3d7c;font-size:22px;margin:0 0 4px}.report-title{background:#1a3d7c;color:white;padding:8px 14px;border-radius:6px;font-size:13px;font-weight:bold;margin-bottom:16px;display:inline-block}table{width:100%;border-collapse:collapse;font-size:11px}th{background:#1a3d7c;color:white;padding:7px 8px;text-align:left}td{padding:6px 8px;border-bottom:1px solid #eee}tr:nth-child(even) td{background:#f9f9f9}@media print{button{display:none}}</style></head><body>'+
     '<div class="header"><div class="header-left"><h1>MAKERS AIR VALET — By Farber Parking</h1><p>Passenger & Vehicle Control System</p></div><div style="text-align:right;font-size:11px;color:#666"><strong>'+reportDate+'</strong><br>Total: '+rows.length+'</div></div>'+
     '<div class="report-title">'+typeLabel+'</div>'+
-    '<table><thead><tr><th>#</th><th>Name</th><th>Phone</th><th>Ticket</th><th>Car</th><th>Location</th><th>Return Date</th><th>Status</th><th>Flight Info</th><th>OBS</th></tr></thead><tbody>'+rowsHtml+'</tbody></table>'+
+    '<table><thead><tr><th>#</th><th>Name</th><th>Phone</th><th>Ticket</th><th>Car</th><th>Location</th><th>Return Date</th><th>Status</th><th>Delivery</th><th>Flight Info</th><th>OBS</th></tr></thead><tbody>'+rowsHtml+'</tbody></table>'+
     '<div style="margin-top:20px;font-size:10px;color:#999;text-align:center;border-top:1px solid #eee;padding-top:10px">Makers Air Valet by Farber Parking | Confidential | '+rows.length+' records</div>'+
     '<br><button onclick="window.print()" style="background:#1a3d7c;color:white;border:none;padding:10px 20px;border-radius:6px;cursor:pointer;font-size:14px;">🖨 Print / Save as PDF</button>'+
     '</body></html>');
