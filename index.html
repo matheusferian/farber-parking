@@ -230,11 +230,11 @@
     <div class="fi" id="freqInfo"></div>
     <div class="fr two">
       <div class="fg"><label>Full Name <span style="color:var(--red)">*</span></label><div class="ac-wrap"><input type="text" id="fName" oninput="this.value=this.value.toUpperCase();chkFreq();acSearch(this.value);updateVcf()" autocomplete="off" placeholder="" style="text-transform:uppercase;width:100%"><div class="ac-drop" id="acDrop"></div></div></div>
-      <div class="fg"><label>Phone <span style="color:var(--red)">*</span></label><input type="text" id="fPhone" oninput="fmtPhoneInput(this);chkFreq();updateVcf()" placeholder="" maxlength="14"></div>
+      <div class="fg"><label>Phone <span style="color:var(--red)">*</span></label><input type="tel" inputmode="numeric" pattern="[0-9]*" id="fPhone" oninput="fmtPhoneInput(this);chkFreq();updateVcf()" placeholder="" maxlength="14"></div>
     </div>
     <div id="erWarn" class="er-warn" style="display:none;">⚠️ HEADS UP: This passenger had an Early Return before. Confirm the return date carefully.</div>
     <div class="fr two">
-      <div class="fg"><label>Ticket # <span style="color:var(--red)">*</span></label><input type="text" id="fTicket" placeholder=""></div>
+      <div class="fg"><label>Ticket # <span style="color:var(--red)">*</span></label><input type="tel" inputmode="numeric" pattern="[0-9]*" id="fTicket" placeholder=""></div>
       <div class="fg"><label>Return Date <span style="color:var(--red)" id="retRequired">*</span></label>
         <input type="date" id="fReturn" style="width:100%;background:var(--s2);border:1px solid var(--b);border-radius:10px;padding:11px 14px;font-size:16px;color:var(--tx);outline:none;font-family:'Syne',sans-serif;box-sizing:border-box;">
       </div>
@@ -1215,6 +1215,8 @@ function makeEditable(cell,field){
     '</select>';
   } else if(field==='ret'||field==='ts'){
     ctrl='<input class="di-input" type="date" id="inp-'+field+'" value="'+escapeHTML(rawVal)+'" onclick="event.stopPropagation()" />';
+  } else if(field==='phone'||field==='ticket'){
+    ctrl='<input class="di-input" type="tel" inputmode="numeric" pattern="[0-9]*" value="'+escapeHTML(cur)+'" id="inp-'+field+'" onclick="event.stopPropagation()" />';
   } else {
     ctrl='<input class="di-input" type="text" value="'+escapeHTML(cur)+'" id="inp-'+field+'" onclick="event.stopPropagation()" />';
   }
