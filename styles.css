@@ -324,12 +324,26 @@ input[type=checkbox]{width:17px;height:17px;accent-color:var(--gold);cursor:poin
 .qd-btn.late{background:var(--red);}
 .qd-btn.nodate{background:var(--pur);}
 .qd-btn.customs{background:var(--navy);border:1px solid var(--gold);}
+.checkin-badge{
+  background:rgba(26,158,106,.10);
+  color:var(--ok);
+  border:1px solid rgba(26,158,106,.25);
+  border-radius:8px;
+  padding:8px 12px;
+  font-size:10px;
+  font-family:'DM Mono',monospace;
+  font-weight:700;
+  letter-spacing:.5px;
+  text-transform:uppercase;
+  white-space:nowrap;
+}
 @media (max-width:600px){
   .dcard{align-items:center;}
   .dc-body{padding:10px 10px;}
   .dc-meta{padding:10px 6px;}
   .dc-qd{padding-right:8px;min-width:98px;}
   .qd-btn{min-width:82px;font-size:10px;padding:7px 8px;height:32px;}
+  .checkin-badge{font-size:9px;padding:7px 10px;}
 }
 .eday{text-align:center;padding:18px;color:var(--mu);font-size:12px;background:var(--s);border-radius:10px;border:1px dashed var(--b);}
 
