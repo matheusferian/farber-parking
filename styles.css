@@ -306,16 +306,31 @@ input[type=checkbox]{width:17px;height:17px;accent-color:var(--gold);cursor:poin
 .dc-meta{display:flex;flex-direction:column;align-items:flex-end;justify-content:center;padding:13px 10px 13px 4px;gap:2px;flex-shrink:0;}
 .dc-tk{font-family:'DM Mono',monospace;font-size:12px;color:var(--gold2);font-weight:600;}
 .dc-l{font-size:10px;color:var(--mu);}
-.dc-qd{padding:0 14px;display:flex;align-items:center;flex-shrink:0;border-left:1px solid var(--b);gap:8px;}
+.dc-qd{
+  padding:0 10px;
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  gap:6px;
+  min-width:110px;
+}
 .qd-btn{
-  background:var(--ok);color:#fff;border:none;border-radius:8px;
-  padding:10px 14px;font-family:'Syne',sans-serif;font-weight:800;font-size:13px;
+  background:var(--ok);color:#fff;border:none;border-radius:7px;
+  padding:8px 10px;font-family:'Syne',sans-serif;font-weight:800;font-size:11px;
   cursor:pointer;white-space:nowrap;transition:opacity .15s;
+  min-width:92px;height:36px;
 }
 .qd-btn:hover{opacity:.88;}
 .qd-btn.late{background:var(--red);}
 .qd-btn.nodate{background:var(--pur);}
 .qd-btn.customs{background:var(--navy);border:1px solid var(--gold);}
+@media (max-width:600px){
+  .dcard{align-items:center;}
+  .dc-body{padding:10px 10px;}
+  .dc-meta{padding:10px 6px;}
+  .dc-qd{padding-right:8px;min-width:98px;}
+  .qd-btn{min-width:82px;font-size:10px;padding:7px 8px;height:32px;}
+}
 .eday{text-align:center;padding:18px;color:var(--mu);font-size:12px;background:var(--s);border-radius:10px;border:1px dashed var(--b);}
 
 /* ── TASKS ── */
