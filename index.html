@@ -2401,15 +2401,27 @@ function downloadVcfContacts(mode) {
     return;
   }
 
-  var lines = [];
-  contacts.forEach(function(c) {
-    lines.push('BEGIN:VCARD');
-    lines.push('VERSION:3.0');
-    lines.push('FN:' + escapeVCardText(c.name));
-    lines.push('TEL;TYPE=CELL:' + c.phone);
-    lines.push('END:VCARD');
-  });
-  var vcfContent = lines.join('\r\n') + '\r\n';
+  console.log('Total passenger records:', data.length);
+  console.log('Valid unique contacts:', contacts.length);
+
+  var vcf = contacts.map(function(c) {
+    return [
+      'BEGIN:VCARD',
+      'VERSION:3.0',
+      'FN:' + escapeVCardText(c.name),
+      'TEL;TYPE=CELL:' + c.phone,
+      'END:VCARD'
+    ].join('\r\n');
+  }).join('\r\n\r\n');
+
+  var blockCount = (vcf.match(/BEGIN:VCARD/g) || []).length;
+  console.log('VCF block count:', blockCount);
+  if (blockCount !== contacts.length) {
+    alert('VCF generation error: contact count mismatch.');
+    return;
+  }
+
+  console.log('VCF contacts exported:', contacts.length);
 
   var today = new Date();
   var dateStr = today.getFullYear() + '-' +
@@ -2419,7 +2431,7 @@ function downloadVcfContacts(mode) {
     ? 'passenger-contacts-all-' + dateStr + '.vcf'
     : 'passenger-contacts-new-' + dateStr + '.vcf';
 
-  var blob = new Blob([vcfContent], { type: 'text/vcard;charset=utf-8' });
+  var blob = new Blob([vcf], { type: 'text/x-vcard;charset=utf-8' });
   var url = URL.createObjectURL(blob);
   var a = document.createElement('a');
   a.href = url;
