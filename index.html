@@ -256,6 +256,23 @@
         📊 Generate Operations PDF
       </button>
     </div>
+
+    <!-- PASSENGER CONTACTS EXPORT -->
+    <div style="margin-top:18px;padding-top:16px;border-top:1px solid var(--b);">
+      <div style="font-size:10px;color:var(--mu);font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;">Passenger Contacts Export</div>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:10px;">
+        <button onclick="downloadVcfContacts('all')" style="width:100%;background:linear-gradient(135deg,#1a3d7c,#2a5db0);color:#fff;border:1px solid var(--gold);border-radius:10px;padding:13px;font-family:'Syne',sans-serif;font-weight:800;font-size:14px;cursor:pointer;">
+          📇 Export All Contacts (.vcf)
+        </button>
+        <button onclick="downloadVcfContacts('new')" style="width:100%;background:var(--s2);color:var(--tx);border:1px solid var(--b);border-radius:10px;padding:13px;font-family:'Syne',sans-serif;font-weight:700;font-size:14px;cursor:pointer;">
+          🆕 Export New Contacts (.vcf)
+        </button>
+      </div>
+      <div id="contactsExportStatus" style="font-size:12px;color:var(--mu);font-family:'DM Mono',monospace;margin-bottom:8px;">Last contacts export: Never</div>
+      <button onclick="resetContactsExportDate()" style="background:none;border:1px solid var(--b);border-radius:8px;padding:7px 14px;color:var(--mu);font-size:12px;cursor:pointer;font-family:'DM Mono',monospace;">
+        ↺ Reset Export Date
+      </button>
+    </div>
   </div>
 </div>
 
@@ -2289,6 +2306,155 @@ function markTaskSent(id) { taskStatus[id]='sent'; setTimeout(function(){renderT
 function markTaskDone(id) { taskStatus[id]='done'; renderTasks(); }
 function undoTask(id) { delete taskStatus[id]; renderTasks(); }
 function refreshTasks() { loadData(); }
+
+// ── PASSENGER CONTACTS EXPORT ──────────────────────────────────
+var CONTACTS_LS_KEY = 'passengerContactsLastExportAt';
+
+function normalizePhoneForVcf(phone) {
+  var digits = String(phone || '').replace(/\D/g, '');
+  if (digits.length === 11 && digits.charAt(0) === '1') return '+' + digits;
+  if (digits.length === 10) return '+1' + digits;
+  return '';
+}
+
+function escapeVCardText(text) {
+  return String(text || '')
+    .replace(/\\/g, '\\\\')
+    .replace(/,/g, '\\,')
+    .replace(/;/g, '\\;')
+    .replace(/\n/g, '\\n');
+}
+
+function parseAnyDate(s) {
+  if (!s) return null;
+  var d = new Date(s);
+  if (!isNaN(d.getTime())) return d;
+  return null;
+}
+
+function getContactUpdatedAt(r) {
+  return parseAnyDate(r.updated_at || r.checkin_date || r.ts || '');
+}
+
+function buildUniqueContactsForExport(mode) {
+  if (!data || !data.length) return null;
+  var lastExport = null;
+  if (mode === 'new') {
+    var stored = localStorage.getItem(CONTACTS_LS_KEY);
+    if (stored) lastExport = new Date(stored);
+  }
+
+  // Deduplicate by normalized phone, keeping most-recent record
+  var byPhone = {};
+  data.forEach(function(r) {
+    var phone = normalizePhoneForVcf(r.phone);
+    if (!phone) return;
+    var name = String(r.name || '').trim();
+    if (!name) return;
+    if (!byPhone[phone]) {
+      byPhone[phone] = r;
+    } else {
+      var existing = byPhone[phone];
+      var existingDate = getContactUpdatedAt(existing);
+      var newDate = getContactUpdatedAt(r);
+      var existingId = existing.id || 0;
+      var newId = r.id || 0;
+      var newer = false;
+      if (newDate && existingDate) { newer = newDate > existingDate; }
+      else if (newDate && !existingDate) { newer = true; }
+      else if (!newDate && !existingDate) { newer = newId > existingId; }
+      if (newer) byPhone[phone] = r;
+    }
+  });
+
+  var contacts = [];
+  Object.keys(byPhone).forEach(function(phone) {
+    var r = byPhone[phone];
+    var name = String(r.name || '').trim();
+    if (!name) return;
+
+    if (mode === 'new' && lastExport) {
+      var d = getContactUpdatedAt(r);
+      if (!d || d <= lastExport) return;
+    }
+
+    contacts.push({ name: name, phone: phone });
+  });
+
+  return contacts;
+}
+
+function downloadVcfContacts(mode) {
+  if (!data || !data.length) {
+    alert('No passenger data loaded. Click Refresh first.');
+    return;
+  }
+
+  var contacts = buildUniqueContactsForExport(mode);
+
+  if (!contacts || contacts.length === 0) {
+    if (mode === 'new') {
+      alert('No new contacts since last export.');
+    } else {
+      alert('No valid contacts to export.');
+    }
+    return;
+  }
+
+  var lines = [];
+  contacts.forEach(function(c) {
+    lines.push('BEGIN:VCARD');
+    lines.push('VERSION:3.0');
+    lines.push('FN:' + escapeVCardText(c.name));
+    lines.push('TEL;TYPE=CELL:' + c.phone);
+    lines.push('END:VCARD');
+  });
+  var vcfContent = lines.join('\r\n') + '\r\n';
+
+  var today = new Date();
+  var dateStr = today.getFullYear() + '-' +
+    String(today.getMonth() + 1).padStart(2, '0') + '-' +
+    String(today.getDate()).padStart(2, '0');
+  var filename = mode === 'all'
+    ? 'passenger-contacts-all-' + dateStr + '.vcf'
+    : 'passenger-contacts-new-' + dateStr + '.vcf';
+
+  var blob = new Blob([vcfContent], { type: 'text/vcard;charset=utf-8' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
+
+  localStorage.setItem(CONTACTS_LS_KEY, new Date().toISOString());
+  updateContactsExportStatus();
+  showMsg('Exported ' + contacts.length + ' contacts.', false);
+}
+
+function updateContactsExportStatus() {
+  var el = document.getElementById('contactsExportStatus');
+  if (!el) return;
+  var stored = localStorage.getItem(CONTACTS_LS_KEY);
+  if (!stored) {
+    el.textContent = 'Last contacts export: Never';
+  } else {
+    var d = new Date(stored);
+    el.textContent = 'Last contacts export: ' + d.toLocaleString();
+  }
+}
+
+function resetContactsExportDate() {
+  localStorage.removeItem(CONTACTS_LS_KEY);
+  updateContactsExportStatus();
+}
+
+// Initialize status on load
+document.addEventListener('DOMContentLoaded', function() {
+  updateContactsExportStatus();
+});
 
 </script>
 </body>
