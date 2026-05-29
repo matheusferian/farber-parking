@@ -483,3 +483,39 @@ body{-webkit-text-size-adjust:100%;}
   .brand-name{font-size:16px;}
   .ref-btn{font-size:11px;padding:7px 8px;}
 }
+/* ── Return Flight inline input ── */
+.return-flight-wrap{
+  margin-top:5px;
+  display:flex;
+  align-items:center;
+}
+.return-flight-input{
+  width:105px;
+  max-width:105px;
+  background:rgba(27,59,111,.06);
+  border:1px solid rgba(27,59,111,.22);
+  color:var(--navy);
+  border-radius:7px;
+  padding:5px 7px;
+  font-size:11px;
+  font-family:'DM Mono',monospace;
+  font-weight:700;
+  outline:none;
+  text-transform:uppercase;
+}
+.return-flight-input:focus{
+  background:#fff;
+  border-color:var(--gold);
+}
+.return-flight-input::placeholder{
+  color:var(--mu);
+  font-weight:400;
+}
+@media(max-width:600px){
+  .return-flight-input{
+    width:92px;
+    max-width:92px;
+    font-size:10px;
+    padding:5px 6px;
+  }
+}

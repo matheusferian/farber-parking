@@ -497,7 +497,8 @@ async function loadData() {
         block: r.block||'', obs: r.obs||'', deldate: r.deldate||'',
         delivery_type: r.delivery_type||'',
         checkin_date: r.checkin_date||r.ts||'',
-        checkout_date: r.checkout_date||r.deldate||''
+        checkout_date: r.checkout_date||r.deldate||'',
+        return_flight: r.return_flight||''
       };
     });
     render();
@@ -661,7 +662,7 @@ function renderDay() {
   var lm=data.filter(function(r){return isTmrw(r.ret)&&r.status!=='DELIVERED';});
   var ls=data.filter(function(r){return isSunday(r.ret)&&r.status!=='DELIVERED';});
   var sun=nextSunday();
-  function mkCards(list,cls,btnCls,showCustoms,showDeliver,showCheckin){
+  function mkCards(list,cls,btnCls,showCustoms,showDeliver,showCheckin,showReturnFlight){
     if(!list.length) return '<div class="eday">No cars in this group</div>';
     return list.map(function(r){
       var isApprox=isApproxRecord(r);
@@ -675,20 +676,33 @@ function renderDay() {
             (showCustoms?'<button class="qd-btn customs" onclick="quickDeliver('+r.id+',\'CUSTOMS\')">Customs</button>':'')+
           '</div>';
       }
+      var flightHtml='';
+      if(showReturnFlight){
+        flightHtml=
+          '<div class="return-flight-wrap" onclick="event.stopPropagation()" ontouchstart="event.stopPropagation()">'+
+            '<input class="return-flight-input" value="'+escapeHTML(r.return_flight||'')+'"'+
+            ' placeholder="✈ Flight" maxlength="20"'+
+            ' oninput="this.value=this.value.toUpperCase()"'+
+            ' onkeydown="if(event.key===\'Enter\'){this.blur()}"'+
+            ' onblur="saveReturnFlight('+r.id+',this.value)"'+
+            '>'+
+          '</div>';
+      }
       return '<div class="dcard '+cls+(isApprox?' approx-card':'')+'" onclick="showDet('+r.id+')">'+
         '<div class="dc-body">'+
           '<div class="dc-n">'+escapeHTML(r.name)+(isApprox?' <span style="font-size:9px;background:rgba(201,168,76,0.2);color:var(--gold);border-radius:4px;padding:2px 5px;margin-left:4px">~APPROX</span>':'')+'</div>'+
           '<div class="dc-c">'+escapeHTML(r.car)+' · '+escapeHTML(fmtP(r.phone))+'</div>'+
+          flightHtml+
         '</div>'+
         '<div class="dc-meta"><div class="dc-tk">'+escapeHTML(r.ticket)+'</div><div class="dc-l">'+escapeHTML(r.loc)+'</div></div>'+
         actionHtml+
       '</div>';
     }).join('');
   }
-  document.getElementById('dArrived').innerHTML=mkCards(arrived,'ca','',false,false,true);
-  document.getElementById('dToday').innerHTML=mkCards(lt,'ct','',true,true,false);
-  document.getElementById('dTomorrow').innerHTML=mkCards(lm,'cm','',false,true,false);
-  document.getElementById('dSunday').innerHTML=mkCards(ls,'cm','',false,true,false);
+  document.getElementById('dArrived').innerHTML=mkCards(arrived,'ca','',false,false,true,false);
+  document.getElementById('dToday').innerHTML=mkCards(lt,'ct','',true,true,false,true);
+  document.getElementById('dTomorrow').innerHTML=mkCards(lm,'cm','',false,true,false,true);
+  document.getElementById('dSunday').innerHTML=mkCards(ls,'cm','',false,true,false,true);
   document.getElementById('titleArrived').innerHTML='🚗 Arrived Today <span class="tbadge" style="background:var(--ok);color:#000">'+arrived.length+'</span>';
   document.getElementById('titleToday').innerHTML='🔔 Leaving Today <span class="tbadge" style="background:var(--acc);color:#000">'+lt.length+'</span>';
   document.getElementById('titleTomorrow').innerHTML='📆 Leaving Tomorrow <span class="tbadge" style="background:var(--pur);color:#fff">'+lm.length+'</span>';
@@ -707,7 +721,7 @@ function renderDay() {
   });
   if(forgot.length){
     document.getElementById('forgotSection').style.display='block';
-    document.getElementById('dForgot').innerHTML=mkCards(forgot,'cr','late',false,true,false);
+    document.getElementById('dForgot').innerHTML=mkCards(forgot,'cr','late',false,true,false,true);
     document.getElementById('titleForgot').innerHTML='⚠️ Forgot Yesterday <span class="tbadge" style="background:var(--red);color:#fff">'+forgot.length+'</span>';
   } else {
     document.getElementById('forgotSection').style.display='none';
@@ -2306,6 +2320,32 @@ function markTaskSent(id) { taskStatus[id]='sent'; setTimeout(function(){renderT
 function markTaskDone(id) { taskStatus[id]='done'; renderTasks(); }
 function undoTask(id) { delete taskStatus[id]; renderTasks(); }
 function refreshTasks() { loadData(); }
+
+// ── RETURN FLIGHT ──────────────────────────────────────────────
+async function saveReturnFlight(id, value) {
+  value = String(value || '').trim().toUpperCase().slice(0, 20);
+  var r = data.find(function(x){ return x.id === id; });
+  if (!r) return;
+  if ((r.return_flight || '') === value) return;
+  var oldValue = r.return_flight || '';
+  try {
+    await sbUpdate(id, { return_flight: value });
+    r.return_flight = value;
+    if (typeof sbLog === 'function') {
+      sbLog(
+        'FLIGHT_NOTE',
+        r.name,
+        r.ticket,
+        r.loc,
+        value ? ('Return flight set to ' + value) : 'Return flight cleared'
+      );
+    }
+    showMsg(value ? 'Flight saved: ' + value : 'Flight cleared', false);
+  } catch(e) {
+    showMsg('Flight save failed: ' + e.message, true);
+    console.error(e);
+  }
+}
 
 // ── PASSENGER CONTACTS EXPORT ──────────────────────────────────
 var CONTACTS_LS_KEY = 'passengerContactsLastExportAt';
