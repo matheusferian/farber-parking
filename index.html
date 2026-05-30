@@ -365,6 +365,25 @@
 <div class="ov" id="detOv">
   <div class="modal" id="detPanel"></div>
 </div>
+<!-- PASSENGER RATING OVERLAY -->
+<div class="ov" id="ratingOv">
+  <div class="modal" style="max-width:340px;text-align:center">
+    <div style="font-family:'Syne',sans-serif;font-size:18px;font-weight:800;color:var(--tx);margin-bottom:4px">Passenger Rating</div>
+    <div id="ratingPassName" style="font-size:13px;color:var(--mu);margin-bottom:20px;font-family:'DM Mono',monospace"></div>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px">
+      <button class="rating-opt" data-rating="GREAT" onclick="selectRating(this)" style="display:flex;align-items:center;gap:12px;padding:14px 18px;background:rgba(26,158,106,0.1);border:2px solid rgba(26,158,106,0.3);border-radius:12px;cursor:pointer;font-family:'Syne',sans-serif;font-size:15px;font-weight:700;color:var(--ok);transition:all .15s">
+        🟢 Great
+      </button>
+      <button class="rating-opt" data-rating="NORMAL" onclick="selectRating(this)" style="display:flex;align-items:center;gap:12px;padding:14px 18px;background:rgba(100,120,180,0.1);border:2px solid rgba(100,120,180,0.3);border-radius:12px;cursor:pointer;font-family:'Syne',sans-serif;font-size:15px;font-weight:700;color:var(--mu);transition:all .15s">
+        ⚪ Normal
+      </button>
+      <button class="rating-opt" data-rating="DIFFICULT" onclick="selectRating(this)" style="display:flex;align-items:center;gap:12px;padding:14px 18px;background:rgba(180,40,40,0.1);border:2px solid rgba(180,40,40,0.3);border-radius:12px;cursor:pointer;font-family:'Syne',sans-serif;font-size:15px;font-weight:700;color:var(--red);transition:all .15s">
+        🔴 Difficult
+      </button>
+    </div>
+    <button class="btnc" onclick="closeRating()">Cancel</button>
+  </div>
+</div>
 <!-- LOGS PANE -->
 <div class="pane" id="pane-logs" style="padding:0 0 100px">
   <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 20px;border-bottom:1px solid var(--b);">
@@ -498,7 +517,8 @@ async function loadData() {
         delivery_type: r.delivery_type||'',
         checkin_date: r.checkin_date||r.ts||'',
         checkout_date: r.checkout_date||r.deldate||'',
-        return_flight: r.return_flight||''
+        return_flight: r.return_flight||'',
+        customer_rating: r.customer_rating||''
       };
     });
     render();
@@ -690,7 +710,7 @@ function renderDay() {
       }
       return '<div class="dcard '+cls+(isApprox?' approx-card':'')+'" onclick="showDet('+r.id+')">'+
         '<div class="dc-body">'+
-          '<div class="dc-n">'+escapeHTML(r.name)+(isApprox?' <span style="font-size:9px;background:rgba(201,168,76,0.2);color:var(--gold);border-radius:4px;padding:2px 5px;margin-left:4px">~APPROX</span>':'')+'</div>'+
+          '<div class="dc-n">'+escapeHTML(r.name)+(isApprox?' <span style="font-size:9px;background:rgba(201,168,76,0.2);color:var(--gold);border-radius:4px;padding:2px 5px;margin-left:4px">~APPROX</span>':'')+(r.customer_rating?ratingBadgeHtml(r.customer_rating):'')+'</div>'+
           '<div class="dc-c">'+escapeHTML(r.car)+' · '+escapeHTML(fmtP(r.phone))+'</div>'+
           flightHtml+
         '</div>'+
@@ -1006,7 +1026,19 @@ function openAdd(){
   setTimeout(function(){ var n=document.getElementById('fName'); if(n) n.focus(); },100);
 }
 function closeAll(){document.getElementById('addOv').classList.remove('on');document.getElementById('detOv').classList.remove('on');}
-document.querySelectorAll('.ov').forEach(function(o){o.addEventListener('click',function(e){if(e.target===e.currentTarget)closeAll();});});
+document.querySelectorAll('.ov').forEach(function(o){o.addEventListener('click',function(e){if(e.target===e.currentTarget){if(o.id==='ratingOv')closeRating();else closeAll();}});});
+
+function selectRating(btn){
+  document.querySelectorAll('.rating-opt').forEach(function(b){b.classList.remove('selected');});
+  btn.classList.add('selected');
+  var ov=document.getElementById('ratingOv');
+  var id=parseInt(ov.getAttribute('data-id'),10);
+  var dtype=ov.getAttribute('data-dtype')||'NORMAL';
+  var rating=btn.getAttribute('data-rating');
+  closeRating();
+  deliverWithRating(id, dtype, rating);
+}
+function closeRating(){document.getElementById('ratingOv').classList.remove('on');}
 
 // ── SAVE NEW ENTRY ─────────────────────────────────────────────
 async function saveEntry(sendSms){
@@ -1107,7 +1139,7 @@ function showDet(id){
   var histH='';
   if(hist.length>1){histH='<div class="htitle">Visit History ('+hist.length+' visit'+(hist.length>1?'s':'')+' - all contacts)</div><div class="hlist">'+hist.map(function(h){return '<div class="hi" style="flex-direction:column;gap:3px;align-items:flex-start"><div style="display:flex;justify-content:space-between;width:100%"><span class="h-tk">'+escapeHTML(h.ticket)+'</span><span class="h-dt">'+escapeHTML(fmtA(h.ts))+'</span></div><div style="font-size:11px;color:var(--mu)">'+escapeHTML(h.car)+(h.phone?' · '+escapeHTML(fmtP(h.phone)):'')+'</div><div style="font-size:10px;color:'+(h.status==='DELIVERED'?'var(--ok)':'var(--acc)')+'">'+escapeHTML(h.status)+'</div></div>';}).join('')+'</div>';}
   document.getElementById('detPanel').innerHTML=
-    '<div class="dname">'+escapeHTML(r.name)+'</div>'+
+    '<div class="dname">'+escapeHTML(r.name)+(r.customer_rating?'<span style="margin-left:10px;vertical-align:middle">'+ratingBadgeHtml(r.customer_rating)+'</span>':'')+'</div>'+
     '<div class="dphone" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'+escapeHTML(fmtP(r.phone))+
       (r.phone?'<a href="tel:'+r.phone.replace(/\D/g,'')+'" style="background:var(--ok);color:#000;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;text-decoration:none;font-family:Syne,sans-serif;">📞 CALL</a>':'')+
       (r.phone?'<a href="sms:'+r.phone.replace(/\D/g,'')+'" style="background:var(--pur);color:#fff;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;text-decoration:none;font-family:Syne,sans-serif;">💬 TEXT</a>':'')+
@@ -1161,39 +1193,68 @@ document.getElementById('detPanel').addEventListener('click',function(e){
   }
 });
 
-// ── QUICK DELIVER ──────────────────────────────────────────────
-async function quickDeliver(id, deliveryType){
+// ── PASSENGER RATING ──────────────────────────────────────────
+function openPassengerRating(id, deliveryType){
   deliveryType = deliveryType || 'NORMAL';
   var r=null; for(var i=0;i<data.length;i++){if(data[i].id===id){r=data[i];break;}}
   if(!r) return;
+  var ov=document.getElementById('ratingOv');
+  ov.setAttribute('data-id', id);
+  ov.setAttribute('data-dtype', deliveryType);
+  document.getElementById('ratingPassName').textContent=r.name;
+  // pre-select existing rating if any
+  var existing=(r.customer_rating||'NORMAL').toUpperCase();
+  document.querySelectorAll('.rating-opt').forEach(function(btn){
+    btn.classList.toggle('selected', btn.getAttribute('data-rating')===existing);
+  });
+  ov.classList.add('on');
+}
+
+async function deliverWithRating(id, deliveryType, rating){
+  rating = String(rating||'').toUpperCase();
+  if(!['GREAT','NORMAL','DIFFICULT'].includes(rating)){
+    showMsg('Invalid rating', true);
+    return;
+  }
+  var r=null; for(var i=0;i<data.length;i++){if(data[i].id===id){r=data[i];break;}}
+  if(!r) return;
   var isLateDeliver=isLate(r.ret);
-  if(!confirm((isLateDeliver?'⚠️ LATE — ':'')+'Mark as DELIVERED'+(deliveryType==='CUSTOMS'?' (CUSTOMS)':'')+'?\n'+r.name+' (Ticket '+r.ticket+')')) return;
   loading(true);
   try{
     var todayStr=getTodayStr();
     var checkoutIso=new Date().toISOString();
-    await sbUpdate(r.id,{status:'DELIVERED',deldate:todayStr,checkout_date:checkoutIso,delivery_type:deliveryType});
-
-    await sbLog('DELIVERED',r.name,r.ticket,r.loc,'Vehicle delivered'+(isLateDeliver?' (late)':'')+' via '+deliveryType);
-
+    await sbUpdate(r.id,{status:'DELIVERED',deldate:todayStr,checkout_date:checkoutIso,delivery_type:deliveryType,customer_rating:rating});
+    await sbLog('DELIVERED',r.name,r.ticket,r.loc,'Vehicle delivered'+(isLateDeliver?' (late)':'')+' via '+deliveryType+' | Rating: '+rating);
     for(var i=0;i<data.length;i++){
       if(data[i].id===r.id){
         data[i].status='DELIVERED';
         data[i].deldate=todayStr;
         data[i].checkout_date=checkoutIso;
         data[i].delivery_type=deliveryType;
+        data[i].customer_rating=rating;
         break;
       }
     }
-
     render();
-    showMsg('✓ Delivered: '+r.name, false);
+    showMsg('✓ Delivered: '+r.name+' ('+rating+')', false);
   }catch(e){
     showMsg('Error: '+e.message,true);
-  }
-  finally{
+  }finally{
     loading(false);
   }
+}
+
+function ratingBadgeHtml(rating){
+  if(!rating) return '';
+  var r=String(rating).toUpperCase();
+  if(r==='GREAT') return '<span class="cr-badge cr-great">🟢 GREAT</span>';
+  if(r==='DIFFICULT') return '<span class="cr-badge cr-difficult">🔴 DIFFICULT</span>';
+  return '<span class="cr-badge cr-normal">⚪ NORMAL</span>';
+}
+
+// ── QUICK DELIVER ──────────────────────────────────────────────
+function quickDeliver(id, deliveryType){
+  openPassengerRating(id, deliveryType || 'NORMAL');
 }
 
 // ── MARK DELIVERED ─────────────────────────────────────────────
