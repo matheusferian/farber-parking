@@ -256,6 +256,23 @@
         📊 Generate Operations PDF
       </button>
     </div>
+
+    <!-- PASSENGER CONTACTS EXPORT -->
+    <div style="margin-top:18px;padding-top:16px;border-top:1px solid var(--b);">
+      <div style="font-size:10px;color:var(--mu);font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;">Passenger Contacts Export</div>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:10px;">
+        <button onclick="downloadVcfContacts('all')" style="width:100%;background:linear-gradient(135deg,#1a3d7c,#2a5db0);color:#fff;border:1px solid var(--gold);border-radius:10px;padding:13px;font-family:'Syne',sans-serif;font-weight:800;font-size:14px;cursor:pointer;">
+          📇 Export All Contacts (.vcf)
+        </button>
+        <button onclick="downloadVcfContacts('new')" style="width:100%;background:var(--s2);color:var(--tx);border:1px solid var(--b);border-radius:10px;padding:13px;font-family:'Syne',sans-serif;font-weight:700;font-size:14px;cursor:pointer;">
+          🆕 Export New Contacts (.vcf)
+        </button>
+      </div>
+      <div id="contactsExportStatus" style="font-size:12px;color:var(--mu);font-family:'DM Mono',monospace;margin-bottom:8px;">Last contacts export: Never</div>
+      <button onclick="resetContactsExportDate()" style="background:none;border:1px solid var(--b);border-radius:8px;padding:7px 14px;color:var(--mu);font-size:12px;cursor:pointer;font-family:'DM Mono',monospace;">
+        ↺ Reset Export Date
+      </button>
+    </div>
   </div>
 </div>
 
@@ -347,6 +364,25 @@
 </div>
 <div class="ov" id="detOv">
   <div class="modal" id="detPanel"></div>
+</div>
+<!-- PASSENGER RATING OVERLAY -->
+<div class="ov" id="ratingOv">
+  <div class="modal" style="max-width:340px;text-align:center">
+    <div style="font-family:'Syne',sans-serif;font-size:18px;font-weight:800;color:var(--tx);margin-bottom:4px">Passenger Rating</div>
+    <div id="ratingPassName" style="font-size:13px;color:var(--mu);margin-bottom:20px;font-family:'DM Mono',monospace"></div>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px">
+      <button class="rating-opt" data-rating="GREAT" onclick="selectRating(this)" style="display:flex;align-items:center;gap:12px;padding:14px 18px;background:rgba(26,158,106,0.1);border:2px solid rgba(26,158,106,0.3);border-radius:12px;cursor:pointer;font-family:'Syne',sans-serif;font-size:15px;font-weight:700;color:var(--ok);transition:all .15s">
+        🟢 Great
+      </button>
+      <button class="rating-opt" data-rating="NORMAL" onclick="selectRating(this)" style="display:flex;align-items:center;gap:12px;padding:14px 18px;background:rgba(100,120,180,0.1);border:2px solid rgba(100,120,180,0.3);border-radius:12px;cursor:pointer;font-family:'Syne',sans-serif;font-size:15px;font-weight:700;color:var(--mu);transition:all .15s">
+        ⚪ Normal
+      </button>
+      <button class="rating-opt" data-rating="DIFFICULT" onclick="selectRating(this)" style="display:flex;align-items:center;gap:12px;padding:14px 18px;background:rgba(180,40,40,0.1);border:2px solid rgba(180,40,40,0.3);border-radius:12px;cursor:pointer;font-family:'Syne',sans-serif;font-size:15px;font-weight:700;color:var(--red);transition:all .15s">
+        🔴 Difficult
+      </button>
+    </div>
+    <button class="btnc" onclick="closeRating()">Cancel</button>
+  </div>
 </div>
 <!-- LOGS PANE -->
 <div class="pane" id="pane-logs" style="padding:0 0 100px">
@@ -480,7 +516,9 @@ async function loadData() {
         block: r.block||'', obs: r.obs||'', deldate: r.deldate||'',
         delivery_type: r.delivery_type||'',
         checkin_date: r.checkin_date||r.ts||'',
-        checkout_date: r.checkout_date||r.deldate||''
+        checkout_date: r.checkout_date||r.deldate||'',
+        return_flight: r.return_flight||'',
+        customer_rating: r.customer_rating||''
       };
     });
     render();
@@ -644,7 +682,7 @@ function renderDay() {
   var lm=data.filter(function(r){return isTmrw(r.ret)&&r.status!=='DELIVERED';});
   var ls=data.filter(function(r){return isSunday(r.ret)&&r.status!=='DELIVERED';});
   var sun=nextSunday();
-  function mkCards(list,cls,btnCls,showCustoms,showDeliver,showCheckin){
+  function mkCards(list,cls,btnCls,showCustoms,showDeliver,showCheckin,showReturnFlight){
     if(!list.length) return '<div class="eday">No cars in this group</div>';
     return list.map(function(r){
       var isApprox=isApproxRecord(r);
@@ -658,20 +696,33 @@ function renderDay() {
             (showCustoms?'<button class="qd-btn customs" onclick="quickDeliver('+r.id+',\'CUSTOMS\')">Customs</button>':'')+
           '</div>';
       }
+      var flightHtml='';
+      if(showReturnFlight){
+        flightHtml=
+          '<div class="return-flight-wrap" onclick="event.stopPropagation()" ontouchstart="event.stopPropagation()">'+
+            '<input class="return-flight-input" value="'+escapeHTML(r.return_flight||'')+'"'+
+            ' placeholder="✈ Flight" maxlength="20"'+
+            ' oninput="this.value=this.value.toUpperCase()"'+
+            ' onkeydown="if(event.key===\'Enter\'){this.blur()}"'+
+            ' onblur="saveReturnFlight('+r.id+',this.value)"'+
+            '>'+
+          '</div>';
+      }
       return '<div class="dcard '+cls+(isApprox?' approx-card':'')+'" onclick="showDet('+r.id+')">'+
         '<div class="dc-body">'+
-          '<div class="dc-n">'+escapeHTML(r.name)+(isApprox?' <span style="font-size:9px;background:rgba(201,168,76,0.2);color:var(--gold);border-radius:4px;padding:2px 5px;margin-left:4px">~APPROX</span>':'')+'</div>'+
+          '<div class="dc-n">'+escapeHTML(r.name)+(isApprox?' <span style="font-size:9px;background:rgba(201,168,76,0.2);color:var(--gold);border-radius:4px;padding:2px 5px;margin-left:4px">~APPROX</span>':'')+(r.customer_rating?ratingBadgeHtml(r.customer_rating):'')+'</div>'+
           '<div class="dc-c">'+escapeHTML(r.car)+' · '+escapeHTML(fmtP(r.phone))+'</div>'+
+          flightHtml+
         '</div>'+
         '<div class="dc-meta"><div class="dc-tk">'+escapeHTML(r.ticket)+'</div><div class="dc-l">'+escapeHTML(r.loc)+'</div></div>'+
         actionHtml+
       '</div>';
     }).join('');
   }
-  document.getElementById('dArrived').innerHTML=mkCards(arrived,'ca','',false,false,true);
-  document.getElementById('dToday').innerHTML=mkCards(lt,'ct','',true,true,false);
-  document.getElementById('dTomorrow').innerHTML=mkCards(lm,'cm','',false,true,false);
-  document.getElementById('dSunday').innerHTML=mkCards(ls,'cm','',false,true,false);
+  document.getElementById('dArrived').innerHTML=mkCards(arrived,'ca','',false,false,true,false);
+  document.getElementById('dToday').innerHTML=mkCards(lt,'ct','',true,true,false,true);
+  document.getElementById('dTomorrow').innerHTML=mkCards(lm,'cm','',false,true,false,true);
+  document.getElementById('dSunday').innerHTML=mkCards(ls,'cm','',false,true,false,true);
   document.getElementById('titleArrived').innerHTML='🚗 Arrived Today <span class="tbadge" style="background:var(--ok);color:#000">'+arrived.length+'</span>';
   document.getElementById('titleToday').innerHTML='🔔 Leaving Today <span class="tbadge" style="background:var(--acc);color:#000">'+lt.length+'</span>';
   document.getElementById('titleTomorrow').innerHTML='📆 Leaving Tomorrow <span class="tbadge" style="background:var(--pur);color:#fff">'+lm.length+'</span>';
@@ -690,7 +741,7 @@ function renderDay() {
   });
   if(forgot.length){
     document.getElementById('forgotSection').style.display='block';
-    document.getElementById('dForgot').innerHTML=mkCards(forgot,'cr','late',false,true,false);
+    document.getElementById('dForgot').innerHTML=mkCards(forgot,'cr','late',false,true,false,true);
     document.getElementById('titleForgot').innerHTML='⚠️ Forgot Yesterday <span class="tbadge" style="background:var(--red);color:#fff">'+forgot.length+'</span>';
   } else {
     document.getElementById('forgotSection').style.display='none';
@@ -975,7 +1026,19 @@ function openAdd(){
   setTimeout(function(){ var n=document.getElementById('fName'); if(n) n.focus(); },100);
 }
 function closeAll(){document.getElementById('addOv').classList.remove('on');document.getElementById('detOv').classList.remove('on');}
-document.querySelectorAll('.ov').forEach(function(o){o.addEventListener('click',function(e){if(e.target===e.currentTarget)closeAll();});});
+document.querySelectorAll('.ov').forEach(function(o){o.addEventListener('click',function(e){if(e.target===e.currentTarget){if(o.id==='ratingOv')closeRating();else closeAll();}});});
+
+function selectRating(btn){
+  document.querySelectorAll('.rating-opt').forEach(function(b){b.classList.remove('selected');});
+  btn.classList.add('selected');
+  var ov=document.getElementById('ratingOv');
+  var id=parseInt(ov.getAttribute('data-id'),10);
+  var dtype=ov.getAttribute('data-dtype')||'NORMAL';
+  var rating=btn.getAttribute('data-rating');
+  closeRating();
+  deliverWithRating(id, dtype, rating);
+}
+function closeRating(){document.getElementById('ratingOv').classList.remove('on');}
 
 // ── SAVE NEW ENTRY ─────────────────────────────────────────────
 async function saveEntry(sendSms){
@@ -1076,7 +1139,7 @@ function showDet(id){
   var histH='';
   if(hist.length>1){histH='<div class="htitle">Visit History ('+hist.length+' visit'+(hist.length>1?'s':'')+' - all contacts)</div><div class="hlist">'+hist.map(function(h){return '<div class="hi" style="flex-direction:column;gap:3px;align-items:flex-start"><div style="display:flex;justify-content:space-between;width:100%"><span class="h-tk">'+escapeHTML(h.ticket)+'</span><span class="h-dt">'+escapeHTML(fmtA(h.ts))+'</span></div><div style="font-size:11px;color:var(--mu)">'+escapeHTML(h.car)+(h.phone?' · '+escapeHTML(fmtP(h.phone)):'')+'</div><div style="font-size:10px;color:'+(h.status==='DELIVERED'?'var(--ok)':'var(--acc)')+'">'+escapeHTML(h.status)+'</div></div>';}).join('')+'</div>';}
   document.getElementById('detPanel').innerHTML=
-    '<div class="dname">'+escapeHTML(r.name)+'</div>'+
+    '<div class="dname">'+escapeHTML(r.name)+(r.customer_rating?'<span style="margin-left:10px;vertical-align:middle">'+ratingBadgeHtml(r.customer_rating)+'</span>':'')+'</div>'+
     '<div class="dphone" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'+escapeHTML(fmtP(r.phone))+
       (r.phone?'<a href="tel:'+r.phone.replace(/\D/g,'')+'" style="background:var(--ok);color:#000;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;text-decoration:none;font-family:Syne,sans-serif;">📞 CALL</a>':'')+
       (r.phone?'<a href="sms:'+r.phone.replace(/\D/g,'')+'" style="background:var(--pur);color:#fff;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;text-decoration:none;font-family:Syne,sans-serif;">💬 TEXT</a>':'')+
@@ -1130,39 +1193,68 @@ document.getElementById('detPanel').addEventListener('click',function(e){
   }
 });
 
-// ── QUICK DELIVER ──────────────────────────────────────────────
-async function quickDeliver(id, deliveryType){
+// ── PASSENGER RATING ──────────────────────────────────────────
+function openPassengerRating(id, deliveryType){
   deliveryType = deliveryType || 'NORMAL';
   var r=null; for(var i=0;i<data.length;i++){if(data[i].id===id){r=data[i];break;}}
   if(!r) return;
+  var ov=document.getElementById('ratingOv');
+  ov.setAttribute('data-id', id);
+  ov.setAttribute('data-dtype', deliveryType);
+  document.getElementById('ratingPassName').textContent=r.name;
+  // pre-select existing rating if any
+  var existing=(r.customer_rating||'NORMAL').toUpperCase();
+  document.querySelectorAll('.rating-opt').forEach(function(btn){
+    btn.classList.toggle('selected', btn.getAttribute('data-rating')===existing);
+  });
+  ov.classList.add('on');
+}
+
+async function deliverWithRating(id, deliveryType, rating){
+  rating = String(rating||'').toUpperCase();
+  if(!['GREAT','NORMAL','DIFFICULT'].includes(rating)){
+    showMsg('Invalid rating', true);
+    return;
+  }
+  var r=null; for(var i=0;i<data.length;i++){if(data[i].id===id){r=data[i];break;}}
+  if(!r) return;
   var isLateDeliver=isLate(r.ret);
-  if(!confirm((isLateDeliver?'⚠️ LATE — ':'')+'Mark as DELIVERED'+(deliveryType==='CUSTOMS'?' (CUSTOMS)':'')+'?\n'+r.name+' (Ticket '+r.ticket+')')) return;
   loading(true);
   try{
     var todayStr=getTodayStr();
     var checkoutIso=new Date().toISOString();
-    await sbUpdate(r.id,{status:'DELIVERED',deldate:todayStr,checkout_date:checkoutIso,delivery_type:deliveryType});
-
-    await sbLog('DELIVERED',r.name,r.ticket,r.loc,'Vehicle delivered'+(isLateDeliver?' (late)':'')+' via '+deliveryType);
-
+    await sbUpdate(r.id,{status:'DELIVERED',deldate:todayStr,checkout_date:checkoutIso,delivery_type:deliveryType,customer_rating:rating});
+    await sbLog('DELIVERED',r.name,r.ticket,r.loc,'Vehicle delivered'+(isLateDeliver?' (late)':'')+' via '+deliveryType+' | Rating: '+rating);
     for(var i=0;i<data.length;i++){
       if(data[i].id===r.id){
         data[i].status='DELIVERED';
         data[i].deldate=todayStr;
         data[i].checkout_date=checkoutIso;
         data[i].delivery_type=deliveryType;
+        data[i].customer_rating=rating;
         break;
       }
     }
-
     render();
-    showMsg('✓ Delivered: '+r.name, false);
+    showMsg('✓ Delivered: '+r.name+' ('+rating+')', false);
   }catch(e){
     showMsg('Error: '+e.message,true);
-  }
-  finally{
+  }finally{
     loading(false);
   }
+}
+
+function ratingBadgeHtml(rating){
+  if(!rating) return '';
+  var r=String(rating).toUpperCase();
+  if(r==='GREAT') return '<span class="cr-badge cr-great">🟢 GREAT</span>';
+  if(r==='DIFFICULT') return '<span class="cr-badge cr-difficult">🔴 DIFFICULT</span>';
+  return '<span class="cr-badge cr-normal">⚪ NORMAL</span>';
+}
+
+// ── QUICK DELIVER ──────────────────────────────────────────────
+function quickDeliver(id, deliveryType){
+  openPassengerRating(id, deliveryType || 'NORMAL');
 }
 
 // ── MARK DELIVERED ─────────────────────────────────────────────
@@ -2289,6 +2381,193 @@ function markTaskSent(id) { taskStatus[id]='sent'; setTimeout(function(){renderT
 function markTaskDone(id) { taskStatus[id]='done'; renderTasks(); }
 function undoTask(id) { delete taskStatus[id]; renderTasks(); }
 function refreshTasks() { loadData(); }
+
+// ── RETURN FLIGHT ──────────────────────────────────────────────
+async function saveReturnFlight(id, value) {
+  value = String(value || '').trim().toUpperCase().slice(0, 20);
+  var r = data.find(function(x){ return x.id === id; });
+  if (!r) return;
+  if ((r.return_flight || '') === value) return;
+  var oldValue = r.return_flight || '';
+  try {
+    await sbUpdate(id, { return_flight: value });
+    r.return_flight = value;
+    if (typeof sbLog === 'function') {
+      sbLog(
+        'FLIGHT_NOTE',
+        r.name,
+        r.ticket,
+        r.loc,
+        value ? ('Return flight set to ' + value) : 'Return flight cleared'
+      );
+    }
+    showMsg(value ? 'Flight saved: ' + value : 'Flight cleared', false);
+  } catch(e) {
+    showMsg('Flight save failed: ' + e.message, true);
+    console.error(e);
+  }
+}
+
+// ── PASSENGER CONTACTS EXPORT ──────────────────────────────────
+var CONTACTS_LS_KEY = 'passengerContactsLastExportAt';
+
+function normalizePhoneForVcf(phone) {
+  var digits = String(phone || '').replace(/\D/g, '');
+  if (digits.length === 11 && digits.charAt(0) === '1') return '+' + digits;
+  if (digits.length === 10) return '+1' + digits;
+  return '';
+}
+
+function escapeVCardText(text) {
+  return String(text || '')
+    .replace(/\\/g, '\\\\')
+    .replace(/,/g, '\\,')
+    .replace(/;/g, '\\;')
+    .replace(/\n/g, '\\n');
+}
+
+function parseAnyDate(s) {
+  if (!s) return null;
+  var d = new Date(s);
+  if (!isNaN(d.getTime())) return d;
+  return null;
+}
+
+function getContactUpdatedAt(r) {
+  return parseAnyDate(r.updated_at || r.checkin_date || r.ts || '');
+}
+
+function buildUniqueContactsForExport(mode) {
+  if (!data || !data.length) return null;
+  var lastExport = null;
+  if (mode === 'new') {
+    var stored = localStorage.getItem(CONTACTS_LS_KEY);
+    if (stored) lastExport = new Date(stored);
+  }
+
+  // Deduplicate by normalized phone, keeping most-recent record
+  var byPhone = {};
+  data.forEach(function(r) {
+    var phone = normalizePhoneForVcf(r.phone);
+    if (!phone) return;
+    var name = String(r.name || '').trim();
+    if (!name) return;
+    if (!byPhone[phone]) {
+      byPhone[phone] = r;
+    } else {
+      var existing = byPhone[phone];
+      var existingDate = getContactUpdatedAt(existing);
+      var newDate = getContactUpdatedAt(r);
+      var existingId = existing.id || 0;
+      var newId = r.id || 0;
+      var newer = false;
+      if (newDate && existingDate) { newer = newDate > existingDate; }
+      else if (newDate && !existingDate) { newer = true; }
+      else if (!newDate && !existingDate) { newer = newId > existingId; }
+      if (newer) byPhone[phone] = r;
+    }
+  });
+
+  var contacts = [];
+  Object.keys(byPhone).forEach(function(phone) {
+    var r = byPhone[phone];
+    var name = String(r.name || '').trim();
+    if (!name) return;
+
+    if (mode === 'new' && lastExport) {
+      var d = getContactUpdatedAt(r);
+      if (!d || d <= lastExport) return;
+    }
+
+    contacts.push({ name: name, phone: phone });
+  });
+
+  return contacts;
+}
+
+function downloadVcfContacts(mode) {
+  if (!data || !data.length) {
+    alert('No passenger data loaded. Click Refresh first.');
+    return;
+  }
+
+  var contacts = buildUniqueContactsForExport(mode);
+
+  if (!contacts || contacts.length === 0) {
+    if (mode === 'new') {
+      alert('No new contacts since last export.');
+    } else {
+      alert('No valid contacts to export.');
+    }
+    return;
+  }
+
+  console.log('Total passenger records:', data.length);
+  console.log('Valid unique contacts:', contacts.length);
+
+  var vcf = contacts.map(function(c) {
+    return [
+      'BEGIN:VCARD',
+      'VERSION:3.0',
+      'FN:' + escapeVCardText(c.name),
+      'TEL;TYPE=CELL:' + c.phone,
+      'END:VCARD'
+    ].join('\r\n');
+  }).join('\r\n\r\n');
+
+  var blockCount = (vcf.match(/BEGIN:VCARD/g) || []).length;
+  console.log('VCF block count:', blockCount);
+  if (blockCount !== contacts.length) {
+    alert('VCF generation error: contact count mismatch.');
+    return;
+  }
+
+  console.log('VCF contacts exported:', contacts.length);
+
+  var today = new Date();
+  var dateStr = today.getFullYear() + '-' +
+    String(today.getMonth() + 1).padStart(2, '0') + '-' +
+    String(today.getDate()).padStart(2, '0');
+  var filename = mode === 'all'
+    ? 'passenger-contacts-all-' + dateStr + '.vcf'
+    : 'passenger-contacts-new-' + dateStr + '.vcf';
+
+  var blob = new Blob([vcf], { type: 'text/x-vcard;charset=utf-8' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
+
+  localStorage.setItem(CONTACTS_LS_KEY, new Date().toISOString());
+  updateContactsExportStatus();
+  showMsg('Exported ' + contacts.length + ' contacts.', false);
+}
+
+function updateContactsExportStatus() {
+  var el = document.getElementById('contactsExportStatus');
+  if (!el) return;
+  var stored = localStorage.getItem(CONTACTS_LS_KEY);
+  if (!stored) {
+    el.textContent = 'Last contacts export: Never';
+  } else {
+    var d = new Date(stored);
+    el.textContent = 'Last contacts export: ' + d.toLocaleString();
+  }
+}
+
+function resetContactsExportDate() {
+  localStorage.removeItem(CONTACTS_LS_KEY);
+  updateContactsExportStatus();
+}
+
+// Initialize status on load
+document.addEventListener('DOMContentLoaded', function() {
+  updateContactsExportStatus();
+});
 
 </script>
 </body>
