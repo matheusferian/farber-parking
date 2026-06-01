@@ -38,10 +38,7 @@
   </div>
   <div class="hdr-r">
     <div class="hdr-date" id="hdrDate"></div>
-    <div id="syncStatus" style="display:none;font-family:'DM Mono',monospace;font-size:11px;color:rgba(255,255,255,0.85);line-height:1.3;text-align:right;">
-      <div>🟢 Online</div>
-      <div id="syncTime" style="font-size:10px;color:rgba(255,255,255,0.6);">Last Sync: —</div>
-    </div>
+    <div id="syncStatus" style="display:none;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:500;color:rgba(255,255,255,0.85);white-space:nowrap;">🟢 <span id="syncTime">—</span></div>
     <button class="ref-btn" onclick="loadData()">&#8635; Refresh</button>
     <button class="ref-btn" id="logoutBtn" onclick="doLogout()" style="display:none">Sign Out</button>
   </div>
@@ -513,7 +510,7 @@ function updateSyncStatus() {
   if (!el || !tEl) return;
   var now = new Date();
   var time = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-  tEl.textContent = 'Last Sync: ' + time;
+  tEl.textContent = 'Synced ' + time;
   el.style.display = 'block';
 }
 
