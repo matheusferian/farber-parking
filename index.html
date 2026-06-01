@@ -1969,6 +1969,7 @@ function generateOperationsReport(){
   var top5CI =  [].concat(daily).sort(function(a,b){return b.ci -a.ci; }).slice(0,5);
   var top5Del=  [].concat(daily).sort(function(a,b){return b.del-a.del;}).slice(0,5);
   var top5Cmb=  sortedComb.slice(0,5);
+  var top10Cmb= sortedComb.slice(0,10);
 
   // Spread CV on check-ins
   var mean=totalCI/daysInMonth;
@@ -1978,6 +1979,32 @@ function generateOperationsReport(){
     cvPct>30?'Traffic shows moderate daily variation with some peak days.':
     'Traffic is relatively evenly distributed throughout the month.';
   var wkdayAvgCI=([1,2,3,4,5].reduce(function(s,i){return s+wdAvgCI[i];},0)/5).toFixed(1);
+
+  // ── Farber staffing calculations ──────────────────────────────────────────
+  var avgOps=wdAvgCI.map(function(_,i){return+(wdAvgCI[i]+wdAvgDel[i]).toFixed(1);});
+  var maxOpsVal=Math.max.apply(null,avgOps);
+  var mostActiveWD=WDAYS[avgOps.indexOf(maxOpsVal)];
+  var secondOpsVal=avgOps.slice().sort(function(a,b){return b-a;})[1]||0;
+
+  var REPORT_HANGARS=['HANGAR 19','HANGAR 18','HANGAR 16','HANGAR 7','HH'];
+  var locWdCI={};
+  REPORT_HANGARS.forEach(function(h){locWdCI[h]=[0,0,0,0,0,0,0];});
+  data.forEach(function(r){
+    var ciSrc=r.checkin_date&&String(r.checkin_date).trim()?r.checkin_date:(r.ts||'');
+    var ad=parseDt(ciSrc);
+    if(!ad||!inMonth(ad)) return;
+    var h=String(r.loc||'').trim();
+    if(locWdCI[h]) locWdCI[h][ad.getDay()]++;
+  });
+  var locWdAvg={};
+  REPORT_HANGARS.forEach(function(h){
+    locWdAvg[h]=locWdCI[h].map(function(cnt,i){return wdCnt[i]>0?+(cnt/wdCnt[i]).toFixed(1):0;});
+  });
+  var mostActiveHangar=REPORT_HANGARS[0],mostActiveHangarTotal=0;
+  REPORT_HANGARS.forEach(function(h){
+    var t=locWdCI[h].reduce(function(s,v){return s+v;},0);
+    if(t>mostActiveHangarTotal){mostActiveHangarTotal=t;mostActiveHangar=h;}
+  });
 
   // ── Row builders ──────────────────────────────────────────────────────────
   var wdOrder=[1,2,3,4,5,6,0];
@@ -2012,6 +2039,42 @@ function generateOperationsReport(){
   var top5CmbRows=top5Cmb.map(function(d,i){
     return '<tr><td>'+(i+1)+'<\/td><td>'+d.key+'<\/td><td>'+d.wd+'<\/td>'+
       '<td>'+d.ci+'<\/td><td>'+d.del+'<\/td><td>'+(d.ci+d.del)+'<\/td><\/tr>';
+  }).join('');
+
+  // ── Farber staffing row builders ──────────────────────────────────────────
+  var wdVolRows=wdOrder.map(function(i){
+    var isMax=avgOps[i]===maxOpsVal;
+    return '<tr'+(isMax?' style="background:#fffbf0"':'')+'>'+
+      '<td'+(isMax?' style="font-weight:700;color:#7a4f00"':'')+'>'+WDAYS[i]+'<\/td>'+
+      '<td style="text-align:center">'+wdAvgCI[i].toFixed(1)+'<\/td>'+
+      '<td style="text-align:center">'+wdAvgDel[i].toFixed(1)+'<\/td>'+
+      '<td style="text-align:center;font-weight:700;color:#1a3d7c">'+avgOps[i].toFixed(1)+'<\/td>'+
+      '<td style="text-align:center;font-size:14px">'+(avgOps[i]===maxOpsVal?'🔥':avgOps[i]===secondOpsVal?'⚡':'')+'<\/td>'+
+    '<\/tr>';
+  }).join('');
+
+  var top10Rows=top10Cmb.map(function(d,i){
+    var total=d.ci+d.del;
+    return '<tr>'+
+      '<td>'+(i+1)+'<\/td><td>'+d.key+'<\/td><td>'+d.wd+'<\/td>'+
+      '<td style="text-align:center">'+d.ci+'<\/td>'+
+      '<td style="text-align:center">'+d.del+'<\/td>'+
+      '<td style="text-align:center;font-weight:700;color:#1a3d7c">'+total+'<\/td>'+
+    '<\/tr>';
+  }).join('');
+
+  var matrixMax=0;
+  REPORT_HANGARS.forEach(function(h){locWdAvg[h].forEach(function(v){if(v>matrixMax)matrixMax=v;});});
+  var matrixRows=REPORT_HANGARS.map(function(h){
+    return '<tr>'+
+      '<td style="font-weight:600;white-space:nowrap">'+h+'<\/td>'+
+      wdOrder.map(function(i){
+        var v=locWdAvg[h][i];
+        var bg=matrixMax>0&&v>=matrixMax*0.75?'background:#fff3cd;color:#7a4f00;font-weight:700':
+               matrixMax>0&&v>=matrixMax*0.40?'background:#eef3ff;color:#1a3d7c':'color:#bbb';
+        return '<td style="text-align:center;'+bg+'">'+(v>0?v.toFixed(1):'—')+'<\/td>';
+      }).join('')+
+    '<\/tr>';
   }).join('');
 
   // ── Chart data ────────────────────────────────────────────────────────────
@@ -2057,7 +2120,15 @@ function generateOperationsReport(){
     '.ins-text{font-size:12px;color:#333;line-height:1.5}'+
     '.footer{text-align:center;color:#aaa;font-size:10px;margin-top:30px;padding-top:10px;border-top:1px solid #dde3ef}'+
     '.no-print{text-align:right;margin-bottom:14px}'+
-    '@media print{body{background:#fff}.page{padding:8px 6px}.no-print{display:none}}';
+    '@media print{body{background:#fff}.page{padding:8px 6px}.no-print{display:none}}'+
+    '.staff-block{margin-top:36px;padding-top:28px;border-top:3px solid #c9a84c}'+
+    '.staff-block .section h2{color:#7a4f00;border-left-color:#c9a84c}'+
+    '.staff-kpi-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px}'+
+    '.kpi.gold{border:2px solid #c9a84c;background:#fffbf0}'+
+    '.kpi.gold .num{color:#7a4f00}'+
+    '.matrix-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}'+
+    '.matrix-legend{font-size:9px;color:#888;margin-top:6px}'+
+    '@media print{.matrix-wrap{overflow:visible}}';
 
   // ── HTML ──────────────────────────────────────────────────────────────────
   var html='<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">'+
@@ -2171,6 +2242,56 @@ function generateOperationsReport(){
         '<tr class="even"><td>delivery_type missing (delivered)<\/td><td>'+delUnknownMonth+'<\/td><td style="color:#c9a84c">⚠ Pre-feature records<\/td><\/tr>'+
         '<tr style="border-top:2px solid #1a3d7c"><td>Active delivery filter<\/td><td colspan="2">'+delFilter+(filterLabel?' ('+filterLabel.replace(' — ','')+')':'')+'<\/td><\/tr>'+
       '<\/tbody><\/table>'+
+    '<\/div>'+
+
+    '<div class="staff-block">'+
+
+    '<div class="section"><h2>&#128202; Farber Staffing Analysis<\/h2>'+
+      '<div class="staff-kpi-grid">'+
+        '<div class="kpi gold">'+
+          '<div class="num" style="font-size:16px">'+mostActiveWD+'<\/div>'+
+          '<div class="lbl">Most Active Weekday<\/div>'+
+        '<\/div>'+
+        '<div class="kpi gold">'+
+          '<div class="num" style="font-size:13px">'+mostActiveHangar+'<\/div>'+
+          '<div class="lbl">Most Active Hangar<\/div>'+
+          '<div style="font-size:10px;color:#a07030;margin-top:3px">'+mostActiveHangarTotal+' check-ins this month<\/div>'+
+        '<\/div>'+
+      '<\/div>'+
+    '<\/div>'+
+
+    '<div class="section"><h2>Operational Volume by Weekday<\/h2>'+
+      '<table><thead><tr>'+
+        '<th>Day<\/th>'+
+        '<th style="text-align:center">Avg Check-ins<\/th>'+
+        '<th style="text-align:center">Avg Deliveries<\/th>'+
+        '<th style="text-align:center">Total Avg Ops<\/th>'+
+        '<th style="text-align:center">Peak<\/th>'+
+      '<\/tr><\/thead><tbody>'+wdVolRows+'<\/tbody><\/table>'+
+    '<\/div>'+
+
+    '<div class="section"><h2>Top 10 Busiest Days<\/h2>'+
+      '<table><thead><tr>'+
+        '<th>#<\/th><th>Date<\/th><th>Weekday<\/th>'+
+        '<th style="text-align:center">Check-ins<\/th>'+
+        '<th style="text-align:center">Deliveries<\/th>'+
+        '<th style="text-align:center">Total Ops<\/th>'+
+      '<\/tr><\/thead><tbody>'+top10Rows+'<\/tbody><\/table>'+
+    '<\/div>'+
+
+    '<div class="section"><h2>Hangar Utilization by Weekday<\/h2>'+
+      '<div class="matrix-wrap">'+
+        '<table class="matrix-table"><thead><tr>'+
+          '<th>Hangar<\/th>'+
+          '<th style="text-align:center">Mon<\/th><th style="text-align:center">Tue<\/th>'+
+          '<th style="text-align:center">Wed<\/th><th style="text-align:center">Thu<\/th>'+
+          '<th style="text-align:center">Fri<\/th><th style="text-align:center">Sat<\/th>'+
+          '<th style="text-align:center">Sun<\/th>'+
+        '<\/tr><\/thead><tbody>'+matrixRows+'<\/tbody><\/table>'+
+      '<\/div>'+
+      '<div class="matrix-legend">&#9632; Gold = highest activity &nbsp;&nbsp; &#9632; Blue = moderate activity &nbsp;&nbsp; Values = avg check-ins per weekday in selected month<\/div>'+
+    '<\/div>'+
+
     '<\/div>'+
 
     '<div class="footer">Makers Air Valet by Farber Parking &nbsp;&middot;&nbsp; Confidential &nbsp;&middot;&nbsp; '+
