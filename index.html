@@ -997,13 +997,30 @@ function updateVcf(){
   }
 }
 
+// ── TICKET AUTO-SUGGEST ────────────────────────────────────────
+function getNextTicket() {
+  var today = getToday();
+  var mm = String(today.getMonth() + 1).padStart(2, '0');
+  var dd = String(today.getDate()).padStart(2, '0');
+  var prefix = 'MA-' + mm + dd + '-';
+  var max = 0;
+  data.forEach(function(r) {
+    var t = String(r.ticket || '');
+    if (t.indexOf(prefix) === 0) {
+      var n = parseInt(t.slice(prefix.length), 10);
+      if (!isNaN(n) && n > max) max = n;
+    }
+  });
+  return prefix + String(max + 1).padStart(2, '0');
+}
+
 // ── OPEN / CLOSE MODAL ─────────────────────────────────────────
 function openAdd(){
   document.getElementById('modalTitle').textContent='New Entry';
   document.getElementById('modalSub').textContent='Add a new passenger';
   document.getElementById('fName').value='';
   document.getElementById('fPhone').value='';
-  document.getElementById('fTicket').value='';
+  document.getElementById('fTicket').value = getNextTicket();
   var fRet=document.getElementById('fReturn');
   if(fRet){
     fRet.value = '';
@@ -1052,12 +1069,13 @@ async function saveEntry(sendSms){
     document.getElementById('fReturn').focus();
     return;
   }
-  var todayTickets=data.filter(function(r){
-    return r.ticket===ticket && r.status!=='DELIVERED' && isArrToday(r.ts);
+  var dupTicket = data.filter(function(r) {
+    var existingTicket = String(r.ticket || '').trim();
+    return existingTicket === ticket && existingTicket !== '';
   });
-  if(todayTickets.length>0){
-    var dup=todayTickets[0];
-    if(!confirm('⚠️ Ticket '+ticket+' already in use today by '+dup.name+' ('+dup.car+'). Save anyway?')) return;
+  if (dupTicket.length > 0) {
+    showMsg('Ticket already exists: ' + ticket, true);
+    return;
   }
   var btn=document.getElementById('saveBtn');
   var btnSms=document.getElementById('saveBtnSms');
