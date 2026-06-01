@@ -38,6 +38,10 @@
   </div>
   <div class="hdr-r">
     <div class="hdr-date" id="hdrDate"></div>
+    <div id="syncStatus" style="display:none;font-family:'DM Mono',monospace;font-size:11px;color:rgba(255,255,255,0.85);line-height:1.3;text-align:right;">
+      <div>🟢 Online</div>
+      <div id="syncTime" style="font-size:10px;color:rgba(255,255,255,0.6);">Last Sync: —</div>
+    </div>
     <button class="ref-btn" onclick="loadData()">&#8635; Refresh</button>
     <button class="ref-btn" id="logoutBtn" onclick="doLogout()" style="display:none">Sign Out</button>
   </div>
@@ -503,6 +507,16 @@ function showMsg(txt,err) {
   setTimeout(function(){el.style.display='none';},4000);
 }
 
+function updateSyncStatus() {
+  var el = document.getElementById('syncStatus');
+  var tEl = document.getElementById('syncTime');
+  if (!el || !tEl) return;
+  var now = new Date();
+  var time = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+  tEl.textContent = 'Last Sync: ' + time;
+  el.style.display = 'block';
+}
+
 async function loadData() {
   loading(true);
   try {
@@ -522,7 +536,7 @@ async function loadData() {
       };
     });
     render();
-    showMsg('Loaded '+data.length+' records', false);
+    updateSyncStatus();
   } catch(e) {
     showMsg('Connection error: '+e.message, true);
     console.error(e);
