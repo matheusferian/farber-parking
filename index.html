@@ -2008,39 +2008,6 @@ function generateOperationsReport(){
 
   // ── Row builders ──────────────────────────────────────────────────────────
   var wdOrder=[1,2,3,4,5,6,0];
-  var wdTableRows=wdOrder.map(function(i){
-    return '<tr>'+
-      '<td>'+WDAYS[i]+'<\/td><td>'+wdCnt[i]+'<\/td>'+
-      '<td>'+wdCI[i]+'<\/td><td>'+wdAvgCI[i].toFixed(1)+'<\/td>'+
-      '<td>'+wdDel[i]+'<\/td><td>'+wdAvgDel[i].toFixed(1)+'<\/td>'+
-    '<\/tr>';
-  }).join('');
-
-  var dailyRows=daily.map(function(d,idx){
-    var netStyle=d.net>0?'color:#1a7c4a;font-weight:700':d.net<0?'color:#c0392b;font-weight:700':'color:#888';
-    var netStr=(d.net>0?'+':'')+d.net;
-    return '<tr class="'+(idx%2===0?'even':'')+'">'+
-      '<td>'+d.key+'<\/td><td>'+d.wd+'<\/td>'+
-      '<td style="color:#1a3d7c;font-weight:600">'+d.ci+'<\/td>'+
-      '<td>'+d.delNorm+'<\/td>'+
-      '<td style="color:#c9a84c;font-weight:600">'+d.delCust+'<\/td>'+
-      '<td>'+d.del+'<\/td>'+
-      '<td style="'+netStyle+'">'+netStr+'<\/td>'+
-    '<\/tr>';
-  }).join('');
-
-  var top5CIRows=top5CI.map(function(d,i){
-    return '<tr><td>'+(i+1)+'<\/td><td>'+d.key+'<\/td><td>'+d.wd+'<\/td><td>'+d.ci+'<\/td><\/tr>';
-  }).join('');
-  var top5DelRows=top5Del.map(function(d,i){
-    return '<tr><td>'+(i+1)+'<\/td><td>'+d.key+'<\/td><td>'+d.wd+'<\/td>'+
-      '<td>'+d.delNorm+'<\/td><td>'+d.delCust+'<\/td><td>'+d.delUnk+'<\/td><td>'+d.del+'<\/td><\/tr>';
-  }).join('');
-  var top5CmbRows=top5Cmb.map(function(d,i){
-    return '<tr><td>'+(i+1)+'<\/td><td>'+d.key+'<\/td><td>'+d.wd+'<\/td>'+
-      '<td>'+d.ci+'<\/td><td>'+d.del+'<\/td><td>'+(d.ci+d.del)+'<\/td><\/tr>';
-  }).join('');
-
   // ── Farber staffing row builders ──────────────────────────────────────────
   var wdVolRows=wdOrder.map(function(i){
     var isMax=avgOps[i]===maxOpsVal;
@@ -2078,12 +2045,6 @@ function generateOperationsReport(){
   }).join('');
 
   // ── Chart data ────────────────────────────────────────────────────────────
-  var ciDataJ  =JSON.stringify(daily.map(function(d){return d.ci;}));
-  var delDataJ =JSON.stringify(daily.map(function(d){return d.del;}));
-  var dayLabJ  =JSON.stringify(daily.map(function(d){return d.label;}));
-  var wdLabJ   =JSON.stringify(WDAYS.map(function(w){return w.slice(0,3);}));
-  var wdAvgCIJ =JSON.stringify(WDAYS.map(function(_,i){return+wdAvgCI[i].toFixed(1);}));
-  var wdAvgDelJ=JSON.stringify(WDAYS.map(function(_,i){return+wdAvgDel[i].toFixed(1);}));
   var genDate=new Date().toLocaleString('en-US');
   var reportTitle='Operations Report — '+monthLabel+filterLabel;
 
@@ -2123,7 +2084,7 @@ function generateOperationsReport(){
     '@media print{body{background:#fff}.page{padding:8px 6px}.no-print{display:none}}'+
     '.staff-block{margin-top:36px;padding-top:28px;border-top:3px solid #c9a84c}'+
     '.staff-block .section h2{color:#7a4f00;border-left-color:#c9a84c}'+
-    '.staff-kpi-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px}'+
+    '.staff-kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}'+
     '.kpi.gold{border:2px solid #c9a84c;background:#fffbf0}'+
     '.kpi.gold .num{color:#7a4f00}'+
     '.matrix-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}'+
@@ -2133,7 +2094,6 @@ function generateOperationsReport(){
   // ── HTML ──────────────────────────────────────────────────────────────────
   var html='<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">'+
     '<title>Makers Air Valet — '+reportTitle+'<\/title>'+
-    '<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"><\/script>'+
     '<style>'+CSS+'<\/style><\/head><body><div class="page">'+
 
     '<div class="no-print"><button onclick="window.print()" style="background:#1a3d7c;color:#fff;border:none;padding:10px 20px;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer;">🖨 Save as PDF \/ Print<\/button><\/div>'+
@@ -2144,110 +2104,18 @@ function generateOperationsReport(){
       '<div class="badge-title">'+MONTHS[selMonth].toUpperCase()+'<br>'+selYear+'<\/div>'+
     '<\/div>'+
 
-    // ── SECTION 1: Executive Summary ────────────────────────────────────────
-    '<div class="section"><h2>Executive Summary<\/h2>'+
-      '<div class="kpi-grid">'+
-        '<div class="kpi"><div class="num">'+totalCI+'<\/div><div class="lbl">Total Check-ins<\/div><\/div>'+
-        '<div class="kpi"><div class="num">'+totalDel+'<\/div><div class="lbl">Total Deliveries<\/div><\/div>'+
-        '<div class="kpi grn"><div class="num">'+totalNorm+'<\/div><div class="lbl">Normal Deliveries<\/div><\/div>'+
-        '<div class="kpi acc"><div class="num">'+totalCust+'<\/div><div class="lbl">Customs Deliveries<\/div><\/div>'+
-        '<div class="kpi '+(totalUnk>0?'red':'')+'"><div class="num">'+totalUnk+'<\/div><div class="lbl">Missing Del. Type<\/div><\/div>'+
-      '<\/div>'+
-      '<div class="kpi-grid four" style="margin-top:8px">'+
-        '<div class="kpi acc"><div class="num">'+avgCI+'<\/div><div class="lbl">Avg Daily Check-ins<\/div><\/div>'+
-        '<div class="kpi acc"><div class="num">'+avgDel+'<\/div><div class="lbl">Avg Daily Deliveries<\/div><\/div>'+
-        '<div class="kpi"><div class="num" style="font-size:15px">'+busiestCIWD+'<\/div><div class="lbl">Busiest Check-in Day<\/div><\/div>'+
-        '<div class="kpi"><div class="num" style="font-size:15px">'+busiestDelWD+'<\/div><div class="lbl">Busiest Delivery Day<\/div><\/div>'+
-      '<\/div>'+
-      '<div class="kpi-grid four" style="margin-top:8px">'+
-        '<div class="kpi"><div class="num" style="font-size:14px">'+busiest.key+'<\/div><div class="lbl">Busiest Single Day<br>'+(busiest.ci+busiest.del)+' total ops<\/div><\/div>'+
-        '<div class="kpi"><div class="num">'+data.length+'<\/div><div class="lbl">Total Records in DB<\/div><\/div>'+
-        '<div class="kpi"><div class="num" style="font-size:11px;padding-top:2px">'+(totalDel>0?((totalCust/totalDel)*100).toFixed(1):0)+'%<\/div><div class="lbl">Customs Rate<\/div><\/div>'+
-        '<div class="kpi"><div class="num" style="font-size:11px;padding-top:2px">'+filterLabel.replace(' — ','')+'<\/div><div class="lbl">Active Filter<\/div><\/div>'.replace('<div class="num" style="font-size:11px;padding-top:2px"><\/div>','<div class="num" style="font-size:11px;padding-top:2px">All<\/div>')+
-      '<\/div>'+
-    '<\/div>'+
-
-    // ── SECTION 2: Charts ─────────────────────────────────────────────────
-    '<div class="section"><h2>Daily Activity Charts<\/h2>'+
-      '<div class="chart-full"><h3>Daily Check-ins vs Deliveries — '+monthLabel+'<\/h3><canvas id="dailyChart" height="80"><\/canvas><\/div>'+
-      '<div class="chart-grid" style="margin-top:12px">'+
-        '<div class="chart-wrap"><h3>Avg Check-ins by Weekday<\/h3><canvas id="wdCIChart" height="150"><\/canvas><\/div>'+
-        '<div class="chart-wrap"><h3>Avg Deliveries by Weekday<\/h3><canvas id="wdDelChart" height="150"><\/canvas><\/div>'+
-      '<\/div>'+
-    '<\/div>'+
-
-    // ── SECTION 3: Weekday Averages ───────────────────────────────────────
-    '<div class="section"><h2>Weekday Average Analysis<\/h2>'+
-      '<table><thead><tr>'+
-        '<th>Weekday<\/th><th># Occurrences<\/th>'+
-        '<th>Total Check-ins<\/th><th>Avg Check-ins<\/th>'+
-        '<th>Total Deliveries<\/th><th>Avg Deliveries<\/th>'+
-      '<\/tr><\/thead><tbody>'+wdTableRows+'<\/tbody><\/table>'+
-    '<\/div>'+
-
-    // ── SECTION 4: Busiest Days ───────────────────────────────────────────
-    '<div class="section"><h2>Busiest Days<\/h2>'+
-      '<div class="top5-grid">'+
-        '<div><p>Top 5 Check-in Days<\/p>'+
-          '<table><thead><tr><th>#<\/th><th>Date<\/th><th>Weekday<\/th><th>CI<\/th><\/tr><\/thead>'+
-          '<tbody>'+top5CIRows+'<\/tbody><\/table><\/div>'+
-        '<div><p>Top 5 Delivery Days<\/p>'+
-          '<table><thead><tr><th>#<\/th><th>Date<\/th><th>Day<\/th><th>Norm<\/th><th>Cust<\/th><th>Unk<\/th><th>Tot<\/th><\/tr><\/thead>'+
-          '<tbody>'+top5DelRows+'<\/tbody><\/table><\/div>'+
-        '<div><p>Top 5 Combined Days<\/p>'+
-          '<table><thead><tr><th>#<\/th><th>Date<\/th><th>Day<\/th><th>CI<\/th><th>Del<\/th><th>Total<\/th><\/tr><\/thead>'+
-          '<tbody>'+top5CmbRows+'<\/tbody><\/table><\/div>'+
-      '<\/div>'+
-    '<\/div>'+
-
-    // ── SECTION 5: Daily Operations Table ────────────────────────────────
-    '<div class="section"><h2>Daily Operations — '+monthLabel+'<\/h2>'+
-      '<table><thead><tr>'+
-        '<th>Date<\/th><th>Weekday<\/th>'+
-        '<th>Check-ins<\/th>'+
-        '<th>Normal Del<\/th>'+
-        '<th>Customs Del<\/th>'+
-        '<th>Total Del<\/th>'+
-        '<th>Net Change<\/th>'+
-      '<\/tr><\/thead><tbody>'+dailyRows+'<\/tbody><\/table>'+
-    '<\/div>'+
-
-    // ── SECTION 6: Operational Insights ──────────────────────────────────
-    '<div class="section"><h2>Operational Insights<\/h2>'+
-      '<div class="insights-box">'+
-        '<div class="ins-item"><div class="ins-dot"><\/div><div class="ins-text"><strong>Busiest check-in weekday:<\/strong> '+busiestCIWD+' with an average of '+maxCI.toFixed(1)+' check-ins per '+busiestCIWD+'.<\/div><\/div>'+
-        '<div class="ins-item"><div class="ins-dot"><\/div><div class="ins-text"><strong>Busiest delivery weekday:<\/strong> '+busiestDelWD+' with an average of '+maxDel.toFixed(1)+' deliveries per '+busiestDelWD+'.<\/div><\/div>'+
-        '<div class="ins-item"><div class="ins-dot"><\/div><div class="ins-text"><strong>Peak operational day:<\/strong> '+busiest.key+' ('+busiest.wd+') — '+busiest.ci+' check-ins, '+busiest.delNorm+' normal, '+busiest.delCust+' customs ('+(busiest.ci+busiest.del)+' total).<\/div><\/div>'+
-        '<div class="ins-item"><div class="ins-dot"><\/div><div class="ins-text"><strong>Monthly volume:<\/strong> '+totalCI+' check-ins and '+totalDel+' deliveries ('+totalNorm+' normal + '+totalCust+' customs) across '+daysInMonth+' days.<\/div><\/div>'+
-        '<div class="ins-item"><div class="ins-dot"><\/div><div class="ins-text"><strong>Customs rate:<\/strong> '+(totalDel>0?((totalCust/totalDel)*100).toFixed(1):0)+'% of deliveries were Customs.<\/div><\/div>'+
-        '<div class="ins-item"><div class="ins-dot"><\/div><div class="ins-text"><strong>Traffic distribution (CV '+cvPct+'%):<\/strong> '+spreadNote+'<\/div><\/div>'+
-        '<div class="ins-item"><div class="ins-dot"><\/div><div class="ins-text"><strong>Weekend vs weekday check-ins:<\/strong> Sat avg: '+wdAvgCI[6].toFixed(1)+', Sun avg: '+wdAvgCI[0].toFixed(1)+' vs Mon–Fri avg: '+wkdayAvgCI+'.<\/div><\/div>'+
-      '<\/div>'+
-    '<\/div>'+
-
-    // ── SECTION 7: Data Quality Validation ───────────────────────────────
-    '<div class="section"><h2>Data Quality Validation<\/h2>'+
-      '<table><thead><tr><th>Check<\/th><th>Count<\/th><th>Notes<\/th><\/tr><\/thead><tbody>'+
-        '<tr><td><strong>Total records in database<\/strong><\/td><td>'+data.length+'<\/td><td>All passengers loaded<\/td><\/tr>'+
-        '<tr class="even"><td>Total check-ins in '+monthLabel+'<\/td><td>'+totalCI+'<\/td><td>From checkin_date or ts fallback (never ret)<\/td><\/tr>'+
-        '<tr><td>Total deliveries in '+monthLabel+'<\/td><td>'+totalDel+'<\/td><td>From checkout_date or deldate fallback (never ret)<\/td><\/tr>'+
-        '<tr class="even" style="border-top:2px solid #1a3d7c"><td><strong>Check-in source: checkin_date<\/strong><\/td><td>'+ciFromNew+'<\/td><td style="color:#1a7c4a">✓ Accurate — real ISO timestamp<\/td><\/tr>'+
-        '<tr><td>Check-in source: ts (fallback)<\/td><td>'+ciFromFallback+'<\/td><td style="color:#c9a84c">⚠ Old records — legacy locale string<\/td><\/tr>'+
-        '<tr class="even"><td>Check-in date missing<\/td><td>'+ciMissing+'<\/td><td style="color:#c0392b">✗ Not counted in check-in metrics<\/td><\/tr>'+
-        '<tr style="border-top:2px solid #1a3d7c"><td><strong>Delivery source: checkout_date<\/strong><\/td><td>'+coFromNew+'<\/td><td style="color:#1a7c4a">✓ Accurate — real ISO timestamp<\/td><\/tr>'+
-        '<tr class="even"><td>Delivery source: deldate (fallback)<\/td><td>'+coFromFallback+'<\/td><td style="color:#c9a84c">⚠ Old records — legacy date string<\/td><\/tr>'+
-        '<tr><td>Delivery date missing<\/td><td>'+coMissing+'<\/td><td style="color:#c0392b">✗ Not counted in delivery metrics<\/td><\/tr>'+
-        '<tr class="even" style="border-top:2px solid #1a3d7c"><td><strong>delivery_type = NORMAL<\/strong><\/td><td>'+delNormalMonth+'<\/td><td>Standard deliveries in month<\/td><\/tr>'+
-        '<tr><td>delivery_type = CUSTOMS<\/td><td>'+delCustomsMonth+'<\/td><td>Customs deliveries in month<\/td><\/tr>'+
-        '<tr class="even"><td>delivery_type missing (delivered)<\/td><td>'+delUnknownMonth+'<\/td><td style="color:#c9a84c">⚠ Pre-feature records<\/td><\/tr>'+
-        '<tr style="border-top:2px solid #1a3d7c"><td>Active delivery filter<\/td><td colspan="2">'+delFilter+(filterLabel?' ('+filterLabel.replace(' — ','')+')':'')+'<\/td><\/tr>'+
-      '<\/tbody><\/table>'+
-    '<\/div>'+
-
     '<div class="staff-block">'+
 
-    '<div class="section"><h2>&#128202; Farber Staffing Analysis<\/h2>'+
+    '<div class="section"><h2>&#128202; Farber Staffing Analysis — '+monthLabel+'<\/h2>'+
       '<div class="staff-kpi-grid">'+
+        '<div class="kpi gold">'+
+          '<div class="num">'+totalCI+'<\/div>'+
+          '<div class="lbl">Total Check-ins<\/div>'+
+        '<\/div>'+
+        '<div class="kpi gold">'+
+          '<div class="num">'+totalDel+'<\/div>'+
+          '<div class="lbl">Total Deliveries<\/div>'+
+        '<\/div>'+
         '<div class="kpi gold">'+
           '<div class="num" style="font-size:16px">'+mostActiveWD+'<\/div>'+
           '<div class="lbl">Most Active Weekday<\/div>'+
@@ -2298,25 +2166,7 @@ function generateOperationsReport(){
       reportTitle+' &nbsp;&middot;&nbsp; Generated '+genDate+
     '<\/div><\/div>'+
 
-    // ── Chart.js ──────────────────────────────────────────────────────────
-    '<script>'+
-      'var dayLabels='+dayLabJ+';'+
-      'var ciData='+ciDataJ+';'+
-      'var delData='+delDataJ+';'+
-      'var wdLabels='+wdLabJ+';'+
-      'var wdAvgCI='+wdAvgCIJ+';'+
-      'var wdAvgDel='+wdAvgDelJ+';'+
-      'new Chart(document.getElementById("dailyChart"),{type:"line",data:{labels:dayLabels,datasets:['+
-        '{label:"Check-ins",data:ciData,borderColor:"#1a3d7c",backgroundColor:"rgba(26,61,124,.07)",tension:.35,fill:true,pointRadius:2,borderWidth:2},'+
-        '{label:"Deliveries",data:delData,borderColor:"#c9a84c",backgroundColor:"rgba(201,168,76,.07)",tension:.35,fill:false,pointRadius:2,borderWidth:2}'+
-      ']},options:{responsive:true,interaction:{mode:"index",intersect:false},plugins:{legend:{labels:{font:{size:11}}}},scales:{x:{ticks:{font:{size:9},maxRotation:45}},y:{beginAtZero:true,ticks:{font:{size:10},stepSize:1}}}}});'+
-      'new Chart(document.getElementById("wdCIChart"),{type:"bar",data:{labels:wdLabels,'+
-        'datasets:[{label:"Avg Check-ins",data:wdAvgCI,backgroundColor:"rgba(26,61,124,.78)",borderRadius:5,borderSkipped:false}]},'+
-        'options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{font:{size:10}}},x:{ticks:{font:{size:10}}}}}});'+
-      'new Chart(document.getElementById("wdDelChart"),{type:"bar",data:{labels:wdLabels,'+
-        'datasets:[{label:"Avg Deliveries",data:wdAvgDel,backgroundColor:"rgba(201,168,76,.80)",borderRadius:5,borderSkipped:false}]},'+
-        'options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{font:{size:10}}},x:{ticks:{font:{size:10}}}}}});'+
-    '<\/script><\/body><\/html>';
+    '<\/body><\/html>';
 
   var win=window.open('','_blank');
   if(!win){ alert('Pop-up blocked. Please allow pop-ups for this site and try again.'); return; }
