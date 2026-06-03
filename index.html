@@ -478,6 +478,67 @@ async function sbDelete(id) {
 }
 
 
+// ── EPSON TEST PRINT ───────────────────────────────────────────
+async function testPrint() {
+  var now  = new Date();
+  var date = now.toLocaleDateString('en-US', {
+    weekday: 'short', month: 'short', day: 'numeric', year: 'numeric'
+  });
+  var time = now.toLocaleTimeString('en-US', {
+    hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true
+  });
+
+  var xml = [
+    '<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">',
+      '<s:Body>',
+        '<epos-print xmlns="http://www.epson-pos.com/schemas/2011/03/epos-print">',
+          '<initialize/>',
+          '<text align="center"/>',
+          '<text>--------------------------------&#10;</text>',
+          '<feed line="1"/>',
+          '<text width="2" height="2"/>',
+          '<text>MAKERS AIR VALET&#10;</text>',
+          '<text width="1" height="1"/>',
+          '<feed line="1"/>',
+          '<text>EPSON TEST&#10;</text>',
+          '<feed line="1"/>',
+          '<text>Printer Connected&#10;</text>',
+          '<feed line="1"/>',
+          '<text align="left"/>',
+          '<text>Date: ' + date + '&#10;</text>',
+          '<text>Time: ' + time + '&#10;</text>',
+          '<text align="center"/>',
+          '<feed line="1"/>',
+          '<text>--------------------------------&#10;</text>',
+          '<feed line="3"/>',
+          '<cut type="feed"/>',
+        '</epos-print>',
+      '</s:Body>',
+    '</s:Envelope>'
+  ].join('');
+
+  var url = 'https://' + PRINTER_HOST
+    + '/cgi-bin/epos/service.cgi'
+    + '?devid=' + PRINTER_DEVICE_ID + '&timeout=10000';
+
+  try {
+    showMsg('🖨 Sending to printer...', false);
+    var res = await fetch(url, {
+      method:  'POST',
+      headers: {
+        'Content-Type': 'text/xml; charset=utf-8',
+        'SOAPAction':   '"http://www.epson-pos.com/schemas/2011/03/epos-print"'
+      },
+      body: xml
+    });
+    if (!res.ok) throw new Error('Printer responded: HTTP ' + res.status);
+    showMsg('✅ Test print sent!', false);
+  } catch(e) {
+    showMsg('❌ Print error: ' + e.message, true);
+    console.error('testPrint error:', e);
+  }
+}
+
 // ── GLOBALS ────────────────────────────────────────────────────
 // ⚠️  ANTHROPIC_KEY must NEVER live in client-side code.
 // Any Claude API calls must go through a server-side proxy (e.g. a Supabase Edge Function
@@ -485,6 +546,11 @@ async function sbDelete(id) {
 // Rotate the previously-exposed key at: https://console.anthropic.com/settings/keys
 var ANTHROPIC_KEY = null; // placeholder — do not set a real key here
 var HANGARS  = ['HANGAR 19','HANGAR 18','HANGAR 16','HANGAR 7','HH'];
+// ── PRINTER CONFIG ─────────────────────────────────────────────
+// Update PRINTER_HOST if the printer IP or hostname changes.
+// PRINTER_HOST should not include protocol or trailing slash.
+var PRINTER_HOST      = localStorage.getItem('printer_host') || '10.0.0.152';
+var PRINTER_DEVICE_ID = 'local_printer';
 var today    = new Date(); today.setHours(0,0,0,0);
 var tomorrow = new Date(today); tomorrow.setDate(today.getDate()+1);
 
