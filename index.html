@@ -528,37 +528,24 @@ async function testPrint() {
 
 // ── PRINT VALET TICKET ─────────────────────────────────────────
 async function printTicket(r) {
-  var retDisp  = r.ret ? fmtD(r.ret) : 'NO DATE';
+  var retDisp   = r.ret   ? fmtD(r.ret)   : 'NO DATE';
   var phoneDisp = r.phone ? fmtP(r.phone) : 'N/A';
 
-  var xml = [
-    '<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">',
-      '<s:Body>',
-        '<epos-print xmlns="http://www.epson-pos.com/schemas/2011/03/epos-print">',
-          '<initialize/>',
-          '<text align="center"/>',
-          '<text>--------------------------------&#10;</text>',
-          '<feed line="1"/>',
-          '<text width="2" height="2"/>',
-          '<text>MAKERS AIR VALET&#10;</text>',
-          '<text width="1" height="1"/>',
-          '<feed line="1"/>',
-          '<text>--------------------------------&#10;</text>',
-          '<feed line="1"/>',
-          '<text align="left"/>',
-          '<text>TICKET : ' + r.ticket + '&#10;</text>',
-          '<text>NAME   : ' + r.name   + '&#10;</text>',
-          '<text>RETURN : ' + retDisp  + '&#10;</text>',
-          '<text>PHONE  : ' + phoneDisp + '&#10;</text>',
-          '<text align="center"/>',
-          '<feed line="1"/>',
-          '<text>--------------------------------&#10;</text>',
-          '<feed line="3"/>',
-          '<cut type="feed"/>',
-        '</epos-print>',
-      '</s:Body>',
-    '</s:Envelope>'
-  ].join('');
+  var xml = '<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">'
+    + '<s:Body>'
+    + '<epos-print xmlns="http://www.epson-pos.com/schemas/2011/03/epos-print">'
+    + '<text>MAKERS AIR VALET&#10;</text>'
+    + '<text>&#10;</text>'
+    + '<text>TICKET: ' + r.ticket  + '&#10;</text>'
+    + '<text>NAME: '   + r.name    + '&#10;</text>'
+    + '<text>PHONE: '  + phoneDisp + '&#10;</text>'
+    + '<text>&#10;</text>'
+    + '<text>RETURN: ' + retDisp   + '&#10;</text>'
+    + '<feed line="3"/>'
+    + '<cut type="feed"/>'
+    + '</epos-print>'
+    + '</s:Body>'
+    + '</s:Envelope>';
 
   var url = 'https://' + PRINTER_HOST
     + '/cgi-bin/epos/service.cgi'
@@ -575,7 +562,20 @@ async function printTicket(r) {
       body: xml
     });
     if (!res.ok) throw new Error('Printer responded: HTTP ' + res.status);
-    showMsg('✅ Ticket impresso!', false);
+    var txt = await res.text();
+    var epsonSuccess = (txt.match(/success="([^"]*)"/) || [])[1] || 'unknown';
+    var epsonCode    = (txt.match(/code="([^"]*)"/)    || [])[1] || 'none';
+    var epsonStatus  = (txt.match(/status="([^"]*)"/)  || [])[1] || 'unknown';
+    console.log('EPSON SUCCESS:', epsonSuccess);
+    console.log('EPSON CODE:   ', epsonCode);
+    console.log('EPSON STATUS: ', epsonStatus);
+    console.log('EPSON FULL:   ', txt);
+    if (epsonSuccess === 'true') {
+      showMsg('✅ Ticket impresso!', false);
+    } else {
+      showMsg('❌ Epson rejeitou o ticket. Veja o console.', true);
+      console.error('EPSON REJECTED:', txt);
+    }
   } catch(e) {
     showMsg('❌ Erro na impressão: ' + e.message, true);
     console.error('printTicket error:', e);
