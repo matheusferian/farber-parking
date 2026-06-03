@@ -532,7 +532,15 @@ async function testPrint() {
       body: xml
     });
     if (!res.ok) throw new Error('Printer responded: HTTP ' + res.status);
-    showMsg('✅ Test print sent!', false);
+    var txt = await res.text();
+    console.log('EPSON RESPONSE:', txt);
+    if (txt.indexOf('success="true"') !== -1) {
+      showMsg('✅ Test print sent!', false);
+    } else {
+      showMsg('❌ Epson rejected print job. Check console.', true);
+      console.error('EPSON REJECTED:', txt);
+      return;
+    }
   } catch(e) {
     showMsg('❌ Print error: ' + e.message, true);
     console.error('testPrint error:', e);
