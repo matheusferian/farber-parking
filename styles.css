@@ -199,6 +199,10 @@ input[type=checkbox]{width:17px;height:17px;accent-color:var(--gold);cursor:poin
 .ov.on .modal{transform:translateY(0);}
 .modal h2{font-family:'Syne',sans-serif;font-size:18px;font-weight:800;color:var(--navy);margin-bottom:4px;}
 .msub{font-size:11px;color:var(--mu);margin-bottom:18px;}
+@media (min-width:768px){
+  .ov{align-items:center;}
+  .modal{border-radius:16px;max-height:88vh;margin:16px auto;}
+}
 
 /* ── FORM ── */
 .fr{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;}

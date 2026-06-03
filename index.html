@@ -324,7 +324,7 @@
     </div>
     <div class="fr full">
       <div class="fg">
-        <label>Location <span style="color:var(--red)">*</span></label>
+        <label>Location <span style="color:var(--mu);font-weight:400">(optional)</span></label>
         <div class="lbs">
           <div class="lb" onclick="selLoc(this,'HANGAR 19')">Hangar 19</div>
           <div class="lb" onclick="selLoc(this,'HANGAR 18')">Hangar 18</div>
@@ -638,7 +638,7 @@ function buildCustomerTicketXml(r) {
 function buildKeyTicketXml(r) {
   var retDisp   = r.ret   ? fmtD(r.ret)   : 'NO DATE';
   var phoneDisp = r.phone ? fmtP(r.phone) : 'N/A';
-  var locDisp   = r.loc   ? r.loc         : 'N/A';
+  var locDisp   = r.loc   ? r.loc         : 'NOT ASSIGNED';
   return '<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">'
     + '<s:Body>'
     + '<epos-print xmlns="http://www.epson-pos.com/schemas/2011/03/epos-print">'
