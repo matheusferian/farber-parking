@@ -526,33 +526,13 @@ async function testPrint() {
   }
 }
 
-// ── PRINT VALET TICKET ─────────────────────────────────────────
-async function printTicket(r) {
-  var retDisp   = r.ret   ? fmtD(r.ret)   : 'NO DATE';
-  var phoneDisp = r.phone ? fmtP(r.phone) : 'N/A';
-
-  var xml = '<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">'
-    + '<s:Body>'
-    + '<epos-print xmlns="http://www.epson-pos.com/schemas/2011/03/epos-print">'
-    + '<text>MAKERS AIR VALET&#10;</text>'
-    + '<text>&#10;</text>'
-    + '<text>TICKET: ' + r.ticket  + '&#10;</text>'
-    + '<text>NAME: '   + r.name    + '&#10;</text>'
-    + '<text>PHONE: '  + phoneDisp + '&#10;</text>'
-    + '<text>&#10;</text>'
-    + '<text>RETURN: ' + retDisp   + '&#10;</text>'
-    + '<feed line="3"/>'
-    + '<cut type="feed"/>'
-    + '</epos-print>'
-    + '</s:Body>'
-    + '</s:Envelope>';
-
+// ── EPSON SHARED SEND ──────────────────────────────────────────
+async function epsonSend(xml, label) {
   var url = 'https://' + PRINTER_HOST
     + '/cgi-bin/epos/service.cgi'
     + '?devid=' + PRINTER_DEVICE_ID + '&timeout=10000';
-
   try {
-    showMsg('🖨 Imprimindo ticket...', false);
+    showMsg('🖨 Imprimindo ' + label + '...', false);
     var res = await fetch(url, {
       method:  'POST',
       headers: {
@@ -566,20 +546,136 @@ async function printTicket(r) {
     var epsonSuccess = (txt.match(/success="([^"]*)"/) || [])[1] || 'unknown';
     var epsonCode    = (txt.match(/code="([^"]*)"/)    || [])[1] || 'none';
     var epsonStatus  = (txt.match(/status="([^"]*)"/)  || [])[1] || 'unknown';
-    console.log('EPSON SUCCESS:', epsonSuccess);
-    console.log('EPSON CODE:   ', epsonCode);
-    console.log('EPSON STATUS: ', epsonStatus);
-    console.log('EPSON FULL:   ', txt);
+    console.log('EPSON [' + label + '] SUCCESS:', epsonSuccess);
+    console.log('EPSON [' + label + '] CODE:   ', epsonCode);
+    console.log('EPSON [' + label + '] STATUS: ', epsonStatus);
+    console.log('EPSON [' + label + '] FULL:   ', txt);
     if (epsonSuccess === 'true') {
-      showMsg('✅ Ticket impresso!', false);
+      showMsg('✅ ' + label + ' impresso!', false);
     } else {
-      showMsg('❌ Epson rejeitou o ticket. Veja o console.', true);
-      console.error('EPSON REJECTED:', txt);
+      showMsg('❌ Epson rejeitou ' + label + '. Veja o console.', true);
+      console.error('EPSON REJECTED [' + label + ']:', txt);
     }
+    return epsonSuccess === 'true';
   } catch(e) {
     showMsg('❌ Erro na impressão: ' + e.message, true);
-    console.error('printTicket error:', e);
+    console.error('epsonSend error:', e);
+    return false;
   }
+}
+
+// ── BUILD CUSTOMER TICKET XML ──────────────────────────────────
+function buildCustomerTicketXml(r) {
+  var retDisp   = r.ret   ? fmtD(r.ret)   : 'NO DATE';
+  var phoneDisp = r.phone ? fmtP(r.phone) : 'N/A';
+  return '<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">'
+    + '<s:Body>'
+    + '<epos-print xmlns="http://www.epson-pos.com/schemas/2011/03/epos-print">'
+    + '<text>================================&#10;</text>'
+    + '<text>MAKERS AIR VALET&#10;</text>'
+    + '<text>CUSTOMER COPY&#10;</text>'
+    + '<text>=============&#10;</text>'
+    + '<text>&#10;</text>'
+    + '<text>TICKET #: ' + r.ticket + '&#10;</text>'
+    + '<text>&#10;</text>'
+    + '<text>PASSENGER&#10;</text>'
+    + '<text>' + r.name + '&#10;</text>'
+    + '<text>&#10;</text>'
+    + '<text>PHONE&#10;</text>'
+    + '<text>' + phoneDisp + '&#10;</text>'
+    + '<text>&#10;</text>'
+    + '<text>RETURN DATE&#10;</text>'
+    + '<text>' + retDisp + '&#10;</text>'
+    + '<text>&#10;</text>'
+    + '<text>---&#10;</text>'
+    + '<text>&#10;</text>'
+    + '<text>CALL OR TEXT:&#10;</text>'
+    + '<text>(954) 352-1010&#10;</text>'
+    + '<text>&#10;</text>'
+    + '<text>---&#10;</text>'
+    + '<text>&#10;</text>'
+    + '<text>PLEASE KEEP THIS TICKET&#10;</text>'
+    + '<text>FOR VEHICLE PICKUP&#10;</text>'
+    + '<text>&#10;</text>'
+    + '<text># THANK YOU&#10;</text>'
+    + '<feed line="3"/>'
+    + '<cut type="feed"/>'
+    + '</epos-print>'
+    + '</s:Body>'
+    + '</s:Envelope>';
+}
+
+// ── BUILD KEY TICKET XML ───────────────────────────────────────
+function buildKeyTicketXml(r) {
+  var retDisp   = r.ret   ? fmtD(r.ret)   : 'NO DATE';
+  var colorDisp = r.color ? r.color.toUpperCase() : 'N/A';
+  var locDisp   = r.loc   ? r.loc          : 'N/A';
+  var carDisp   = r.car   ? r.car          : 'N/A';
+  return '<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">'
+    + '<s:Body>'
+    + '<epos-print xmlns="http://www.epson-pos.com/schemas/2011/03/epos-print">'
+    + '<text>================================&#10;</text>'
+    + '<text>MAKERS AIR VALET&#10;</text>'
+    + '<text>KEY COPY (INTERNAL)&#10;</text>'
+    + '<text>===================&#10;</text>'
+    + '<text>&#10;</text>'
+    + '<text>TICKET #: ' + r.ticket + '&#10;</text>'
+    + '<text>&#10;</text>'
+    + '<text>PASSENGER&#10;</text>'
+    + '<text>' + r.name + '&#10;</text>'
+    + '<text>&#10;</text>'
+    + '<text>VEHICLE&#10;</text>'
+    + '<text>' + carDisp + '&#10;</text>'
+    + '<text>&#10;</text>'
+    + '<text>COLOR&#10;</text>'
+    + '<text>' + colorDisp + '&#10;</text>'
+    + '<text>&#10;</text>'
+    + '<text>LOCATION&#10;</text>'
+    + '<text>' + locDisp + '&#10;</text>'
+    + '<text>&#10;</text>'
+    + '<text>RETURN DATE&#10;</text>'
+    + '<text>' + retDisp + '&#10;</text>'
+    + '<text>&#10;</text>'
+    + '<text>---&#10;</text>'
+    + '<text>&#10;</text>'
+    + '<text>NOTES&#10;</text>'
+    + '<text>&#10;</text>'
+    + '<text>---&#10;</text>'
+    + '<text>&#10;</text>'
+    + '<text>---&#10;</text>'
+    + '<text>&#10;</text>'
+    + '<text>---&#10;</text>'
+    + '<text>&#10;</text>'
+    + '<text>---&#10;</text>'
+    + '<text>&#10;</text>'
+    + '<text>UPDATE VEHICLE LOCATION&#10;</text>'
+    + '<text>IN THE SYSTEM&#10;</text>'
+    + '<text>&#10;</text>'
+    + '<text>================================&#10;</text>'
+    + '<feed line="3"/>'
+    + '<cut type="feed"/>'
+    + '</epos-print>'
+    + '</s:Body>'
+    + '</s:Envelope>';
+}
+
+// ── PRINT FUNCTIONS ────────────────────────────────────────────
+async function printCustomerTicket(r) {
+  return epsonSend(buildCustomerTicketXml(r), 'Customer');
+}
+
+async function printKeyTicket(r) {
+  return epsonSend(buildKeyTicketXml(r), 'Key');
+}
+
+async function printBothTickets(r) {
+  await printCustomerTicket(r);
+  await printKeyTicket(r);
+}
+
+// printTicket kept as alias — detail panel button unchanged
+async function printTicket(r) {
+  return printCustomerTicket(r);
 }
 
 // ── GLOBALS ────────────────────────────────────────────────────
