@@ -539,6 +539,62 @@ async function testPrint() {
   }
 }
 
+// ── PRINT VALET TICKET ─────────────────────────────────────────
+async function printTicket(r) {
+  var retDisp  = r.ret ? fmtD(r.ret) : 'NO DATE';
+  var phoneDisp = r.phone ? fmtP(r.phone) : 'N/A';
+
+  var xml = [
+    '<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">',
+      '<s:Body>',
+        '<epos-print xmlns="http://www.epson-pos.com/schemas/2011/03/epos-print">',
+          '<initialize/>',
+          '<text align="center"/>',
+          '<text>--------------------------------&#10;</text>',
+          '<feed line="1"/>',
+          '<text width="2" height="2"/>',
+          '<text>MAKERS AIR VALET&#10;</text>',
+          '<text width="1" height="1"/>',
+          '<feed line="1"/>',
+          '<text>--------------------------------&#10;</text>',
+          '<feed line="1"/>',
+          '<text align="left"/>',
+          '<text>TICKET : ' + r.ticket + '&#10;</text>',
+          '<text>NAME   : ' + r.name   + '&#10;</text>',
+          '<text>RETURN : ' + retDisp  + '&#10;</text>',
+          '<text>PHONE  : ' + phoneDisp + '&#10;</text>',
+          '<text align="center"/>',
+          '<feed line="1"/>',
+          '<text>--------------------------------&#10;</text>',
+          '<feed line="3"/>',
+          '<cut type="feed"/>',
+        '</epos-print>',
+      '</s:Body>',
+    '</s:Envelope>'
+  ].join('');
+
+  var url = 'https://' + PRINTER_HOST
+    + '/cgi-bin/epos/service.cgi'
+    + '?devid=' + PRINTER_DEVICE_ID + '&timeout=10000';
+
+  try {
+    showMsg('🖨 Imprimindo ticket...', false);
+    var res = await fetch(url, {
+      method:  'POST',
+      headers: {
+        'Content-Type': 'text/xml; charset=utf-8',
+        'SOAPAction':   '"http://www.epson-pos.com/schemas/2011/03/epos-print"'
+      },
+      body: xml
+    });
+    if (!res.ok) throw new Error('Printer responded: HTTP ' + res.status);
+    showMsg('✅ Ticket impresso!', false);
+  } catch(e) {
+    showMsg('❌ Erro na impressão: ' + e.message, true);
+    console.error('printTicket error:', e);
+  }
+}
+
 // ── GLOBALS ────────────────────────────────────────────────────
 // ⚠️  ANTHROPIC_KEY must NEVER live in client-side code.
 // Any Claude API calls must go through a server-side proxy (e.g. a Supabase Edge Function
