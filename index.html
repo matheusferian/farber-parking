@@ -480,42 +480,15 @@ async function sbDelete(id) {
 
 // ── EPSON TEST PRINT ───────────────────────────────────────────
 async function testPrint() {
-  var now  = new Date();
-  var date = now.toLocaleDateString('en-US', {
-    weekday: 'short', month: 'short', day: 'numeric', year: 'numeric'
-  });
-  var time = now.toLocaleTimeString('en-US', {
-    hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true
-  });
-
-  var xml = [
-    '<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">',
-      '<s:Body>',
-        '<epos-print xmlns="http://www.epson-pos.com/schemas/2011/03/epos-print">',
-          '<initialize/>',
-          '<text align="center"/>',
-          '<text>--------------------------------&#10;</text>',
-          '<feed line="1"/>',
-          '<text width="2" height="2"/>',
-          '<text>MAKERS AIR VALET&#10;</text>',
-          '<text width="1" height="1"/>',
-          '<feed line="1"/>',
-          '<text>EPSON TEST&#10;</text>',
-          '<feed line="1"/>',
-          '<text>Printer Connected&#10;</text>',
-          '<feed line="1"/>',
-          '<text align="left"/>',
-          '<text>Date: ' + date + '&#10;</text>',
-          '<text>Time: ' + time + '&#10;</text>',
-          '<text align="center"/>',
-          '<feed line="1"/>',
-          '<text>--------------------------------&#10;</text>',
-          '<feed line="3"/>',
-          '<cut type="feed"/>',
-        '</epos-print>',
-      '</s:Body>',
-    '</s:Envelope>'
-  ].join('');
+  var xml = '<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">'
+    + '<s:Body>'
+    + '<epos-print xmlns="http://www.epson-pos.com/schemas/2011/03/epos-print">'
+    + '<text>EPSON TEST&#10;</text>'
+    + '<feed line="3"/>'
+    + '<cut type="feed"/>'
+    + '</epos-print>'
+    + '</s:Body>'
+    + '</s:Envelope>';
 
   var url = 'https://' + PRINTER_HOST
     + '/cgi-bin/epos/service.cgi'
@@ -533,8 +506,14 @@ async function testPrint() {
     });
     if (!res.ok) throw new Error('Printer responded: HTTP ' + res.status);
     var txt = await res.text();
-    console.log('EPSON RESPONSE:', txt);
-    if (txt.indexOf('success="true"') !== -1) {
+    var epsonSuccess = (txt.match(/success="([^"]*)"/) || [])[1] || 'unknown';
+    var epsonCode    = (txt.match(/code="([^"]*)"/)    || [])[1] || 'none';
+    var epsonStatus  = (txt.match(/status="([^"]*)"/)  || [])[1] || 'unknown';
+    console.log('EPSON SUCCESS:', epsonSuccess);
+    console.log('EPSON CODE:   ', epsonCode);
+    console.log('EPSON STATUS: ', epsonStatus);
+    console.log('EPSON FULL:   ', txt);
+    if (epsonSuccess === 'true') {
       showMsg('✅ Test print sent!', false);
     } else {
       showMsg('❌ Epson rejected print job. Check console.', true);
