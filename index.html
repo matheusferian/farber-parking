@@ -1377,7 +1377,9 @@ function showDet(id){
     '<div class="dphone" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'+escapeHTML(fmtP(r.phone))+
       (r.phone?'<a href="tel:'+r.phone.replace(/\D/g,'')+'" style="background:var(--ok);color:#000;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;text-decoration:none;font-family:Syne,sans-serif;">📞 CALL</a>':'')+
       (r.phone?'<a href="sms:'+r.phone.replace(/\D/g,'')+'" style="background:var(--pur);color:#fff;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;text-decoration:none;font-family:Syne,sans-serif;">💬 TEXT</a>':'')+
-      '<button onclick="printTicket(data.find(function(x){return x.id==='+r.id+'}))" style="background:var(--navy);color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;font-family:Syne,sans-serif;cursor:pointer;">🖨 Print Ticket</button>'+
+      '<button onclick="printCustomerTicket(data.find(function(x){return x.id==='+r.id+'}))" style="background:var(--navy);color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;font-family:Syne,sans-serif;cursor:pointer;">🧾 Customer Copy</button>'+
+      '<button onclick="printKeyTicket(data.find(function(x){return x.id==='+r.id+'}))" style="background:var(--navy);color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;font-family:Syne,sans-serif;cursor:pointer;">🔑 Key Copy</button>'+
+      '<button onclick="printBothTickets(data.find(function(x){return x.id==='+r.id+'}))" style="background:var(--navy);color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;font-family:Syne,sans-serif;cursor:pointer;">🖨 Print Both</button>'+
     '</div>'+
     '<div id="saveEditsWrap"><button class="save-edits-btn" id="saveEditsBtn" data-rid="'+r.id+'">💾 Save Changes</button></div>'+
     '<div class="dgrid">'+
