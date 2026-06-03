@@ -357,6 +357,7 @@
       <button class="btnc" onclick="closeAll()">Cancel</button>
       <button class="btnp" id="saveBtnSms" onclick="saveEntry(true)" style="background:linear-gradient(135deg,#1a5c3a,#1a9e6a);border-color:var(--ok);">&#128172; Save + Text</button>
       <button class="btnp" id="saveBtn" onclick="saveEntry(false)">Save Only</button>
+      <button class="btnp" id="saveBtnPrint" onclick="saveEntry(true,'both')" style="background:linear-gradient(135deg,#1a3d7c,#2a5db0);border-color:var(--gold);">🖨 Save + Print + Text</button>
     </div>
     <div id="vcfWrap" style="display:none;padding:10px 0 0;">
       <a id="vcfLink" download="" style="display:flex;align-items:center;justify-content:center;gap:8px;background:rgba(26,61,124,0.08);border:1px solid var(--navy);border-radius:10px;padding:11px 14px;font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--navy);text-decoration:none;">&#128100; Save to Contacts</a>
@@ -1274,7 +1275,7 @@ function selectRating(btn){
 function closeRating(){document.getElementById('ratingOv').classList.remove('on');}
 
 // ── SAVE NEW ENTRY ─────────────────────────────────────────────
-async function saveEntry(sendSms){
+async function saveEntry(sendSms, printMode){
   var name=document.getElementById('fName').value.trim();
   var ticket=document.getElementById('fTicket').value.trim();
   if(!name||!ticket){alert('Name and Ticket required.');return;}
@@ -1295,8 +1296,10 @@ async function saveEntry(sendSms){
   }
   var btn=document.getElementById('saveBtn');
   var btnSms=document.getElementById('saveBtnSms');
+  var btnPrint=document.getElementById('saveBtnPrint');
   btn.textContent='Saving...';btn.disabled=true;
   btnSms.textContent='Saving...';btnSms.disabled=true;
+  if(btnPrint){btnPrint.textContent='Saving...';btnPrint.disabled=true;}
   try{
     var ts=new Date().toLocaleString('en-US');
     var phoneFull=document.getElementById('fPhone').value.trim();
@@ -1344,6 +1347,13 @@ async function saveEntry(sendSms){
     document.getElementById('freqInfo').classList.remove('on');
     showMsg('✓ Saved!', false);
 
+    if(printMode==='both'){
+      var savedRec={ticket:ticket,name:name.toUpperCase(),phone:phoneFull,
+                    ret:finalDate,car:carVal,color:colorVal,loc:locVal};
+      await printCustomerTicket(savedRec);
+      await printKeyTicket(savedRec);
+    }
+
     if(sendSms && phoneFull){
       var cleanPhone=phoneFull.replace(/\D/g,'');
       var smsBody='Welcome to Makers Air Valet! Your vehicle has been successfully checked in.'+(finalDate?' If your return date or arrival time changes from '+finalDate+', please update us through this message so your vehicle will be ready when you arrive.':' If your return date or arrival time changes, please update us through this message so your vehicle will be ready when you arrive.')+' Thank you and safe travels!';
@@ -1356,6 +1366,7 @@ async function saveEntry(sendSms){
   }finally{
     btn.textContent='Save Only';btn.disabled=false;
     btnSms.textContent='💬 Save + Text';btnSms.disabled=false;
+    if(btnPrint){btnPrint.textContent='🖨 Save + Print + Text';btnPrint.disabled=false;}
   }
 }
 
