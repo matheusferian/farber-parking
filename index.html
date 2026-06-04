@@ -734,6 +734,24 @@ function printerInfo() {
   console.log('Device ID:     ' + PRINTER_DEVICE_ID);
   console.log('Stored Host:   ' + (localStorage.getItem('printer_host') || '(none — using default)'));
 }
+
+function showPrinterDebug() {
+  var stored   = localStorage.getItem('printer_host');
+  var active   = PRINTER_HOST;
+  var devid    = PRINTER_DEVICE_ID;
+  var urlBase  = 'https://' + active + '/cgi-bin/epos/service.cgi?devid=' + devid + '&timeout=10000';
+
+  console.log('══════════════════════════════════════');
+  console.log('  EPSON PRINTER DEBUG');
+  console.log('══════════════════════════════════════');
+  console.log('PRINTER_HOST (runtime):  ' + active);
+  console.log('localStorage value:      ' + (stored || '(not set — using default)'));
+  console.log('Source:                  ' + (stored ? 'localStorage override' : 'code default'));
+  console.log('──────────────────────────────────────');
+  console.log('URL used by epsonSend(): ' + urlBase);
+  console.log('URL used by testPrint(): ' + urlBase);
+  console.log('══════════════════════════════════════');
+}
 var today    = new Date(); today.setHours(0,0,0,0);
 var tomorrow = new Date(today); tomorrow.setDate(today.getDate()+1);
 
