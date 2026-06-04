@@ -38,6 +38,7 @@
   </div>
   <div class="hdr-r">
     <div class="hdr-date" id="hdrDate"></div>
+    <div id="syncStatus" style="display:none;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:500;color:rgba(255,255,255,0.85);white-space:nowrap;">🟢 <span id="syncTime">—</span></div>
     <button class="ref-btn" onclick="loadData()">&#8635; Refresh</button>
     <button class="ref-btn" id="logoutBtn" onclick="doLogout()" style="display:none">Sign Out</button>
   </div>
@@ -323,7 +324,7 @@
     </div>
     <div class="fr full">
       <div class="fg">
-        <label>Location <span style="color:var(--red)">*</span></label>
+        <label>Location <span style="color:var(--mu);font-weight:400">(optional)</span></label>
         <div class="lbs">
           <div class="lb" onclick="selLoc(this,'HANGAR 19')">Hangar 19</div>
           <div class="lb" onclick="selLoc(this,'HANGAR 18')">Hangar 18</div>
@@ -356,6 +357,7 @@
       <button class="btnc" onclick="closeAll()">Cancel</button>
       <button class="btnp" id="saveBtnSms" onclick="saveEntry(true)" style="background:linear-gradient(135deg,#1a5c3a,#1a9e6a);border-color:var(--ok);">&#128172; Save + Text</button>
       <button class="btnp" id="saveBtn" onclick="saveEntry(false)">Save Only</button>
+      <button class="btnp" id="saveBtnPrint" onclick="saveEntry(true,'both')" style="background:linear-gradient(135deg,#1a3d7c,#2a5db0);border-color:var(--gold);">🖨 Save + Print + Text</button>
     </div>
     <div id="vcfWrap" style="display:none;padding:10px 0 0;">
       <a id="vcfLink" download="" style="display:flex;align-items:center;justify-content:center;gap:8px;background:rgba(26,61,124,0.08);border:1px solid var(--navy);border-radius:10px;padding:11px 14px;font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--navy);text-decoration:none;">&#128100; Save to Contacts</a>
@@ -477,6 +479,234 @@ async function sbDelete(id) {
 }
 
 
+// ── EPSON TEST PRINT ───────────────────────────────────────────
+async function testPrint() {
+  var xml = '<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">'
+    + '<s:Body>'
+    + '<epos-print xmlns="http://www.epson-pos.com/schemas/2011/03/epos-print">'
+    + '<text>EPSON TEST&#10;</text>'
+    + '<feed line="3"/>'
+    + '<cut type="feed"/>'
+    + '</epos-print>'
+    + '</s:Body>'
+    + '</s:Envelope>';
+
+  var url = 'http://' + PRINTER_HOST
+    + '/cgi-bin/epos/service.cgi'
+    + '?devid=' + PRINTER_DEVICE_ID + '&timeout=10000';
+
+  try {
+    showMsg('🖨 Sending to printer...', false);
+    var res = await fetch(url, {
+      method:  'POST',
+      headers: {
+        'Content-Type': 'text/xml; charset=utf-8',
+        'SOAPAction':   '"http://www.epson-pos.com/schemas/2011/03/epos-print"'
+      },
+      body: xml
+    });
+    if (!res.ok) throw new Error('Printer responded: HTTP ' + res.status);
+    var txt = await res.text();
+    var epsonSuccess = (txt.match(/success="([^"]*)"/) || [])[1] || 'unknown';
+    var epsonCode    = (txt.match(/code="([^"]*)"/)    || [])[1] || 'none';
+    var epsonStatus  = (txt.match(/status="([^"]*)"/)  || [])[1] || 'unknown';
+    console.log('EPSON SUCCESS:', epsonSuccess);
+    console.log('EPSON CODE:   ', epsonCode);
+    console.log('EPSON STATUS: ', epsonStatus);
+    console.log('EPSON FULL:   ', txt);
+    if (epsonSuccess === 'true') {
+      showMsg('✅ Test print sent!', false);
+    } else {
+      showMsg('❌ Epson rejected print job. Check console.', true);
+      console.error('EPSON REJECTED:', txt);
+      return;
+    }
+  } catch(e) {
+    showMsg('❌ Print error: ' + e.message, true);
+    console.error('testPrint error:', e);
+  }
+}
+
+// ── EPSON SHARED SEND ──────────────────────────────────────────
+async function epsonSend(xml, label) {
+  var url = 'http://' + PRINTER_HOST
+    + '/cgi-bin/epos/service.cgi'
+    + '?devid=' + PRINTER_DEVICE_ID + '&timeout=10000';
+  try {
+    showMsg('🖨 Imprimindo ' + label + '...', false);
+    var res = await fetch(url, {
+      method:  'POST',
+      headers: {
+        'Content-Type': 'text/xml; charset=utf-8',
+        'SOAPAction':   '"http://www.epson-pos.com/schemas/2011/03/epos-print"'
+      },
+      body: xml
+    });
+    if (!res.ok) throw new Error('Printer responded: HTTP ' + res.status);
+    var txt = await res.text();
+    var epsonSuccess = (txt.match(/success="([^"]*)"/) || [])[1] || 'unknown';
+    var epsonCode    = (txt.match(/code="([^"]*)"/)    || [])[1] || 'none';
+    var epsonStatus  = (txt.match(/status="([^"]*)"/)  || [])[1] || 'unknown';
+    console.log('EPSON [' + label + '] SUCCESS:', epsonSuccess);
+    console.log('EPSON [' + label + '] CODE:   ', epsonCode);
+    console.log('EPSON [' + label + '] STATUS: ', epsonStatus);
+    console.log('EPSON [' + label + '] FULL:   ', txt);
+    if (epsonSuccess === 'true') {
+      showMsg('✅ ' + label + ' impresso!', false);
+    } else {
+      showMsg('❌ Epson rejeitou ' + label + '. Veja o console.', true);
+      console.error('EPSON REJECTED [' + label + ']:', txt);
+    }
+    return epsonSuccess === 'true';
+  } catch(e) {
+    showMsg('❌ Erro na impressão: ' + e.message, true);
+    console.error('epsonSend error:', e);
+    return false;
+  }
+}
+
+// ── BUILD CUSTOMER TICKET XML ──────────────────────────────────
+function buildCustomerTicketXml(r) {
+  var retDisp   = r.ret   ? fmtD(r.ret)   : 'NO DATE';
+  var phoneDisp = r.phone ? fmtP(r.phone) : 'N/A';
+  return '<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">'
+    + '<s:Body>'
+    + '<epos-print xmlns="http://www.epson-pos.com/schemas/2011/03/epos-print">'
+    + '<text>==================================================&#10;</text>'
+    + '<text>CUSTOMER COPY&#10;</text>'
+    + '<text>==================================================&#10;</text>'
+    + '<text>&#10;</text>'
+    + '<text>MAKERS AIR VALET&#10;</text>'
+    + '<text>PARKING TICKET / CLAIM CHECK&#10;</text>'
+    + '<text>&#10;</text>'
+    + '<text>TICKET #: ' + r.ticket + '&#10;</text>'
+    + '<text>&#10;</text>'
+    + '<text>PASSENGER&#10;</text>'
+    + '<text>' + r.name + '&#10;</text>'
+    + '<text>&#10;</text>'
+    + '<text>PHONE&#10;</text>'
+    + '<text>' + phoneDisp + '&#10;</text>'
+    + '<text>&#10;</text>'
+    + '<text>RETURN DATE&#10;</text>'
+    + '<text>' + retDisp + '&#10;</text>'
+    + '<text>&#10;</text>'
+    + '<text>--------------------------------&#10;</text>'
+    + '<text>&#10;</text>'
+    + '<text>If your return date changes,&#10;</text>'
+    + '<text>please notify us as soon as possible.&#10;</text>'
+    + '<text>&#10;</text>'
+    + '<text>--------------------------------&#10;</text>'
+    + '<text>&#10;</text>'
+    + '<text>Call or Text:&#10;</text>'
+    + '<text>(954) 352-1010&#10;</text>'
+    + '<text>&#10;</text>'
+    + '<text>--------------------------------&#10;</text>'
+    + '<text>&#10;</text>'
+    + '<text>If returning with Makers Air,&#10;</text>'
+    + '<text>we remain available until the&#10;</text>'
+    + '<text>last Makers Air arrival.&#10;</text>'
+    + '<text>&#10;</text>'
+    + '<text>If returning with another company,&#10;</text>'
+    + '<text>please notify us in advance.&#10;</text>'
+    + '<text>&#10;</text>'
+    + '<text>After-hours vehicle delivery is&#10;</text>'
+    + '<text>not guaranteed without prior notice.&#10;</text>'
+    + '<text>&#10;</text>'
+    + '<text>--------------------------------&#10;</text>'
+    + '<text>&#10;</text>'
+    + '<text>Vehicle is parked in our parking lot.&#10;</text>'
+    + '<text>&#10;</text>'
+    + '<text>We are not responsible for lost,&#10;</text>'
+    + '<text>stolen, or unattended items left&#10;</text>'
+    + '<text>inside the vehicle.&#10;</text>'
+    + '<text>&#10;</text>'
+    + '<text>--------------------------------&#10;</text>'
+    + '<text>&#10;</text>'
+    + '<text>PLEASE KEEP THIS TICKET FOR PICKUP&#10;</text>'
+    + '<text>&#10;</text>'
+    + '<text>Thank you!&#10;</text>'
+    + '<text>&#10;</text>'
+    + '<text>==================================================&#10;</text>'
+    + '<feed line="3"/>'
+    + '<cut type="feed"/>'
+    + '</epos-print>'
+    + '</s:Body>'
+    + '</s:Envelope>';
+}
+
+// ── BUILD KEY TICKET XML ───────────────────────────────────────
+function buildKeyTicketXml(r) {
+  var retDisp   = r.ret   ? fmtD(r.ret)   : 'NO DATE';
+  var phoneDisp = r.phone ? fmtP(r.phone) : 'N/A';
+  var locDisp   = r.loc   ? r.loc         : 'NOT ASSIGNED';
+  return '<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">'
+    + '<s:Body>'
+    + '<epos-print xmlns="http://www.epson-pos.com/schemas/2011/03/epos-print">'
+    + '<text>==================================================&#10;</text>'
+    + '<text>KEY COPY (INTERNAL)&#10;</text>'
+    + '<text>==================================================&#10;</text>'
+    + '<text>&#10;</text>'
+    + '<text>MAKERS AIR VALET&#10;</text>'
+    + '<text>KEY COPY (INTERNAL)&#10;</text>'
+    + '<text>&#10;</text>'
+    + '<text>TICKET #: ' + r.ticket + '&#10;</text>'
+    + '<text>&#10;</text>'
+    + '<text>PASSENGER&#10;</text>'
+    + '<text>' + r.name + '&#10;</text>'
+    + '<text>&#10;</text>'
+    + '<text>PHONE&#10;</text>'
+    + '<text>' + phoneDisp + '&#10;</text>'
+    + '<text>&#10;</text>'
+    + '<text>RETURN DATE&#10;</text>'
+    + '<text>' + retDisp + '&#10;</text>'
+    + '<text>&#10;</text>'
+    + '<text>--------------------------------&#10;</text>'
+    + '<text>&#10;</text>'
+    + '<text>HANGAR / LOCATION&#10;</text>'
+    + '<text>&#10;</text>'
+    + '<text>' + locDisp + '&#10;</text>'
+    + '<text>&#10;</text>'
+    + '<text>--------------------------------&#10;</text>'
+    + '<text>&#10;</text>'
+    + '<text>NOTES&#10;</text>'
+    + '<text>&#10;</text>'
+    + '<text>____________________&#10;</text>'
+    + '<text>&#10;</text>'
+    + '<text>____________________&#10;</text>'
+    + '<text>&#10;</text>'
+    + '<text>____________________&#10;</text>'
+    + '<text>&#10;</text>'
+    + '<text>--------------------------------&#10;</text>'
+    + '<text>&#10;</text>'
+    + '<text>REMEMBER TO UPDATE&#10;</text>'
+    + '<text>VEHICLE LOCATION&#10;</text>'
+    + '<text>IN THE SYSTEM&#10;</text>'
+    + '<feed line="3"/>'
+    + '<cut type="feed"/>'
+    + '</epos-print>'
+    + '</s:Body>'
+    + '</s:Envelope>';
+}
+
+// ── PRINT FUNCTIONS ────────────────────────────────────────────
+async function printCustomerTicket(r) {
+  return epsonSend(buildCustomerTicketXml(r), 'Customer');
+}
+
+async function printKeyTicket(r) {
+  return epsonSend(buildKeyTicketXml(r), 'Key');
+}
+
+async function printBothTickets(r) {
+  await printCustomerTicket(r);
+  await printKeyTicket(r);
+}
+
+// printTicket kept as alias — detail panel button unchanged
+async function printTicket(r) {
+  return printCustomerTicket(r);
+}
+
 // ── GLOBALS ────────────────────────────────────────────────────
 // ⚠️  ANTHROPIC_KEY must NEVER live in client-side code.
 // Any Claude API calls must go through a server-side proxy (e.g. a Supabase Edge Function
@@ -484,6 +714,44 @@ async function sbDelete(id) {
 // Rotate the previously-exposed key at: https://console.anthropic.com/settings/keys
 var ANTHROPIC_KEY = null; // placeholder — do not set a real key here
 var HANGARS  = ['HANGAR 19','HANGAR 18','HANGAR 16','HANGAR 7','HH'];
+// ── PRINTER CONFIG ─────────────────────────────────────────────
+// Update PRINTER_HOST if the printer IP or hostname changes.
+// PRINTER_HOST should not include protocol or trailing slash.
+var PRINTER_HOST      = localStorage.getItem('printer_host') || '10.20.60.142';
+var PRINTER_DEVICE_ID = 'local_printer';
+
+function setPrinterHost(ip) {
+  ip = String(ip || '').trim();
+  if (!ip) { console.error('setPrinterHost: IP cannot be empty.'); return; }
+  localStorage.setItem('printer_host', ip);
+  PRINTER_HOST = ip;
+  console.log('Printer Host updated: ' + PRINTER_HOST);
+  console.log('Saved to localStorage: printer_host =', localStorage.getItem('printer_host'));
+}
+
+function printerInfo() {
+  console.log('Printer Host:  ' + PRINTER_HOST);
+  console.log('Device ID:     ' + PRINTER_DEVICE_ID);
+  console.log('Stored Host:   ' + (localStorage.getItem('printer_host') || '(none — using default)'));
+}
+
+function showPrinterDebug() {
+  var stored   = localStorage.getItem('printer_host');
+  var active   = PRINTER_HOST;
+  var devid    = PRINTER_DEVICE_ID;
+  var urlBase  = 'http://' + active + '/cgi-bin/epos/service.cgi?devid=' + devid + '&timeout=10000';
+
+  console.log('══════════════════════════════════════');
+  console.log('  EPSON PRINTER DEBUG');
+  console.log('══════════════════════════════════════');
+  console.log('PRINTER_HOST (runtime):  ' + active);
+  console.log('localStorage value:      ' + (stored || '(not set — using default)'));
+  console.log('Source:                  ' + (stored ? 'localStorage override' : 'code default'));
+  console.log('──────────────────────────────────────');
+  console.log('URL used by epsonSend(): ' + urlBase);
+  console.log('URL used by testPrint(): ' + urlBase);
+  console.log('══════════════════════════════════════');
+}
 var today    = new Date(); today.setHours(0,0,0,0);
 var tomorrow = new Date(today); tomorrow.setDate(today.getDate()+1);
 
@@ -501,6 +769,16 @@ function showMsg(txt,err) {
   el.style.color=err?'#ff9999':'#6fc898';
   el.style.display='block';
   setTimeout(function(){el.style.display='none';},4000);
+}
+
+function updateSyncStatus() {
+  var el = document.getElementById('syncStatus');
+  var tEl = document.getElementById('syncTime');
+  if (!el || !tEl) return;
+  var now = new Date();
+  var time = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+  tEl.textContent = 'Synced ' + time;
+  el.style.display = 'block';
 }
 
 async function loadData() {
@@ -522,7 +800,7 @@ async function loadData() {
       };
     });
     render();
-    showMsg('Loaded '+data.length+' records', false);
+    updateSyncStatus();
   } catch(e) {
     showMsg('Connection error: '+e.message, true);
     console.error(e);
@@ -1058,7 +1336,7 @@ function selectRating(btn){
 function closeRating(){document.getElementById('ratingOv').classList.remove('on');}
 
 // ── SAVE NEW ENTRY ─────────────────────────────────────────────
-async function saveEntry(sendSms){
+async function saveEntry(sendSms, printMode){
   var name=document.getElementById('fName').value.trim();
   var ticket=document.getElementById('fTicket').value.trim();
   if(!name||!ticket){alert('Name and Ticket required.');return;}
@@ -1079,8 +1357,10 @@ async function saveEntry(sendSms){
   }
   var btn=document.getElementById('saveBtn');
   var btnSms=document.getElementById('saveBtnSms');
+  var btnPrint=document.getElementById('saveBtnPrint');
   btn.textContent='Saving...';btn.disabled=true;
   btnSms.textContent='Saving...';btnSms.disabled=true;
+  if(btnPrint){btnPrint.textContent='Saving...';btnPrint.disabled=true;}
   try{
     var ts=new Date().toLocaleString('en-US');
     var phoneFull=document.getElementById('fPhone').value.trim();
@@ -1128,6 +1408,13 @@ async function saveEntry(sendSms){
     document.getElementById('freqInfo').classList.remove('on');
     showMsg('✓ Saved!', false);
 
+    if(printMode==='both'){
+      var savedRec={ticket:ticket,name:name.toUpperCase(),phone:phoneFull,
+                    ret:finalDate,car:carVal,color:colorVal,loc:locVal};
+      await printCustomerTicket(savedRec);
+      await printKeyTicket(savedRec);
+    }
+
     if(sendSms && phoneFull){
       var cleanPhone=phoneFull.replace(/\D/g,'');
       var smsBody='Welcome to Makers Air Valet! Your vehicle has been successfully checked in.'+(finalDate?' If your return date or arrival time changes from '+finalDate+', please update us through this message so your vehicle will be ready when you arrive.':' If your return date or arrival time changes, please update us through this message so your vehicle will be ready when you arrive.')+' Thank you and safe travels!';
@@ -1140,6 +1427,7 @@ async function saveEntry(sendSms){
   }finally{
     btn.textContent='Save Only';btn.disabled=false;
     btnSms.textContent='💬 Save + Text';btnSms.disabled=false;
+    if(btnPrint){btnPrint.textContent='🖨 Save + Print + Text';btnPrint.disabled=false;}
   }
 }
 
@@ -1161,6 +1449,9 @@ function showDet(id){
     '<div class="dphone" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'+escapeHTML(fmtP(r.phone))+
       (r.phone?'<a href="tel:'+r.phone.replace(/\D/g,'')+'" style="background:var(--ok);color:#000;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;text-decoration:none;font-family:Syne,sans-serif;">📞 CALL</a>':'')+
       (r.phone?'<a href="sms:'+r.phone.replace(/\D/g,'')+'" style="background:var(--pur);color:#fff;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;text-decoration:none;font-family:Syne,sans-serif;">💬 TEXT</a>':'')+
+      '<button onclick="printCustomerTicket(data.find(function(x){return x.id==='+r.id+'}))" style="background:var(--navy);color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;font-family:Syne,sans-serif;cursor:pointer;">🧾 Customer Copy</button>'+
+      '<button onclick="printKeyTicket(data.find(function(x){return x.id==='+r.id+'}))" style="background:var(--navy);color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;font-family:Syne,sans-serif;cursor:pointer;">🔑 Key Copy</button>'+
+      '<button onclick="printBothTickets(data.find(function(x){return x.id==='+r.id+'}))" style="background:var(--navy);color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;font-family:Syne,sans-serif;cursor:pointer;">🖨 Print Both</button>'+
     '</div>'+
     '<div id="saveEditsWrap"><button class="save-edits-btn" id="saveEditsBtn" data-rid="'+r.id+'">💾 Save Changes</button></div>'+
     '<div class="dgrid">'+
@@ -1958,6 +2249,7 @@ function generateOperationsReport(){
   var top5CI =  [].concat(daily).sort(function(a,b){return b.ci -a.ci; }).slice(0,5);
   var top5Del=  [].concat(daily).sort(function(a,b){return b.del-a.del;}).slice(0,5);
   var top5Cmb=  sortedComb.slice(0,5);
+  var top10Cmb= sortedComb.slice(0,10);
 
   // Spread CV on check-ins
   var mean=totalCI/daysInMonth;
@@ -1968,48 +2260,71 @@ function generateOperationsReport(){
     'Traffic is relatively evenly distributed throughout the month.';
   var wkdayAvgCI=([1,2,3,4,5].reduce(function(s,i){return s+wdAvgCI[i];},0)/5).toFixed(1);
 
+  // ── Farber staffing calculations ──────────────────────────────────────────
+  var avgOps=wdAvgCI.map(function(_,i){return+(wdAvgCI[i]+wdAvgDel[i]).toFixed(1);});
+  var maxOpsVal=Math.max.apply(null,avgOps);
+  var mostActiveWD=WDAYS[avgOps.indexOf(maxOpsVal)];
+  var secondOpsVal=avgOps.slice().sort(function(a,b){return b-a;})[1]||0;
+
+  var REPORT_HANGARS=['HANGAR 19','HANGAR 18','HANGAR 16','HANGAR 7','HH'];
+  var locWdCI={};
+  REPORT_HANGARS.forEach(function(h){locWdCI[h]=[0,0,0,0,0,0,0];});
+  data.forEach(function(r){
+    var ciSrc=r.checkin_date&&String(r.checkin_date).trim()?r.checkin_date:(r.ts||'');
+    var ad=parseDt(ciSrc);
+    if(!ad||!inMonth(ad)) return;
+    var h=String(r.loc||'').trim();
+    if(locWdCI[h]) locWdCI[h][ad.getDay()]++;
+  });
+  var locWdAvg={};
+  REPORT_HANGARS.forEach(function(h){
+    locWdAvg[h]=locWdCI[h].map(function(cnt,i){return wdCnt[i]>0?+(cnt/wdCnt[i]).toFixed(1):0;});
+  });
+  var mostActiveHangar=REPORT_HANGARS[0],mostActiveHangarTotal=0;
+  REPORT_HANGARS.forEach(function(h){
+    var t=locWdCI[h].reduce(function(s,v){return s+v;},0);
+    if(t>mostActiveHangarTotal){mostActiveHangarTotal=t;mostActiveHangar=h;}
+  });
+
   // ── Row builders ──────────────────────────────────────────────────────────
   var wdOrder=[1,2,3,4,5,6,0];
-  var wdTableRows=wdOrder.map(function(i){
+  // ── Farber staffing row builders ──────────────────────────────────────────
+  var wdVolRows=wdOrder.map(function(i){
+    var isMax=avgOps[i]===maxOpsVal;
+    return '<tr'+(isMax?' style="background:#fffbf0"':'')+'>'+
+      '<td'+(isMax?' style="font-weight:700;color:#7a4f00"':'')+'>'+WDAYS[i]+'<\/td>'+
+      '<td style="text-align:center">'+wdAvgCI[i].toFixed(1)+'<\/td>'+
+      '<td style="text-align:center">'+wdAvgDel[i].toFixed(1)+'<\/td>'+
+      '<td style="text-align:center;font-weight:700;color:#1a3d7c">'+avgOps[i].toFixed(1)+'<\/td>'+
+      '<td style="text-align:center;font-size:14px">'+(avgOps[i]===maxOpsVal?'🔥':avgOps[i]===secondOpsVal?'⚡':'')+'<\/td>'+
+    '<\/tr>';
+  }).join('');
+
+  var top10Rows=top10Cmb.map(function(d,i){
+    var total=d.ci+d.del;
     return '<tr>'+
-      '<td>'+WDAYS[i]+'<\/td><td>'+wdCnt[i]+'<\/td>'+
-      '<td>'+wdCI[i]+'<\/td><td>'+wdAvgCI[i].toFixed(1)+'<\/td>'+
-      '<td>'+wdDel[i]+'<\/td><td>'+wdAvgDel[i].toFixed(1)+'<\/td>'+
+      '<td>'+(i+1)+'<\/td><td>'+d.key+'<\/td><td>'+d.wd+'<\/td>'+
+      '<td style="text-align:center">'+d.ci+'<\/td>'+
+      '<td style="text-align:center">'+d.del+'<\/td>'+
+      '<td style="text-align:center;font-weight:700;color:#1a3d7c">'+total+'<\/td>'+
     '<\/tr>';
   }).join('');
 
-  var dailyRows=daily.map(function(d,idx){
-    var netStyle=d.net>0?'color:#1a7c4a;font-weight:700':d.net<0?'color:#c0392b;font-weight:700':'color:#888';
-    var netStr=(d.net>0?'+':'')+d.net;
-    return '<tr class="'+(idx%2===0?'even':'')+'">'+
-      '<td>'+d.key+'<\/td><td>'+d.wd+'<\/td>'+
-      '<td style="color:#1a3d7c;font-weight:600">'+d.ci+'<\/td>'+
-      '<td>'+d.delNorm+'<\/td>'+
-      '<td style="color:#c9a84c;font-weight:600">'+d.delCust+'<\/td>'+
-      '<td>'+d.del+'<\/td>'+
-      '<td style="'+netStyle+'">'+netStr+'<\/td>'+
+  var matrixMax=0;
+  REPORT_HANGARS.forEach(function(h){locWdAvg[h].forEach(function(v){if(v>matrixMax)matrixMax=v;});});
+  var matrixRows=REPORT_HANGARS.map(function(h){
+    return '<tr>'+
+      '<td style="font-weight:600;white-space:nowrap">'+h+'<\/td>'+
+      wdOrder.map(function(i){
+        var v=locWdAvg[h][i];
+        var bg=matrixMax>0&&v>=matrixMax*0.75?'background:#fff3cd;color:#7a4f00;font-weight:700':
+               matrixMax>0&&v>=matrixMax*0.40?'background:#eef3ff;color:#1a3d7c':'color:#bbb';
+        return '<td style="text-align:center;'+bg+'">'+(v>0?v.toFixed(1):'—')+'<\/td>';
+      }).join('')+
     '<\/tr>';
-  }).join('');
-
-  var top5CIRows=top5CI.map(function(d,i){
-    return '<tr><td>'+(i+1)+'<\/td><td>'+d.key+'<\/td><td>'+d.wd+'<\/td><td>'+d.ci+'<\/td><\/tr>';
-  }).join('');
-  var top5DelRows=top5Del.map(function(d,i){
-    return '<tr><td>'+(i+1)+'<\/td><td>'+d.key+'<\/td><td>'+d.wd+'<\/td>'+
-      '<td>'+d.delNorm+'<\/td><td>'+d.delCust+'<\/td><td>'+d.delUnk+'<\/td><td>'+d.del+'<\/td><\/tr>';
-  }).join('');
-  var top5CmbRows=top5Cmb.map(function(d,i){
-    return '<tr><td>'+(i+1)+'<\/td><td>'+d.key+'<\/td><td>'+d.wd+'<\/td>'+
-      '<td>'+d.ci+'<\/td><td>'+d.del+'<\/td><td>'+(d.ci+d.del)+'<\/td><\/tr>';
   }).join('');
 
   // ── Chart data ────────────────────────────────────────────────────────────
-  var ciDataJ  =JSON.stringify(daily.map(function(d){return d.ci;}));
-  var delDataJ =JSON.stringify(daily.map(function(d){return d.del;}));
-  var dayLabJ  =JSON.stringify(daily.map(function(d){return d.label;}));
-  var wdLabJ   =JSON.stringify(WDAYS.map(function(w){return w.slice(0,3);}));
-  var wdAvgCIJ =JSON.stringify(WDAYS.map(function(_,i){return+wdAvgCI[i].toFixed(1);}));
-  var wdAvgDelJ=JSON.stringify(WDAYS.map(function(_,i){return+wdAvgDel[i].toFixed(1);}));
   var genDate=new Date().toLocaleString('en-US');
   var reportTitle='Operations Report — '+monthLabel+filterLabel;
 
@@ -2046,12 +2361,19 @@ function generateOperationsReport(){
     '.ins-text{font-size:12px;color:#333;line-height:1.5}'+
     '.footer{text-align:center;color:#aaa;font-size:10px;margin-top:30px;padding-top:10px;border-top:1px solid #dde3ef}'+
     '.no-print{text-align:right;margin-bottom:14px}'+
-    '@media print{body{background:#fff}.page{padding:8px 6px}.no-print{display:none}}';
+    '@media print{body{background:#fff}.page{padding:8px 6px}.no-print{display:none}}'+
+    '.staff-block{margin-top:36px;padding-top:28px;border-top:3px solid #c9a84c}'+
+    '.staff-block .section h2{color:#7a4f00;border-left-color:#c9a84c}'+
+    '.staff-kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}'+
+    '.kpi.gold{border:2px solid #c9a84c;background:#fffbf0}'+
+    '.kpi.gold .num{color:#7a4f00}'+
+    '.matrix-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}'+
+    '.matrix-legend{font-size:9px;color:#888;margin-top:6px}'+
+    '@media print{.matrix-wrap{overflow:visible}}';
 
   // ── HTML ──────────────────────────────────────────────────────────────────
   var html='<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">'+
     '<title>Makers Air Valet — '+reportTitle+'<\/title>'+
-    '<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"><\/script>'+
     '<style>'+CSS+'<\/style><\/head><body><div class="page">'+
 
     '<div class="no-print"><button onclick="window.print()" style="background:#1a3d7c;color:#fff;border:none;padding:10px 20px;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer;">🖨 Save as PDF \/ Print<\/button><\/div>'+
@@ -2062,129 +2384,69 @@ function generateOperationsReport(){
       '<div class="badge-title">'+MONTHS[selMonth].toUpperCase()+'<br>'+selYear+'<\/div>'+
     '<\/div>'+
 
-    // ── SECTION 1: Executive Summary ────────────────────────────────────────
-    '<div class="section"><h2>Executive Summary<\/h2>'+
-      '<div class="kpi-grid">'+
-        '<div class="kpi"><div class="num">'+totalCI+'<\/div><div class="lbl">Total Check-ins<\/div><\/div>'+
-        '<div class="kpi"><div class="num">'+totalDel+'<\/div><div class="lbl">Total Deliveries<\/div><\/div>'+
-        '<div class="kpi grn"><div class="num">'+totalNorm+'<\/div><div class="lbl">Normal Deliveries<\/div><\/div>'+
-        '<div class="kpi acc"><div class="num">'+totalCust+'<\/div><div class="lbl">Customs Deliveries<\/div><\/div>'+
-        '<div class="kpi '+(totalUnk>0?'red':'')+'"><div class="num">'+totalUnk+'<\/div><div class="lbl">Missing Del. Type<\/div><\/div>'+
-      '<\/div>'+
-      '<div class="kpi-grid four" style="margin-top:8px">'+
-        '<div class="kpi acc"><div class="num">'+avgCI+'<\/div><div class="lbl">Avg Daily Check-ins<\/div><\/div>'+
-        '<div class="kpi acc"><div class="num">'+avgDel+'<\/div><div class="lbl">Avg Daily Deliveries<\/div><\/div>'+
-        '<div class="kpi"><div class="num" style="font-size:15px">'+busiestCIWD+'<\/div><div class="lbl">Busiest Check-in Day<\/div><\/div>'+
-        '<div class="kpi"><div class="num" style="font-size:15px">'+busiestDelWD+'<\/div><div class="lbl">Busiest Delivery Day<\/div><\/div>'+
-      '<\/div>'+
-      '<div class="kpi-grid four" style="margin-top:8px">'+
-        '<div class="kpi"><div class="num" style="font-size:14px">'+busiest.key+'<\/div><div class="lbl">Busiest Single Day<br>'+(busiest.ci+busiest.del)+' total ops<\/div><\/div>'+
-        '<div class="kpi"><div class="num">'+data.length+'<\/div><div class="lbl">Total Records in DB<\/div><\/div>'+
-        '<div class="kpi"><div class="num" style="font-size:11px;padding-top:2px">'+(totalDel>0?((totalCust/totalDel)*100).toFixed(1):0)+'%<\/div><div class="lbl">Customs Rate<\/div><\/div>'+
-        '<div class="kpi"><div class="num" style="font-size:11px;padding-top:2px">'+filterLabel.replace(' — ','')+'<\/div><div class="lbl">Active Filter<\/div><\/div>'.replace('<div class="num" style="font-size:11px;padding-top:2px"><\/div>','<div class="num" style="font-size:11px;padding-top:2px">All<\/div>')+
+    '<div class="staff-block">'+
+
+    '<div class="section"><h2>&#128202; Farber Staffing Analysis — '+monthLabel+'<\/h2>'+
+      '<div class="staff-kpi-grid">'+
+        '<div class="kpi gold">'+
+          '<div class="num">'+totalCI+'<\/div>'+
+          '<div class="lbl">Total Check-ins<\/div>'+
+        '<\/div>'+
+        '<div class="kpi gold">'+
+          '<div class="num">'+totalDel+'<\/div>'+
+          '<div class="lbl">Total Deliveries<\/div>'+
+        '<\/div>'+
+        '<div class="kpi gold">'+
+          '<div class="num" style="font-size:16px">'+mostActiveWD+'<\/div>'+
+          '<div class="lbl">Most Active Weekday<\/div>'+
+        '<\/div>'+
+        '<div class="kpi gold">'+
+          '<div class="num" style="font-size:13px">'+mostActiveHangar+'<\/div>'+
+          '<div class="lbl">Most Active Hangar<\/div>'+
+          '<div style="font-size:10px;color:#a07030;margin-top:3px">'+mostActiveHangarTotal+' check-ins this month<\/div>'+
+        '<\/div>'+
       '<\/div>'+
     '<\/div>'+
 
-    // ── SECTION 2: Charts ─────────────────────────────────────────────────
-    '<div class="section"><h2>Daily Activity Charts<\/h2>'+
-      '<div class="chart-full"><h3>Daily Check-ins vs Deliveries — '+monthLabel+'<\/h3><canvas id="dailyChart" height="80"><\/canvas><\/div>'+
-      '<div class="chart-grid" style="margin-top:12px">'+
-        '<div class="chart-wrap"><h3>Avg Check-ins by Weekday<\/h3><canvas id="wdCIChart" height="150"><\/canvas><\/div>'+
-        '<div class="chart-wrap"><h3>Avg Deliveries by Weekday<\/h3><canvas id="wdDelChart" height="150"><\/canvas><\/div>'+
-      '<\/div>'+
-    '<\/div>'+
-
-    // ── SECTION 3: Weekday Averages ───────────────────────────────────────
-    '<div class="section"><h2>Weekday Average Analysis<\/h2>'+
+    '<div class="section"><h2>Operational Volume by Weekday<\/h2>'+
       '<table><thead><tr>'+
-        '<th>Weekday<\/th><th># Occurrences<\/th>'+
-        '<th>Total Check-ins<\/th><th>Avg Check-ins<\/th>'+
-        '<th>Total Deliveries<\/th><th>Avg Deliveries<\/th>'+
-      '<\/tr><\/thead><tbody>'+wdTableRows+'<\/tbody><\/table>'+
+        '<th>Day<\/th>'+
+        '<th style="text-align:center">Avg Check-ins<\/th>'+
+        '<th style="text-align:center">Avg Deliveries<\/th>'+
+        '<th style="text-align:center">Total Avg Ops<\/th>'+
+        '<th style="text-align:center">Peak<\/th>'+
+      '<\/tr><\/thead><tbody>'+wdVolRows+'<\/tbody><\/table>'+
     '<\/div>'+
 
-    // ── SECTION 4: Busiest Days ───────────────────────────────────────────
-    '<div class="section"><h2>Busiest Days<\/h2>'+
-      '<div class="top5-grid">'+
-        '<div><p>Top 5 Check-in Days<\/p>'+
-          '<table><thead><tr><th>#<\/th><th>Date<\/th><th>Weekday<\/th><th>CI<\/th><\/tr><\/thead>'+
-          '<tbody>'+top5CIRows+'<\/tbody><\/table><\/div>'+
-        '<div><p>Top 5 Delivery Days<\/p>'+
-          '<table><thead><tr><th>#<\/th><th>Date<\/th><th>Day<\/th><th>Norm<\/th><th>Cust<\/th><th>Unk<\/th><th>Tot<\/th><\/tr><\/thead>'+
-          '<tbody>'+top5DelRows+'<\/tbody><\/table><\/div>'+
-        '<div><p>Top 5 Combined Days<\/p>'+
-          '<table><thead><tr><th>#<\/th><th>Date<\/th><th>Day<\/th><th>CI<\/th><th>Del<\/th><th>Total<\/th><\/tr><\/thead>'+
-          '<tbody>'+top5CmbRows+'<\/tbody><\/table><\/div>'+
-      '<\/div>'+
-    '<\/div>'+
-
-    // ── SECTION 5: Daily Operations Table ────────────────────────────────
-    '<div class="section"><h2>Daily Operations — '+monthLabel+'<\/h2>'+
+    '<div class="section"><h2>Top 10 Busiest Days<\/h2>'+
       '<table><thead><tr>'+
-        '<th>Date<\/th><th>Weekday<\/th>'+
-        '<th>Check-ins<\/th>'+
-        '<th>Normal Del<\/th>'+
-        '<th>Customs Del<\/th>'+
-        '<th>Total Del<\/th>'+
-        '<th>Net Change<\/th>'+
-      '<\/tr><\/thead><tbody>'+dailyRows+'<\/tbody><\/table>'+
+        '<th>#<\/th><th>Date<\/th><th>Weekday<\/th>'+
+        '<th style="text-align:center">Check-ins<\/th>'+
+        '<th style="text-align:center">Deliveries<\/th>'+
+        '<th style="text-align:center">Total Ops<\/th>'+
+      '<\/tr><\/thead><tbody>'+top10Rows+'<\/tbody><\/table>'+
     '<\/div>'+
 
-    // ── SECTION 6: Operational Insights ──────────────────────────────────
-    '<div class="section"><h2>Operational Insights<\/h2>'+
-      '<div class="insights-box">'+
-        '<div class="ins-item"><div class="ins-dot"><\/div><div class="ins-text"><strong>Busiest check-in weekday:<\/strong> '+busiestCIWD+' with an average of '+maxCI.toFixed(1)+' check-ins per '+busiestCIWD+'.<\/div><\/div>'+
-        '<div class="ins-item"><div class="ins-dot"><\/div><div class="ins-text"><strong>Busiest delivery weekday:<\/strong> '+busiestDelWD+' with an average of '+maxDel.toFixed(1)+' deliveries per '+busiestDelWD+'.<\/div><\/div>'+
-        '<div class="ins-item"><div class="ins-dot"><\/div><div class="ins-text"><strong>Peak operational day:<\/strong> '+busiest.key+' ('+busiest.wd+') — '+busiest.ci+' check-ins, '+busiest.delNorm+' normal, '+busiest.delCust+' customs ('+(busiest.ci+busiest.del)+' total).<\/div><\/div>'+
-        '<div class="ins-item"><div class="ins-dot"><\/div><div class="ins-text"><strong>Monthly volume:<\/strong> '+totalCI+' check-ins and '+totalDel+' deliveries ('+totalNorm+' normal + '+totalCust+' customs) across '+daysInMonth+' days.<\/div><\/div>'+
-        '<div class="ins-item"><div class="ins-dot"><\/div><div class="ins-text"><strong>Customs rate:<\/strong> '+(totalDel>0?((totalCust/totalDel)*100).toFixed(1):0)+'% of deliveries were Customs.<\/div><\/div>'+
-        '<div class="ins-item"><div class="ins-dot"><\/div><div class="ins-text"><strong>Traffic distribution (CV '+cvPct+'%):<\/strong> '+spreadNote+'<\/div><\/div>'+
-        '<div class="ins-item"><div class="ins-dot"><\/div><div class="ins-text"><strong>Weekend vs weekday check-ins:<\/strong> Sat avg: '+wdAvgCI[6].toFixed(1)+', Sun avg: '+wdAvgCI[0].toFixed(1)+' vs Mon–Fri avg: '+wkdayAvgCI+'.<\/div><\/div>'+
+    '<div class="section"><h2>Hangar Utilization by Weekday<\/h2>'+
+      '<div class="matrix-wrap">'+
+        '<table class="matrix-table"><thead><tr>'+
+          '<th>Hangar<\/th>'+
+          '<th style="text-align:center">Mon<\/th><th style="text-align:center">Tue<\/th>'+
+          '<th style="text-align:center">Wed<\/th><th style="text-align:center">Thu<\/th>'+
+          '<th style="text-align:center">Fri<\/th><th style="text-align:center">Sat<\/th>'+
+          '<th style="text-align:center">Sun<\/th>'+
+        '<\/tr><\/thead><tbody>'+matrixRows+'<\/tbody><\/table>'+
       '<\/div>'+
+      '<div class="matrix-legend">&#9632; Gold = highest activity &nbsp;&nbsp; &#9632; Blue = moderate activity &nbsp;&nbsp; Values = avg check-ins per weekday in selected month<\/div>'+
     '<\/div>'+
 
-    // ── SECTION 7: Data Quality Validation ───────────────────────────────
-    '<div class="section"><h2>Data Quality Validation<\/h2>'+
-      '<table><thead><tr><th>Check<\/th><th>Count<\/th><th>Notes<\/th><\/tr><\/thead><tbody>'+
-        '<tr><td><strong>Total records in database<\/strong><\/td><td>'+data.length+'<\/td><td>All passengers loaded<\/td><\/tr>'+
-        '<tr class="even"><td>Total check-ins in '+monthLabel+'<\/td><td>'+totalCI+'<\/td><td>From checkin_date or ts fallback (never ret)<\/td><\/tr>'+
-        '<tr><td>Total deliveries in '+monthLabel+'<\/td><td>'+totalDel+'<\/td><td>From checkout_date or deldate fallback (never ret)<\/td><\/tr>'+
-        '<tr class="even" style="border-top:2px solid #1a3d7c"><td><strong>Check-in source: checkin_date<\/strong><\/td><td>'+ciFromNew+'<\/td><td style="color:#1a7c4a">✓ Accurate — real ISO timestamp<\/td><\/tr>'+
-        '<tr><td>Check-in source: ts (fallback)<\/td><td>'+ciFromFallback+'<\/td><td style="color:#c9a84c">⚠ Old records — legacy locale string<\/td><\/tr>'+
-        '<tr class="even"><td>Check-in date missing<\/td><td>'+ciMissing+'<\/td><td style="color:#c0392b">✗ Not counted in check-in metrics<\/td><\/tr>'+
-        '<tr style="border-top:2px solid #1a3d7c"><td><strong>Delivery source: checkout_date<\/strong><\/td><td>'+coFromNew+'<\/td><td style="color:#1a7c4a">✓ Accurate — real ISO timestamp<\/td><\/tr>'+
-        '<tr class="even"><td>Delivery source: deldate (fallback)<\/td><td>'+coFromFallback+'<\/td><td style="color:#c9a84c">⚠ Old records — legacy date string<\/td><\/tr>'+
-        '<tr><td>Delivery date missing<\/td><td>'+coMissing+'<\/td><td style="color:#c0392b">✗ Not counted in delivery metrics<\/td><\/tr>'+
-        '<tr class="even" style="border-top:2px solid #1a3d7c"><td><strong>delivery_type = NORMAL<\/strong><\/td><td>'+delNormalMonth+'<\/td><td>Standard deliveries in month<\/td><\/tr>'+
-        '<tr><td>delivery_type = CUSTOMS<\/td><td>'+delCustomsMonth+'<\/td><td>Customs deliveries in month<\/td><\/tr>'+
-        '<tr class="even"><td>delivery_type missing (delivered)<\/td><td>'+delUnknownMonth+'<\/td><td style="color:#c9a84c">⚠ Pre-feature records<\/td><\/tr>'+
-        '<tr style="border-top:2px solid #1a3d7c"><td>Active delivery filter<\/td><td colspan="2">'+delFilter+(filterLabel?' ('+filterLabel.replace(' — ','')+')':'')+'<\/td><\/tr>'+
-      '<\/tbody><\/table>'+
     '<\/div>'+
 
     '<div class="footer">Makers Air Valet by Farber Parking &nbsp;&middot;&nbsp; Confidential &nbsp;&middot;&nbsp; '+
       reportTitle+' &nbsp;&middot;&nbsp; Generated '+genDate+
     '<\/div><\/div>'+
 
-    // ── Chart.js ──────────────────────────────────────────────────────────
-    '<script>'+
-      'var dayLabels='+dayLabJ+';'+
-      'var ciData='+ciDataJ+';'+
-      'var delData='+delDataJ+';'+
-      'var wdLabels='+wdLabJ+';'+
-      'var wdAvgCI='+wdAvgCIJ+';'+
-      'var wdAvgDel='+wdAvgDelJ+';'+
-      'new Chart(document.getElementById("dailyChart"),{type:"line",data:{labels:dayLabels,datasets:['+
-        '{label:"Check-ins",data:ciData,borderColor:"#1a3d7c",backgroundColor:"rgba(26,61,124,.07)",tension:.35,fill:true,pointRadius:2,borderWidth:2},'+
-        '{label:"Deliveries",data:delData,borderColor:"#c9a84c",backgroundColor:"rgba(201,168,76,.07)",tension:.35,fill:false,pointRadius:2,borderWidth:2}'+
-      ']},options:{responsive:true,interaction:{mode:"index",intersect:false},plugins:{legend:{labels:{font:{size:11}}}},scales:{x:{ticks:{font:{size:9},maxRotation:45}},y:{beginAtZero:true,ticks:{font:{size:10},stepSize:1}}}}});'+
-      'new Chart(document.getElementById("wdCIChart"),{type:"bar",data:{labels:wdLabels,'+
-        'datasets:[{label:"Avg Check-ins",data:wdAvgCI,backgroundColor:"rgba(26,61,124,.78)",borderRadius:5,borderSkipped:false}]},'+
-        'options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{font:{size:10}}},x:{ticks:{font:{size:10}}}}}});'+
-      'new Chart(document.getElementById("wdDelChart"),{type:"bar",data:{labels:wdLabels,'+
-        'datasets:[{label:"Avg Deliveries",data:wdAvgDel,backgroundColor:"rgba(201,168,76,.80)",borderRadius:5,borderSkipped:false}]},'+
-        'options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{font:{size:10}}},x:{ticks:{font:{size:10}}}}}});'+
-    '<\/script><\/body><\/html>';
+    '<\/body><\/html>';
 
   var win=window.open('','_blank');
   if(!win){ alert('Pop-up blocked. Please allow pop-ups for this site and try again.'); return; }
