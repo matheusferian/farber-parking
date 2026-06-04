@@ -491,7 +491,7 @@ async function testPrint() {
     + '</s:Body>'
     + '</s:Envelope>';
 
-  var url = 'https://' + PRINTER_HOST
+  var url = 'http://' + PRINTER_HOST
     + '/cgi-bin/epos/service.cgi'
     + '?devid=' + PRINTER_DEVICE_ID + '&timeout=10000';
 
@@ -529,7 +529,7 @@ async function testPrint() {
 
 // ── EPSON SHARED SEND ──────────────────────────────────────────
 async function epsonSend(xml, label) {
-  var url = 'https://' + PRINTER_HOST
+  var url = 'http://' + PRINTER_HOST
     + '/cgi-bin/epos/service.cgi'
     + '?devid=' + PRINTER_DEVICE_ID + '&timeout=10000';
   try {
@@ -739,7 +739,7 @@ function showPrinterDebug() {
   var stored   = localStorage.getItem('printer_host');
   var active   = PRINTER_HOST;
   var devid    = PRINTER_DEVICE_ID;
-  var urlBase  = 'https://' + active + '/cgi-bin/epos/service.cgi?devid=' + devid + '&timeout=10000';
+  var urlBase  = 'http://' + active + '/cgi-bin/epos/service.cgi?devid=' + devid + '&timeout=10000';
 
   console.log('══════════════════════════════════════');
   console.log('  EPSON PRINTER DEBUG');
