@@ -717,8 +717,23 @@ var HANGARS  = ['HANGAR 19','HANGAR 18','HANGAR 16','HANGAR 7','HH'];
 // ── PRINTER CONFIG ─────────────────────────────────────────────
 // Update PRINTER_HOST if the printer IP or hostname changes.
 // PRINTER_HOST should not include protocol or trailing slash.
-var PRINTER_HOST      = localStorage.getItem('printer_host') || '10.0.0.152';
+var PRINTER_HOST      = localStorage.getItem('printer_host') || '192.168.0.152';
 var PRINTER_DEVICE_ID = 'local_printer';
+
+function setPrinterHost(ip) {
+  ip = String(ip || '').trim();
+  if (!ip) { console.error('setPrinterHost: IP cannot be empty.'); return; }
+  localStorage.setItem('printer_host', ip);
+  PRINTER_HOST = ip;
+  console.log('Printer Host updated: ' + PRINTER_HOST);
+  console.log('Saved to localStorage: printer_host =', localStorage.getItem('printer_host'));
+}
+
+function printerInfo() {
+  console.log('Printer Host:  ' + PRINTER_HOST);
+  console.log('Device ID:     ' + PRINTER_DEVICE_ID);
+  console.log('Stored Host:   ' + (localStorage.getItem('printer_host') || '(none — using default)'));
+}
 var today    = new Date(); today.setHours(0,0,0,0);
 var tomorrow = new Date(today); tomorrow.setDate(today.getDate()+1);
 
