@@ -251,6 +251,7 @@
           <option value="ALL" selected>All Deliveries</option>
           <option value="NORMAL">Normal Only</option>
           <option value="CUSTOMS">Customs Only</option>
+          <option value="LOCKBOX">Lockbox Only</option>
         </select>
       </div>
       <button onclick="try{generateOperationsReport();}catch(err){console.error(err);alert('Report generation failed: '+err.message);}" style="width:100%;background:linear-gradient(135deg,#1a3d7c,#0f2a56);color:#fff;border:1px solid var(--gold);border-radius:10px;padding:14px;font-family:'Syne',sans-serif;font-weight:800;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;">
@@ -972,6 +973,7 @@ function renderDay() {
           '<div class="dc-qd" onclick="event.stopPropagation()">'+
             '<button class="qd-btn '+(btnCls||'')+'" onclick="quickDeliver('+r.id+',\'NORMAL\')">✓ Deliver</button>'+
             (showCustoms?'<button class="qd-btn customs" onclick="quickDeliver('+r.id+',\'CUSTOMS\')">Customs</button>':'')+
+            '<button class="qd-btn lockbox" onclick="quickDeliver('+r.id+',\'LOCKBOX\')" style="background:rgba(201,168,76,0.15);border-color:rgba(201,168,76,0.5);color:var(--gold)">🔒 Lockbox</button>'+
           '</div>';
       }
       var flightHtml='';
@@ -1352,8 +1354,7 @@ async function saveEntry(sendSms, printMode){
     return existingTicket === ticket && existingTicket !== '';
   });
   if (dupTicket.length > 0) {
-    showMsg('Ticket already exists: ' + ticket, true);
-    return;
+    showMsg('⚠️ Warning: ticket ' + ticket + ' already exists, but save is allowed.', false);
   }
   var btn=document.getElementById('saveBtn');
   var btnSms=document.getElementById('saveBtnSms');
@@ -1465,6 +1466,10 @@ function showDet(id){
       '<div class="di editable" style="grid-column:1/-1" data-field="color" onclick="makeEditable(this,\'color\')" ><div class="di-l">Color ✎</div><div class="di-v">'+escapeHTML(r.color||'—')+'</div></div>'+
       '<div class="di editable" style="grid-column:1/-1" data-field="loc" data-raw="'+escapeHTML(r.loc||'')+'"><div class="di-l">Location ✎</div><div class="di-v">'+escapeHTML(r.loc||'—')+'</div></div>'+
       '<div class="di editable" style="grid-column:1/-1" data-field="obs"><div class="di-l">Notes ✎</div><div class="di-v" style="font-size:12px">'+escapeHTML(r.obs||'—')+'</div></div>'+
+      (r.status==='DELIVERED'?
+        '<div class="di" style="grid-column:1/-1"><div class="di-l">Delivery Method</div><div class="di-v">'+deliveryMethodHtml(r.delivery_type)+'</div></div>'+
+        (r.customer_rating?'<div class="di" style="grid-column:1/-1"><div class="di-l">Passenger Rating</div><div class="di-v">'+ratingBadgeHtml(r.customer_rating)+'</div></div>':'')
+      :'')+
     '</div>'+histH+
     (isApproxRecord(r)&&r.status!=='DELIVERED'?
       '<div style="background:rgba(201,168,76,0.1);border:1px solid rgba(201,168,76,0.4);border-radius:10px;padding:12px 14px;margin-bottom:12px">'+
@@ -1553,6 +1558,12 @@ async function deliverWithRating(id, deliveryType, rating){
   }
 }
 
+function deliveryMethodHtml(type){
+  var t=String(type||'NORMAL').toUpperCase();
+  if(t==='LOCKBOX') return '<span class="cr-badge" style="background:rgba(201,168,76,0.2);color:var(--gold);border:1px solid rgba(201,168,76,0.4);border-radius:6px;padding:2px 8px;font-size:12px;font-weight:700">🔐 LOCKBOX</span>';
+  if(t==='CUSTOMS') return '<span class="cr-badge" style="background:rgba(100,120,220,0.15);color:var(--pur);border:1px solid rgba(100,120,220,0.35);border-radius:6px;padding:2px 8px;font-size:12px;font-weight:700">📦 CUSTOMS</span>';
+  return '<span class="cr-badge cr-normal" style="border-radius:6px;padding:2px 8px;font-size:12px;font-weight:700">📋 NORMAL</span>';
+}
 function ratingBadgeHtml(rating){
   if(!rating) return '';
   var r=String(rating).toUpperCase();
@@ -2146,7 +2157,7 @@ function generateOperationsReport(){
   var selYear =parseInt(document.getElementById('opsReportYear').value,10);
   var delFilter=document.getElementById('opsReportDeliveryFilter').value; // ALL|NORMAL|CUSTOMS
   var monthLabel=MONTHS[selMonth]+' '+selYear;
-  var filterLabel=delFilter==='NORMAL'?' — Normal Deliveries Only':delFilter==='CUSTOMS'?' — Customs Deliveries Only':'';
+  var filterLabel=delFilter==='NORMAL'?' — Normal Deliveries Only':delFilter==='CUSTOMS'?' — Customs Deliveries Only':delFilter==='LOCKBOX'?' — Lockbox Deliveries Only':'';
 
   // ── Date helpers ─────────────────────────────────────────────────────────
   function parseDt(str){
@@ -2169,7 +2180,7 @@ function generateOperationsReport(){
   // ── Validation counters ──────────────────────────────────────────────────
   var ciFromNew=0, ciFromFallback=0, ciMissing=0;
   var coFromNew=0, coFromFallback=0, coMissing=0;
-  var delNormalMonth=0, delCustomsMonth=0, delUnknownMonth=0;
+  var delNormalMonth=0, delCustomsMonth=0, delLockboxMonth=0, delUnknownMonth=0;
 
   // ── Process records ──────────────────────────────────────────────────────
   var proc=data.map(function(r){
@@ -2190,11 +2201,12 @@ function generateOperationsReport(){
     var dt=r.delivery_type||'';
     // delivery passes the filter?
     var diRaw=!!(dd&&inMonth(dd));
-    var diFiltered=diRaw&&(delFilter==='ALL'||(delFilter==='NORMAL'&&dt==='NORMAL')||(delFilter==='CUSTOMS'&&dt==='CUSTOMS'));
+    var diFiltered=diRaw&&(delFilter==='ALL'||(delFilter==='NORMAL'&&dt==='NORMAL')||(delFilter==='CUSTOMS'&&dt==='CUSTOMS')||(delFilter==='LOCKBOX'&&dt==='LOCKBOX'));
 
     if(diRaw){
       if(dt==='NORMAL') delNormalMonth++;
       else if(dt==='CUSTOMS') delCustomsMonth++;
+      else if(dt==='LOCKBOX') delLockboxMonth++;
       else delUnknownMonth++;
     }
     return {ad:ad, dd:dd, ai:ai, di:diFiltered, diRaw:diRaw, dt:dt};
@@ -2208,7 +2220,7 @@ function generateOperationsReport(){
       dt:dt, key:selYear+'-'+String(selMonth+1).padStart(2,'0')+'-'+String(d).padStart(2,'0'),
       label:dt.toLocaleDateString('en-US',{month:'short',day:'numeric'}),
       wd:WDAYS[dt.getDay()], wdi:dt.getDay(),
-      ci:0, delNorm:0, delCust:0, delUnk:0
+      ci:0, delNorm:0, delCust:0, delLock:0, delUnk:0
     });
   }
   proc.forEach(function(r){
@@ -2216,13 +2228,14 @@ function generateOperationsReport(){
     if(r.di){
       var i=r.dd.getDate()-1;
       if(daily[i]){
-        if(r.dt==='NORMAL')       daily[i].delNorm++;
-        else if(r.dt==='CUSTOMS') daily[i].delCust++;
-        else                      daily[i].delUnk++;
+        if(r.dt==='NORMAL')        daily[i].delNorm++;
+        else if(r.dt==='CUSTOMS')  daily[i].delCust++;
+        else if(r.dt==='LOCKBOX')  daily[i].delLock++;
+        else                       daily[i].delUnk++;
       }
     }
   });
-  daily.forEach(function(d){ d.del=d.delNorm+d.delCust+d.delUnk; d.net=d.ci-d.del; });
+  daily.forEach(function(d){ d.del=d.delNorm+d.delCust+d.delLock+d.delUnk; d.net=d.ci-d.del; });
 
   // ── Monthly totals ────────────────────────────────────────────────────────
   var totalCI  =daily.reduce(function(s,d){return s+d.ci;},0);
