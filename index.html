@@ -573,54 +573,43 @@ function buildCustomerTicketXml(r) {
   return '<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">'
     + '<s:Body>'
     + '<epos-print xmlns="http://www.epson-pos.com/schemas/2011/03/epos-print">'
-    + '<text align="center">MAKERS AIR VALET&#10;</text>'
-    + '<text align="center">by Farber Parking&#10;</text>'
-    + '<text>&#10;</text>'
-    + '<text>--------------------------------&#10;</text>'
+    // ── Header ──────────────────────────────────────────────────
+    + '<text align="center" em="true">MAKERS AIR VALET&#10;</text>'
+    + '<text align="center" em="false" font="font_b">by Farber Parking&#10;</text>'
+    + '<text align="left" font="font_a">--------------------------------&#10;</text>'
     + '<text align="center">PARKING CLAIM CHECK&#10;</text>'
-    + '<text>--------------------------------&#10;</text>'
-    + '<text>&#10;</text>'
+    + '<text align="left">--------------------------------&#10;</text>'
+    // ── Ticket number ────────────────────────────────────────────
     + '<text align="center">TICKET #&#10;</text>'
-    + '<text align="center" font="font_b" dh="true" dw="true">' + r.ticket + '&#10;</text>'
-    + '<text>&#10;</text>'
-    + '<text>--------------------------------&#10;</text>'
-    + '<text>&#10;</text>'
+    + '<text align="center" dh="true" dw="true">' + r.ticket + '&#10;</text>'
+    + '<text align="left" dh="false" dw="false">--------------------------------&#10;</text>'
+    // ── Fields ──────────────────────────────────────────────────
     + '<text>PASSENGER&#10;</text>'
     + '<text>' + r.name + '&#10;</text>'
-    + '<text>&#10;</text>'
     + '<text>PHONE&#10;</text>'
     + '<text>' + phoneDisp + '&#10;</text>'
-    + '<text>&#10;</text>'
     + '<text>RETURN DATE&#10;</text>'
     + '<text>' + retDisp + '&#10;</text>'
-    + '<text>&#10;</text>'
     + '<text>--------------------------------&#10;</text>'
-    + '<text>&#10;</text>'
+    // ── Disclaimer (small font) ──────────────────────────────────
+    + '<text font="font_b">Although reasonable care is given, vehicles&#10;</text>'
+    + '<text font="font_b">are parked at owner\'s risk. No liability&#10;</text>'
+    + '<text font="font_b">is assumed by management for loss or damage&#10;</text>'
+    + '<text font="font_b">by fire, theft, or any other cause to, or&#10;</text>'
+    + '<text font="font_b">by, the vehicle while in custody of&#10;</text>'
+    + '<text font="font_b">management. All claims must be presented&#10;</text>'
+    + '<text font="font_b">before vehicle is taken from facility. Cars&#10;</text>'
+    + '<text font="font_b">driven, called for, or delivered at owner\'s&#10;</text>'
+    + '<text font="font_b">risk; person so driving becomes agent of&#10;</text>'
+    + '<text font="font_b">the owner solely.&#10;</text>'
+    + '<text font="font_a">--------------------------------&#10;</text>'
     + '<text>Vehicle parked at owner\'s risk.&#10;</text>'
-    + '<text>&#10;</text>'
-    + '<text>Although reasonable care is given,&#10;</text>'
-    + '<text>vehicles are parked at owner\'s risk.&#10;</text>'
-    + '<text>No liability is assumed by management&#10;</text>'
-    + '<text>for loss or damage by fire, theft, or&#10;</text>'
-    + '<text>any other cause to, or by, the vehicle&#10;</text>'
-    + '<text>while in custody of management.&#10;</text>'
-    + '<text>&#10;</text>'
-    + '<text>All claims for adjustment must be&#10;</text>'
-    + '<text>presented before vehicle is taken from&#10;</text>'
-    + '<text>facility. Cars driven, called for, or&#10;</text>'
-    + '<text>delivered at the owner\'s risk, and any&#10;</text>'
-    + '<text>person so driving becomes the agent of&#10;</text>'
-    + '<text>the owner solely.&#10;</text>'
-    + '<text>&#10;</text>'
     + '<text>--------------------------------&#10;</text>'
-    + '<text>&#10;</text>'
     + '<text>If your return date changes,&#10;</text>'
     + '<text>please call or text us.&#10;</text>'
     + '<text>&#10;</text>'
     + '<text>(954) 352-1010&#10;</text>'
-    + '<text>&#10;</text>'
     + '<text>--------------------------------&#10;</text>'
-    + '<text>&#10;</text>'
     + '<text align="center">Thank you for flying Makers Air.&#10;</text>'
     + '<text>&#10;</text>'
     + '<feed line="3"/>'
@@ -640,52 +629,43 @@ function buildKeyTicketXml(r) {
   return '<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">'
     + '<s:Body>'
     + '<epos-print xmlns="http://www.epson-pos.com/schemas/2011/03/epos-print">'
-    + '<text align="center">MAKERS AIR VALET&#10;</text>'
-    + '<text align="center">by Farber Parking&#10;</text>'
-    + '<text>&#10;</text>'
-    + '<text>--------------------------------&#10;</text>'
+    // ── Header ──────────────────────────────────────────────────
+    + '<text align="center" em="true">MAKERS AIR VALET&#10;</text>'
+    + '<text align="center" em="false" font="font_b">by Farber Parking&#10;</text>'
+    + '<text align="left" font="font_a">--------------------------------&#10;</text>'
     + '<text align="center">KEY COPY / INTERNAL&#10;</text>'
-    + '<text>--------------------------------&#10;</text>'
-    + '<text>&#10;</text>'
+    + '<text align="left">--------------------------------&#10;</text>'
+    // ── Ticket number ────────────────────────────────────────────
     + '<text align="center">TICKET #&#10;</text>'
-    + '<text align="center" font="font_b" dh="true" dw="true">' + r.ticket + '&#10;</text>'
-    + '<text>&#10;</text>'
-    + '<text>--------------------------------&#10;</text>'
-    + '<text>&#10;</text>'
+    + '<text align="center" dh="true" dw="true">' + r.ticket + '&#10;</text>'
+    + '<text align="left" dh="false" dw="false">--------------------------------&#10;</text>'
+    // ── Fields ──────────────────────────────────────────────────
     + '<text>PASSENGER&#10;</text>'
     + '<text>' + r.name + '&#10;</text>'
-    + '<text>&#10;</text>'
     + '<text>PHONE&#10;</text>'
     + '<text>' + phoneDisp + '&#10;</text>'
-    + '<text>&#10;</text>'
     + '<text>VEHICLE&#10;</text>'
     + '<text>' + carDisp + '&#10;</text>'
-    + '<text>&#10;</text>'
     + '<text>COLOR&#10;</text>'
     + '<text>' + colorDisp + '&#10;</text>'
-    + '<text>&#10;</text>'
     + '<text>RETURN DATE&#10;</text>'
     + '<text>' + retDisp + '&#10;</text>'
-    + '<text>&#10;</text>'
     + '<text>--------------------------------&#10;</text>'
-    + '<text>&#10;</text>'
     + '<text>LOCATION / HANGAR&#10;</text>'
     + '<text>' + locDisp + '&#10;</text>'
-    + '<text>&#10;</text>'
     + '<text>--------------------------------&#10;</text>'
-    + '<text>&#10;</text>'
+    // ── OBS / Notes (2 lines) ────────────────────────────────────
     + '<text>OBS / NOTES&#10;</text>'
     + '<text>&#10;</text>'
     + '<text>____________________&#10;</text>'
     + '<text>&#10;</text>'
     + '<text>____________________&#10;</text>'
     + '<text>&#10;</text>'
-    + '<text>____________________&#10;</text>'
-    + '<text>&#10;</text>'
     + '<text>--------------------------------&#10;</text>'
-    + '<text>&#10;</text>'
-    + '<text>Please update vehicle location&#10;</text>'
-    + '<text>in the system.&#10;</text>'
+    // ── Footer ──────────────────────────────────────────────────
+    + '<text align="center" em="true">PLEASE UPDATE VEHICLE LOCATION&#10;</text>'
+    + '<text align="center" em="true">IN THE SYSTEM&#10;</text>'
+    + '<text align="left" em="false">&#10;</text>'
     + '<feed line="3"/>'
     + '<cut type="feed"/>'
     + '</epos-print>'
@@ -695,29 +675,28 @@ function buildKeyTicketXml(r) {
 
 // ── BUILD DASHBOARD TICKET XML ─────────────────────────────────
 function buildDashboardTicketXml(r) {
-  var d = r.ret ? (function() {
+  var retDate = 'NO DATE';
+  if (r.ret) {
     var dt = pd(r.ret);
-    if (!dt) return r.ret;
-    return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }).toUpperCase();
-  })() : 'NO DATE';
+    if (dt) retDate = dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }).toUpperCase();
+  }
   return '<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">'
     + '<s:Body>'
     + '<epos-print xmlns="http://www.epson-pos.com/schemas/2011/03/epos-print">'
-    + '<text align="center">MAKERS AIR VALET&#10;</text>'
-    + '<text align="center">by Farber Parking&#10;</text>'
-    + '<text>&#10;</text>'
-    + '<text>--------------------------------&#10;</text>'
+    // ── Header ──────────────────────────────────────────────────
+    + '<text align="center" em="true">MAKERS AIR VALET&#10;</text>'
+    + '<text align="center" em="false" font="font_b">by Farber Parking&#10;</text>'
+    + '<text align="left" font="font_a">--------------------------------&#10;</text>'
     + '<text align="center">DASHBOARD COPY&#10;</text>'
-    + '<text>--------------------------------&#10;</text>'
-    + '<text>&#10;</text>'
+    + '<text align="left">--------------------------------&#10;</text>'
+    // ── Ticket number (maximum size: 8x height, 6x width) ────────
     + '<text align="center">TICKET #&#10;</text>'
-    + '<text align="center" font="font_b" dh="true" dw="true">' + r.ticket + '&#10;</text>'
-    + '<text>&#10;</text>'
-    + '<text>--------------------------------&#10;</text>'
-    + '<text>&#10;</text>'
+    + '<text align="center" height="8" width="6">' + r.ticket + '&#10;</text>'
+    + '<text align="left" height="1" width="1">--------------------------------&#10;</text>'
+    // ── Return date (large: 6x height, 4x width) ─────────────────
     + '<text align="center">RETURN&#10;</text>'
-    + '<text align="center" font="font_b" dh="true" dw="true">' + d + '&#10;</text>'
-    + '<text>&#10;</text>'
+    + '<text align="center" height="6" width="4">' + retDate + '&#10;</text>'
+    + '<text align="left" height="1" width="1">&#10;</text>'
     + '<feed line="3"/>'
     + '<cut type="feed"/>'
     + '</epos-print>'
@@ -744,12 +723,25 @@ async function printAllTickets(r) {
   await printDashboardTicket(r);
 }
 
-// printBothTickets kept for detail panel backward compat
+async function testPrintAllTickets() {
+  var testRec = {
+    ticket: '99999',
+    name:   'TEST PASSENGER',
+    phone:  '9543521010',
+    ret:    getTodayStr(),
+    car:    'TEST VEHICLE',
+    color:  'WHITE',
+    loc:    'HANGAR 19'
+  };
+  await printAllTickets(testRec);
+}
+
+// printBothTickets kept for backward compat — now prints all 3
 async function printBothTickets(r) {
   await printAllTickets(r);
 }
 
-// printTicket kept as alias — detail panel button unchanged
+// printTicket kept as alias — detail panel customer button unchanged
 async function printTicket(r) {
   return printCustomerTicket(r);
 }
