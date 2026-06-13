@@ -576,9 +576,7 @@ async function epsonSend(xml, label) {
 function buildCustomerTicketXml(r) {
   var retDisp   = r.ret   ? fmtD(r.ret)   : 'NO DATE';
   var phoneDisp = r.phone ? fmtP(r.phone) : 'N/A';
-  var ctaLine1  = r.not_returning_with_makers_air
-    ? 'If your travel plans change,'
-    : 'If your RETURN DATE changes,';
+  var ctaLine1  = 'If your RETURN DATE changes,';
   return '<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">'
     + '<s:Body>'
     + '<epos-print xmlns="http://www.epson-pos.com/schemas/2011/03/epos-print">'
