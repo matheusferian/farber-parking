@@ -354,6 +354,12 @@
     <div class="fr full">
       <div class="fg"><label>OBS</label><input type="text" id="fObs" oninput="this.value=this.value.toUpperCase()" placeholder="" style="text-transform:uppercase"></div>
     </div>
+    <div class="fr full">
+      <div class="fg" style="display:flex;align-items:center;gap:10px;padding:8px 0">
+        <input type="checkbox" id="fNotReturning" style="width:18px;height:18px;accent-color:var(--red)">
+        <label for="fNotReturning" style="font-size:13px;color:var(--mu);cursor:pointer">Passenger informed they are NOT returning with Makers Air</label>
+      </div>
+    </div>
     <div class="mact">
       <button class="btnc" onclick="closeAll()">Cancel</button>
       <button class="btnp" id="saveBtnSms" onclick="saveEntry(true)" style="background:linear-gradient(135deg,#1a5c3a,#1a9e6a);border-color:var(--ok);">&#128172; Save + Text</button>
@@ -591,6 +597,13 @@ function buildCustomerTicketXml(r) {
     + '<text>RETURN DATE&#10;</text>'
     + '<text>' + retDisp + '&#10;</text>'
     + '<text>--------------------------------&#10;</text>'
+    + (r.not_returning_with_makers_air ?
+        '<text>NOTE:&#10;</text>'
+        + '<text>Passenger informed Makers Air Valet&#10;</text>'
+        + '<text>that they are not returning with&#10;</text>'
+        + '<text>Makers Air.&#10;</text>'
+        + '<text>--------------------------------&#10;</text>'
+      : '')
     // ── Disclaimer (small font) ──────────────────────────────────
     + '<text font="font_b">Although reasonable care is given, vehicles&#10;</text>'
     + '<text font="font_b">are parked at owner\'s risk. No liability&#10;</text>'
@@ -654,6 +667,13 @@ function buildKeyTicketXml(r) {
     + '<text>LOCATION / HANGAR&#10;</text>'
     + '<text>' + locDisp + '&#10;</text>'
     + '<text>--------------------------------&#10;</text>'
+    + (r.not_returning_with_makers_air ?
+        '<text align="center" em="true">IMPORTANT:&#10;</text>'
+        + '<text align="center" em="true">NOT RETURNING WITH MAKERS AIR&#10;</text>'
+        + '<text>Confirm return details before&#10;</text>'
+        + '<text>staging vehicle.&#10;</text>'
+        + '<text>--------------------------------&#10;</text>'
+      : '')
     // ── OBS / Notes (2 lines) ────────────────────────────────────
     + '<text>OBS / NOTES&#10;</text>'
     + '<text>&#10;</text>'
@@ -835,7 +855,8 @@ async function loadData() {
         checkin_date: r.checkin_date||r.ts||'',
         checkout_date: r.checkout_date||r.deldate||'',
         return_flight: r.return_flight||'',
-        customer_rating: r.customer_rating||''
+        customer_rating: r.customer_rating||'',
+        not_returning_with_makers_air: r.not_returning_with_makers_air||false
       };
     });
     render();
@@ -1356,6 +1377,7 @@ function openAdd(){
   var approxRow=document.getElementById('approxRow');
   if(approxRow) approxRow.style.display='none';
   var fi=document.getElementById('freqInfo'); if(fi) fi.classList.remove('on');
+  var fnr=document.getElementById('fNotReturning'); if(fnr) fnr.checked=false;
   acClose();
   document.getElementById('addOv').classList.add('on');
   setTimeout(function(){ var n=document.getElementById('fName'); if(n) n.focus(); },100);
@@ -1374,6 +1396,28 @@ function selectRating(btn){
   deliverWithRating(id, dtype, rating);
 }
 function closeRating(){document.getElementById('ratingOv').classList.remove('on');}
+
+// ── WELCOME SMS ────────────────────────────────────────────────
+function buildWelcomeSms(r) {
+  var body = 'Welcome to Makers Air Valet!\n\nYour vehicle has been successfully checked in.\n\nTicket #: ' + r.ticket + '\n\nPlease keep this ticket number for reference.';
+  if (r.not_returning_with_makers_air) {
+    body += '\n\nNOTE:\n\nYou informed us that you will not be returning with Makers Air.\n\nIf this information changes, please reply to this message.';
+  }
+  if (r.ret) {
+    body += '\n\nIf your return date or arrival time changes from ' + r.ret + ', please reply to this message so your vehicle will be ready upon arrival.';
+  } else {
+    body += '\n\nWe currently do not have a return date on file.\n\nOnce your travel plans are confirmed, please reply to this message with your expected return date and arrival time so your vehicle will be ready upon arrival.';
+  }
+  body += '\n\nThank you and safe travels!';
+  return body;
+}
+
+function sendWelcomeSms(id) {
+  var r = data.find(function(x){ return x.id === id; });
+  if (!r || !r.phone) return;
+  var cleanPhone = r.phone.replace(/\D/g, '');
+  window.open('sms:' + cleanPhone + '&body=' + encodeURIComponent(buildWelcomeSms(r)), '_self');
+}
 
 // ── SAVE NEW ENTRY ─────────────────────────────────────────────
 async function saveEntry(sendSms, printMode){
@@ -1414,6 +1458,7 @@ async function saveEntry(sendSms, printMode){
     if(finalStatus==='NO DATE'){ finalDate=hasEstDate?d2us(estDate):''; }
     else { finalDate=d2us(getReturnDate()); }
     var locVal=document.getElementById('fLoc').value;
+    var notReturning=!!(document.getElementById('fNotReturning')||{}).checked;
 
     await sbInsert({
       ts: ts,
@@ -1428,6 +1473,7 @@ async function saveEntry(sendSms, printMode){
       status: finalStatus,
       block: '',
       obs: finalObs,
+      not_returning_with_makers_air: notReturning,
       deldate: ''
     });
     sbLog('CREATED', name.toUpperCase(), ticket, locVal, 'Passenger added to system');
@@ -1449,7 +1495,8 @@ async function saveEntry(sendSms, printMode){
 
     if(printMode==='both'){
       var savedRec={ticket:ticket,name:name.toUpperCase(),phone:phoneFull,
-                    ret:finalDate,car:carVal,color:colorVal,loc:locVal};
+                    ret:finalDate,car:carVal,color:colorVal,loc:locVal,
+                    not_returning_with_makers_air:notReturning};
       await printCustomerTicket(savedRec);
       await printKeyTicket(savedRec);
       await printDashboardTicket(savedRec);
@@ -1457,7 +1504,7 @@ async function saveEntry(sendSms, printMode){
 
     if(sendSms && phoneFull){
       var cleanPhone=phoneFull.replace(/\D/g,'');
-      var smsBody='Welcome to Makers Air Valet!\n\nYour vehicle has been successfully checked in.\n\nTicket #: '+ticket+'\n\nPlease keep this ticket number for reference.\n\n'+(finalDate?'If your return date or arrival time changes from '+finalDate+', please reply to this message so your vehicle will be ready upon arrival.':'We currently do not have a return date on file. Once your travel plans are confirmed, please reply to this message with your expected return date and arrival time so your vehicle will be ready upon arrival.')+'\n\nThank you and safe travels!';
+      var smsBody=buildWelcomeSms({ticket:ticket,ret:finalDate,not_returning_with_makers_air:notReturning});
       window.open('sms:'+cleanPhone+'&body='+encodeURIComponent(smsBody),'_self');
     }
     await loadData();
@@ -1489,6 +1536,7 @@ function showDet(id){
     '<div class="dphone" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'+escapeHTML(fmtP(r.phone))+
       (r.phone?'<a href="tel:'+r.phone.replace(/\D/g,'')+'" style="background:var(--ok);color:#000;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;text-decoration:none;font-family:Syne,sans-serif;">📞 CALL</a>':'')+
       (r.phone?'<a href="sms:'+r.phone.replace(/\D/g,'')+'" style="background:var(--pur);color:#fff;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;text-decoration:none;font-family:Syne,sans-serif;">💬 TEXT</a>':'')+
+      (r.phone?'<button onclick="sendWelcomeSms('+r.id+')" style="background:linear-gradient(135deg,#1a5c3a,#1a9e6a);color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;font-family:Syne,sans-serif;cursor:pointer;">💬 Welcome</button>':'')+
       '<button onclick="printCustomerTicket(data.find(function(x){return x.id==='+r.id+'}))" style="background:var(--navy);color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;font-family:Syne,sans-serif;cursor:pointer;">🧾 Customer Copy</button>'+
       '<button onclick="printKeyTicket(data.find(function(x){return x.id==='+r.id+'}))" style="background:var(--navy);color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;font-family:Syne,sans-serif;cursor:pointer;">🔑 Key Copy</button>'+
       '<button onclick="printDashboardTicket(data.find(function(x){return x.id==='+r.id+'}))" style="background:var(--navy);color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;font-family:Syne,sans-serif;cursor:pointer;">🚗 Dashboard</button>'+
@@ -1506,6 +1554,12 @@ function showDet(id){
       '<div class="di editable" style="grid-column:1/-1" data-field="color" onclick="makeEditable(this,\'color\')" ><div class="di-l">Color ✎</div><div class="di-v">'+escapeHTML(r.color||'—')+'</div></div>'+
       '<div class="di editable" style="grid-column:1/-1" data-field="loc" data-raw="'+escapeHTML(r.loc||'')+'"><div class="di-l">Location ✎</div><div class="di-v">'+escapeHTML(r.loc||'—')+'</div></div>'+
       '<div class="di editable" style="grid-column:1/-1" data-field="obs"><div class="di-l">Notes ✎</div><div class="di-v" style="font-size:12px">'+escapeHTML(r.obs||'—')+'</div></div>'+
+      '<div class="di" style="grid-column:1/-1"><div class="di-l">Not Returning</div>'+
+        '<div class="di-v"><label style="display:flex;align-items:center;gap:8px;cursor:pointer">'+
+        '<input type="checkbox" '+(r.not_returning_with_makers_air?'checked':'')+
+        ' onchange="markDirty(\'not_returning_with_makers_air\',this.checked)">'+
+        '<span style="font-size:12px;color:var(--mu)">Passenger informed they are NOT returning with Makers Air</span>'+
+        '</label></div></div>'+
       (r.status==='DELIVERED'?
         '<div class="di" style="grid-column:1/-1"><div class="di-l">Delivery Method</div><div class="di-v">'+deliveryMethodHtml(r.delivery_type)+'</div></div>'+
         (r.customer_rating?'<div class="di" style="grid-column:1/-1"><div class="di-l">Passenger Rating</div><div class="di-v">'+ratingBadgeHtml(r.customer_rating)+'</div></div>':'')
@@ -1683,6 +1737,9 @@ async function moveHangar(id,hangar){
     r.loc=hangar;
     showMsg('Moved to '+hangar, false);
     closeAll(); render();
+    if(confirm('Hangar location changed.\n\nWould you like to print a new key tag?')) {
+      await printKeyTicket(r);
+    }
   }catch(e){showMsg('Error: '+e.message,true);}
   finally{loading(false);}
 }
@@ -1793,6 +1850,7 @@ async function saveEdits(rid){
   if(Object.keys(_editChanges).length===0) return;
   var r=null;for(var i=0;i<data.length;i++){if(data[i].id===rid){r=data[i];break;}}
   if(!r) return;
+  var prevLoc=r.loc;
   var doReopen=false;
   if(r.status==='DELIVERED'&&_editChanges.ret&&pd(_editChanges.ret)&&!_editChanges.status){
     doReopen=confirm('This record is currently DELIVERED. Do you want to reopen it as PENDING?');
@@ -1838,6 +1896,11 @@ async function saveEdits(rid){
       if(!upd.delivery_type&&!r.delivery_type) upd.delivery_type='NORMAL';
     }
     await sbUpdate(rid,upd);
+    if(_editChanges.loc !== undefined && r.loc !== prevLoc) {
+      if(confirm('Hangar location changed.\n\nWould you like to print a new key tag?')) {
+        await printKeyTicket(r);
+      }
+    }
     var logPromises=[];
     for(var field in _editChanges){
       logPromises.push(logFieldChange(r,field,oldVals[field],upd[field]));
