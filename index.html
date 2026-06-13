@@ -585,17 +585,14 @@ function buildCustomerTicketXml(r) {
     + '<text align="left" font="font_a">--------------------------------&#10;</text>'
     + '<text align="center">PARKING CLAIM CHECK&#10;</text>'
     + '<text align="left">--------------------------------&#10;</text>'
-    // ── Ticket number ────────────────────────────────────────────
+    // ── Ticket number + Return Date ──────────────────────────────
     + '<text align="center">TICKET #&#10;</text>'
     + '<text align="center" dh="true" dw="true">' + r.ticket + '&#10;</text>'
-    + '<text align="left" dh="false" dw="false">--------------------------------&#10;</text>'
+    + '<text align="center" height="2" width="1">' + retDisp + '&#10;</text>'
+    + '<text align="left" height="1" width="1">--------------------------------&#10;</text>'
     // ── Fields ──────────────────────────────────────────────────
-    + '<text>PASSENGER&#10;</text>'
-    + '<text>' + r.name + '&#10;</text>'
-    + '<text>PHONE&#10;</text>'
-    + '<text>' + phoneDisp + '&#10;</text>'
-    + '<text>RETURN DATE&#10;</text>'
-    + '<text>' + retDisp + '&#10;</text>'
+    + '<text>PASSENGER: ' + r.name + '&#10;</text>'
+    + '<text>PHONE: ' + phoneDisp + '&#10;</text>'
     + '<text>--------------------------------&#10;</text>'
     + (r.not_returning_with_makers_air ?
         '<text>NOTE:&#10;</text>'
