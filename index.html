@@ -648,10 +648,11 @@ function buildKeyTicketXml(r) {
     + '<text align="left" font="font_a">--------------------------------&#10;</text>'
     + '<text align="center">KEY COPY / INTERNAL&#10;</text>'
     + '<text align="left">--------------------------------&#10;</text>'
-    // ── Ticket number ────────────────────────────────────────────
+    // ── Ticket number + Hangar ───────────────────────────────────
     + '<text align="center">TICKET #&#10;</text>'
-    + '<text align="center" dh="true" dw="true">' + r.ticket + '&#10;</text>'
-    + '<text align="left" dh="false" dw="false">--------------------------------&#10;</text>'
+    + '<text align="center" height="4" width="3">' + r.ticket + '&#10;</text>'
+    + '<text align="center" height="1" width="1">' + locDisp + '&#10;</text>'
+    + '<text align="left">--------------------------------&#10;</text>'
     // ── Fields ──────────────────────────────────────────────────
     + '<text>PASSENGER&#10;</text>'
     + '<text>' + r.name + '&#10;</text>'
@@ -663,9 +664,6 @@ function buildKeyTicketXml(r) {
     + '<text>' + colorDisp + '&#10;</text>'
     + '<text>RETURN DATE&#10;</text>'
     + '<text>' + retDisp + '&#10;</text>'
-    + '<text>--------------------------------&#10;</text>'
-    + '<text>LOCATION / HANGAR&#10;</text>'
-    + '<text>' + locDisp + '&#10;</text>'
     + '<text>--------------------------------&#10;</text>'
     + (r.not_returning_with_makers_air ?
         '<text align="center" em="true">IMPORTANT:&#10;</text>'
