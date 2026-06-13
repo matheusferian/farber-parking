@@ -576,6 +576,9 @@ async function epsonSend(xml, label) {
 function buildCustomerTicketXml(r) {
   var retDisp   = r.ret   ? fmtD(r.ret)   : 'NO DATE';
   var phoneDisp = r.phone ? fmtP(r.phone) : 'N/A';
+  var ctaLine1  = r.not_returning_with_makers_air
+    ? 'If your travel plans change,'
+    : 'If your return date changes,';
   return '<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">'
     + '<s:Body>'
     + '<epos-print xmlns="http://www.epson-pos.com/schemas/2011/03/epos-print">'
@@ -594,6 +597,11 @@ function buildCustomerTicketXml(r) {
     + '<text>PASSENGER: ' + r.name + '&#10;</text>'
     + '<text>PHONE: ' + phoneDisp + '&#10;</text>'
     + '<text>--------------------------------&#10;</text>'
+    + '<text>' + ctaLine1 + '&#10;</text>'
+    + '<text>please call or text us.&#10;</text>'
+    + '<text>&#10;</text>'
+    + '<text align="center" height="2" width="2">(954) 352-1010&#10;</text>'
+    + '<text align="left" height="1" width="1">--------------------------------&#10;</text>'
     + (r.not_returning_with_makers_air ?
         '<text>NOTE:&#10;</text>'
         + '<text>Passenger informed Makers Air Valet&#10;</text>'
@@ -601,27 +609,16 @@ function buildCustomerTicketXml(r) {
         + '<text>Makers Air.&#10;</text>'
         + '<text>--------------------------------&#10;</text>'
       : '')
-    // ── Disclaimer (small font) ──────────────────────────────────
+    // ── Disclaimer (small font — single notice) ───────────────────
     + '<text font="font_b">Although reasonable care is given, vehicles&#10;</text>'
     + '<text font="font_b">are parked at owner\'s risk. No liability&#10;</text>'
     + '<text font="font_b">is assumed by management for loss or damage&#10;</text>'
-    + '<text font="font_b">by fire, theft, or any other cause to, or&#10;</text>'
-    + '<text font="font_b">by, the vehicle while in custody of&#10;</text>'
-    + '<text font="font_b">management. All claims must be presented&#10;</text>'
-    + '<text font="font_b">before vehicle is taken from facility. Cars&#10;</text>'
-    + '<text font="font_b">driven, called for, or delivered at owner\'s&#10;</text>'
-    + '<text font="font_b">risk; person so driving becomes agent of&#10;</text>'
-    + '<text font="font_b">the owner solely.&#10;</text>'
+    + '<text font="font_b">by fire, theft, or any other cause. All&#10;</text>'
+    + '<text font="font_b">claims must be presented before vehicle&#10;</text>'
+    + '<text font="font_b">is taken from facility.&#10;</text>'
     + '<text font="font_a">--------------------------------&#10;</text>'
-    + '<text>Vehicle parked at owner\'s risk.&#10;</text>'
-    + '<text>--------------------------------&#10;</text>'
-    + '<text>If your return date changes,&#10;</text>'
-    + '<text>please call or text us.&#10;</text>'
-    + '<text>&#10;</text>'
-    + '<text>(954) 352-1010&#10;</text>'
-    + '<text>--------------------------------&#10;</text>'
-    + '<text align="center">Thank you for flying Makers Air.&#10;</text>'
-    + '<text>&#10;</text>'
+    + '<text align="center" height="2" width="1">Thank you for flying Makers Air.&#10;</text>'
+    + '<text align="left" height="1" width="1">&#10;</text>'
     + '<feed line="3"/>'
     + '<cut type="feed"/>'
     + '</epos-print>'
