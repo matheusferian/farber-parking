@@ -1320,7 +1320,7 @@ function getNextTicket() {
   var today = getToday();
   var mm = String(today.getMonth() + 1).padStart(2, '0');
   var dd = String(today.getDate()).padStart(2, '0');
-  var prefix = 'MA-' + mm + dd + '-';
+  var prefix = mm + dd + '-';
   var max = 0;
   data.forEach(function(r) {
     var t = String(r.ticket || '');
@@ -1329,7 +1329,7 @@ function getNextTicket() {
       if (!isNaN(n) && n > max) max = n;
     }
   });
-  return prefix + String(max + 1).padStart(2, '0');
+  return prefix + String(max + 1);
 }
 
 // ── OPEN / CLOSE MODAL ─────────────────────────────────────────
@@ -1457,7 +1457,7 @@ async function saveEntry(sendSms, printMode){
 
     if(sendSms && phoneFull){
       var cleanPhone=phoneFull.replace(/\D/g,'');
-      var smsBody='Welcome to Makers Air Valet! Your vehicle has been successfully checked in.'+(finalDate?' If your return date or arrival time changes from '+finalDate+', please update us through this message so your vehicle will be ready when you arrive.':' If your return date or arrival time changes, please update us through this message so your vehicle will be ready when you arrive.')+' Thank you and safe travels!';
+      var smsBody='Welcome to Makers Air Valet!\n\nYour vehicle has been successfully checked in.\n\nTicket #: '+ticket+'\n\nPlease keep this ticket number for reference.\n\n'+(finalDate?'If your return date or arrival time changes from '+finalDate+', please reply to this message so your vehicle will be ready upon arrival.':'If your return date or arrival time changes, please reply to this message so your vehicle will be ready upon arrival.')+'\n\nThank you and safe travels!';
       window.open('sms:'+cleanPhone+'&body='+encodeURIComponent(smsBody),'_self');
     }
     await loadData();
