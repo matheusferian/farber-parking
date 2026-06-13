@@ -1457,7 +1457,7 @@ async function saveEntry(sendSms, printMode){
 
     if(sendSms && phoneFull){
       var cleanPhone=phoneFull.replace(/\D/g,'');
-      var smsBody='Welcome to Makers Air Valet!\n\nYour vehicle has been successfully checked in.\n\nTicket #: '+ticket+'\n\nPlease keep this ticket number for reference.\n\n'+(finalDate?'If your return date or arrival time changes from '+finalDate+', please reply to this message so your vehicle will be ready upon arrival.':'If your return date or arrival time changes, please reply to this message so your vehicle will be ready upon arrival.')+'\n\nThank you and safe travels!';
+      var smsBody='Welcome to Makers Air Valet!\n\nYour vehicle has been successfully checked in.\n\nTicket #: '+ticket+'\n\nPlease keep this ticket number for reference.\n\n'+(finalDate?'If your return date or arrival time changes from '+finalDate+', please reply to this message so your vehicle will be ready upon arrival.':'We currently do not have a return date on file. Once your travel plans are confirmed, please reply to this message with your expected return date and arrival time so your vehicle will be ready upon arrival.')+'\n\nThank you and safe travels!';
       window.open('sms:'+cleanPhone+'&body='+encodeURIComponent(smsBody),'_self');
     }
     await loadData();
