@@ -653,9 +653,7 @@ function buildKeyTicketXml(r) {
     + '<text align="left">--------------------------------&#10;</text>'
     // ── Fields ──────────────────────────────────────────────────
     + '<text font="font_b">PHONE: ' + phoneDisp + '&#10;</text>'
-    + '<text font="font_b">VEHICLE: ' + carDisp + '&#10;</text>'
-    + '<text font="font_b">COLOR: ' + colorDisp + '&#10;</text>'
-    + '<text>--------------------------------&#10;</text>'
+    + '<text font="font_b">' + (carDisp || '') + ' / ' + (colorDisp || '') + '&#10;</text>'
     + (r.not_returning_with_makers_air ?
         '<text align="center" em="true">IMPORTANT:&#10;</text>'
         + '<text align="center" em="true">NOT RETURNING WITH MAKERS AIR&#10;</text>'
@@ -663,13 +661,10 @@ function buildKeyTicketXml(r) {
         + '<text>staging vehicle.&#10;</text>'
         + '<text>--------------------------------&#10;</text>'
       : '')
-    // ── OBS / Notes (2 lines) ────────────────────────────────────
-    + '<text font="font_b">OBS/NOTES&#10;</text>'
+    // ── OBS ──────────────────────────────────────────────────────
+    + '<text font="font_b">OBS&#10;</text>'
     + '<text>____________________&#10;</text>'
     + '<text>____________________&#10;</text>'
-    + '<text>--------------------------------&#10;</text>'
-    // ── Footer ──────────────────────────────────────────────────
-    + '<text align="center" font="font_b" em="false">update vehicle location in system&#10;</text>'
     + '<feed line="3"/>'
     + '<cut type="feed"/>'
     + '</epos-print>'
