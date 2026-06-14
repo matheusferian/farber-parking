@@ -646,15 +646,15 @@ function buildKeyTicketXml(r) {
     + '<text align="center">KEY COPY / INTERNAL&#10;</text>'
     + '<text align="left">--------------------------------&#10;</text>'
     // ── Name + Hangar + Return + Ticket ─────────────────────────
-    + '<text align="center" height="4" width="3">' + (r.name || '') + '&#10;</text>'
+    + '<text align="center" height="4" width="2">' + (r.name || '') + '&#10;</text>'
     + '<text align="center" height="3" width="2">' + locDisp + '&#10;</text>'
     + '<text align="center" height="1" width="1">' + retDisp + '&#10;</text>'
-    + '<text align="center" height="2" width="1">' + r.ticket + '&#10;</text>'
+    + '<text align="center" height="2" width="2">' + r.ticket + '&#10;</text>'
     + '<text align="left">--------------------------------&#10;</text>'
     // ── Fields ──────────────────────────────────────────────────
-    + '<text>PHONE: ' + phoneDisp + '&#10;</text>'
-    + '<text>VEHICLE: ' + carDisp + '&#10;</text>'
-    + '<text>COLOR: ' + colorDisp + '&#10;</text>'
+    + '<text font="font_b">PHONE: ' + phoneDisp + '&#10;</text>'
+    + '<text font="font_b">VEHICLE: ' + carDisp + '&#10;</text>'
+    + '<text font="font_b">COLOR: ' + colorDisp + '&#10;</text>'
     + '<text>--------------------------------&#10;</text>'
     + (r.not_returning_with_makers_air ?
         '<text align="center" em="true">IMPORTANT:&#10;</text>'
@@ -665,11 +665,8 @@ function buildKeyTicketXml(r) {
       : '')
     // ── OBS / Notes (2 lines) ────────────────────────────────────
     + '<text>OBS / NOTES&#10;</text>'
-    + '<text>&#10;</text>'
     + '<text>____________________&#10;</text>'
-    + '<text>&#10;</text>'
     + '<text>____________________&#10;</text>'
-    + '<text>&#10;</text>'
     + '<text>--------------------------------&#10;</text>'
     // ── Footer ──────────────────────────────────────────────────
     + '<text align="center" em="true">PLEASE UPDATE VEHICLE LOCATION&#10;</text>'
