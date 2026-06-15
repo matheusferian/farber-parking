@@ -545,6 +545,11 @@ body{-webkit-text-size-adjust:100%;}
 .rating-opt.selected[data-rating="NORMAL"]{background:rgba(100,120,180,0.25);border-color:#8aa0cc;}
 .rating-opt.selected[data-rating="DIFFICULT"]{background:rgba(204,51,51,0.25);border-color:var(--red);}
 
+/* ── DISCARD CONFIRMATION ── */
+#discardOv{z-index:400;}
+.btn-danger{background:var(--red);}
+.btn-danger:hover{background:#a82828;}
+
 /* ── MISSING HANGAR ALERT ── */
 @keyframes hangarMissingPulse {
   0%, 100% { opacity: 1; transform: scale(1); }

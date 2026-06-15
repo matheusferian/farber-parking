@@ -361,13 +361,24 @@
       </div>
     </div>
     <div class="mact">
-      <button class="btnc" onclick="closeAll()">Cancel</button>
+      <button class="btnc" onclick="tryCloseAdd()">Cancel</button>
       <button class="btnp" id="saveBtnSms" onclick="saveEntry(true)" style="background:linear-gradient(135deg,#1a5c3a,#1a9e6a);border-color:var(--ok);">&#128172; Save + Text</button>
       <button class="btnp" id="saveBtn" onclick="saveEntry(false)">Save Only</button>
       <button class="btnp" id="saveBtnPrint" onclick="saveEntry(true,'both')" style="background:linear-gradient(135deg,#1a3d7c,#2a5db0);border-color:var(--gold);">🖨 Save + Print + Text</button>
     </div>
     <div id="vcfWrap" style="display:none;padding:10px 0 0;">
       <a id="vcfLink" download="" style="display:flex;align-items:center;justify-content:center;gap:8px;background:rgba(26,61,124,0.08);border:1px solid var(--navy);border-radius:10px;padding:11px 14px;font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--navy);text-decoration:none;">&#128100; Save to Contacts</a>
+    </div>
+  </div>
+</div>
+<div class="ov" id="discardOv">
+  <div class="modal" style="max-width:340px;text-align:center;border-top-color:var(--red);">
+    <div style="font-size:28px;margin-bottom:10px;">⚠️</div>
+    <h2 style="font-size:16px;margin-bottom:8px;">Unsaved passenger data detected.</h2>
+    <p class="msub" style="margin-bottom:24px;">If you leave now, all entered data will be lost.</p>
+    <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+      <button class="btnp" style="min-width:130px;" onclick="keepEditing()">Keep Editing</button>
+      <button class="btnp btn-danger" style="min-width:130px;" onclick="doDiscard()">Discard</button>
     </div>
   </div>
 </div>
@@ -1344,7 +1355,8 @@ function openAdd(){
   document.getElementById('modalSub').textContent='Add a new passenger';
   document.getElementById('fName').value='';
   document.getElementById('fPhone').value='';
-  document.getElementById('fTicket').value = getNextTicket();
+  _autoTicket = getNextTicket();
+  document.getElementById('fTicket').value = _autoTicket;
   var fRet=document.getElementById('fReturn');
   if(fRet){
     fRet.value = '';
@@ -1367,8 +1379,46 @@ function openAdd(){
   document.getElementById('addOv').classList.add('on');
   setTimeout(function(){ var n=document.getElementById('fName'); if(n) n.focus(); },100);
 }
+var _autoTicket='';
 function closeAll(){document.getElementById('addOv').classList.remove('on');document.getElementById('detOv').classList.remove('on');}
-document.querySelectorAll('.ov').forEach(function(o){o.addEventListener('click',function(e){if(e.target===e.currentTarget){if(o.id==='ratingOv')closeRating();else closeAll();}});});
+function isAddFormDirty(){
+  var fName=document.getElementById('fName');
+  var fPhone=document.getElementById('fPhone');
+  var fTicket=document.getElementById('fTicket');
+  var fReturn=document.getElementById('fReturn');
+  var fCar=document.getElementById('fCar');
+  var fColor=document.getElementById('fColor');
+  var fLoc=document.getElementById('fLoc');
+  var fStatus=document.getElementById('fStatus');
+  var fEstDate=document.getElementById('fEstDate');
+  var fObs=document.getElementById('fObs');
+  var fNotReturning=document.getElementById('fNotReturning');
+  if(fName&&fName.value.trim()) return true;
+  if(fPhone&&fPhone.value.trim()) return true;
+  if(fTicket&&fTicket.value.trim()&&fTicket.value.trim()!==_autoTicket) return true;
+  if(fReturn&&fReturn.value) return true;
+  if(fCar&&fCar.value.trim()) return true;
+  if(fColor&&fColor.value.trim()) return true;
+  if(fLoc&&fLoc.value.trim()) return true;
+  if(fStatus&&fStatus.value!=='PENDING') return true;
+  if(fEstDate&&fEstDate.value) return true;
+  if(fObs&&fObs.value.trim()) return true;
+  if(fNotReturning&&fNotReturning.checked) return true;
+  return false;
+}
+function tryCloseAdd(){
+  if(isAddFormDirty()){document.getElementById('discardOv').classList.add('on');}
+  else{closeAll();}
+}
+function keepEditing(){document.getElementById('discardOv').classList.remove('on');}
+function doDiscard(){document.getElementById('discardOv').classList.remove('on');closeAll();}
+document.addEventListener('keydown',function(e){
+  if(e.key!=='Escape') return;
+  if(document.getElementById('discardOv').classList.contains('on')){keepEditing();return;}
+  if(document.getElementById('addOv').classList.contains('on')){tryCloseAdd();return;}
+  if(document.getElementById('detOv').classList.contains('on')){closeAll();}
+});
+document.querySelectorAll('.ov').forEach(function(o){o.addEventListener('click',function(e){if(e.target===e.currentTarget){if(o.id==='ratingOv')closeRating();else if(o.id==='addOv')tryCloseAdd();else if(o.id==='discardOv')keepEditing();else closeAll();}});});
 
 function selectRating(btn){
   document.querySelectorAll('.rating-opt').forEach(function(b){b.classList.remove('selected');});
