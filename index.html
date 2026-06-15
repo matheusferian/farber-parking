@@ -71,12 +71,14 @@
     <button class="fb" data-f="overdue">Overdue</button>
 
     <button class="fb" data-f="frequent">Frequent</button>
+    <button class="fb" data-f="ARCHIVED">📦 Archived</button>
   </div>
   <div class="bulk">
     <span class="bcount" id="bcount">0 selected</span>
     <button class="bbtn del" id="bdel" onclick="bulkAct('DELIVERED')">&#10003; Delivered</button>
     <button class="bbtn nd" id="bnd" onclick="bulkAct('NO DATE')">&#128197; No Date</button>
     <button class="bbtn loc" id="bloc" onclick="openBulkLoc()">&#128663; Move Hangar</button>
+    <button class="bbtn arc" id="barc" onclick="openArchiveModal('selected')">📦 Archive Selected</button>
     <button class="bbtn clr" id="bclr" onclick="clearSel()">&#10005; Clear</button>
     <button class="bbtn dlt" id="bdlt" onclick="bulkDelete()">&#128465; Delete</button>
   </div>
@@ -382,6 +384,11 @@
     </div>
   </div>
 </div>
+<div class="ov" id="archiveOv">
+  <div class="modal" style="max-width:420px;">
+    <div id="archiveModalContent"></div>
+  </div>
+</div>
 <div class="ov" id="detOv">
   <div class="modal" id="detPanel"></div>
 </div>
@@ -425,6 +432,10 @@
   <button onclick="runDiagnostic()" style="background:linear-gradient(135deg,#1a3d7c,#2a5db0);color:#fff;border:1px solid var(--gold);border-radius:10px;padding:12px 20px;font-family:'Syne',sans-serif;font-weight:700;font-size:13px;cursor:pointer;margin-bottom:12px;">&#9654; Run Connection Test</button>
   <button onclick="runTestAppend()" style="background:linear-gradient(135deg,#1a5c3a,#1a9e6a);color:#fff;border:none;border-radius:10px;padding:12px 20px;font-family:'Syne',sans-serif;font-weight:700;font-size:13px;cursor:pointer;margin-bottom:12px;margin-left:8px;">&#128196; Test Append (writes TEST row)</button>
   <div id="diagLog" style="background:#0a0f1e;border:1px solid var(--b);border-radius:10px;padding:14px;font-family:'DM Mono',monospace;font-size:12px;color:#6fc898;min-height:120px;white-space:pre-wrap;word-break:break-all;"></div>
+  <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--b);">
+    <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:800;color:var(--mu);margin-bottom:8px;">🗄 Data Management</div>
+    <button onclick="openArchiveModal('2025')" style="background:rgba(107,114,128,0.08);border:1px solid rgba(107,114,128,0.25);color:#4B5563;border-radius:8px;padding:10px 16px;font-family:'Syne',sans-serif;font-weight:700;font-size:12px;cursor:pointer;">📦 Archive All Pending Records From 2025</button>
+  </div>
 </div>
 <script src="utils.js"></script>
 <script>
@@ -850,7 +861,9 @@ async function loadData() {
         checkout_date: r.checkout_date||r.deldate||'',
         return_flight: r.return_flight||'',
         customer_rating: r.customer_rating||'',
-        not_returning_with_makers_air: r.not_returning_with_makers_air||false
+        not_returning_with_makers_air: r.not_returning_with_makers_air||false,
+        archived_by: r.archived_by||'',
+        archived_at: r.archived_at||''
       };
     });
     render();
@@ -883,10 +896,11 @@ function getFiltered() {
   if(curFilter==='PENDING') rows=rows.filter(function(r){return r.status==='PENDING';});
   else if(curFilter==='NO DATE') rows=rows.filter(function(r){return r.status==='NO DATE';});
   else if(curFilter==='DELIVERED') rows=rows.filter(function(r){return r.status==='DELIVERED';});
-  else if(curFilter==='today') rows=rows.filter(function(r){return isToday(r.ret)&&r.status!=='DELIVERED';});
-  else if(curFilter==='tomorrow') rows=rows.filter(function(r){return isTmrw(r.ret)&&r.status!=='DELIVERED';});
-  else if(curFilter==='sunday') rows=rows.filter(function(r){return isSunday(r.ret)&&r.status!=='DELIVERED';});
-  else if(curFilter==='overdue') rows=rows.filter(function(r){return isLate(r.ret)&&r.status!=='DELIVERED';});
+  else if(curFilter==='ARCHIVED') rows=rows.filter(function(r){return r.status==='ARCHIVED';});
+  else if(curFilter==='today') rows=rows.filter(function(r){return isToday(r.ret)&&r.status!=='DELIVERED'&&r.status!=='ARCHIVED';});
+  else if(curFilter==='tomorrow') rows=rows.filter(function(r){return isTmrw(r.ret)&&r.status!=='DELIVERED'&&r.status!=='ARCHIVED';});
+  else if(curFilter==='sunday') rows=rows.filter(function(r){return isSunday(r.ret)&&r.status!=='DELIVERED'&&r.status!=='ARCHIVED';});
+  else if(curFilter==='overdue') rows=rows.filter(function(r){return isLate(r.ret)&&r.status!=='DELIVERED'&&r.status!=='ARCHIVED';});
   else if(curFilter==='frequent'){
     var cnt={};
     data.forEach(function(r){var k=r.name.toLowerCase();cnt[k]=(cnt[k]||0)+1;});
@@ -931,6 +945,7 @@ function renderStats() {
   var outToday=data.filter(function(r){return isToday(r.ret)&&r.status!=='DELIVERED';}).length;
   var outTmrw=data.filter(function(r){return isTmrw(r.ret)&&r.status!=='DELIVERED';}).length;
   var outSun=data.filter(function(r){return isSunday(r.ret)&&r.status!=='DELIVERED';}).length;
+  var arch=data.filter(function(r){return r.status==='ARCHIVED';}).length;
   var sb=document.getElementById('statsBar');
   if(sb) sb.innerHTML=
     '<div class="chip" onclick="setFilter(&apos;all&apos;)"><div class="dot" style="background:var(--navy)"></div><div><div class="num">'+total+'</div><div class="lbl">Total</div></div></div>'+
@@ -940,7 +955,8 @@ function renderStats() {
     '<div class="chip" onclick="setFilter(&apos;today&apos;)"><div class="dot" style="background:var(--acc)"></div><div><div class="num" style="color:var(--acc)">'+outToday+'</div><div class="lbl">Out Today</div></div></div>'+
     '<div class="chip" onclick="setFilter(&apos;tomorrow&apos;)"><div class="dot" style="background:var(--pur)"></div><div><div class="num" style="color:var(--pur)">'+outTmrw+'</div><div class="lbl">Out Tomorrow</div></div></div>'+
     (outSun?'<div class="chip" onclick="setFilter(&apos;sunday&apos;)"><div class="dot" style="background:#e86030"></div><div><div class="num" style="color:#e86030">'+outSun+'</div><div class="lbl">Next Sunday</div></div></div>':'')+
-    (late?'<div class="chip" onclick="setFilter(&apos;overdue&apos;)"><div class="dot" style="background:var(--red)"></div><div><div class="num" style="color:var(--red)">'+late+'</div><div class="lbl">Overdue</div></div></div>':'');
+    (late?'<div class="chip" onclick="setFilter(&apos;overdue&apos;)"><div class="dot" style="background:var(--red)"></div><div><div class="num" style="color:var(--red)">'+late+'</div><div class="lbl">Overdue</div></div></div>':'')+
+    (arch?'<div class="chip" onclick="setFilter(&apos;ARCHIVED&apos;)"><div class="dot" style="background:#6B7280"></div><div><div class="num" style="color:#6B7280">'+arch+'</div><div class="lbl">Archived</div></div></div>':'');
   var ball=document.getElementById('ball'); if(ball) ball.textContent=total;
   var bday=document.getElementById('bday');
   var todayCount=data.filter(function(r){return isToday(r.ret)&&r.status!=='DELIVERED';}).length;
@@ -973,7 +989,7 @@ function renderTable() {
     else if(rt){rc='today';rl='TODAY';}
     else if(rm){rc='tmrw';rl='TOMORROW';}
     else if(ro){rc='late';}
-    var bc=r.status==='PENDING'?'bp':r.status==='DELIVERED'?'bd':'bn';
+    var bc=r.status==='PENDING'?'bp':r.status==='DELIVERED'?'bd':r.status==='ARCHIVED'?'ba':'bn';
     var sel=selected[r.id]?true:false;
     h+='<tr class="passenger-row" data-id="'+r.id+'" style="'+(sel?'background:rgba(232,160,48,.12)':'')+';cursor:pointer">'+
       '<td class="cbtd" onclick="event.stopPropagation()"><input type="checkbox" data-id="'+r.id+'" '+(sel?'checked':'')+' onchange="rowChk(this)"></td>'+
@@ -1002,7 +1018,7 @@ function renderTable() {
 // ── RENDER DAY ─────────────────────────────────────────────────
 function renderDay() {
   var arrived=data
-    .filter(function(r){return isArrToday(r.ts);})
+    .filter(function(r){return isArrToday(r.ts)&&r.status!=='ARCHIVED';})
     .sort(function(a,b){
       var at=parseInt(String(a.ticket||'').replace(/\D/g,''),10);
       var bt=parseInt(String(b.ticket||'').replace(/\D/g,''),10);
@@ -1010,9 +1026,9 @@ function renderDay() {
       if(isNaN(bt)) bt=999999999;
       return at-bt;
     });
-  var lt=data.filter(function(r){return isToday(r.ret)&&r.status!=='DELIVERED';});
-  var lm=data.filter(function(r){return isTmrw(r.ret)&&r.status!=='DELIVERED';});
-  var ls=data.filter(function(r){return isSunday(r.ret)&&r.status!=='DELIVERED';});
+  var lt=data.filter(function(r){return isToday(r.ret)&&r.status!=='DELIVERED'&&r.status!=='ARCHIVED';});
+  var lm=data.filter(function(r){return isTmrw(r.ret)&&r.status!=='DELIVERED'&&r.status!=='ARCHIVED';});
+  var ls=data.filter(function(r){return isSunday(r.ret)&&r.status!=='DELIVERED'&&r.status!=='ARCHIVED';});
   var sun=nextSunday();
   function mkCards(list,cls,btnCls,showCustoms,showDeliver,showCheckin,showReturnFlight,isArrivedSection){
     if(!list.length) return '<div class="eday">No cars in this group</div>';
@@ -1071,6 +1087,7 @@ function renderDay() {
   var _td=getToday(); var yst=new Date(_td.getFullYear(),_td.getMonth(),_td.getDate()-1);
   var forgot=data.filter(function(r){
     if(r.status==='DELIVERED'||r.status==='NO DATE') return false;
+    if(r.status==='ARCHIVED') return false;
     var d=pd(r.ret); if(!d) return false;
     return sd(d,yst);
   });
@@ -1109,6 +1126,7 @@ function updateBulk(){
   document.getElementById('bdel').className='bbtn del'+(n>0?' on':'');
   document.getElementById('bnd').className='bbtn nd'+(n>0?' on':'');
   document.getElementById('bloc').className='bbtn loc'+(n>0?' on':'');
+  document.getElementById('barc').className='bbtn arc'+(n>0?' on':'');
   document.getElementById('bclr').className='bbtn clr'+(n>0?' on':'');
   document.getElementById('bdlt').className='bbtn dlt'+(n>0?' on':'');
   if(n===0) closeBulkLoc();
@@ -1177,6 +1195,99 @@ async function bulkMoveLoc(hangar){
   showMsg(recs.length+' car(s) moved to '+hangar, false);
   closeBulkLoc(); clearSel(); render();
 }
+
+// ── ARCHIVE ────────────────────────────────────────────────────
+var _archiveMode='',_archive2025Recs=[],_pendingArchivedBy='';
+function openArchiveModal(mode){
+  _archiveMode=mode;
+  if(mode==='selected'){
+    if(!Object.keys(selected).length) return;
+    showArchiveNameStep(Object.keys(selected).length+' record(s) selected.');
+  } else {
+    _archive2025Recs=data.filter(function(r){
+      if(r.status==='ARCHIVED') return false;
+      if(r.status!=='PENDING') return false;
+      var d=pd(r.ts); return d&&d.getFullYear()===2025;
+    });
+    showArchiveStep1_2025();
+  }
+  document.getElementById('archiveOv').classList.add('on');
+}
+function showArchiveStep1_2025(){
+  var c=_archive2025Recs.length;
+  document.getElementById('archiveModalContent').innerHTML=
+    '<h2>&#128230; Archive 2025 Records</h2>'+
+    '<p class="msub">Step 1 of 3</p>'+
+    (c>0?
+      '<div style="background:rgba(201,168,76,0.1);border:1px solid rgba(201,168,76,0.3);border-radius:10px;padding:16px;margin-bottom:20px;text-align:center;">'+
+        '<div style="font-size:32px;font-weight:800;color:var(--gold);font-family:\'Syne\',sans-serif">'+c+'</div>'+
+        '<div style="font-size:12px;color:var(--mu)">pending records from 2025 found</div>'+
+      '</div>'+
+      '<div class="mact">'+
+        '<button class="btnp" onclick="showArchiveNameStep(\'Step 2 of 3 — Enter your name.\')">Continue &#8594;</button>'+
+        '<button class="btnc" onclick="closeArchiveModal()">Cancel</button>'+
+      '</div>'
+    :
+      '<div style="text-align:center;padding:20px;color:var(--mu);font-size:13px">No pending records from 2025 found.</div>'+
+      '<div class="mact"><button class="btnc" onclick="closeArchiveModal()">Close</button></div>'
+    );
+}
+function showArchiveNameStep(subtitle){
+  var savedName=localStorage.getItem('lastArchiveName')||'';
+  document.getElementById('archiveModalContent').innerHTML=
+    '<h2>&#128230; Archive Records</h2>'+
+    '<p class="msub" style="margin-bottom:14px">'+escapeHTML(subtitle)+'</p>'+
+    '<div class="fg" style="margin-bottom:16px">'+
+      '<label>Archived By <span style="color:var(--red)">*</span></label>'+
+      '<input type="text" id="archiveByInput" value="'+escapeHTML(savedName)+'" placeholder="e.g. Matheus" '+
+        'oninput="this.value=this.value.toUpperCase()" autocomplete="off" '+
+        'style="text-transform:uppercase" onkeydown="if(event.key===\'Enter\')showArchiveConfirm()">'+
+    '</div>'+
+    '<div class="mact">'+
+      '<button class="btnp" onclick="showArchiveConfirm()">Continue &#8594;</button>'+
+      '<button class="btnc" onclick="closeArchiveModal()">Cancel</button>'+
+    '</div>';
+  setTimeout(function(){var el=document.getElementById('archiveByInput');if(el){el.focus();if(el.value)el.select();}},100);
+}
+function showArchiveConfirm(){
+  var inp=document.getElementById('archiveByInput');
+  if(!inp||!inp.value.trim()){if(inp){inp.style.borderColor='var(--red)';inp.focus();}return;}
+  _pendingArchivedBy=inp.value.trim();
+  var c=_archiveMode==='selected'?Object.keys(selected).length:_archive2025Recs.length;
+  document.getElementById('archiveModalContent').innerHTML=
+    '<h2>&#128230; Archive Records</h2>'+
+    '<p class="msub" style="margin-bottom:16px">Archive '+c+' record'+(c===1?'':'s')+'?</p>'+
+    '<div style="background:rgba(107,114,128,0.08);border:1px solid rgba(107,114,128,0.2);border-radius:10px;padding:14px;margin-bottom:20px;">'+
+      '<div style="font-size:10px;color:var(--mu);margin-bottom:4px;font-family:\'DM Mono\',monospace;text-transform:uppercase;letter-spacing:.5px">Archived By</div>'+
+      '<div style="font-size:16px;font-weight:800;color:var(--tx);font-family:\'Syne\',sans-serif;">'+escapeHTML(_pendingArchivedBy)+'</div>'+
+    '</div>'+
+    '<div class="mact">'+
+      '<button class="btnp" onclick="doArchive()">&#128230; ARCHIVE</button>'+
+      '<button class="btnc" onclick="closeArchiveModal()">Cancel</button>'+
+    '</div>';
+}
+async function doArchive(){
+  var archivedBy=_pendingArchivedBy;
+  if(!archivedBy) return;
+  var archivedAt=new Date().toLocaleString('en-US',{month:'2-digit',day:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:true});
+  var recs=_archiveMode==='selected'?data.filter(function(r){return selected[r.id];}):_archive2025Recs;
+  closeArchiveModal();
+  loading(true);
+  var upd={status:'ARCHIVED',archived_by:archivedBy,archived_at:archivedAt};
+  var results=await Promise.all(recs.map(function(r){
+    return sbUpdate(r.id,upd).then(function(){return r;}).catch(function(e){console.error(e);return null;});
+  }));
+  var ok=results.filter(Boolean);
+  ok.forEach(function(r){r.status='ARCHIVED';r.archived_by=archivedBy;r.archived_at=archivedAt;});
+  await Promise.all(ok.map(function(r){
+    return sbLog('ARCHIVED',r.name,r.ticket,r.loc,'By: '+archivedBy+' \xb7 '+archivedAt);
+  }));
+  localStorage.setItem('lastArchiveName',archivedBy);
+  loading(false);
+  showMsg(ok.length+' record(s) archived by '+archivedBy,false);
+  clearSel(); render();
+}
+function closeArchiveModal(){_pendingArchivedBy='';document.getElementById('archiveOv').classList.remove('on');}
 
 // ── TABS & FILTERS ─────────────────────────────────────────────
 document.querySelectorAll('.tab').forEach(function(t){
@@ -1415,10 +1526,11 @@ function doDiscard(){document.getElementById('discardOv').classList.remove('on')
 document.addEventListener('keydown',function(e){
   if(e.key!=='Escape') return;
   if(document.getElementById('discardOv').classList.contains('on')){keepEditing();return;}
+  if(document.getElementById('archiveOv').classList.contains('on')){closeArchiveModal();return;}
   if(document.getElementById('addOv').classList.contains('on')){tryCloseAdd();return;}
   if(document.getElementById('detOv').classList.contains('on')){closeAll();}
 });
-document.querySelectorAll('.ov').forEach(function(o){o.addEventListener('click',function(e){if(e.target===e.currentTarget){if(o.id==='ratingOv')closeRating();else if(o.id==='addOv')tryCloseAdd();else if(o.id==='discardOv')keepEditing();else closeAll();}});});
+document.querySelectorAll('.ov').forEach(function(o){o.addEventListener('click',function(e){if(e.target===e.currentTarget){if(o.id==='ratingOv')closeRating();else if(o.id==='addOv')tryCloseAdd();else if(o.id==='discardOv')keepEditing();else if(o.id==='archiveOv')closeArchiveModal();else closeAll();}});});
 
 function selectRating(btn){
   document.querySelectorAll('.rating-opt').forEach(function(b){b.classList.remove('selected');});
@@ -1600,6 +1712,12 @@ function showDet(id){
         (r.customer_rating?'<div class="di" style="grid-column:1/-1"><div class="di-l">Passenger Rating</div><div class="di-v">'+ratingBadgeHtml(r.customer_rating)+'</div></div>':'')
       :'')+
     '</div>'+histH+
+    (r.archived_by?
+      '<div style="background:rgba(107,114,128,0.08);border:1px solid rgba(107,114,128,0.25);border-radius:10px;padding:12px 14px;margin-bottom:12px;">'+
+        '<div style="font-size:11px;color:#6B7280;font-weight:700;margin-bottom:4px;font-family:\'DM Mono\',monospace;letter-spacing:.5px">📦 ARCHIVED RECORD</div>'+
+        '<div style="font-size:12px;color:var(--mu)">Archived By: <span style="font-weight:700;color:var(--tx)">'+escapeHTML(r.archived_by)+'</span></div>'+
+        '<div style="font-size:12px;color:var(--mu)">Archived At: <span style="font-weight:700;color:var(--tx)">'+escapeHTML(r.archived_at)+'</span></div>'+
+      '</div>':'')+
     (isApproxRecord(r)&&r.status!=='DELIVERED'?
       '<div style="background:rgba(201,168,76,0.1);border:1px solid rgba(201,168,76,0.4);border-radius:10px;padding:12px 14px;margin-bottom:12px">'+
         '<div style="font-size:11px;color:var(--gold);font-weight:700;margin-bottom:6px">📅 APPROXIMATE DATE — Confirm Return</div>'+
@@ -2691,7 +2809,8 @@ async function loadLogs() {
     }
     var actionColors = {
       'CHECK-IN': 'var(--ok)', 'DELIVERED': 'var(--ok)', 'LATE DELIVER': 'var(--red)',
-      'EARLY RETURN': 'var(--pur)', 'EDITED': 'var(--acc)', 'DELETED': 'var(--red)'
+      'EARLY RETURN': 'var(--pur)', 'EDITED': 'var(--acc)', 'DELETED': 'var(--red)',
+      'ARCHIVED': '#6B7280'
     };
     var html = logs.map(function(log) {
       var color = actionColors[log.action] || 'var(--mu)';
@@ -2764,7 +2883,7 @@ var taskStatus = {};
 
 function renderTasks() {
   var approxList = data.filter(function(r) {
-    return isApproxRecord(r) && r.status !== 'DELIVERED';
+    return isApproxRecord(r) && r.status !== 'DELIVERED' && r.status !== 'ARCHIVED';
   });
   var badge = document.getElementById('btasks');
   var pending = approxList.filter(function(r){ return taskStatus[r.id] !== 'done'; });
