@@ -1003,7 +1003,7 @@ function renderDay() {
   var lm=data.filter(function(r){return isTmrw(r.ret)&&r.status!=='DELIVERED';});
   var ls=data.filter(function(r){return isSunday(r.ret)&&r.status!=='DELIVERED';});
   var sun=nextSunday();
-  function mkCards(list,cls,btnCls,showCustoms,showDeliver,showCheckin,showReturnFlight){
+  function mkCards(list,cls,btnCls,showCustoms,showDeliver,showCheckin,showReturnFlight,isArrivedSection){
     if(!list.length) return '<div class="eday">No cars in this group</div>';
     return list.map(function(r){
       var isApprox=isApproxRecord(r);
@@ -1036,16 +1036,18 @@ function renderDay() {
           '<div class="dc-c">'+escapeHTML(r.car)+' · '+escapeHTML(fmtP(r.phone))+'</div>'+
           flightHtml+
         '</div>'+
-        '<div class="dc-meta"><div class="dc-tk">'+escapeHTML(r.ticket)+'</div><div class="dc-l">'+escapeHTML(r.loc)+'</div></div>'+
+        '<div class="dc-meta"><div class="dc-tk">'+escapeHTML(r.ticket)+'</div><div class="dc-l">'+(isArrivedSection&&(!r.loc||!String(r.loc).trim())?'<span class="dc-l-no-hangar">🔴 NO HANGAR</span>':escapeHTML(r.loc||''))+'</div></div>'+
         actionHtml+
       '</div>';
     }).join('');
   }
-  document.getElementById('dArrived').innerHTML=mkCards(arrived,'ca','',false,false,true,false);
+  document.getElementById('dArrived').innerHTML=mkCards(arrived,'ca','',false,false,true,false,true);
   document.getElementById('dToday').innerHTML=mkCards(lt,'ct','',true,true,false,true);
   document.getElementById('dTomorrow').innerHTML=mkCards(lm,'cm','',false,true,false,true);
   document.getElementById('dSunday').innerHTML=mkCards(ls,'cm','',false,true,false,true);
-  document.getElementById('titleArrived').innerHTML='🚗 Arrived Today <span class="tbadge" style="background:var(--ok);color:#000">'+arrived.length+'</span>';
+  var _mhc=arrived.filter(function(r){return !r.loc||!String(r.loc).trim();}).length;
+  var _mhAlert=_mhc>0?'<span class="hangar-missing-alert">🔴 '+_mhc+' MISSING HANGAR'+(_mhc===1?'':'S')+'</span>':'';
+  document.getElementById('titleArrived').innerHTML='🚗 Arrived Today <span class="tbadge" style="background:var(--ok);color:#000">'+arrived.length+'</span>'+_mhAlert;
   document.getElementById('titleToday').innerHTML='🔔 Leaving Today <span class="tbadge" style="background:var(--acc);color:#000">'+lt.length+'</span>';
   document.getElementById('titleTomorrow').innerHTML='📆 Leaving Tomorrow <span class="tbadge" style="background:var(--pur);color:#fff">'+lm.length+'</span>';
   var sunLabel=sun.toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'});
