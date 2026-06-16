@@ -526,6 +526,51 @@ body{-webkit-text-size-adjust:100%;}
     padding:5px 6px;
   }
 }
+/* ── Departure Time inline input ── */
+.departure-time-input{
+  margin-left:6px;
+  width:88px;
+  max-width:88px;
+  background:rgba(27,59,111,.06);
+  border:1px solid rgba(27,59,111,.22);
+  color:var(--navy);
+  border-radius:7px;
+  padding:5px 7px;
+  font-size:11px;
+  font-family:'DM Mono',monospace;
+  font-weight:700;
+  outline:none;
+}
+.departure-time-input:focus{
+  background:#fff;
+  border-color:var(--gold);
+}
+@media(max-width:600px){
+  .departure-time-input{
+    width:78px;
+    max-width:78px;
+    font-size:10px;
+    padding:5px 6px;
+  }
+}
+/* ── Flight Departure Tag print buttons ── */
+.qd-btn.fbprint{
+  background:var(--navy);
+  border:1px solid var(--gold);
+}
+.fb-print-all-btn{
+  background:var(--navy);
+  color:#fff;
+  border:1px solid var(--gold);
+  border-radius:8px;
+  padding:5px 10px;
+  font-family:'Syne',sans-serif;
+  font-weight:700;
+  font-size:11px;
+  cursor:pointer;
+  white-space:nowrap;
+}
+.fb-print-all-btn:hover{opacity:.88;}
 
 /* ── CUSTOMER RATING BADGE ── */
 .cr-badge{
