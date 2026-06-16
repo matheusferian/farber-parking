@@ -299,7 +299,7 @@ input[type=checkbox]{width:17px;height:17px;accent-color:var(--gold);cursor:poin
 .dcards{display:flex;flex-direction:column;gap:8px;margin-bottom:24px;}
 .dcard{
   background:var(--s);border:1px solid var(--b);
-  border-radius:12px;display:flex;align-items:stretch;
+  border-radius:12px;display:flex;flex-direction:column;
   cursor:pointer;overflow:hidden;transition:all .15s;
 }
 .dcard:hover{border-color:var(--navy);box-shadow:0 4px 16px rgba(27,59,111,0.1);}
@@ -307,25 +307,28 @@ input[type=checkbox]{width:17px;height:17px;accent-color:var(--gold);cursor:poin
 .dcard.cm{border-left:3px solid var(--pur);}
 .dcard.ca{border-left:3px solid var(--ok);}
 .dcard.cr{border-left:3px solid var(--red);}
-.dc-body{flex:1;padding:13px 14px;min-width:0;}
+.dc-top{display:flex;flex-direction:row;align-items:stretch;}
+.dc-body{flex:1;padding:11px 14px;min-width:0;}
 .dc-n{font-weight:700;font-size:14px;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--navy);}
 .dc-c{font-size:11px;color:var(--mu);}
-.dc-meta{display:flex;flex-direction:column;align-items:flex-end;justify-content:center;padding:13px 10px 13px 4px;gap:2px;flex-shrink:0;}
+.dc-meta{display:flex;flex-direction:column;align-items:flex-end;justify-content:center;padding:11px 12px 11px 4px;gap:2px;flex-shrink:0;}
 .dc-tk{font-family:'DM Mono',monospace;font-size:12px;color:var(--gold2);font-weight:600;}
 .dc-l{font-size:10px;color:var(--mu);}
 .dc-qd{
-  padding:0 10px;
   display:flex;
-  flex-direction:column;
-  justify-content:center;
-  gap:6px;
-  min-width:110px;
+  flex-direction:row;
+  flex-wrap:wrap;
+  align-items:center;
+  justify-content:flex-end;
+  gap:5px;
+  padding:7px 10px;
+  border-top:1px solid var(--b);
 }
 .qd-btn{
-  background:var(--ok);color:#fff;border:none;border-radius:7px;
-  padding:8px 10px;font-family:'Syne',sans-serif;font-weight:800;font-size:11px;
+  background:var(--ok);color:#fff;border:none;border-radius:8px;
+  padding:0 10px;font-family:'Syne',sans-serif;font-weight:800;font-size:12px;
   cursor:pointer;white-space:nowrap;transition:opacity .15s;
-  min-width:92px;height:36px;
+  height:32px;
 }
 .qd-btn:hover{opacity:.88;}
 .qd-btn.late{background:var(--red);}
@@ -336,7 +339,7 @@ input[type=checkbox]{width:17px;height:17px;accent-color:var(--gold);cursor:poin
   color:var(--ok);
   border:1px solid rgba(26,158,106,.25);
   border-radius:8px;
-  padding:8px 12px;
+  padding:6px 12px;
   font-size:10px;
   font-family:'DM Mono',monospace;
   font-weight:700;
@@ -345,12 +348,11 @@ input[type=checkbox]{width:17px;height:17px;accent-color:var(--gold);cursor:poin
   white-space:nowrap;
 }
 @media (max-width:600px){
-  .dcard{align-items:center;}
-  .dc-body{padding:10px 10px;}
-  .dc-meta{padding:10px 6px;}
-  .dc-qd{padding-right:8px;min-width:98px;}
-  .qd-btn{min-width:82px;font-size:10px;padding:7px 8px;height:32px;}
-  .checkin-badge{font-size:9px;padding:7px 10px;}
+  .dc-body{padding:9px 10px;}
+  .dc-meta{padding:9px 10px 9px 4px;}
+  .dc-qd{padding:6px 8px;gap:4px;}
+  .qd-btn{font-size:11px;padding:0 8px;height:30px;}
+  .checkin-badge{font-size:9px;padding:5px 10px;}
 }
 .eday{text-align:center;padding:18px;color:var(--mu);font-size:12px;background:var(--s);border-radius:10px;border:1px dashed var(--b);}
 
@@ -490,25 +492,28 @@ body{-webkit-text-size-adjust:100%;}
   .brand-name{font-size:16px;}
   .ref-btn{font-size:11px;padding:7px 8px;}
 }
-/* ── Return Flight inline input ── */
+/* ── Return Flight + Departure Time inline inputs ── */
 .return-flight-wrap{
   margin-top:5px;
   display:flex;
   align-items:center;
+  gap:5px;
+  flex-wrap:nowrap;
 }
 .return-flight-input{
-  width:105px;
-  max-width:105px;
+  width:82px;
+  max-width:82px;
   background:rgba(27,59,111,.06);
   border:1px solid rgba(27,59,111,.22);
   color:var(--navy);
-  border-radius:7px;
-  padding:5px 7px;
-  font-size:11px;
+  border-radius:6px;
+  padding:3px 6px;
+  font-size:10px;
   font-family:'DM Mono',monospace;
   font-weight:700;
   outline:none;
   text-transform:uppercase;
+  height:26px;
 }
 .return-flight-input:focus{
   background:#fff;
@@ -520,26 +525,25 @@ body{-webkit-text-size-adjust:100%;}
 }
 @media(max-width:600px){
   .return-flight-input{
-    width:92px;
-    max-width:92px;
+    width:72px;
+    max-width:72px;
     font-size:10px;
-    padding:5px 6px;
   }
 }
 /* ── Departure Time inline input ── */
 .departure-time-input{
-  margin-left:6px;
-  width:88px;
-  max-width:88px;
+  width:80px;
+  max-width:80px;
   background:rgba(27,59,111,.06);
   border:1px solid rgba(27,59,111,.22);
   color:var(--navy);
-  border-radius:7px;
-  padding:5px 7px;
-  font-size:11px;
+  border-radius:6px;
+  padding:3px 6px;
+  font-size:10px;
   font-family:'DM Mono',monospace;
   font-weight:700;
   outline:none;
+  height:26px;
 }
 .departure-time-input:focus{
   background:#fff;
@@ -547,16 +551,17 @@ body{-webkit-text-size-adjust:100%;}
 }
 @media(max-width:600px){
   .departure-time-input{
-    width:78px;
-    max-width:78px;
-    font-size:10px;
-    padding:5px 6px;
+    width:70px;
+    max-width:70px;
   }
 }
 /* ── Flight Departure Tag print buttons ── */
 .qd-btn.fbprint{
   background:var(--navy);
   border:1px solid var(--gold);
+  padding:0 9px;
+  font-size:15px;
+  min-width:unset;
 }
 .fb-print-all-btn{
   background:var(--navy);
