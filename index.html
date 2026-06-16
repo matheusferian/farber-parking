@@ -1133,7 +1133,7 @@ function renderDay() {
             '<button class="qd-btn '+(btnCls||'')+'" onclick="quickDeliver('+r.id+',\'NORMAL\')">✓ Deliver</button>'+
             (showCustoms?'<button class="qd-btn customs" onclick="quickDeliver('+r.id+',\'CUSTOMS\')">Customs</button>':'')+
             '<button class="qd-btn lockbox" onclick="quickDeliver('+r.id+',\'LOCKBOX\')" style="background:rgba(201,168,76,0.15);border-color:rgba(201,168,76,0.5);color:var(--gold)">🔒 Lockbox</button>'+
-            (showFlightPrint?'<button class="qd-btn fbprint" onclick="printFlightBagOne('+r.id+')">🖨 Print</button>':'')+
+            (showFlightPrint?'<button class="qd-btn fbprint" title="Print flight tag" onclick="printFlightBagOne('+r.id+')">🖨</button>':'')+
           '</div>';
       }
       var flightHtml='';
@@ -1152,12 +1152,14 @@ function renderDay() {
           '</div>';
       }
       return '<div class="dcard '+cls+(isApprox?' approx-card':'')+'" onclick="showDet('+r.id+')">'+
-        '<div class="dc-body">'+
-          '<div class="dc-n">'+escapeHTML(r.name)+(isApprox?' <span style="font-size:9px;background:rgba(201,168,76,0.2);color:var(--gold);border-radius:4px;padding:2px 5px;margin-left:4px">~APPROX</span>':'')+(r.customer_rating?ratingBadgeHtml(r.customer_rating):'')+'</div>'+
-          '<div class="dc-c">'+escapeHTML(r.car)+' · '+escapeHTML(fmtP(r.phone))+'</div>'+
-          flightHtml+
+        '<div class="dc-top">'+
+          '<div class="dc-body">'+
+            '<div class="dc-n">'+escapeHTML(r.name)+(isApprox?' <span style="font-size:9px;background:rgba(201,168,76,0.2);color:var(--gold);border-radius:4px;padding:2px 5px;margin-left:4px">~APPROX</span>':'')+(r.customer_rating?ratingBadgeHtml(r.customer_rating):'')+'</div>'+
+            '<div class="dc-c">'+escapeHTML(r.car)+' · '+escapeHTML(fmtP(r.phone))+'</div>'+
+            flightHtml+
+          '</div>'+
+          '<div class="dc-meta"><div class="dc-tk">'+escapeHTML(r.ticket)+'</div><div class="dc-l">'+(isArrivedSection&&(!r.loc||!String(r.loc).trim())?'<span class="dc-l-no-hangar">🔴 NO HANGAR</span>':escapeHTML(r.loc||''))+'</div></div>'+
         '</div>'+
-        '<div class="dc-meta"><div class="dc-tk">'+escapeHTML(r.ticket)+'</div><div class="dc-l">'+(isArrivedSection&&(!r.loc||!String(r.loc).trim())?'<span class="dc-l-no-hangar">🔴 NO HANGAR</span>':escapeHTML(r.loc||''))+'</div></div>'+
         actionHtml+
       '</div>';
     }).join('');
