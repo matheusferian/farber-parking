@@ -549,6 +549,11 @@ body{-webkit-text-size-adjust:100%;}
   background:#fff;
   border-color:var(--gold);
 }
+.departure-time-input.dep-time-invalid{
+  border-color:#c0392b;
+  background:rgba(192,57,43,.07);
+  color:#c0392b;
+}
 @media(max-width:600px){
   .departure-time-input{
     width:70px;

@@ -795,6 +795,41 @@ async function printFlightBagAll(type) {
   }
 }
 
+// ── DEPARTURE TIME MASK & VALIDATION ────────────────────────────
+function applyDepTimeMask(input) {
+  var digits = input.value.replace(/\D/g, '').slice(0, 4);
+  if (digits.length >= 3) {
+    input.value = digits.slice(0, 2) + ':' + digits.slice(2);
+  } else {
+    input.value = digits;
+  }
+  input.classList.remove('dep-time-invalid');
+}
+
+function isValidDepTime(val) {
+  if (!/^\d{2}:\d{2}$/.test(val)) return false;
+  var parts = val.split(':');
+  var h = parseInt(parts[0], 10), m = parseInt(parts[1], 10);
+  return h >= 0 && h <= 23 && m >= 0 && m <= 59;
+}
+
+function commitDepTime(input, id) {
+  var val = input.value.trim();
+  if (val === '') { saveDepartureTime(id, ''); return; }
+  // Auto-pad single-digit hour: "5:30" → "05:30"
+  if (/^\d:\d{2}$/.test(val)) val = '0' + val;
+  // Auto-insert colon if user typed 4 raw digits without mask firing
+  if (/^\d{4}$/.test(val)) val = val.slice(0,2) + ':' + val.slice(2);
+  if (!isValidDepTime(val)) {
+    input.classList.add('dep-time-invalid');
+    showMsg('Horário inválido — use HH:MM (ex: 17:30)', true);
+    return;
+  }
+  input.value = val;
+  input.classList.remove('dep-time-invalid');
+  saveDepartureTime(id, val);
+}
+
 // ── SAVE DEPARTURE TIME ──────────────────────────────────────────
 async function saveDepartureTime(id, value) {
   value = String(value || '').trim();
@@ -1146,8 +1181,12 @@ function renderDay() {
             ' onkeydown="if(event.key===\'Enter\'){this.blur()}"'+
             ' onblur="saveReturnFlight('+r.id+',this.value)"'+
             '>'+
-            '<input class="departure-time-input" type="time" value="'+escapeHTML(getDepartureTime(r))+'"'+
-            ' onchange="saveDepartureTime('+r.id+',this.value)"'+
+            '<input class="departure-time-input" type="text" inputmode="numeric"'+
+            ' value="'+escapeHTML(getDepartureTime(r))+'"'+
+            ' placeholder="HH:MM" maxlength="5"'+
+            ' oninput="applyDepTimeMask(this)"'+
+            ' onblur="commitDepTime(this,'+r.id+')"'+
+            ' onkeydown="if(event.key===\'Enter\')this.blur()"'+
             '>'+
           '</div>';
       }
