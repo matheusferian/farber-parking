@@ -711,17 +711,16 @@ function buildDashboardTicketXml(r) {
     // ── Header ──────────────────────────────────────────────────
     + '<text align="center" em="true">MAKERS AIR VALET&#10;</text>'
     + '<text align="center" em="false" font="font_b">by Farber Parking&#10;</text>'
-    + '<text align="left" font="font_a">--------------------------------&#10;</text>'
-    + '<layout type="receipt" width="576" height="900" margin-top="0" margin-bottom="0" offset-cut="0" offset-label="0"/>'
+    + '<text align="left" font="font_a">----------------&#10;</text>'
     + '<text align="center">DASHBOARD COPY&#10;</text>'
-    + '<text align="left">--------------------------------&#10;</text>'
-    // ── Ticket number (maximum size: 8x height, 6x width) ────────
+    + '<text align="left">----------------&#10;</text>'
+    // ── Ticket number (reduced width for portrait) ────────────────
     + '<text align="center">TICKET #&#10;</text>'
-    + '<text align="center" height="8" width="6">' + r.ticket + '&#10;</text>'
-    + '<text align="left" height="1" width="1">--------------------------------&#10;</text>'
-    // ── Return date (large: 6x height, 4x width) ─────────────────
+    + '<text align="center" height="8" width="4">' + r.ticket + '&#10;</text>'
+    + '<text align="left" height="1" width="1">----------------&#10;</text>'
+    // ── Return date (reduced width for portrait) ──────────────────
     + '<text align="center">RETURN&#10;</text>'
-    + '<text align="center" height="6" width="4">' + retDate + '&#10;</text>'
+    + '<text align="center" height="6" width="3">' + retDate + '&#10;</text>'
     + '<text align="left" height="1" width="1">&#10;</text>'
     + '<feed line="3"/>'
     + '<cut type="feed"/>'
