@@ -1247,7 +1247,8 @@ function renderDay() {
   titleTomorrowEl.innerHTML='<span>📆 Leaving Tomorrow <span class="tbadge" style="background:var(--pur);color:#fff">'+lm.length+'</span></span>'+
     (lm.length?'<span style="display:flex;gap:6px;align-items:center">'+
       '<button class="fb-print-all-btn" onclick="event.stopPropagation();printFlightBagAll(\'tomorrow\')">🖨 Print All</button>'+
-      '<button class="fb-print-all-btn" style="background:rgba(37,211,102,0.12);border-color:rgba(37,211,102,0.45);color:#25d366" onclick="event.stopPropagation();generateLeavingTomorrowPdf()">📲 WhatsApp PDF</button>'+
+      '<button class="fb-print-all-btn" style="background:rgba(37,211,102,0.12);border-color:rgba(37,211,102,0.45);color:#25d366" onclick="event.stopPropagation();generateLeavingTomorrowPdf()">📲 PDF</button>'+
+      '<button class="fb-print-all-btn" style="background:rgba(99,179,237,0.12);border-color:rgba(99,179,237,0.45);color:#2b7cb5" onclick="event.stopPropagation();generateLeavingTomorrowScreenshot()">📱 Screenshot</button>'+
     '</span>':'');
   var sunLabel=sun.toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'});
   var sunCount=ls.length;
@@ -2789,6 +2790,125 @@ function generateLeavingTomorrowPdf(){
     middayAlert+
     cardsHtml+
     '<div class="footer">Generated '+escapeHTML(genTime)+' \xb7 Makers Air Valet<\/div>'+
+    '<\/div><\/body><\/html>';
+
+  var w=window.open('','_blank');
+  if(w){w.document.write(html);w.document.close();}
+  else{showMsg('Pop-up blocked — allow pop-ups and try again.',true);}
+}
+
+// ── LEAVING TOMORROW SCREENSHOT VIEW ──────────────────────────
+function generateLeavingTomorrowScreenshot(){
+  var tmrw=new Date(getToday());tmrw.setDate(tmrw.getDate()+1);
+  var tmrwShort=tmrw.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+
+  var rows=sortByDepartureTime(data.filter(function(r){
+    return isTmrw(r.ret)&&r.status!=='DELIVERED'&&r.status!=='ARCHIVED';
+  }));
+  rows.sort(function(a,b){
+    var ta=getDepartureTime(a),tb=getDepartureTime(b);
+    if(ta&&!tb)return -1;if(!ta&&tb)return 1;
+    if(ta!==tb)return ta<tb?-1:1;
+    return (a.name||'').localeCompare(b.name||'');
+  });
+
+  function fmt12(t){
+    if(!t)return '';
+    var p=t.split(':'),h=parseInt(p[0],10),m=p[1]||'00';
+    return (h%12||12)+':'+m+(h>=12?' PM':' AM');
+  }
+
+  // Rush calculations
+  var etaCounts={};
+  rows.forEach(function(r){var t=getDepartureTime(r);if(t)etaCounts[t]=(etaCounts[t]||0)+1;});
+  var rushEtaSet={};
+  Object.keys(etaCounts).forEach(function(t){if(etaCounts[t]>=3)rushEtaSet[t]=true;});
+  var middayCount=rows.filter(function(r){var t=getDepartureTime(r);return t&&t>='11:00'&&t<='13:00';}).length;
+
+  var CSS=
+    '*{box-sizing:border-box;margin:0;padding:0}'+
+    'body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;background:#fff;color:#111;font-size:13px;-webkit-text-size-adjust:100%}'+
+    '.wrap{max-width:390px;margin:0 auto;padding:0}'+
+    '.hdr{background:#1a3d7c;color:#fff;padding:11px 14px 10px}'+
+    '.hdr .brand{font-size:10px;font-weight:700;letter-spacing:.8px;opacity:.75;text-transform:uppercase}'+
+    '.hdr h1{font-size:16px;font-weight:800;margin:1px 0}'+
+    '.hdr .meta{font-size:11px;opacity:.8;margin-top:1px}'+
+    '.hdr .count{font-size:26px;font-weight:800;line-height:1;margin-top:5px}'+
+    '.hdr .count-lbl{font-size:10px;opacity:.7;text-transform:uppercase;letter-spacing:.4px}'+
+    '.alert{background:#fff0f0;border-left:3px solid #e74c3c;padding:7px 12px;font-size:11.5px;font-weight:700;color:#c0392b}'+
+    '.rush-grp{background:#fff5f5;border-left:3px solid #e74c3c;padding:4px 10px;font-size:10.5px;font-weight:700;color:#c0392b;margin-top:2px}'+
+    '.section{padding:5px 10px 2px;font-size:9.5px;font-weight:700;color:#999;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid #eee}'+
+    '.row{display:grid;grid-template-columns:52px 1fr;gap:0;border-bottom:1px solid #f0f0f0;padding:7px 10px;align-items:start}'+
+    '.row.rush{background:#fff8f8}'+
+    '.eta{font-size:11px;font-weight:700;color:#1a3d7c;padding-top:1px}'+
+    '.eta.none{font-size:10px;color:#ccc;font-weight:400}'+
+    '.info{}'+
+    '.name{font-size:13px;font-weight:700;color:#111;line-height:1.2}'+
+    '.sub{font-size:10.5px;color:#666;margin-top:2px}'+
+    '.sub .ticket{font-family:monospace;color:#7a5c00}'+
+    '.sub .loc{font-weight:700;color:#1a3d7c}'+
+    '.sub .no-loc{font-weight:700;color:#c0392b}'+
+    '.asc{font-size:9px;font-weight:700;background:#e8f0fb;color:#1a5c8a;border-radius:3px;padding:1px 5px;display:inline-block;margin-left:3px;vertical-align:middle}'+
+    '.obs{font-size:10px;color:#aaa;margin-top:1px;font-style:italic;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:260px}'+
+    '.footer{padding:8px 12px;font-size:10px;color:#bbb;text-align:center;border-top:1px solid #eee}';
+
+  function rowHtml(r,isRush){
+    var eta=getDepartureTime(r);
+    var loc=r.loc&&String(r.loc).trim();
+    var locHtml=loc?'<span class="loc">'+escapeHTML(loc)+'</span>':'<span class="no-loc">NO HANGAR</span>';
+    var obs=r.obs&&String(r.obs).trim();
+    var car=r.car?escapeHTML(r.car)+(r.color?' '+escapeHTML(r.color):''):'';
+    return '<div class="row'+(isRush?' rush':'')+'">'+
+      '<div class="eta'+(eta?'':' none')+'">'+(eta?fmt12(eta):'—')+'</div>'+
+      '<div class="info">'+
+        '<div class="name">'+(isAscend(r)?'[A] ':'')+escapeHTML(r.name)+(isAscend(r)?'<span class="asc">ASCEND</span>':'')+'</div>'+
+        '<div class="sub"><span class="ticket">'+escapeHTML(r.ticket)+'</span> &nbsp;·&nbsp; '+locHtml+(car?' &nbsp;·&nbsp; '+car:'')+'</div>'+
+        (obs?'<div class="obs">'+escapeHTML(obs)+'</div>':'')+
+      '</div>'+
+    '</div>';
+  }
+
+  var withTime=rows.filter(function(r){return !!getDepartureTime(r);});
+  var noTime=rows.filter(function(r){return !getDepartureTime(r);});
+
+  // Group withTime by ETA
+  var byEta={};
+  withTime.forEach(function(r){var t=getDepartureTime(r);if(!byEta[t])byEta[t]=[];byEta[t].push(r);});
+  var etaKeys=Object.keys(byEta).sort();
+
+  var listHtml='';
+  if(withTime.length){
+    listHtml+='<div class="section">By Return ETA</div>';
+    etaKeys.forEach(function(eta){
+      var grp=byEta[eta];
+      if(rushEtaSet[eta])listHtml+='<div class="rush-grp">⚠ '+grp.length+' vehicles at '+fmt12(eta)+'</div>';
+      grp.forEach(function(r){listHtml+=rowHtml(r,!!rushEtaSet[eta]);});
+    });
+  }
+  if(noTime.length){
+    listHtml+='<div class="section">No Return ETA</div>';
+    noTime.forEach(function(r){listHtml+=rowHtml(r,false);});
+  }
+
+  var middayBanner=middayCount>2
+    ?'<div class="alert">⚠ MIDDAY RUSH: '+middayCount+' vehicles 11 AM – 1 PM</div>'
+    :'';
+
+  var genTime=new Date().toLocaleString('en-US',{hour:'numeric',minute:'2-digit',hour12:true});
+  var html='<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">'+
+    '<meta name="viewport" content="width=390,initial-scale=1,maximum-scale=1">'+
+    '<title>Tomorrow Returns<\/title>'+
+    '<style>'+CSS+'<\/style><\/head><body><div class="wrap">'+
+    '<div class="hdr">'+
+      '<div class="brand">Makers Air Valet<\/div>'+
+      '<h1>Tomorrow Returns<\/h1>'+
+      '<div class="meta">'+escapeHTML(tmrwShort)+'<\/div>'+
+      '<div class="count">'+rows.length+'<\/div>'+
+      '<div class="count-lbl">Vehicle'+(rows.length===1?'':'s')+'<\/div>'+
+    '<\/div>'+
+    middayBanner+
+    listHtml+
+    '<div class="footer">'+escapeHTML(genTime)+' \xb7 Makers Air Valet<\/div>'+
     '<\/div><\/body><\/html>';
 
   var w=window.open('','_blank');
