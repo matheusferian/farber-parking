@@ -1245,7 +1245,10 @@ function renderDay() {
   var titleTomorrowEl=document.getElementById('titleTomorrow');
   titleTomorrowEl.style.display='flex';titleTomorrowEl.style.alignItems='center';titleTomorrowEl.style.justifyContent='space-between';
   titleTomorrowEl.innerHTML='<span>📆 Leaving Tomorrow <span class="tbadge" style="background:var(--pur);color:#fff">'+lm.length+'</span></span>'+
-    (lm.length?'<button class="fb-print-all-btn" onclick="event.stopPropagation();printFlightBagAll(\'tomorrow\')">🖨 Print All</button>':'');
+    (lm.length?'<span style="display:flex;gap:6px;align-items:center">'+
+      '<button class="fb-print-all-btn" onclick="event.stopPropagation();printFlightBagAll(\'tomorrow\')">🖨 Print All</button>'+
+      '<button class="fb-print-all-btn" style="background:rgba(37,211,102,0.12);border-color:rgba(37,211,102,0.45);color:#25d366" onclick="event.stopPropagation();generateLeavingTomorrowPdf()">📲 WhatsApp PDF</button>'+
+    '</span>':'');
   var sunLabel=sun.toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'});
   var sunCount=ls.length;
   document.getElementById('titleSunday').innerHTML='📅 Returning Sunday — '+sunLabel+' <span class="tbadge" style="background:#e86030;color:#fff">'+sunCount+'</span>';
@@ -2629,6 +2632,126 @@ function generatePDF(mode) {
   genReport(type==='all_pending'?'active':type==='arriving_tomorrow'?'today':type, mode);
 }
 
+
+// ── LEAVING TOMORROW WHATSAPP PDF ─────────────────────────────
+function generateLeavingTomorrowPdf(){
+  var tmrw=new Date(getToday());tmrw.setDate(tmrw.getDate()+1);
+  var tmrwLabel=tmrw.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
+  var fileDate=tmrw.toISOString().slice(0,10);
+
+  var rows=sortByDepartureTime(data.filter(function(r){
+    return isTmrw(r.ret)&&r.status!=='DELIVERED'&&r.status!=='ARCHIVED';
+  }));
+  // within each departure-time bucket, sort by name
+  rows.sort(function(a,b){
+    var ta=getDepartureTime(a),tb=getDepartureTime(b);
+    if(ta&&!tb)return -1;if(!ta&&tb)return 1;
+    if(ta!==tb)return ta<tb?-1:1;
+    return (a.name||'').localeCompare(b.name||'');
+  });
+
+  var totalAscend=rows.filter(function(r){return isAscend(r);}).length;
+  var totalNoLoc=rows.filter(function(r){return !r.loc||!String(r.loc).trim();}).length;
+  var times=rows.map(function(r){return getDepartureTime(r);}).filter(Boolean);
+  var earliest=times.length?times[0]:'—';
+  var latest=times.length?times[times.length-1]:'—';
+
+  var CSS=
+    '*{box-sizing:border-box;margin:0;padding:0}'+
+    'body{font-family:"Segoe UI",Arial,sans-serif;background:#f0f2f8;color:#1a1a2e;font-size:13px}'+
+    '.page{max-width:720px;margin:0 auto;padding:24px 18px}'+
+    '.hdr{background:linear-gradient(135deg,#1a3d7c,#2a5db0);color:#fff;border-radius:12px;padding:22px 24px;margin-bottom:18px}'+
+    '.hdr h1{font-size:17px;font-weight:800;letter-spacing:.5px;margin-bottom:4px}'+
+    '.hdr .sub{font-size:12px;opacity:.82;margin-bottom:2px}'+
+    '.hdr .total{font-size:28px;font-weight:800;margin-top:10px;letter-spacing:-1px}'+
+    '.hdr .total-lbl{font-size:10px;opacity:.75;text-transform:uppercase;letter-spacing:.5px}'+
+    '.summary{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:18px}'+
+    '.kpi{background:#fff;border:1px solid #dde4f0;border-radius:10px;padding:13px 15px}'+
+    '.kpi .num{font-size:22px;font-weight:800;color:#1a3d7c;line-height:1}'+
+    '.kpi .lbl{font-size:10px;color:#888;margin-top:3px;text-transform:uppercase;letter-spacing:.4px}'+
+    '.kpi.warn .num{color:#c0392b}'+
+    '.kpi.asc .num{color:#2a7ab5}'+
+    '.kpi.time .num{font-size:16px;color:#5a4a00}'+
+    '.card{background:#fff;border:1px solid #dde4f0;border-radius:10px;padding:14px 15px;margin-bottom:10px;position:relative}'+
+    '.card-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px}'+
+    '.card-name{font-size:15px;font-weight:800;color:#1a1a2e}'+
+    '.card-time{font-size:13px;font-weight:700;color:#1a3d7c;background:rgba(26,61,124,.08);border-radius:6px;padding:3px 8px;white-space:nowrap}'+
+    '.card-time.none{color:#aaa;background:rgba(0,0,0,.04);font-weight:400;font-size:11px}'+
+    '.badge-asc{background:rgba(42,122,181,.12);color:#1a5c8a;border:1px solid rgba(42,122,181,.3);border-radius:5px;padding:2px 7px;font-size:10px;font-weight:700;display:inline-block;margin-left:6px}'+
+    '.card-row{font-size:12px;color:#555;margin-top:4px;display:flex;gap:6px;flex-wrap:wrap}'+
+    '.card-row span{background:#f4f6fb;border-radius:5px;padding:2px 7px;border:1px solid #e4e8f2}'+
+    '.card-row span.loc{background:rgba(26,61,124,.07);color:#1a3d7c;font-weight:700;border-color:rgba(26,61,124,.18)}'+
+    '.card-row span.no-loc{background:rgba(192,57,43,.07);color:#c0392b;font-weight:700;border-color:rgba(192,57,43,.2)}'+
+    '.card-row span.ticket{color:#7a5c00;background:rgba(201,168,76,.1);border-color:rgba(201,168,76,.3);font-family:monospace}'+
+    '.card-obs{font-size:11px;color:#888;margin-top:6px;font-style:italic}'+
+    '.section-lbl{font-size:10px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.6px;margin:18px 0 8px;padding-bottom:4px;border-bottom:1px solid #dde4f0}'+
+    '.no-print{text-align:center;margin-bottom:18px}'+
+    '.no-print button{background:#25d366;color:#fff;border:none;padding:11px 28px;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer}'+
+    '.footer{text-align:center;color:#bbb;font-size:10px;margin-top:22px;padding-top:10px;border-top:1px solid #dde4f0}'+
+    '@media print{body{background:#fff}.no-print{display:none}.page{padding:8px 4px}.card{break-inside:avoid}}';
+
+  function cardHtml(r){
+    var dep=getDepartureTime(r);
+    var loc=r.loc&&String(r.loc).trim();
+    var locHtml=loc
+      ?'<span class="loc">'+escapeHTML(loc)+'</span>'
+      :'<span class="no-loc">NO HANGAR</span>';
+    var obs=r.obs&&String(r.obs).trim();
+    return '<div class="card">'+
+      '<div class="card-top">'+
+        '<div class="card-name">'+(isAscend(r)?'[A] ':'')+escapeHTML(r.name)+(isAscend(r)?'<span class="badge-asc">ASCEND</span>':'')+'</div>'+
+        '<div class="card-time'+(dep?'':' none')+'">'+(dep?dep:'No time')+'</div>'+
+      '</div>'+
+      '<div class="card-row">'+
+        '<span class="ticket">'+escapeHTML(r.ticket)+'</span>'+
+        locHtml+
+        (r.car?'<span>'+escapeHTML(r.car)+(r.color?' · '+escapeHTML(r.color):'')+'</span>':'')+
+        (r.phone?'<span>'+escapeHTML(fmtP(r.phone))+'</span>':'')+
+      '</div>'+
+      (obs?'<div class="card-obs">'+escapeHTML(obs)+'</div>':'')+
+    '</div>';
+  }
+
+  var withTime=rows.filter(function(r){return !!getDepartureTime(r);});
+  var noTime=rows.filter(function(r){return !getDepartureTime(r);});
+
+  var cardsHtml='';
+  if(withTime.length){
+    cardsHtml+='<div class="section-lbl">By Departure Time ('+withTime.length+')</div>';
+    cardsHtml+=withTime.map(cardHtml).join('');
+  }
+  if(noTime.length){
+    cardsHtml+='<div class="section-lbl">No Departure Time ('+noTime.length+')</div>';
+    cardsHtml+=noTime.map(cardHtml).join('');
+  }
+
+  var genTime=new Date().toLocaleString('en-US');
+  var html='<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">'+
+    '<meta name="viewport" content="width=device-width,initial-scale=1">'+
+    '<title>Makers Air — Leaving Tomorrow '+fileDate+'<\/title>'+
+    '<style>'+CSS+'<\/style><\/head><body><div class="page">'+
+    '<div class="no-print"><button onclick="window.print()">📄 Save as PDF<\/button><\/div>'+
+    '<div class="hdr">'+
+      '<div class="sub">MAKERS AIR VALET — By Farber Parking<\/div>'+
+      '<h1>Leaving Tomorrow Report<\/h1>'+
+      '<div class="sub" style="margin-top:2px">'+escapeHTML(tmrwLabel)+'<\/div>'+
+      '<div class="total">'+rows.length+'<\/div>'+
+      '<div class="total-lbl">Vehicle'+(rows.length===1?'':'s')+' leaving tomorrow<\/div>'+
+    '<\/div>'+
+    '<div class="summary">'+
+      '<div class="kpi"><div class="num">'+rows.length+'<\/div><div class="lbl">Total Vehicles<\/div><\/div>'+
+      '<div class="kpi asc"><div class="num">'+totalAscend+'<\/div><div class="lbl">ASCEND / Private Flight<\/div><\/div>'+
+      '<div class="kpi'+(totalNoLoc?' warn':'')+'"><div class="num">'+totalNoLoc+'<\/div><div class="lbl">Missing Hangar<\/div><\/div>'+
+      '<div class="kpi time"><div class="num">'+earliest+(earliest!=='—'&&latest!==earliest?' – '+latest:'')+'<\/div><div class="lbl">Departure Window<\/div><\/div>'+
+    '<\/div>'+
+    cardsHtml+
+    '<div class="footer">Generated '+escapeHTML(genTime)+' · Makers Air Valet<\/div>'+
+    '<\/div><\/body><\/html>';
+
+  var w=window.open('','_blank');
+  if(w){w.document.write(html);w.document.close();}
+  else{showMsg('Pop-up blocked — allow pop-ups and try again.',true);}
+}
 
 // ── MONTHLY OPERATIONS REPORT ─────────────────────────────────
 function generateOperationsReport(){
