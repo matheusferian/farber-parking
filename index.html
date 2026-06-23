@@ -285,6 +285,16 @@
   <div class="modal">
     <h2 id="modalTitle">New Passenger</h2>
     <p class="msub" id="modalSub">Fill in passenger details</p>
+    <div class="fr full">
+      <div class="fg">
+        <label>Operation Type</label>
+        <div class="lbs">
+          <div class="ob on" onclick="selOp(this,'MAKERS')">Makers Air Valet</div>
+          <div class="ob ob-ascend" onclick="selOp(this,'ASCEND')">✈ Ascend Valet</div>
+        </div>
+        <input type="hidden" id="fOperation" value="MAKERS">
+      </div>
+    </div>
     <div class="fi" id="freqInfo"></div>
     <div class="fr two">
       <div class="fg"><label>Full Name <span style="color:var(--red)">*</span></label><div class="ac-wrap"><input type="text" id="fName" oninput="this.value=this.value.toUpperCase();chkFreq();acSearch(this.value);updateVcf()" autocomplete="off" placeholder="" style="text-transform:uppercase;width:100%"><div class="ac-drop" id="acDrop"></div></div></div>
@@ -334,7 +344,6 @@
           <div class="lb" onclick="selLoc(this,'HANGAR 16')">Hangar 16</div>
           <div class="lb" onclick="selLoc(this,'HANGAR 7')">Hangar 7</div>
           <div class="lb" onclick="selLoc(this,'HH')">HH</div>
-          <div class="lb lb-ascend" onclick="selLoc(this,'ASCEND')">✈ ASCEND</div>
         </div>
         <input type="hidden" id="fLoc">
       </div>
@@ -1523,7 +1532,7 @@ function onStatusChange(val) {
     returnField.style.opacity = '1';
   }
 }
-function isAscend(r){return !!(r&&r.loc==='ASCEND');}
+function isAscend(r){return !!(r&&String(r.ticket||'').match(/^A-/));}
 function getNextAscendTicket(){
   var today=getToday();
   var mm=String(today.getMonth()+1).padStart(2,'0');
@@ -1536,15 +1545,20 @@ function getNextAscendTicket(){
   });
   return prefix+String(max+1);
 }
+function selOp(el,op){
+  document.querySelectorAll('.ob').forEach(function(b){b.classList.remove('on');});
+  el.classList.add('on');
+  document.getElementById('fOperation').value=op;
+  var ticketEl=document.getElementById('fTicket');
+  if(ticketEl&&ticketEl.value===_autoTicket){
+    _autoTicket=(op==='ASCEND')?getNextAscendTicket():getNextTicket();
+    ticketEl.value=_autoTicket;
+  }
+}
 function selLoc(el,loc){
   document.querySelectorAll('.lb').forEach(function(b){b.classList.remove('on');});
   el.classList.add('on');
   document.getElementById('fLoc').value=loc;
-  var ticketEl=document.getElementById('fTicket');
-  if(ticketEl&&ticketEl.value===_autoTicket){
-    _autoTicket=(loc==='ASCEND')?getNextAscendTicket():getNextTicket();
-    ticketEl.value=_autoTicket;
-  }
 }
 
 // ── AUTOCOMPLETE ───────────────────────────────────────────────
@@ -1661,6 +1675,9 @@ function openAdd(){
   document.getElementById('fObs').value='';
   document.getElementById('fStatus').value='PENDING';
   onStatusChange('PENDING');
+  var fOp=document.getElementById('fOperation'); if(fOp) fOp.value='MAKERS';
+  document.querySelectorAll('.ob').forEach(function(b){b.classList.remove('on');});
+  var defOb=document.querySelector('.ob');if(defOb)defOb.classList.add('on');
   document.getElementById('freqInfo').classList.remove('on');
   var erw=document.getElementById('erWarn'); if(erw) erw.style.display='none';
   var approxRow=document.getElementById('approxRow');

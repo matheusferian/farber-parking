@@ -347,8 +347,10 @@ input[type=checkbox]{width:17px;height:17px;accent-color:var(--gold);cursor:poin
   text-transform:uppercase;
   white-space:nowrap;
 }
-.lb.lb-ascend{border-color:rgba(99,179,237,0.5);color:#63b3ed;}
-.lb.lb-ascend.on{background:rgba(99,179,237,0.18);border-color:#63b3ed;color:#63b3ed;}
+.ob{display:inline-flex;align-items:center;justify-content:center;padding:10px 16px;border-radius:10px;border:1px solid var(--b);background:var(--s2);color:var(--mu);font-family:'Syne',sans-serif;font-weight:700;font-size:13px;cursor:pointer;transition:all .15s;user-select:none;}
+.ob.on{background:rgba(26,61,124,0.18);border-color:var(--navy);color:var(--tx);}
+.ob.ob-ascend{border-color:rgba(99,179,237,0.4);color:#63b3ed;}
+.ob.ob-ascend.on{background:rgba(99,179,237,0.15);border-color:#63b3ed;color:#63b3ed;}
 .dcard.delivered-today-card{opacity:0.65;}
 .dcard.delivered-today-card:hover{opacity:0.85;}
 @media (max-width:600px){
