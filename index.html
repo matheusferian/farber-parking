@@ -679,7 +679,7 @@ function buildKeyTicketXml(r) {
     + (isAscend(r)?'<text align="center" em="true">PRIVATE FLIGHT&#10;</text>':'')
     + '<text align="left">--------------------------------&#10;</text>'
     // ── Name + Hangar + Return + Ticket ─────────────────────────
-    + '<text align="center" height="4" width="2">' + (isAscend(r) ? '&#x2708; ' : '') + (r.name || '') + '&#10;</text>'
+    + '<text align="center" height="4" width="2">' + (isAscend(r) ? '[A] ' : '') + (r.name || '') + '&#10;</text>'
     + '<text align="center" height="3" width="2">' + locDisp + '&#10;</text>'
     + '<text align="center" height="1" width="1">' + retDisp + '&#10;</text>'
     + '<text align="center" height="2" width="2">' + r.ticket + '&#10;</text>'
@@ -726,7 +726,7 @@ function buildDashboardTicketXml(r) {
     + '<text align="center">DASHBOARD COPY&#10;</text>'
     + (isAscend(r)?'<text align="center" em="true">PRIVATE FLIGHT&#10;</text>':'')
     + '<text align="left">----------------&#10;</text>'
-    + (isAscend(r)?'<text align="center" em="true">&#x2708; ' + (r.name||'') + '&#10;</text>'+'<text align="left">----------------&#10;</text>':'')
+    + ''
     // ── Ticket number (reduced width for portrait) ────────────────
     + '<text align="center">TICKET #&#10;</text>'
     + '<text align="center" height="8" width="4">' + r.ticket + '&#10;</text>'
@@ -1138,7 +1138,7 @@ function renderTable() {
     var sel=selected[r.id]?true:false;
     h+='<tr class="passenger-row" data-id="'+r.id+'" style="'+(sel?'background:rgba(232,160,48,.12)':'')+';cursor:pointer">'+
       '<td class="cbtd" onclick="event.stopPropagation()"><input type="checkbox" data-id="'+r.id+'" '+(sel?'checked':'')+' onchange="rowChk(this)"></td>'+
-      '<td style="font-weight:500">'+(isAscend(r)?'✈ ':'')+escapeHTML(r.name)+
+      '<td style="font-weight:500">'+(isAscend(r)?'[A] ':'')+escapeHTML(r.name)+
         (freq?'<span class="t-freq">x'+cnt[r.name.toLowerCase()]+'</span>':'')+
         (rt?'<span class="tag t-today">TODAY</span>':'')+
         (rm?'<span class="tag t-tmrw">TMR</span>':'')+
@@ -1220,7 +1220,7 @@ function renderDay() {
       return '<div class="dcard '+cls+(isApprox?' approx-card':'')+(r.status==='DELIVERED'&&showDeliver?' delivered-today-card':'')+'" onclick="showDet('+r.id+')">'+
         '<div class="dc-top">'+
           '<div class="dc-body">'+
-            '<div class="dc-n">'+(r.status==='DELIVERED'&&showDeliver?'<span style="text-decoration:line-through;opacity:0.6">'+(isAscend(r)?'✈ ':'')+escapeHTML(r.name)+'</span>':(isAscend(r)?'✈ ':'')+escapeHTML(r.name))+(isApprox?' <span style="font-size:9px;background:rgba(201,168,76,0.2);color:var(--gold);border-radius:4px;padding:2px 5px;margin-left:4px">~APPROX</span>':'')+(isAscend(r)?'<span style="font-size:9px;background:rgba(99,179,237,0.18);color:#63b3ed;border-radius:4px;padding:2px 5px;margin-left:4px;font-family:\'DM Mono\',monospace">✈ ASCEND</span>':'')+(r.customer_rating?ratingBadgeHtml(r.customer_rating):'')+'</div>'+
+            '<div class="dc-n">'+(r.status==='DELIVERED'&&showDeliver?'<span style="text-decoration:line-through;opacity:0.6">'+(isAscend(r)?'[A] ':'')+escapeHTML(r.name)+'</span>':(isAscend(r)?'[A] ':'')+escapeHTML(r.name))+(isApprox?' <span style="font-size:9px;background:rgba(201,168,76,0.2);color:var(--gold);border-radius:4px;padding:2px 5px;margin-left:4px">~APPROX</span>':'')+(isAscend(r)?'<span style="font-size:9px;background:rgba(99,179,237,0.18);color:#63b3ed;border-radius:4px;padding:2px 5px;margin-left:4px;font-family:\'DM Mono\',monospace">✈ ASCEND</span>':'')+(r.customer_rating?ratingBadgeHtml(r.customer_rating):'')+'</div>'+
             '<div class="dc-c">'+escapeHTML(r.car)+' · '+escapeHTML(fmtP(r.phone))+'</div>'+
             flightHtml+
           '</div>'+
