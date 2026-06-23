@@ -674,16 +674,16 @@ function buildKeyTicketXml(r) {
     // ── Header ──────────────────────────────────────────────────
     + '<text align="center" em="true">'+(isAscend(r)?'ASCEND':'MAKERS AIR VALET')+'&#10;</text>'
     + '<text align="center" em="false" font="font_b">by Farber Parking&#10;</text>'
-    + '<text align="left" font="font_a">--------------------------------&#10;</text>'
+    + '<text align="center" font="font_a">------------------------&#10;</text>'
     + '<text align="center">KEY COPY / INTERNAL&#10;</text>'
     + (isAscend(r)?'<text align="center" em="true">PRIVATE FLIGHT&#10;</text>':'')
-    + '<text align="left">--------------------------------&#10;</text>'
+    + '<text align="center">------------------------&#10;</text>'
     // ── Name + Hangar + Return + Ticket ─────────────────────────
     + '<text align="center" height="4" width="2">' + (isAscend(r) ? '[A] ' : '') + (r.name || '') + '&#10;</text>'
     + '<text align="center" height="3" width="2">' + locDisp + '&#10;</text>'
-    + '<text align="center" height="1" width="1">' + retDisp + '&#10;</text>'
+    + '<text align="center" height="2" width="1">' + retDisp + '&#10;</text>'
     + '<text align="center" height="2" width="2">' + r.ticket + '&#10;</text>'
-    + '<text align="left">--------------------------------&#10;</text>'
+    + '<text align="center">------------------------&#10;</text>'
     // ── Fields ──────────────────────────────────────────────────
     + '<text font="font_b">PHONE: ' + phoneDisp + '&#10;</text>'
     + '<text font="font_b">' + (carDisp || '') + ' / ' + (colorDisp || '') + '&#10;</text>'
@@ -692,7 +692,7 @@ function buildKeyTicketXml(r) {
         + '<text align="center" em="true">NOT RETURNING WITH MAKERS AIR&#10;</text>'
         + '<text>Confirm return details before&#10;</text>'
         + '<text>staging vehicle.&#10;</text>'
-        + '<text>--------------------------------&#10;</text>'
+        + '<text align="center">------------------------&#10;</text>'
       : '')
     // ── OBS ──────────────────────────────────────────────────────
     + '<text font="font_b">OBS&#10;</text>'
