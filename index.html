@@ -2642,7 +2642,6 @@ function generateLeavingTomorrowPdf(){
   var rows=sortByDepartureTime(data.filter(function(r){
     return isTmrw(r.ret)&&r.status!=='DELIVERED'&&r.status!=='ARCHIVED';
   }));
-  // within each departure-time bucket, sort by name
   rows.sort(function(a,b){
     var ta=getDepartureTime(a),tb=getDepartureTime(b);
     if(ta&&!tb)return -1;if(!ta&&tb)return 1;
@@ -2650,80 +2649,123 @@ function generateLeavingTomorrowPdf(){
     return (a.name||'').localeCompare(b.name||'');
   });
 
+  // ── Stats ────────────────────────────────────────────────────
   var totalAscend=rows.filter(function(r){return isAscend(r);}).length;
   var totalNoLoc=rows.filter(function(r){return !r.loc||!String(r.loc).trim();}).length;
   var times=rows.map(function(r){return getDepartureTime(r);}).filter(Boolean);
   var earliest=times.length?times[0]:'—';
   var latest=times.length?times[times.length-1]:'—';
 
+  // ── Rush alert calculations ───────────────────────────────────
+  function fmt12(t){
+    if(!t)return '';
+    var p=t.split(':'),h=parseInt(p[0],10),m=p[1]||'00';
+    var ap=h>=12?'PM':'AM';h=h%12||12;
+    return h+':'+m+' '+ap;
+  }
+  // Count per ETA
+  var etaCounts={};
+  rows.forEach(function(r){var t=getDepartureTime(r);if(t)etaCounts[t]=(etaCounts[t]||0)+1;});
+  var rushEtaSet={};
+  Object.keys(etaCounts).forEach(function(t){if(etaCounts[t]>=3)rushEtaSet[t]=true;});
+  // Midday: 11:00–13:00
+  var middayCount=rows.filter(function(r){var t=getDepartureTime(r);return t&&t>='11:00'&&t<='13:00';}).length;
+
+  // ── CSS ──────────────────────────────────────────────────────
   var CSS=
     '*{box-sizing:border-box;margin:0;padding:0}'+
     'body{font-family:"Segoe UI",Arial,sans-serif;background:#f0f2f8;color:#1a1a2e;font-size:13px}'+
-    '.page{max-width:720px;margin:0 auto;padding:24px 18px}'+
-    '.hdr{background:linear-gradient(135deg,#1a3d7c,#2a5db0);color:#fff;border-radius:12px;padding:22px 24px;margin-bottom:18px}'+
-    '.hdr h1{font-size:17px;font-weight:800;letter-spacing:.5px;margin-bottom:4px}'+
-    '.hdr .sub{font-size:12px;opacity:.82;margin-bottom:2px}'+
-    '.hdr .total{font-size:28px;font-weight:800;margin-top:10px;letter-spacing:-1px}'+
-    '.hdr .total-lbl{font-size:10px;opacity:.75;text-transform:uppercase;letter-spacing:.5px}'+
-    '.summary{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:18px}'+
-    '.kpi{background:#fff;border:1px solid #dde4f0;border-radius:10px;padding:13px 15px}'+
-    '.kpi .num{font-size:22px;font-weight:800;color:#1a3d7c;line-height:1}'+
-    '.kpi .lbl{font-size:10px;color:#888;margin-top:3px;text-transform:uppercase;letter-spacing:.4px}'+
-    '.kpi.warn .num{color:#c0392b}'+
+    '.page{max-width:600px;margin:0 auto;padding:16px 12px}'+
+    '.hdr{background:linear-gradient(135deg,#1a3d7c,#2a5db0);color:#fff;border-radius:10px;padding:16px 18px;margin-bottom:12px}'+
+    '.hdr h1{font-size:16px;font-weight:800;letter-spacing:.4px;margin-bottom:2px}'+
+    '.hdr .sub{font-size:11px;opacity:.8}'+
+    '.hdr .total{font-size:30px;font-weight:800;margin-top:8px;letter-spacing:-1px;line-height:1}'+
+    '.hdr .total-lbl{font-size:10px;opacity:.72;text-transform:uppercase;letter-spacing:.4px}'+
+    '.summary{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:10px}'+
+    '.kpi{background:#fff;border:1px solid #dde4f0;border-radius:8px;padding:10px 12px}'+
+    '.kpi .num{font-size:20px;font-weight:800;color:#1a3d7c;line-height:1}'+
+    '.kpi .lbl{font-size:9.5px;color:#888;margin-top:2px;text-transform:uppercase;letter-spacing:.4px}'+
+    '.kpi.warn .num{color:#c0392b}.kpi.warn{border-color:rgba(192,57,43,.25)}'+
     '.kpi.asc .num{color:#2a7ab5}'+
-    '.kpi.time .num{font-size:16px;color:#5a4a00}'+
-    '.card{background:#fff;border:1px solid #dde4f0;border-radius:10px;padding:14px 15px;margin-bottom:10px;position:relative}'+
-    '.card-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px}'+
-    '.card-name{font-size:15px;font-weight:800;color:#1a1a2e}'+
-    '.card-time{font-size:13px;font-weight:700;color:#1a3d7c;background:rgba(26,61,124,.08);border-radius:6px;padding:3px 8px;white-space:nowrap}'+
-    '.card-time.none{color:#aaa;background:rgba(0,0,0,.04);font-weight:400;font-size:11px}'+
-    '.badge-asc{background:rgba(42,122,181,.12);color:#1a5c8a;border:1px solid rgba(42,122,181,.3);border-radius:5px;padding:2px 7px;font-size:10px;font-weight:700;display:inline-block;margin-left:6px}'+
-    '.card-row{font-size:12px;color:#555;margin-top:4px;display:flex;gap:6px;flex-wrap:wrap}'+
-    '.card-row span{background:#f4f6fb;border-radius:5px;padding:2px 7px;border:1px solid #e4e8f2}'+
-    '.card-row span.loc{background:rgba(26,61,124,.07);color:#1a3d7c;font-weight:700;border-color:rgba(26,61,124,.18)}'+
-    '.card-row span.no-loc{background:rgba(192,57,43,.07);color:#c0392b;font-weight:700;border-color:rgba(192,57,43,.2)}'+
-    '.card-row span.ticket{color:#7a5c00;background:rgba(201,168,76,.1);border-color:rgba(201,168,76,.3);font-family:monospace}'+
-    '.card-obs{font-size:11px;color:#888;margin-top:6px;font-style:italic}'+
-    '.section-lbl{font-size:10px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.6px;margin:18px 0 8px;padding-bottom:4px;border-bottom:1px solid #dde4f0}'+
-    '.no-print{text-align:center;margin-bottom:18px}'+
-    '.no-print button{background:#25d366;color:#fff;border:none;padding:11px 28px;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer}'+
-    '.footer{text-align:center;color:#bbb;font-size:10px;margin-top:22px;padding-top:10px;border-top:1px solid #dde4f0}'+
-    '@media print{body{background:#fff}.no-print{display:none}.page{padding:8px 4px}.card{break-inside:avoid}}';
+    '.kpi.time .num{font-size:13px;color:#5a4a00}'+
+    '.alert-midday{background:#fff0f0;border:1.5px solid #e74c3c;border-radius:8px;padding:9px 12px;margin-bottom:10px;font-size:12px;font-weight:700;color:#c0392b}'+
+    '.section-lbl{font-size:9.5px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.6px;margin:12px 0 6px;padding-bottom:3px;border-bottom:1px solid #dde4f0}'+
+    '.rush-lbl{font-size:11px;font-weight:700;color:#c0392b;background:rgba(192,57,43,.07);border:1px solid rgba(192,57,43,.2);border-radius:6px;padding:4px 10px;margin:6px 0 4px;display:inline-block}'+
+    '.card{background:#fff;border:1px solid #dde4f0;border-radius:8px;padding:10px 12px;margin-bottom:7px}'+
+    '.card.rush{border-color:rgba(192,57,43,.35);border-left:3px solid #e74c3c}'+
+    '.card-main{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}'+
+    '.card-name{font-size:14px;font-weight:800;color:#1a1a2e;line-height:1.2}'+
+    '.card-eta{font-size:12px;font-weight:700;color:#1a3d7c;background:rgba(26,61,124,.09);border-radius:5px;padding:2px 7px;white-space:nowrap;flex-shrink:0}'+
+    '.card-eta.none{color:#bbb;background:rgba(0,0,0,.04);font-weight:400;font-size:10px}'+
+    '.card-ops{display:flex;gap:5px;flex-wrap:wrap;margin-top:5px}'+
+    '.card-ops span{border-radius:5px;padding:2px 6px;font-size:11px;border:1px solid #e4e8f2;background:#f4f6fb;color:#555}'+
+    '.card-ops span.loc{background:rgba(26,61,124,.07);color:#1a3d7c;font-weight:700;border-color:rgba(26,61,124,.18)}'+
+    '.card-ops span.no-loc{background:rgba(192,57,43,.07);color:#c0392b;font-weight:700;border-color:rgba(192,57,43,.2)}'+
+    '.card-ops span.ticket{color:#7a5c00;background:rgba(201,168,76,.1);border-color:rgba(201,168,76,.3);font-family:monospace;font-size:10.5px}'+
+    '.card-ops span.asc-badge{background:rgba(42,122,181,.1);color:#1a5c8a;border-color:rgba(42,122,181,.28);font-weight:700}'+
+    '.card-secondary{font-size:10.5px;color:#999;margin-top:4px}'+
+    '.card-obs{font-size:10px;color:#aaa;margin-top:3px;font-style:italic}'+
+    '.no-print{text-align:center;margin-bottom:12px}'+
+    '.no-print button{background:#25d366;color:#fff;border:none;padding:10px 26px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer}'+
+    '.footer{text-align:center;color:#bbb;font-size:9.5px;margin-top:16px;padding-top:8px;border-top:1px solid #dde4f0}'+
+    '@media print{body{background:#fff}.no-print{display:none}.page{padding:6px 4px;max-width:100%}.card{break-inside:avoid}}';
 
-  function cardHtml(r){
-    var dep=getDepartureTime(r);
+  // ── Card builder ─────────────────────────────────────────────
+  function cardHtml(r,isRush){
+    var eta=getDepartureTime(r);
     var loc=r.loc&&String(r.loc).trim();
-    var locHtml=loc
-      ?'<span class="loc">'+escapeHTML(loc)+'</span>'
-      :'<span class="no-loc">NO HANGAR</span>';
+    var locHtml=loc?'<span class="loc">'+escapeHTML(loc)+'</span>':'<span class="no-loc">NO HANGAR</span>';
     var obs=r.obs&&String(r.obs).trim();
-    return '<div class="card">'+
-      '<div class="card-top">'+
-        '<div class="card-name">'+(isAscend(r)?'[A] ':'')+escapeHTML(r.name)+(isAscend(r)?'<span class="badge-asc">ASCEND</span>':'')+'</div>'+
-        '<div class="card-time'+(dep?'':' none')+'">'+(dep?dep:'No time')+'</div>'+
+    var secondary=[];
+    if(r.car)secondary.push(escapeHTML(r.car)+(r.color?' · '+escapeHTML(r.color):''));
+    if(r.phone)secondary.push(escapeHTML(fmtP(r.phone)));
+    return '<div class="card'+(isRush?' rush':'')+'">'+
+      '<div class="card-main">'+
+        '<div class="card-name">'+(isAscend(r)?'[A] ':'')+escapeHTML(r.name)+'</div>'+
+        '<div class="card-eta'+(eta?'':' none')+'">'+(eta?fmt12(eta):'No ETA')+'</div>'+
       '</div>'+
-      '<div class="card-row">'+
+      '<div class="card-ops">'+
         '<span class="ticket">'+escapeHTML(r.ticket)+'</span>'+
         locHtml+
-        (r.car?'<span>'+escapeHTML(r.car)+(r.color?' · '+escapeHTML(r.color):'')+'</span>':'')+
-        (r.phone?'<span>'+escapeHTML(fmtP(r.phone))+'</span>':'')+
+        (isAscend(r)?'<span class="asc-badge">ASCEND</span>':'')+
       '</div>'+
+      (secondary.length?'<div class="card-secondary">'+secondary.join(' &nbsp;·&nbsp; ')+'</div>':'')+
       (obs?'<div class="card-obs">'+escapeHTML(obs)+'</div>':'')+
     '</div>';
   }
 
+  // ── Build card sections ───────────────────────────────────────
   var withTime=rows.filter(function(r){return !!getDepartureTime(r);});
   var noTime=rows.filter(function(r){return !getDepartureTime(r);});
 
+  // Group withTime by ETA
+  var byEta={};
+  withTime.forEach(function(r){var t=getDepartureTime(r);if(!byEta[t])byEta[t]=[];byEta[t].push(r);});
+  var etaKeys=Object.keys(byEta).sort();
+
   var cardsHtml='';
   if(withTime.length){
-    cardsHtml+='<div class="section-lbl">By Departure Time ('+withTime.length+')</div>';
-    cardsHtml+=withTime.map(cardHtml).join('');
+    cardsHtml+='<div class="section-lbl">By Return ETA ('+withTime.length+')</div>';
+    etaKeys.forEach(function(eta){
+      var grp=byEta[eta];
+      if(rushEtaSet[eta]){
+        cardsHtml+='<div class="rush-lbl">⚠ '+grp.length+' VEHICLES AT '+fmt12(eta)+'</div>';
+      }
+      grp.forEach(function(r){cardsHtml+=cardHtml(r,!!rushEtaSet[eta]);});
+    });
   }
   if(noTime.length){
-    cardsHtml+='<div class="section-lbl">No Departure Time ('+noTime.length+')</div>';
-    cardsHtml+=noTime.map(cardHtml).join('');
+    cardsHtml+='<div class="section-lbl">No Return ETA ('+noTime.length+')</div>';
+    noTime.forEach(function(r){cardsHtml+=cardHtml(r,false);});
   }
+
+  // ── Midday rush alert banner (shown above cards) ──────────────
+  var middayAlert=middayCount>2
+    ?'<div class="alert-midday">⚠ MIDDAY RUSH: '+middayCount+' vehicles between 11:00 AM and 1:00 PM</div>'
+    :'';
+
+  // ── Return ETA window display ─────────────────────────────────
+  var etaWindow=earliest==='—'?'—':(fmt12(earliest)+(latest!==earliest&&latest!=='—'?' – '+fmt12(latest):''));
 
   var genTime=new Date().toLocaleString('en-US');
   var html='<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">'+
@@ -2734,18 +2776,19 @@ function generateLeavingTomorrowPdf(){
     '<div class="hdr">'+
       '<div class="sub">MAKERS AIR VALET — By Farber Parking<\/div>'+
       '<h1>Leaving Tomorrow Report<\/h1>'+
-      '<div class="sub" style="margin-top:2px">'+escapeHTML(tmrwLabel)+'<\/div>'+
+      '<div class="sub" style="margin-top:1px">'+escapeHTML(tmrwLabel)+'<\/div>'+
       '<div class="total">'+rows.length+'<\/div>'+
       '<div class="total-lbl">Vehicle'+(rows.length===1?'':'s')+' leaving tomorrow<\/div>'+
     '<\/div>'+
     '<div class="summary">'+
       '<div class="kpi"><div class="num">'+rows.length+'<\/div><div class="lbl">Total Vehicles<\/div><\/div>'+
-      '<div class="kpi asc"><div class="num">'+totalAscend+'<\/div><div class="lbl">ASCEND / Private Flight<\/div><\/div>'+
+      '<div class="kpi asc"><div class="num">'+totalAscend+'<\/div><div class="lbl">ASCEND \/ Private Flight<\/div><\/div>'+
       '<div class="kpi'+(totalNoLoc?' warn':'')+'"><div class="num">'+totalNoLoc+'<\/div><div class="lbl">Missing Hangar<\/div><\/div>'+
-      '<div class="kpi time"><div class="num">'+earliest+(earliest!=='—'&&latest!==earliest?' – '+latest:'')+'<\/div><div class="lbl">Departure Window<\/div><\/div>'+
+      '<div class="kpi time"><div class="num">'+escapeHTML(etaWindow)+'<\/div><div class="lbl">Return ETA Window<\/div><\/div>'+
     '<\/div>'+
+    middayAlert+
     cardsHtml+
-    '<div class="footer">Generated '+escapeHTML(genTime)+' · Makers Air Valet<\/div>'+
+    '<div class="footer">Generated '+escapeHTML(genTime)+' \xb7 Makers Air Valet<\/div>'+
     '<\/div><\/body><\/html>';
 
   var w=window.open('','_blank');
