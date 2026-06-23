@@ -1151,7 +1151,7 @@ function renderDay() {
       if(isNaN(bt)) bt=999999999;
       return at-bt;
     });
-  var lt=sortByDepartureTime(data.filter(function(r){return isToday(r.ret)&&r.status!=='ARCHIVED';}));
+  var lt=(function(){var base=sortByDepartureTime(data.filter(function(r){return isToday(r.ret)&&r.status!=='ARCHIVED';}));return base.filter(function(r){return r.status!=='DELIVERED';}).concat(base.filter(function(r){return r.status==='DELIVERED';}));})();
   var lm=sortByDepartureTime(data.filter(function(r){return isTmrw(r.ret)&&r.status!=='DELIVERED'&&r.status!=='ARCHIVED';}));
   var ls=data.filter(function(r){return isSunday(r.ret)&&r.status!=='DELIVERED'&&r.status!=='ARCHIVED';});
   var sun=nextSunday();
