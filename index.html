@@ -292,7 +292,7 @@
     </div>
     <div id="erWarn" class="er-warn" style="display:none;">⚠️ HEADS UP: This passenger had an Early Return before. Confirm the return date carefully.</div>
     <div class="fr two">
-      <div class="fg"><label>Ticket # <span style="color:var(--red)">*</span></label><input type="tel" inputmode="numeric" pattern="[0-9]*" id="fTicket" placeholder=""></div>
+      <div class="fg"><label>Ticket # <span style="color:var(--red)">*</span></label><input type="text" id="fTicket" placeholder="" autocomplete="off" style="font-family:'DM Mono',monospace"></div>
       <div class="fg"><label>Return Date <span style="color:var(--red)" id="retRequired">*</span></label>
         <input type="date" id="fReturn" style="width:100%;background:var(--s2);border:1px solid var(--b);border-radius:10px;padding:11px 14px;font-size:16px;color:var(--tx);outline:none;font-family:'Syne',sans-serif;box-sizing:border-box;">
       </div>
@@ -334,6 +334,7 @@
           <div class="lb" onclick="selLoc(this,'HANGAR 16')">Hangar 16</div>
           <div class="lb" onclick="selLoc(this,'HANGAR 7')">Hangar 7</div>
           <div class="lb" onclick="selLoc(this,'HH')">HH</div>
+          <div class="lb lb-ascend" onclick="selLoc(this,'ASCEND')">✈ ASCEND</div>
         </div>
         <input type="hidden" id="fLoc">
       </div>
@@ -662,10 +663,11 @@ function buildKeyTicketXml(r) {
     + '<s:Body>'
     + '<epos-print xmlns="http://www.epson-pos.com/schemas/2011/03/epos-print">'
     // ── Header ──────────────────────────────────────────────────
-    + '<text align="center" em="true">MAKERS AIR VALET&#10;</text>'
+    + '<text align="center" em="true">'+(isAscend(r)?'ASCEND':'MAKERS AIR VALET')+'&#10;</text>'
     + '<text align="center" em="false" font="font_b">by Farber Parking&#10;</text>'
     + '<text align="left" font="font_a">--------------------------------&#10;</text>'
     + '<text align="center">KEY COPY / INTERNAL&#10;</text>'
+    + (isAscend(r)?'<text align="center" em="true">PRIVATE FLIGHT&#10;</text>':'')
     + '<text align="left">--------------------------------&#10;</text>'
     // ── Name + Hangar + Return + Ticket ─────────────────────────
     + '<text align="center" height="4" width="2">' + (r.name || '') + '&#10;</text>'
@@ -709,10 +711,11 @@ function buildDashboardTicketXml(r) {
     + '<s:Body>'
     + '<epos-print xmlns="http://www.epson-pos.com/schemas/2011/03/epos-print">'
     // ── Header ──────────────────────────────────────────────────
-    + '<text align="center" em="true">MAKERS AIR VALET&#10;</text>'
+    + '<text align="center" em="true">'+(isAscend(r)?'ASCEND':'MAKERS AIR VALET')+'&#10;</text>'
     + '<text align="center" em="false" font="font_b">by Farber Parking&#10;</text>'
     + '<text align="left" font="font_a">----------------&#10;</text>'
     + '<text align="center">DASHBOARD COPY&#10;</text>'
+    + (isAscend(r)?'<text align="center" em="true">PRIVATE FLIGHT&#10;</text>':'')
     + '<text align="left">----------------&#10;</text>'
     // ── Ticket number (reduced width for portrait) ────────────────
     + '<text align="center">TICKET #&#10;</text>'
@@ -854,6 +857,13 @@ async function saveDepartureTime(id, value) {
 }
 
 // ── PRINT FUNCTIONS ────────────────────────────────────────────
+async function printCustomerCopyForRecord(r){
+  if(isAscend(r)){
+    if(!confirm('ASCEND check-in normally does not need a customer copy. Print anyway?')) return;
+  }
+  return printCustomerTicket(r);
+}
+
 async function printCustomerTicket(r) {
   return epsonSend(buildCustomerTicketXml(r), 'Customer');
 }
@@ -1123,7 +1133,8 @@ function renderTable() {
         (rt?'<span class="tag t-today">TODAY</span>':'')+
         (rm?'<span class="tag t-tmrw">TMR</span>':'')+
         (ro&&r.status!=='DELIVERED'?'<span class="tag t-late">LATE</span>':'')+
-        (isApproxRecord(r)?'<span class="tag" style="background:rgba(201,168,76,0.15);color:var(--gold)">~APPROX</span>':'')+'</td>'+
+        (isApproxRecord(r)?'<span class="tag" style="background:rgba(201,168,76,0.15);color:var(--gold)">~APPROX</span>':'')+
+        (isAscend(r)?'<span class="tag" style="background:rgba(99,179,237,0.15);color:#63b3ed">✈ ASCEND</span>':'')+'</td>'+
       '<td style="font-family:monospace;font-size:12px;color:var(--mu)">'+escapeHTML(fmtP(r.phone))+'</td>'+
       '<td style="font-family:monospace;font-size:12px;color:var(--gold)">'+escapeHTML(r.ticket)+'</td>'+
       '<td style="font-size:12px;color:var(--mu)">'+escapeHTML(r.car)+'</td>'+
@@ -1199,7 +1210,7 @@ function renderDay() {
       return '<div class="dcard '+cls+(isApprox?' approx-card':'')+(r.status==='DELIVERED'&&showDeliver?' delivered-today-card':'')+'" onclick="showDet('+r.id+')">'+
         '<div class="dc-top">'+
           '<div class="dc-body">'+
-            '<div class="dc-n">'+(r.status==='DELIVERED'&&showDeliver?'<span style="text-decoration:line-through;opacity:0.6">'+escapeHTML(r.name)+'</span>':escapeHTML(r.name))+(isApprox?' <span style="font-size:9px;background:rgba(201,168,76,0.2);color:var(--gold);border-radius:4px;padding:2px 5px;margin-left:4px">~APPROX</span>':'')+(r.customer_rating?ratingBadgeHtml(r.customer_rating):'')+'</div>'+
+            '<div class="dc-n">'+(r.status==='DELIVERED'&&showDeliver?'<span style="text-decoration:line-through;opacity:0.6">'+escapeHTML(r.name)+'</span>':escapeHTML(r.name))+(isApprox?' <span style="font-size:9px;background:rgba(201,168,76,0.2);color:var(--gold);border-radius:4px;padding:2px 5px;margin-left:4px">~APPROX</span>':'')+(isAscend(r)?'<span style="font-size:9px;background:rgba(99,179,237,0.18);color:#63b3ed;border-radius:4px;padding:2px 5px;margin-left:4px;font-family:\'DM Mono\',monospace">✈ ASCEND</span>':'')+(r.customer_rating?ratingBadgeHtml(r.customer_rating):'')+'</div>'+
             '<div class="dc-c">'+escapeHTML(r.car)+' · '+escapeHTML(fmtP(r.phone))+'</div>'+
             flightHtml+
           '</div>'+
@@ -1512,7 +1523,29 @@ function onStatusChange(val) {
     returnField.style.opacity = '1';
   }
 }
-function selLoc(el,loc){document.querySelectorAll('.lb').forEach(function(b){b.classList.remove('on');});el.classList.add('on');document.getElementById('fLoc').value=loc;}
+function isAscend(r){return !!(r&&r.loc==='ASCEND');}
+function getNextAscendTicket(){
+  var today=getToday();
+  var mm=String(today.getMonth()+1).padStart(2,'0');
+  var dd=String(today.getDate()).padStart(2,'0');
+  var prefix='A-'+mm+dd+'-';
+  var max=0;
+  data.forEach(function(r){
+    var t=String(r.ticket||'');
+    if(t.indexOf(prefix)===0){var n=parseInt(t.slice(prefix.length),10);if(!isNaN(n)&&n>max)max=n;}
+  });
+  return prefix+String(max+1);
+}
+function selLoc(el,loc){
+  document.querySelectorAll('.lb').forEach(function(b){b.classList.remove('on');});
+  el.classList.add('on');
+  document.getElementById('fLoc').value=loc;
+  var ticketEl=document.getElementById('fTicket');
+  if(ticketEl&&ticketEl.value===_autoTicket){
+    _autoTicket=(loc==='ASCEND')?getNextAscendTicket():getNextTicket();
+    ticketEl.value=_autoTicket;
+  }
+}
 
 // ── AUTOCOMPLETE ───────────────────────────────────────────────
 function acSearch(q){
@@ -1694,7 +1727,8 @@ function closeRating(){document.getElementById('ratingOv').classList.remove('on'
 
 // ── WELCOME SMS ────────────────────────────────────────────────
 function buildWelcomeSms(r) {
-  var body = 'Welcome to Makers Air Valet!\n\nYour vehicle has been successfully checked in.\n\nTicket #: ' + r.ticket + '\n\nPlease keep this ticket number for reference.';
+  var brand = isAscend(r) ? 'Ascend Valet' : 'Makers Air Valet';
+  var body = 'Welcome to ' + brand + '!\n\nYour vehicle has been successfully checked in.\n\nTicket #: ' + r.ticket + '\n\nPlease keep this ticket number for reference.';
   if (r.not_returning_with_makers_air) {
     body += '\n\nNOTE:\n\nYou informed us that you will not be returning with Makers Air.\n\nIf this information changes, please reply to this message.';
   }
@@ -1792,14 +1826,14 @@ async function saveEntry(sendSms, printMode){
       var savedRec={ticket:ticket,name:name.toUpperCase(),phone:phoneFull,
                     ret:finalDate,car:carVal,color:colorVal,loc:locVal,
                     not_returning_with_makers_air:notReturning};
-      await printCustomerTicket(savedRec);
+      if(!isAscend(savedRec)){await printCustomerTicket(savedRec);}
       await printKeyTicket(savedRec);
       await printDashboardTicket(savedRec);
     }
 
     if(sendSms && phoneFull){
       var cleanPhone=phoneFull.replace(/\D/g,'');
-      var smsBody=buildWelcomeSms({ticket:ticket,ret:finalDate,not_returning_with_makers_air:notReturning});
+      var smsBody=buildWelcomeSms({ticket:ticket,ret:finalDate,not_returning_with_makers_air:notReturning,loc:locVal});
       window.open('sms:'+cleanPhone+'&body='+encodeURIComponent(smsBody),'_self');
     }
     await loadData();
@@ -1827,12 +1861,13 @@ function showDet(id){
   var histH='';
   if(hist.length>1){histH='<div class="htitle">Visit History ('+hist.length+' visit'+(hist.length>1?'s':'')+' - all contacts)</div><div class="hlist">'+hist.map(function(h){return '<div class="hi" style="flex-direction:column;gap:3px;align-items:flex-start"><div style="display:flex;justify-content:space-between;width:100%"><span class="h-tk">'+escapeHTML(h.ticket)+'</span><span class="h-dt">'+escapeHTML(fmtA(h.ts))+'</span></div><div style="font-size:11px;color:var(--mu)">'+escapeHTML(h.car)+(h.phone?' · '+escapeHTML(fmtP(h.phone)):'')+'</div><div style="font-size:10px;color:'+(h.status==='DELIVERED'?'var(--ok)':'var(--acc)')+'">'+escapeHTML(h.status)+'</div></div>';}).join('')+'</div>';}
   document.getElementById('detPanel').innerHTML=
+    (isAscend(r)?'<div style="background:rgba(99,179,237,0.12);border:1px solid rgba(99,179,237,0.4);border-radius:10px;padding:10px 14px;margin-bottom:12px;display:flex;align-items:center;gap:8px"><span style="font-size:13px;font-weight:800;font-family:\'DM Mono\',monospace;color:#63b3ed;letter-spacing:.5px">✈ ASCEND / PRIVATE FLIGHT</span></div>':'')+
     '<div class="dname">'+escapeHTML(r.name)+(r.customer_rating?'<span style="margin-left:10px;vertical-align:middle">'+ratingBadgeHtml(r.customer_rating)+'</span>':'')+'</div>'+
     '<div class="dphone" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'+escapeHTML(fmtP(r.phone))+
       (r.phone?'<a href="tel:'+r.phone.replace(/\D/g,'')+'" style="background:var(--ok);color:#000;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;text-decoration:none;font-family:Syne,sans-serif;">📞 CALL</a>':'')+
       (r.phone?'<a href="sms:'+r.phone.replace(/\D/g,'')+'" style="background:var(--pur);color:#fff;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;text-decoration:none;font-family:Syne,sans-serif;">💬 TEXT</a>':'')+
       (r.phone?'<button onclick="sendWelcomeSms('+r.id+')" style="background:linear-gradient(135deg,#1a5c3a,#1a9e6a);color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;font-family:Syne,sans-serif;cursor:pointer;">💬 Welcome</button>':'')+
-      '<button onclick="printCustomerTicket(data.find(function(x){return x.id==='+r.id+'}))" style="background:var(--navy);color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;font-family:Syne,sans-serif;cursor:pointer;">🧾 Customer Copy</button>'+
+      '<button onclick="printCustomerCopyForRecord(data.find(function(x){return x.id==='+r.id+'}))" style="background:var(--navy);color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;font-family:Syne,sans-serif;cursor:pointer;">🧾 Customer Copy</button>'+
       '<button onclick="printKeyTicket(data.find(function(x){return x.id==='+r.id+'}))" style="background:var(--navy);color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;font-family:Syne,sans-serif;cursor:pointer;">🔑 Key Copy</button>'+
       '<button onclick="printDashboardTicket(data.find(function(x){return x.id==='+r.id+'}))" style="background:var(--navy);color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;font-family:Syne,sans-serif;cursor:pointer;">🚗 Dashboard</button>'+
       '<button onclick="printAllTickets(data.find(function(x){return x.id==='+r.id+'}))" style="background:var(--navy);color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;font-family:Syne,sans-serif;cursor:pointer;">🖨 Print All</button>'+

@@ -347,6 +347,8 @@ input[type=checkbox]{width:17px;height:17px;accent-color:var(--gold);cursor:poin
   text-transform:uppercase;
   white-space:nowrap;
 }
+.lb.lb-ascend{border-color:rgba(99,179,237,0.5);color:#63b3ed;}
+.lb.lb-ascend.on{background:rgba(99,179,237,0.18);border-color:#63b3ed;color:#63b3ed;}
 .dcard.delivered-today-card{opacity:0.65;}
 .dcard.delivered-today-card:hover{opacity:0.85;}
 @media (max-width:600px){
