@@ -1151,7 +1151,7 @@ function renderDay() {
       if(isNaN(bt)) bt=999999999;
       return at-bt;
     });
-  var lt=sortByDepartureTime(data.filter(function(r){return isToday(r.ret)&&r.status!=='DELIVERED'&&r.status!=='ARCHIVED';}));
+  var lt=sortByDepartureTime(data.filter(function(r){return isToday(r.ret)&&r.status!=='ARCHIVED';}));
   var lm=sortByDepartureTime(data.filter(function(r){return isTmrw(r.ret)&&r.status!=='DELIVERED'&&r.status!=='ARCHIVED';}));
   var ls=data.filter(function(r){return isSunday(r.ret)&&r.status!=='DELIVERED'&&r.status!=='ARCHIVED';});
   var sun=nextSunday();
@@ -1162,7 +1162,13 @@ function renderDay() {
       var actionHtml='';
       if(showCheckin){
         actionHtml='<div class="dc-qd"><div class="checkin-badge">CHECKED IN</div></div>';
-      } else if(showDeliver&&r.status!=='DELIVERED'){
+      } else if(showDeliver&&r.status==='DELIVERED'){
+        actionHtml=
+          '<div class="dc-qd" onclick="event.stopPropagation()">'+
+            '<div class="checkin-badge" style="background:rgba(26,158,106,.15);color:var(--ok);border-color:rgba(26,158,106,.35)">✓ DELIVERED</div>'+
+            '<button class="qd-btn" style="background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.18);color:var(--mu);font-size:11px" onclick="undoDeliverToday('+r.id+')">↩ Undo</button>'+
+          '</div>';
+      } else if(showDeliver){
         actionHtml=
           '<div class="dc-qd" onclick="event.stopPropagation()">'+
             '<button class="qd-btn '+(btnCls||'')+'" onclick="quickDeliver('+r.id+',\'NORMAL\')">✓ Deliver</button>'+
@@ -1190,10 +1196,10 @@ function renderDay() {
             '>'+
           '</div>';
       }
-      return '<div class="dcard '+cls+(isApprox?' approx-card':'')+'" onclick="showDet('+r.id+')">'+
+      return '<div class="dcard '+cls+(isApprox?' approx-card':'')+(r.status==='DELIVERED'&&showDeliver?' delivered-today-card':'')+'" onclick="showDet('+r.id+')">'+
         '<div class="dc-top">'+
           '<div class="dc-body">'+
-            '<div class="dc-n">'+escapeHTML(r.name)+(isApprox?' <span style="font-size:9px;background:rgba(201,168,76,0.2);color:var(--gold);border-radius:4px;padding:2px 5px;margin-left:4px">~APPROX</span>':'')+(r.customer_rating?ratingBadgeHtml(r.customer_rating):'')+'</div>'+
+            '<div class="dc-n">'+(r.status==='DELIVERED'&&showDeliver?'<span style="text-decoration:line-through;opacity:0.6">'+escapeHTML(r.name)+'</span>':escapeHTML(r.name))+(isApprox?' <span style="font-size:9px;background:rgba(201,168,76,0.2);color:var(--gold);border-radius:4px;padding:2px 5px;margin-left:4px">~APPROX</span>':'')+(r.customer_rating?ratingBadgeHtml(r.customer_rating):'')+'</div>'+
             '<div class="dc-c">'+escapeHTML(r.car)+' · '+escapeHTML(fmtP(r.phone))+'</div>'+
             flightHtml+
           '</div>'+
@@ -1212,7 +1218,8 @@ function renderDay() {
   document.getElementById('titleArrived').innerHTML='🚗 Arrived Today <span class="tbadge" style="background:var(--ok);color:#000">'+arrived.length+'</span>'+_mhAlert;
   var titleTodayEl=document.getElementById('titleToday');
   titleTodayEl.style.display='flex';titleTodayEl.style.alignItems='center';titleTodayEl.style.justifyContent='space-between';
-  titleTodayEl.innerHTML='<span>🔔 Leaving Today <span class="tbadge" style="background:var(--acc);color:#000">'+lt.length+'</span></span>'+
+  var ltPending=lt.filter(function(r){return r.status!=='DELIVERED';}).length;
+  titleTodayEl.innerHTML='<span>🔔 Leaving Today <span class="tbadge" style="background:var(--acc);color:#000">'+ltPending+'</span></span>'+
     (lt.length?'<button class="fb-print-all-btn" onclick="event.stopPropagation();printFlightBagAll(\'today\')">🖨 Print All</button>':'');
   var titleTomorrowEl=document.getElementById('titleTomorrow');
   titleTomorrowEl.style.display='flex';titleTomorrowEl.style.alignItems='center';titleTomorrowEl.style.justifyContent='space-between';
@@ -1978,6 +1985,22 @@ async function markDel(id){
     render(); closeAll();
     sbLog('DELIVERED',r.name,r.ticket,r.loc,'Vehicle delivered'+(isLate(r.ret)?' (late)':''));
     showMsg('✓ Delivered: '+r.name, false);
+  }catch(e){showMsg('Error: '+e.message,true);}
+  finally{loading(false);}
+}
+
+// ── UNDO DELIVER (dashboard safety undo, today only) ───────────
+async function undoDeliverToday(id){
+  var r=null;for(var i=0;i<data.length;i++){if(data[i].id===id){r=data[i];break;}}
+  if(!r)return;
+  if(!confirm('Restore this car to PENDING? This will remove today\'s delivery timestamp.\n\n'+r.name+' — Ticket '+r.ticket))return;
+  loading(true);
+  try{
+    await sbUpdate(r.id,{status:'PENDING',deldate:null,checkout_date:null,delivery_type:null});
+    for(var i=0;i<data.length;i++){if(data[i].id===id){data[i].status='PENDING';data[i].deldate=null;data[i].checkout_date=null;data[i].delivery_type=null;break;}}
+    render();
+    sbLog('UNDO DELIVER',r.name,r.ticket,r.loc,'Restored to PENDING from dashboard');
+    showMsg('↩ Restored to pending: '+r.name,false);
   }catch(e){showMsg('Error: '+e.message,true);}
   finally{loading(false);}
 }

@@ -347,6 +347,8 @@ input[type=checkbox]{width:17px;height:17px;accent-color:var(--gold);cursor:poin
   text-transform:uppercase;
   white-space:nowrap;
 }
+.dcard.delivered-today-card{opacity:0.65;}
+.dcard.delivered-today-card:hover{opacity:0.85;}
 @media (max-width:600px){
   .dc-body{padding:9px 10px;}
   .dc-meta{padding:9px 10px 9px 4px;}
