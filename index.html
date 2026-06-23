@@ -1983,6 +1983,7 @@ async function deliverWithRating(id, deliveryType, rating){
   var r=null; for(var i=0;i<data.length;i++){if(data[i].id===id){r=data[i];break;}}
   if(!r) return;
   var isLateDeliver=isLate(r.ret);
+  var deliveryOk=false;
   loading(true);
   try{
     var todayStr=getTodayStr();
@@ -2001,10 +2002,18 @@ async function deliverWithRating(id, deliveryType, rating){
     }
     render();
     showMsg('✓ Delivered: '+r.name+' ('+rating+')', false);
+    deliveryOk=true;
   }catch(e){
     showMsg('Error: '+e.message,true);
   }finally{
     loading(false);
+  }
+  if(deliveryOk && deliveryType==='CUSTOMS' && r.phone){
+    if(confirm('Vehicle moved to Customs.\n\nSend Welcome Back message?')){
+      var brand=isAscend(r)?'Ascend Valet':'Makers Air Valet';
+      var smsBody='Welcome back.\n\nYour vehicle has been pre-positioned at Customs and will be ready upon your arrival for a seamless pickup experience.\n\nThank you for choosing '+brand+'. We truly appreciate your business and look forward to serving you again.\n\nIf we exceeded your expectations, here is our discretionary valet team gratuity link:\n\nhttps://square.link/u/1oPb8Veu';
+      window.open('sms:'+r.phone.replace(/\D/g,'')+'&body='+encodeURIComponent(smsBody),'_self');
+    }
   }
 }
 
