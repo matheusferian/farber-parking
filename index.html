@@ -1202,10 +1202,8 @@ function renderDay() {
       }
       var flightHtml='';
       if(showReturnFlight){
-        var _tail=(r.return_flight||'').trim().toUpperCase();
         flightHtml=
           '<div class="return-flight-wrap" onclick="event.stopPropagation()" ontouchstart="event.stopPropagation()">'+
-            (_tail?'<span style="width:8px;height:8px;border-radius:50%;background:'+getTailBadgeColor(_tail)+';flex-shrink:0;display:inline-block"></span>':'')+
             '<input class="return-flight-input" value="'+escapeHTML(r.return_flight||'')+'"'+
             ' placeholder="✈ Flight" maxlength="20"'+
             ' oninput="this.value=this.value.toUpperCase()"'+
@@ -2965,7 +2963,7 @@ function generateLeavingTomorrowScreenshot(){
     var locHtml=loc?'<span class="loc">'+escapeHTML(loc)+'</span>':'<span class="no-loc">NO HANGAR</span>';
     var obs=r.obs&&String(r.obs).trim();
     var car=r.car?escapeHTML(r.car)+(r.color?' '+escapeHTML(r.color):''):'';
-    var etaInner=(tail?'<span class="tail-badge" style="background:'+getTailBadgeColor(tail)+'">'+escapeHTML(tail)+'</span>':'')+(eta?'<span>'+fmt12(eta)+'</span>':'<span style="font-size:10px;color:#ccc;font-weight:400">—</span>');
+    var etaInner=(tail?'<span class="tail-badge" style="background:'+getTailBadgeColor(tail+'|'+eta)+'">'+escapeHTML(tail)+'</span>':'')+(eta?'<span>'+fmt12(eta)+'</span>':'<span style="font-size:10px;color:#ccc;font-weight:400">—</span>');
     return '<div class="row'+(isRush?' rush':'')+'">'+
       '<div class="eta">'+etaInner+'</div>'+
       '<div class="info">'+
@@ -3035,9 +3033,19 @@ function generateLeavingTomorrowScreenshot(){
     '<div class="footer">'+escapeHTML(genTime)+' \xb7 Makers Air Valet<\/div>'+
     '<\/div><\/body><\/html>';
 
-  var w=window.open('','_blank');
-  if(w){w.document.write(html);w.document.close();}
-  else{showMsg('Pop-up blocked — allow pop-ups and try again.',true);}
+  try{
+    var blob=new Blob([html],{type:'text/html'});
+    var blobUrl=URL.createObjectURL(blob);
+    var a=document.createElement('a');
+    a.href=blobUrl;a.target='_blank';a.rel='noopener';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function(){document.body.removeChild(a);URL.revokeObjectURL(blobUrl);},1000);
+  }catch(e){
+    var w=window.open('','_blank');
+    if(w){w.document.write(html);w.document.close();}
+    else{showMsg('Pop-up blocked — allow pop-ups and try again.',true);}
+  }
 }
 
 // ── MONTHLY OPERATIONS REPORT ─────────────────────────────────
