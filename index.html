@@ -1008,7 +1008,8 @@ async function loadData() {
         customer_rating: r.customer_rating||'',
         not_returning_with_makers_air: r.not_returning_with_makers_air||false,
         archived_by: r.archived_by||'',
-        archived_at: r.archived_at||''
+        archived_at: r.archived_at||'',
+        previous_delivery_location: r.previous_delivery_location||''
       };
     });
     render();
@@ -1321,15 +1322,23 @@ async function bulkAct(newStatus){
   var recs=data.filter(function(r){return selected[r.id];});
   var todayStr=getTodayStr();
   var checkoutIso=new Date().toISOString();
-  var upd={status:newStatus};
-  if(newStatus==='DELIVERED'){upd.deldate=todayStr;upd.checkout_date=checkoutIso;upd.delivery_type='NORMAL';}
   var results=await Promise.all(recs.map(function(r){
+    var upd={status:newStatus};
+    if(newStatus==='DELIVERED'){
+      upd.deldate=todayStr;upd.checkout_date=checkoutIso;upd.delivery_type='NORMAL';
+      upd.loc='HANGAR 19';upd.previous_delivery_location=r.loc||'';
+    }
     return sbUpdate(r.id,upd).then(function(){return r;}).catch(function(e){console.error(e);return null;});
   }));
   var succeeded=results.filter(Boolean);
   succeeded.forEach(function(r){
+    var prevLoc=r.loc||'';
     r.status=newStatus;
-    if(newStatus==='DELIVERED'){r.deldate=todayStr;r.checkout_date=checkoutIso;r.delivery_type='NORMAL';}
+    if(newStatus==='DELIVERED'){
+      r.deldate=todayStr;r.checkout_date=checkoutIso;r.delivery_type='NORMAL';
+      r.previous_delivery_location=prevLoc;r.loc='HANGAR 19';
+      sbLog('DELIVERED_FROM_LOCATION',r.name,r.ticket,'HANGAR 19','Delivered as NORMAL. Previous location: '+prevLoc+'. Final location automatically changed to HANGAR 19.');
+    }
   });
   loading(false);
   showMsg(succeeded.length+' car(s) updated to '+newStatus, false);
@@ -1987,13 +1996,21 @@ async function deliverWithRating(id, deliveryType, rating){
   var r=null; for(var i=0;i<data.length;i++){if(data[i].id===id){r=data[i];break;}}
   if(!r) return;
   var isLateDeliver=isLate(r.ret);
+  var isCustoms=deliveryType==='CUSTOMS';
+  var prevLoc=r.loc||'';
   var deliveryOk=false;
   loading(true);
   try{
     var todayStr=getTodayStr();
     var checkoutIso=new Date().toISOString();
-    await sbUpdate(r.id,{status:'DELIVERED',deldate:todayStr,checkout_date:checkoutIso,delivery_type:deliveryType,customer_rating:rating});
-    await sbLog('DELIVERED',r.name,r.ticket,r.loc,'Vehicle delivered'+(isLateDeliver?' (late)':'')+' via '+deliveryType+' | Rating: '+rating);
+    var upd={status:'DELIVERED',deldate:todayStr,checkout_date:checkoutIso,delivery_type:deliveryType,customer_rating:rating};
+    if(!isCustoms){upd.loc='HANGAR 19';upd.previous_delivery_location=prevLoc;}
+    await sbUpdate(r.id,upd);
+    if(!isCustoms){
+      await sbLog('DELIVERED_FROM_LOCATION',r.name,r.ticket,'HANGAR 19','Delivered as '+deliveryType+'. Previous location: '+prevLoc+'. Final location automatically changed to HANGAR 19.'+(isLateDeliver?' (late)':'')+' | Rating: '+rating);
+    } else {
+      await sbLog('DELIVERED',r.name,r.ticket,r.loc,'Vehicle delivered'+(isLateDeliver?' (late)':'')+' via CUSTOMS | Rating: '+rating);
+    }
     for(var i=0;i<data.length;i++){
       if(data[i].id===r.id){
         data[i].status='DELIVERED';
@@ -2001,6 +2018,7 @@ async function deliverWithRating(id, deliveryType, rating){
         data[i].checkout_date=checkoutIso;
         data[i].delivery_type=deliveryType;
         data[i].customer_rating=rating;
+        if(!isCustoms){data[i].loc='HANGAR 19';data[i].previous_delivery_location=prevLoc;}
         break;
       }
     }
@@ -2044,14 +2062,15 @@ function quickDeliver(id, deliveryType){
 async function markDel(id){
   var r=null;for(var i=0;i<data.length;i++){if(data[i].id===id){r=data[i];break;}}
   if(!r)return;
+  var prevLoc=r.loc||'';
   loading(true);
   try{
     var todayStr=getTodayStr();
     var checkoutIso=new Date().toISOString();
-    await sbUpdate(r.id,{status:'DELIVERED',deldate:todayStr,checkout_date:checkoutIso,delivery_type:'NORMAL'});
-    for(var i=0;i<data.length;i++){if(data[i].id===r.id){data[i].status='DELIVERED';data[i].deldate=todayStr;data[i].checkout_date=checkoutIso;data[i].delivery_type='NORMAL';break;}}
+    await sbUpdate(r.id,{status:'DELIVERED',deldate:todayStr,checkout_date:checkoutIso,delivery_type:'NORMAL',loc:'HANGAR 19',previous_delivery_location:prevLoc});
+    for(var i=0;i<data.length;i++){if(data[i].id===r.id){data[i].status='DELIVERED';data[i].deldate=todayStr;data[i].checkout_date=checkoutIso;data[i].delivery_type='NORMAL';data[i].loc='HANGAR 19';data[i].previous_delivery_location=prevLoc;break;}}
     render(); closeAll();
-    sbLog('DELIVERED',r.name,r.ticket,r.loc,'Vehicle delivered'+(isLate(r.ret)?' (late)':''));
+    sbLog('DELIVERED_FROM_LOCATION',r.name,r.ticket,'HANGAR 19','Delivered as NORMAL. Previous location: '+prevLoc+'. Final location automatically changed to HANGAR 19.'+(isLate(r.ret)?' (late)':''));
     showMsg('✓ Delivered: '+r.name, false);
   }catch(e){showMsg('Error: '+e.message,true);}
   finally{loading(false);}
@@ -2062,12 +2081,21 @@ async function undoDeliverToday(id){
   var r=null;for(var i=0;i<data.length;i++){if(data[i].id===id){r=data[i];break;}}
   if(!r)return;
   if(!confirm('Restore this car to PENDING? This will remove today\'s delivery timestamp.\n\n'+r.name+' — Ticket '+r.ticket))return;
+  var restoredLoc=r.previous_delivery_location||r.loc||'';
   loading(true);
   try{
-    await sbUpdate(r.id,{status:'PENDING',deldate:null,checkout_date:null,delivery_type:null});
-    for(var i=0;i<data.length;i++){if(data[i].id===id){data[i].status='PENDING';data[i].deldate=null;data[i].checkout_date=null;data[i].delivery_type=null;break;}}
+    var updUndo={status:'PENDING',deldate:null,checkout_date:null,delivery_type:null,previous_delivery_location:null};
+    if(r.previous_delivery_location){updUndo.loc=restoredLoc;}
+    await sbUpdate(r.id,updUndo);
+    for(var i=0;i<data.length;i++){
+      if(data[i].id===id){
+        data[i].status='PENDING';data[i].deldate=null;data[i].checkout_date=null;data[i].delivery_type=null;data[i].previous_delivery_location=null;
+        if(r.previous_delivery_location) data[i].loc=restoredLoc;
+        break;
+      }
+    }
     render();
-    sbLog('UNDO DELIVER',r.name,r.ticket,r.loc,'Restored to PENDING from dashboard');
+    sbLog('UNDO DELIVER',r.name,r.ticket,restoredLoc,'Restored to PENDING from dashboard'+(r.previous_delivery_location?' | Location restored to: '+restoredLoc:''));
     showMsg('↩ Restored to pending: '+r.name,false);
   }catch(e){showMsg('Error: '+e.message,true);}
   finally{loading(false);}
@@ -2078,16 +2106,17 @@ async function earlyReturn(id){
   var r=null;for(var i=0;i<data.length;i++){if(data[i].id===id){r=data[i];break;}}
   if(!r)return;
   if(!confirm('⚡ Early Return — Mark as delivered?\n'+r.name+' (Ticket '+r.ticket+')\nWas expected: '+fmtD(r.ret))) return;
+  var prevLoc=r.loc||'';
   loading(true);
   try{
     var todayStr=getTodayStr();
     var checkoutIso=new Date().toISOString();
     var newObs=((r.obs||'').replace('APPROX DATE','').replace(' | ','').trim());
     newObs=(newObs?newObs+' | ':'')+'EARLY RETURN';
-    await sbUpdate(r.id,{ret:todayStr,status:'DELIVERED',deldate:todayStr,checkout_date:checkoutIso,delivery_type:'NORMAL',obs:newObs});
-    for(var i=0;i<data.length;i++){if(data[i].id===r.id){data[i].ret=todayStr;data[i].status='DELIVERED';data[i].deldate=todayStr;data[i].checkout_date=checkoutIso;data[i].delivery_type='NORMAL';data[i].obs=newObs;break;}}
+    await sbUpdate(r.id,{ret:todayStr,status:'DELIVERED',deldate:todayStr,checkout_date:checkoutIso,delivery_type:'NORMAL',obs:newObs,loc:'HANGAR 19',previous_delivery_location:prevLoc});
+    for(var i=0;i<data.length;i++){if(data[i].id===r.id){data[i].ret=todayStr;data[i].status='DELIVERED';data[i].deldate=todayStr;data[i].checkout_date=checkoutIso;data[i].delivery_type='NORMAL';data[i].obs=newObs;data[i].loc='HANGAR 19';data[i].previous_delivery_location=prevLoc;break;}}
     render(); closeAll();
-    sbLog('EARLY RETURN', r.name, r.ticket, r.loc, 'was '+fmtD(r.ret));
+    sbLog('DELIVERED_FROM_LOCATION',r.name,r.ticket,'HANGAR 19','Delivered as NORMAL (Early Return). Previous location: '+prevLoc+'. Final location automatically changed to HANGAR 19. Was expected: '+fmtD(r.ret));
     showMsg('⚡ Early Return: '+r.name, false);
   }catch(e){showMsg('Error: '+e.message,true);}
   finally{loading(false);}
@@ -2280,6 +2309,17 @@ async function saveEdits(rid){
       r.checkout_date=upd.checkout_date;
       if(!upd.delivery_type&&!r.delivery_type) upd.delivery_type='NORMAL';
     }
+    var _editDeliveredFromLoc=null;
+    if(upd.status==='DELIVERED'){
+      var _effectiveDtype=upd.delivery_type||r.delivery_type||'NORMAL';
+      if(_effectiveDtype!=='CUSTOMS'&&upd.loc===undefined){
+        _editDeliveredFromLoc=prevLoc||'';
+        upd.loc='HANGAR 19';
+        r.loc='HANGAR 19';
+        upd.previous_delivery_location=_editDeliveredFromLoc;
+        r.previous_delivery_location=_editDeliveredFromLoc;
+      }
+    }
     await sbUpdate(rid,upd);
     if(_editChanges.loc !== undefined && r.loc !== prevLoc) {
       if(confirm('Hangar location changed.\n\nWould you like to print a new key tag?')) {
@@ -2291,6 +2331,7 @@ async function saveEdits(rid){
       logPromises.push(logFieldChange(r,field,oldVals[field],upd[field]));
     }
     if(doReopen) logPromises.push(sbLog('REOPENED',r.name,r.ticket,r.loc,'Reopened from DELIVERED. New ret: '+(upd.ret||'')));
+    if(_editDeliveredFromLoc!==null) logPromises.push(sbLog('DELIVERED_FROM_LOCATION',r.name,r.ticket,'HANGAR 19','Delivered as '+(upd.delivery_type||r.delivery_type||'NORMAL')+'. Previous location: '+_editDeliveredFromLoc+'. Final location automatically changed to HANGAR 19.'));
     await Promise.all(logPromises);
     _editChanges={};
     var btn=document.getElementById('saveEditsBtn');
@@ -3380,11 +3421,16 @@ async function changeStatus(id){
     if(newStatus==='DELIVERED'){
       var todayStr=getTodayStr();
       upd.deldate=todayStr;
+      var prevLoc=r.loc||'';
+      upd.loc='HANGAR 19';
+      upd.previous_delivery_location=prevLoc;
     }
     await sbUpdate(r.id,upd);
-    var _sAction=newStatus==='DELIVERED'?'DELIVERED':'STATUS';
-    var _sDetail=newStatus==='DELIVERED'?'Vehicle delivered':'Status changed: '+r.status+' → '+newStatus;
-    sbLog(_sAction,r.name,r.ticket,r.loc,_sDetail);
+    if(newStatus==='DELIVERED'){
+      sbLog('DELIVERED_FROM_LOCATION',r.name,r.ticket,'HANGAR 19','Delivered as NORMAL. Previous location: '+(r.loc||'')+'. Final location automatically changed to HANGAR 19.');
+    } else {
+      sbLog('STATUS',r.name,r.ticket,r.loc,'Status changed: '+r.status+' → '+newStatus);
+    }
     showMsg('Status updated to '+newStatus,false);
     closeAll();
     loadData();
