@@ -1202,8 +1202,10 @@ function renderDay() {
       }
       var flightHtml='';
       if(showReturnFlight){
+        var _tail=(r.return_flight||'').trim().toUpperCase();
         flightHtml=
           '<div class="return-flight-wrap" onclick="event.stopPropagation()" ontouchstart="event.stopPropagation()">'+
+            (_tail?'<span style="width:8px;height:8px;border-radius:50%;background:'+getTailBadgeColor(_tail)+';flex-shrink:0;display:inline-block"></span>':'')+
             '<input class="return-flight-input" value="'+escapeHTML(r.return_flight||'')+'"'+
             ' placeholder="✈ Flight" maxlength="20"'+
             ' oninput="this.value=this.value.toUpperCase()"'+
@@ -1234,7 +1236,38 @@ function renderDay() {
   }
   document.getElementById('dArrived').innerHTML=mkCards(arrived,'ca','',false,false,true,false,true,false);
   document.getElementById('dToday').innerHTML=mkCards(lt,'ct','',true,true,false,true,false,true);
-  document.getElementById('dTomorrow').innerHTML=mkCards(lm,'cm','',false,true,false,true,false,true);
+  document.getElementById('dTomorrow').innerHTML=(function(){
+    // Build tail+time group counts
+    var tailTimeCounts={};
+    lm.forEach(function(r){
+      var tail=(r.return_flight||'').trim().toUpperCase();
+      var time=getDepartureTime(r);
+      if(!tail||!time)return;
+      var key=tail+'|'+time;
+      if(!tailTimeCounts[key])tailTimeCounts[key]={tail:tail,time:time,count:0};
+      tailTimeCounts[key].count++;
+    });
+    var warnKeys={};
+    Object.keys(tailTimeCounts).forEach(function(k){if(tailTimeCounts[k].count>=3)warnKeys[k]=true;});
+    if(!Object.keys(warnKeys).length)return mkCards(lm,'cm','',false,true,false,true,false,true);
+    var warned={};
+    return lm.map(function(r){
+      var tail=(r.return_flight||'').trim().toUpperCase();
+      var time=getDepartureTime(r);
+      var banner='';
+      if(tail&&time){
+        var key=tail+'|'+time;
+        if(warnKeys[key]&&!warned[key]){
+          warned[key]=true;
+          var g=tailTimeCounts[key];
+          var h=parseInt(time.split(':')[0],10),mn=time.split(':')[1]||'00';
+          var tf=(h%12||12)+':'+mn+(h>=12?' PM':' AM');
+          banner='<div style="background:rgba(231,76,60,0.1);border-left:3px solid var(--red);padding:7px 12px;font-size:12px;font-weight:700;color:var(--red);margin:4px 0 2px;border-radius:0 6px 6px 0">⚠ '+escapeHTML(g.tail)+' GROUP: '+g.count+' passengers • '+escapeHTML(tf)+'</div>';
+        }
+      }
+      return banner+mkCards([r],'cm','',false,true,false,true,false,true);
+    }).join('');
+  })();
   document.getElementById('dSunday').innerHTML=mkCards(ls,'cm','',false,true,false,true,false,false);
   var _mhc=arrived.filter(function(r){return !r.loc||!String(r.loc).trim();}).length;
   var _mhAlert=_mhc>0?'<span class="hangar-missing-alert">🔴 '+_mhc+' MISSING HANGAR'+(_mhc===1?'':'S')+'</span>':'';
@@ -2895,6 +2928,7 @@ function generateLeavingTomorrowScreenshot(){
   var rushEtaSet={};
   Object.keys(etaCounts).forEach(function(t){if(etaCounts[t]>=3)rushEtaSet[t]=true;});
   var middayCount=rows.filter(function(r){var t=getDepartureTime(r);return t&&t>='11:00'&&t<='13:00';}).length;
+  var eveningCount=rows.filter(function(r){var t=getDepartureTime(r);return t&&t>='16:30'&&t<='19:00';}).length;
 
   var CSS=
     '*{box-sizing:border-box;margin:0;padding:0}'+
@@ -2909,10 +2943,11 @@ function generateLeavingTomorrowScreenshot(){
     '.alert{background:#fff0f0;border-left:3px solid #e74c3c;padding:7px 12px;font-size:11.5px;font-weight:700;color:#c0392b}'+
     '.rush-grp{background:#fff5f5;border-left:3px solid #e74c3c;padding:4px 10px;font-size:10.5px;font-weight:700;color:#c0392b;margin-top:2px}'+
     '.section{padding:5px 10px 2px;font-size:9.5px;font-weight:700;color:#999;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid #eee}'+
-    '.row{display:grid;grid-template-columns:52px 1fr;gap:0;border-bottom:1px solid #f0f0f0;padding:7px 10px;align-items:start}'+
+    '.row{display:grid;grid-template-columns:96px 1fr;gap:0;border-bottom:1px solid #f0f0f0;padding:7px 10px;align-items:start}'+
     '.row.rush{background:#fff8f8}'+
-    '.eta{font-size:11px;font-weight:700;color:#1a3d7c;padding-top:1px}'+
+    '.eta{font-size:11px;font-weight:700;color:#1a3d7c;padding-top:1px;display:flex;flex-direction:row;align-items:center;gap:4px;flex-wrap:nowrap}'+
     '.eta.none{font-size:10px;color:#ccc;font-weight:400}'+
+    '.tail-badge{font-size:9px;font-weight:800;color:#fff;border-radius:4px;padding:1px 5px;letter-spacing:.3px;line-height:1.4;flex-shrink:0}'+
     '.info{}'+
     '.name{font-size:13px;font-weight:700;color:#111;line-height:1.2}'+
     '.sub{font-size:10.5px;color:#666;margin-top:2px}'+
@@ -2925,12 +2960,14 @@ function generateLeavingTomorrowScreenshot(){
 
   function rowHtml(r,isRush){
     var eta=getDepartureTime(r);
+    var tail=(r.return_flight||'').trim().toUpperCase();
     var loc=r.loc&&String(r.loc).trim();
     var locHtml=loc?'<span class="loc">'+escapeHTML(loc)+'</span>':'<span class="no-loc">NO HANGAR</span>';
     var obs=r.obs&&String(r.obs).trim();
     var car=r.car?escapeHTML(r.car)+(r.color?' '+escapeHTML(r.color):''):'';
+    var etaInner=(tail?'<span class="tail-badge" style="background:'+getTailBadgeColor(tail)+'">'+escapeHTML(tail)+'</span>':'')+(eta?'<span>'+fmt12(eta)+'</span>':'<span style="font-size:10px;color:#ccc;font-weight:400">—</span>');
     return '<div class="row'+(isRush?' rush':'')+'">'+
-      '<div class="eta'+(eta?'':' none')+'">'+(eta?fmt12(eta):'—')+'</div>'+
+      '<div class="eta">'+etaInner+'</div>'+
       '<div class="info">'+
         '<div class="name">'+(isAscend(r)?'[A] ':'')+escapeHTML(r.name)+(isAscend(r)?'<span class="asc">ASCEND</span>':'')+'</div>'+
         '<div class="sub"><span class="ticket">'+escapeHTML(r.ticket)+'</span> &nbsp;·&nbsp; '+locHtml+(car?' &nbsp;·&nbsp; '+car:'')+'</div>'+
@@ -2953,7 +2990,19 @@ function generateLeavingTomorrowScreenshot(){
     etaKeys.forEach(function(eta){
       var grp=byEta[eta];
       if(rushEtaSet[eta])listHtml+='<div class="rush-grp">⚠ '+grp.length+' vehicles at '+fmt12(eta)+'</div>';
-      grp.forEach(function(r){listHtml+=rowHtml(r,!!rushEtaSet[eta]);});
+      // Tail group warnings: 3+ passengers sharing same tail + same ETA
+      var tailCounts={};
+      grp.forEach(function(r){var t=(r.return_flight||'').trim().toUpperCase();if(t)tailCounts[t]=(tailCounts[t]||0)+1;});
+      var tailWarnSet={};Object.keys(tailCounts).forEach(function(t){if(tailCounts[t]>=3)tailWarnSet[t]=true;});
+      var tailWarned={};
+      grp.forEach(function(r){
+        var tail=(r.return_flight||'').trim().toUpperCase();
+        if(tail&&tailWarnSet[tail]&&!tailWarned[tail]){
+          tailWarned[tail]=true;
+          listHtml+='<div class="rush-grp">⚠ '+escapeHTML(tail)+' GROUP: '+tailCounts[tail]+' passengers • '+fmt12(eta)+'</div>';
+        }
+        listHtml+=rowHtml(r,!!rushEtaSet[eta]);
+      });
     });
   }
   if(noTime.length){
@@ -2963,6 +3012,9 @@ function generateLeavingTomorrowScreenshot(){
 
   var middayBanner=middayCount>2
     ?'<div class="alert">⚠ MIDDAY RUSH: '+middayCount+' vehicles 11 AM – 1 PM</div>'
+    :'';
+  var eveningBanner=eveningCount>5
+    ?'<div class="alert">⚠ EVENING RUSH: '+eveningCount+' vehicles 4:30 PM – 7:00 PM</div>'
     :'';
 
   var genTime=new Date().toLocaleString('en-US',{hour:'numeric',minute:'2-digit',hour12:true});
@@ -2978,6 +3030,7 @@ function generateLeavingTomorrowScreenshot(){
       '<div class="count-lbl">Vehicle'+(rows.length===1?'':'s')+'<\/div>'+
     '<\/div>'+
     middayBanner+
+    eveningBanner+
     listHtml+
     '<div class="footer">'+escapeHTML(genTime)+' \xb7 Makers Air Valet<\/div>'+
     '<\/div><\/body><\/html>';
@@ -3323,6 +3376,13 @@ async function sbLog(action, passenger, ticket, location, detail) {
       })
     });
   } catch(e) { console.warn('Log error:', e); }
+}
+// ── TAIL BADGE COLOR ───────────────────────────────────────────
+var _tailBadgePalette=['#1D4ED8','#047857','#B45309','#7C3AED','#BE123C','#0369A1','#4338CA','#15803D','#92400E','#334155','#0F766E','#9D174D'];
+function getTailBadgeColor(tail){
+  if(!tail)return'#334155';
+  var h=0;for(var i=0;i<tail.length;i++){h=tail.charCodeAt(i)+((h<<5)-h);}
+  return _tailBadgePalette[Math.abs(h)%_tailBadgePalette.length];
 }
 // ── VEHICLE MOVEMENT HISTORY ───────────────────────────────────
 var VLH_TABLE = 'vehicle_location_history';
