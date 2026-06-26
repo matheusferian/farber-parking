@@ -2983,10 +2983,21 @@ function generateLeavingTomorrowScreenshot(){
   var etaKeys=Object.keys(byEta).sort();
 
   var listHtml='';
+  var _middayInjected=false,_eveningInjected=false;
   if(withTime.length){
     listHtml+='<div class="section">By Return ETA</div>';
     etaKeys.forEach(function(eta){
       var grp=byEta[eta];
+      // Inline Midday Rush banner — once, before first ETA in range
+      if(!_middayInjected&&middayCount>2&&eta>='11:00'&&eta<='13:00'){
+        _middayInjected=true;
+        listHtml+='<div class="alert">⚠ MIDDAY RUSH: '+middayCount+' vehicles 11 AM – 1 PM</div>';
+      }
+      // Inline Evening Rush banner — once, before first ETA in range
+      if(!_eveningInjected&&eveningCount>5&&eta>='16:30'&&eta<='19:00'){
+        _eveningInjected=true;
+        listHtml+='<div class="alert">⚠ EVENING RUSH: '+eveningCount+' vehicles 4:30 PM – 7:00 PM</div>';
+      }
       if(rushEtaSet[eta])listHtml+='<div class="rush-grp">⚠ '+grp.length+' vehicles at '+fmt12(eta)+'</div>';
       // Tail group warnings: 3+ passengers sharing same tail + same ETA
       var tailCounts={};
@@ -3008,13 +3019,6 @@ function generateLeavingTomorrowScreenshot(){
     noTime.forEach(function(r){listHtml+=rowHtml(r,false);});
   }
 
-  var middayBanner=middayCount>2
-    ?'<div class="alert">⚠ MIDDAY RUSH: '+middayCount+' vehicles 11 AM – 1 PM</div>'
-    :'';
-  var eveningBanner=eveningCount>5
-    ?'<div class="alert">⚠ EVENING RUSH: '+eveningCount+' vehicles 4:30 PM – 7:00 PM</div>'
-    :'';
-
   var genTime=new Date().toLocaleString('en-US',{hour:'numeric',minute:'2-digit',hour12:true});
   var html='<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">'+
     '<meta name="viewport" content="width=390,initial-scale=1,maximum-scale=1">'+
@@ -3027,8 +3031,6 @@ function generateLeavingTomorrowScreenshot(){
       '<div class="count">'+rows.length+'<\/div>'+
       '<div class="count-lbl">Vehicle'+(rows.length===1?'':'s')+'<\/div>'+
     '<\/div>'+
-    middayBanner+
-    eveningBanner+
     listHtml+
     '<div class="footer">'+escapeHTML(genTime)+' \xb7 Makers Air Valet<\/div>'+
     '<\/div><\/body><\/html>';
