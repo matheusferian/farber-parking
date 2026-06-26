@@ -454,6 +454,7 @@ var SUPABASE_URL = 'https://sfewtirvqhrpanwhbchd.supabase.co';
 var SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNmZXd0aXJ2cWhycGFud2hiY2hkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkyNzExMjcsImV4cCI6MjA5NDg0NzEyN30.UFf22k7Zn7v72IPujuF1YRrK6PPbp8K_uz6TkYlhOl8';
 var TABLE = 'passengers';
 var _authToken = null;
+var _currentUserEmail = '';
 var _supaClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 function sbHeaders() {
@@ -485,7 +486,7 @@ async function sbGet() {
 async function sbInsert(obj) {
   var res = await fetch(SUPABASE_URL + '/rest/v1/' + TABLE, {
     method: 'POST',
-    headers: sbHeaders(),
+    headers: Object.assign({}, sbHeaders(), {'Prefer': 'return=representation'}),
     body: JSON.stringify(obj)
   });
   if (!res.ok) {
@@ -1338,6 +1339,7 @@ async function bulkAct(newStatus){
       r.deldate=todayStr;r.checkout_date=checkoutIso;r.delivery_type='NORMAL';
       r.previous_delivery_location=prevLoc;r.loc='HANGAR 19';
       sbLog('DELIVERED_FROM_LOCATION',r.name,r.ticket,'HANGAR 19','Delivered as NORMAL. Previous location: '+prevLoc+'. Final location automatically changed to HANGAR 19.');
+      vlhInsert({passenger_id:r.id,ticket:r.ticket,passenger_name:r.name,from_location:prevLoc,to_location:'HANGAR 19',action:'DELIVERED (NORMAL)',note:'Bulk deliver action',created_by:_currentUserEmail});
     }
   });
   loading(false);
@@ -1370,9 +1372,14 @@ async function bulkMoveLoc(hangar){
   loading(true);
   var recs=data.filter(function(r){return selected[r.id];});
   var results=await Promise.all(recs.map(function(r){
-    return sbUpdate(r.id,{loc:hangar}).then(function(){return r;}).catch(function(e){console.error(e);return null;});
+    var fromLoc=r.loc||'';
+    return sbUpdate(r.id,{loc:hangar}).then(function(){return {r:r,fromLoc:fromLoc};}).catch(function(e){console.error(e);return null;});
   }));
-  results.filter(Boolean).forEach(function(r){r.loc=hangar;});
+  results.filter(Boolean).forEach(function(res){
+    var r=res.r;
+    vlhInsert({passenger_id:r.id,ticket:r.ticket,passenger_name:r.name,from_location:res.fromLoc,to_location:hangar,action:'MOVE',note:'Bulk hangar move',created_by:_currentUserEmail});
+    r.loc=hangar;
+  });
   loading(false);
   showMsg(recs.length+' car(s) moved to '+hangar, false);
   closeBulkLoc(); clearSel(); render();
@@ -1822,7 +1829,7 @@ async function saveEntry(sendSms, printMode){
     var locVal=document.getElementById('fLoc').value;
     var notReturning=!!(document.getElementById('fNotReturning')||{}).checked;
 
-    await sbInsert({
+    var _newRows = await sbInsert({
       ts: ts,
       checkin_date: new Date().toISOString(),
       name: name.toUpperCase(),
@@ -1838,7 +1845,9 @@ async function saveEntry(sendSms, printMode){
       not_returning_with_makers_air: notReturning,
       deldate: ''
     });
+    var _newId = (_newRows && _newRows[0]) ? _newRows[0].id : null;
     sbLog('CREATED', name.toUpperCase(), ticket, locVal, 'Passenger added to system');
+    if (_newId) vlhInsert({passenger_id:_newId, ticket:ticket, passenger_name:name.toUpperCase(), from_location:'', to_location:locVal, action:'CHECK-IN', note:'Vehicle checked in at '+locVal, created_by:_currentUserEmail});
     maybeAddVehicle(carVal);
 
     closeAll();
@@ -1925,6 +1934,7 @@ function showDet(id){
         '</label></div></div>'+
       (r.status==='DELIVERED'?
         '<div class="di" style="grid-column:1/-1"><div class="di-l">Delivery Method</div><div class="di-v">'+deliveryMethodHtml(r.delivery_type)+'</div></div>'+
+        (r.previous_delivery_location?'<div class="di" style="grid-column:1/-1"><div class="di-l">Delivered From</div><div class="di-v" style="font-family:\'DM Mono\',monospace;font-size:13px;color:var(--mu)">'+escapeHTML(r.previous_delivery_location)+'</div></div>':'')+
         (r.customer_rating?'<div class="di" style="grid-column:1/-1"><div class="di-l">Passenger Rating</div><div class="di-v">'+ratingBadgeHtml(r.customer_rating)+'</div></div>':'')
       :'')+
     '</div>'+histH+
@@ -1946,7 +1956,11 @@ function showDet(id){
       '<button onclick="earlyReturn('+r.id+')" style="width:100%;background:linear-gradient(135deg,#7b3fa0,#a855f7);color:#fff;border:none;border-radius:10px;padding:13px;font-family:Syne,sans-serif;font-weight:800;font-size:14px;cursor:pointer;margin-top:8px;display:flex;align-items:center;justify-content:center;gap:8px;">⚡ Early Return — Arrived Today</button>'
     :'')+
     '<button class="clsb" style="margin-top:6px;color:var(--red);border-color:var(--red)" onclick="deleteRec('+r.id+')">🗑 Delete Record</button>'+
-    '<button class="clsb" onclick="closeAll()">Close</button>';
+    '<button class="clsb" onclick="closeAll()">Close</button>'+
+    '<div style="margin-top:18px">'+
+      '<div class="htitle" style="margin-bottom:10px">Vehicle Movement History</div>'+
+      '<div id="vlhSection" style="font-size:12px;color:var(--mu);font-family:\'DM Mono\',monospace">Loading…</div>'+
+    '</div>';
   setTimeout(function(){
     document.getElementById('detPanel').querySelectorAll('.di.editable').forEach(function(cell){
       cell.addEventListener('click',function(){makeEditable(cell,cell.dataset.field);});
@@ -1955,6 +1969,7 @@ function showDet(id){
     if(sb) sb.addEventListener('click',function(){saveEdits(parseInt(sb.dataset.rid));});
   },50);
   document.getElementById('detOv').classList.add('on');
+  loadVlh(r.id);
 }
 
 document.getElementById('tbody').addEventListener('click', function(e) {
@@ -2008,8 +2023,10 @@ async function deliverWithRating(id, deliveryType, rating){
     await sbUpdate(r.id,upd);
     if(!isCustoms){
       await sbLog('DELIVERED_FROM_LOCATION',r.name,r.ticket,'HANGAR 19','Delivered as '+deliveryType+'. Previous location: '+prevLoc+'. Final location automatically changed to HANGAR 19.'+(isLateDeliver?' (late)':'')+' | Rating: '+rating);
+      vlhInsert({passenger_id:r.id,ticket:r.ticket,passenger_name:r.name,from_location:prevLoc,to_location:'HANGAR 19',action:'DELIVERED ('+deliveryType+')',note:'Rating: '+rating+(isLateDeliver?' | Late delivery':''),created_by:_currentUserEmail});
     } else {
       await sbLog('DELIVERED',r.name,r.ticket,r.loc,'Vehicle delivered'+(isLateDeliver?' (late)':'')+' via CUSTOMS | Rating: '+rating);
+      vlhInsert({passenger_id:r.id,ticket:r.ticket,passenger_name:r.name,from_location:prevLoc,to_location:r.loc,action:'DELIVERED (CUSTOMS)',note:'Rating: '+rating+(isLateDeliver?' | Late delivery':''),created_by:_currentUserEmail});
     }
     for(var i=0;i<data.length;i++){
       if(data[i].id===r.id){
@@ -2071,6 +2088,7 @@ async function markDel(id){
     for(var i=0;i<data.length;i++){if(data[i].id===r.id){data[i].status='DELIVERED';data[i].deldate=todayStr;data[i].checkout_date=checkoutIso;data[i].delivery_type='NORMAL';data[i].loc='HANGAR 19';data[i].previous_delivery_location=prevLoc;break;}}
     render(); closeAll();
     sbLog('DELIVERED_FROM_LOCATION',r.name,r.ticket,'HANGAR 19','Delivered as NORMAL. Previous location: '+prevLoc+'. Final location automatically changed to HANGAR 19.'+(isLate(r.ret)?' (late)':''));
+    vlhInsert({passenger_id:r.id,ticket:r.ticket,passenger_name:r.name,from_location:prevLoc,to_location:'HANGAR 19',action:'DELIVERED (NORMAL)',note:'Via Mark as Delivered'+(isLate(r.ret)?' | Late delivery':''),created_by:_currentUserEmail});
     showMsg('✓ Delivered: '+r.name, false);
   }catch(e){showMsg('Error: '+e.message,true);}
   finally{loading(false);}
@@ -2096,6 +2114,7 @@ async function undoDeliverToday(id){
     }
     render();
     sbLog('UNDO DELIVER',r.name,r.ticket,restoredLoc,'Restored to PENDING from dashboard'+(r.previous_delivery_location?' | Location restored to: '+restoredLoc:''));
+    vlhInsert({passenger_id:r.id,ticket:r.ticket,passenger_name:r.name,from_location:'HANGAR 19',to_location:restoredLoc,action:'UNDO_DELIVERY',note:'Delivery undone, location restored',created_by:_currentUserEmail});
     showMsg('↩ Restored to pending: '+r.name,false);
   }catch(e){showMsg('Error: '+e.message,true);}
   finally{loading(false);}
@@ -2117,6 +2136,7 @@ async function earlyReturn(id){
     for(var i=0;i<data.length;i++){if(data[i].id===r.id){data[i].ret=todayStr;data[i].status='DELIVERED';data[i].deldate=todayStr;data[i].checkout_date=checkoutIso;data[i].delivery_type='NORMAL';data[i].obs=newObs;data[i].loc='HANGAR 19';data[i].previous_delivery_location=prevLoc;break;}}
     render(); closeAll();
     sbLog('DELIVERED_FROM_LOCATION',r.name,r.ticket,'HANGAR 19','Delivered as NORMAL (Early Return). Previous location: '+prevLoc+'. Final location automatically changed to HANGAR 19. Was expected: '+fmtD(r.ret));
+    vlhInsert({passenger_id:r.id,ticket:r.ticket,passenger_name:r.name,from_location:prevLoc,to_location:'HANGAR 19',action:'DELIVERED (NORMAL)',note:'Early Return — was expected '+fmtD(r.ret),created_by:_currentUserEmail});
     showMsg('⚡ Early Return: '+r.name, false);
   }catch(e){showMsg('Error: '+e.message,true);}
   finally{loading(false);}
@@ -2148,6 +2168,7 @@ async function moveHangar(id,hangar){
   try{
     await sbUpdate(r.id,{loc:hangar});
     sbLog('EDITED',r.name,r.ticket,hangar,'Location changed: '+cleanLogValue(oldLoc)+' → '+hangar);
+    vlhInsert({passenger_id:r.id,ticket:r.ticket,passenger_name:r.name,from_location:oldLoc,to_location:hangar,action:'MOVE',note:'Manual hangar change',created_by:_currentUserEmail});
     r.loc=hangar;
     showMsg('Moved to '+hangar, false);
     closeAll(); render();
@@ -2333,6 +2354,11 @@ async function saveEdits(rid){
     if(doReopen) logPromises.push(sbLog('REOPENED',r.name,r.ticket,r.loc,'Reopened from DELIVERED. New ret: '+(upd.ret||'')));
     if(_editDeliveredFromLoc!==null) logPromises.push(sbLog('DELIVERED_FROM_LOCATION',r.name,r.ticket,'HANGAR 19','Delivered as '+(upd.delivery_type||r.delivery_type||'NORMAL')+'. Previous location: '+_editDeliveredFromLoc+'. Final location automatically changed to HANGAR 19.'));
     await Promise.all(logPromises);
+    if(_editDeliveredFromLoc!==null){
+      vlhInsert({passenger_id:r.id,ticket:r.ticket,passenger_name:r.name,from_location:_editDeliveredFromLoc,to_location:'HANGAR 19',action:'DELIVERED ('+(upd.delivery_type||r.delivery_type||'NORMAL')+')',note:'Via edit modal',created_by:_currentUserEmail});
+    } else if(_editChanges.loc!==undefined && upd.loc && upd.loc!==prevLoc && upd.status!=='DELIVERED'){
+      vlhInsert({passenger_id:r.id,ticket:r.ticket,passenger_name:r.name,from_location:prevLoc||'',to_location:upd.loc,action:'MOVE',note:'Location edited manually',created_by:_currentUserEmail});
+    }
     _editChanges={};
     var btn=document.getElementById('saveEditsBtn');
     if(btn) btn.classList.remove('visible');
@@ -2535,12 +2561,15 @@ async function doLogout() {
 _supaClient.auth.onAuthStateChange(function(event, session) {
   if(event === 'SIGNED_IN') {
     _authToken = session.access_token;
+    _currentUserEmail = (session.user && session.user.email) || '';
     showApp();
     loadData();
   } else if(event === 'TOKEN_REFRESHED' && session) {
     _authToken = session.access_token;
+    _currentUserEmail = (session.user && session.user.email) || _currentUserEmail;
   } else if(event === 'SIGNED_OUT') {
     _authToken = null;
+    _currentUserEmail = '';
     showLogin();
   }
 });
@@ -2549,6 +2578,7 @@ _supaClient.auth.onAuthStateChange(function(event, session) {
 _supaClient.auth.getSession().then(function(result) {
   if(result.data && result.data.session) {
     _authToken = result.data.session.access_token;
+    _currentUserEmail = (result.data.session.user && result.data.session.user.email) || '';
     showApp();
     loadData();
   } else {
@@ -3294,6 +3324,70 @@ async function sbLog(action, passenger, ticket, location, detail) {
     });
   } catch(e) { console.warn('Log error:', e); }
 }
+// ── VEHICLE MOVEMENT HISTORY ───────────────────────────────────
+var VLH_TABLE = 'vehicle_location_history';
+
+function vlhInsert(entry) {
+  fetch(SUPABASE_URL + '/rest/v1/' + VLH_TABLE, {
+    method: 'POST',
+    headers: Object.assign({}, sbHeaders(), {'Prefer': 'return=minimal'}),
+    body: JSON.stringify(entry)
+  }).catch(function(e){ console.warn('VLH insert error:', e); });
+}
+
+async function vlhGet(passengerId) {
+  var url = SUPABASE_URL + '/rest/v1/' + VLH_TABLE +
+    '?passenger_id=eq.' + passengerId + '&order=created_at.asc';
+  var res = await fetch(url, { headers: sbHeaders() });
+  if (!res.ok) throw new Error('VLH load failed: ' + res.status);
+  return res.json();
+}
+
+async function loadVlh(passengerId) {
+  var el = document.getElementById('vlhSection');
+  if (!el) return;
+  try {
+    var entries = await vlhGet(passengerId);
+    el.innerHTML = renderVlh(entries);
+  } catch(e) {
+    if (el) el.innerHTML = '<div style="font-size:12px;color:var(--mu)">Could not load movement history.</div>';
+  }
+}
+
+function renderVlh(entries) {
+  if (!entries || !entries.length) {
+    return '<div style="font-size:12px;color:var(--mu);padding:6px 0">No movement records yet.</div>';
+  }
+  var html = '';
+  entries.forEach(function(e, i) {
+    var ts = e.created_at
+      ? new Date(e.created_at).toLocaleString('en-US', {month:'2-digit',day:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})
+      : '—';
+    var action = escapeHTML(e.action || '—');
+    var isDelivered = (e.action || '').indexOf('DELIVERED') >= 0;
+    var isUndo = e.action === 'UNDO_DELIVERY';
+    var isCheckin = e.action === 'CHECK-IN';
+    var dotColor = isDelivered ? 'var(--ok)' : isUndo ? 'var(--red)' : isCheckin ? 'var(--pur)' : 'var(--acc)';
+    var labelColor = isDelivered ? 'var(--ok)' : isUndo ? 'var(--red)' : 'var(--tx)';
+    var movement = '';
+    if (e.from_location && e.to_location) movement = escapeHTML(e.from_location) + ' → ' + escapeHTML(e.to_location);
+    else if (e.to_location) movement = escapeHTML(e.to_location);
+    html +=
+      '<div style="display:flex;gap:10px;align-items:flex-start'+(i>0?';margin-top:10px':'')+'">'+
+        '<div style="display:flex;flex-direction:column;align-items:center;padding-top:3px">'+
+          '<div style="width:8px;height:8px;border-radius:50%;background:'+dotColor+';flex-shrink:0"></div>'+
+          (i < entries.length-1 ? '<div style="width:1px;flex:1;background:rgba(255,255,255,0.1);margin-top:4px;min-height:20px"></div>' : '')+
+        '</div>'+
+        '<div style="flex:1;min-width:0">'+
+          '<div style="font-size:10px;color:var(--mu);font-family:\'DM Mono\',monospace;margin-bottom:2px">'+escapeHTML(ts)+'</div>'+
+          '<div style="font-size:12px;font-weight:700;color:'+labelColor+';font-family:\'Syne\',sans-serif;letter-spacing:.3px">'+action+'</div>'+
+          (movement ? '<div style="font-size:12px;color:var(--tx);font-family:\'DM Mono\',monospace;margin-top:1px">'+movement+'</div>' : '')+
+          (e.note ? '<div style="font-size:11px;color:var(--mu);margin-top:2px">'+escapeHTML(e.note)+'</div>' : '')+
+        '</div>'+
+      '</div>';
+  });
+  return html;
+}
 // ── DIAGNOSTICS ────────────────────────────────────────────────
 function diagLog(msg, color) {
   var el = document.getElementById('diagLog');
@@ -3427,7 +3521,9 @@ async function changeStatus(id){
     }
     await sbUpdate(r.id,upd);
     if(newStatus==='DELIVERED'){
-      sbLog('DELIVERED_FROM_LOCATION',r.name,r.ticket,'HANGAR 19','Delivered as NORMAL. Previous location: '+(r.loc||'')+'. Final location automatically changed to HANGAR 19.');
+      var _csFromLoc=r.loc||'';
+      sbLog('DELIVERED_FROM_LOCATION',r.name,r.ticket,'HANGAR 19','Delivered as NORMAL. Previous location: '+_csFromLoc+'. Final location automatically changed to HANGAR 19.');
+      vlhInsert({passenger_id:r.id,ticket:r.ticket,passenger_name:r.name,from_location:_csFromLoc,to_location:'HANGAR 19',action:'DELIVERED (NORMAL)',note:'Manual status change',created_by:_currentUserEmail});
     } else {
       sbLog('STATUS',r.name,r.ticket,r.loc,'Status changed: '+r.status+' → '+newStatus);
     }
