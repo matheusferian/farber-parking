@@ -285,6 +285,15 @@
   <div class="modal">
     <h2 id="modalTitle">New Passenger</h2>
     <p class="msub" id="modalSub">Fill in passenger details</p>
+    <div class="fr full" style="margin-bottom:4px">
+      <div class="fg">
+        <div class="lbs">
+          <div class="ob on" id="modeValet" onclick="selMode(this,'VALET')">&#128663; Passenger Valet</div>
+          <div class="ob" id="modeRental" onclick="selMode(this,'RENTAL')">&#128273; Rental Log</div>
+        </div>
+      </div>
+    </div>
+    <div id="passengerFields">
     <div class="fr full">
       <div class="fg">
         <label>Operation Type</label>
@@ -381,6 +390,59 @@
     <div id="vcfWrap" style="display:none;padding:10px 0 0;">
       <a id="vcfLink" download="" style="display:flex;align-items:center;justify-content:center;gap:8px;background:rgba(26,61,124,0.08);border:1px solid var(--navy);border-radius:10px;padding:11px 14px;font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--navy);text-decoration:none;">&#128100; Save to Contacts</a>
     </div>
+    </div><!-- end #passengerFields -->
+    <div id="rentalFields" style="display:none">
+      <div style="background:rgba(232,197,106,0.07);border:1px solid rgba(232,197,106,0.25);border-radius:10px;padding:9px 13px;margin-bottom:10px;font-size:11px;color:var(--gold);display:flex;align-items:center;gap:7px;">
+        &#128273; Internal record only — no valet delivery created
+      </div>
+      <div class="fr full">
+        <div class="fg"><label>Passenger Name <span style="color:var(--red)">*</span></label>
+          <input type="text" id="rlName" oninput="this.value=this.value.toUpperCase()" placeholder="" autocomplete="off" style="text-transform:uppercase">
+        </div>
+      </div>
+      <div class="fr full">
+        <div class="fg"><label>Rental Company <span style="color:var(--red)">*</span></label>
+          <select id="rlCompany" style="width:100%;background:var(--s2);border:1px solid var(--b);border-radius:10px;padding:11px 14px;font-size:16px;color:var(--tx);outline:none;font-family:'Syne',sans-serif;box-sizing:border-box;">
+            <option value="">Select company...</option>
+            <option value="Enterprise">Enterprise</option>
+            <option value="Hertz">Hertz</option>
+            <option value="Avis">Avis</option>
+            <option value="Budget">Budget</option>
+            <option value="National">National</option>
+            <option value="Alamo">Alamo</option>
+            <option value="Sixt">Sixt</option>
+            <option value="Dollar">Dollar</option>
+            <option value="Thrifty">Thrifty</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+      </div>
+      <div class="fr full">
+        <div class="fg"><label>Flight Date</label>
+          <input type="date" id="rlFlightDate" style="width:100%;background:var(--s2);border:1px solid var(--b);border-radius:10px;padding:11px 14px;font-size:16px;color:var(--tx);outline:none;font-family:'Syne',sans-serif;box-sizing:border-box;">
+        </div>
+      </div>
+      <div class="fr two">
+        <div class="fg"><label>Vehicle Model</label><input type="text" id="rlVehicle" placeholder="" autocomplete="off"></div>
+        <div class="fg"><label>Color</label><input type="text" id="rlColor" placeholder="" autocomplete="off"></div>
+      </div>
+      <div class="fr full">
+        <div class="fg"><label>Notes <span style="color:var(--mu);font-weight:400">(optional)</span></label>
+          <input type="text" id="rlNotes" placeholder="" autocomplete="off">
+        </div>
+      </div>
+      <div style="background:var(--s);border:1px solid var(--b);border-radius:10px;padding:9px 13px;margin:4px 0 2px;font-size:11px;color:var(--mu);line-height:1.8;">
+        Saved automatically:<br>
+        <span style="color:var(--ok)">&#10003;</span> Parked on grass &nbsp;·&nbsp;
+        <span style="color:var(--ok)">&#10003;</span> Key left at office &nbsp;·&nbsp;
+        <span style="color:var(--ok)">&#10003;</span> For record only — not valet delivery
+      </div>
+      <div class="mact">
+        <button class="btnc" onclick="tryCloseAdd()">Cancel</button>
+        <button class="btnp" onclick="saveRentalLog(true)" style="background:linear-gradient(135deg,#7a4e00,#c47a00);border-color:var(--gold);">&#128273; Save + Print</button>
+        <button class="btnp" onclick="saveRentalLog(false)">Save Only</button>
+      </div>
+    </div><!-- end #rentalFields -->
   </div>
 </div>
 <div class="ov" id="discardOv">
@@ -425,10 +487,26 @@
 <div class="pane" id="pane-logs" style="padding:0 0 100px">
   <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 20px;border-bottom:1px solid var(--b);">
     <div>
-      <div style="font-family:'Syne',sans-serif;font-size:15px;font-weight:800;color:var(--navy)">📋 Activity Log</div>
-      <div style="font-size:11px;color:var(--mu)">Check-ins, deliveries and edits</div>
+      <div style="font-family:'Syne',sans-serif;font-size:15px;font-weight:800;color:var(--navy)">📋 Logs</div>
+      <div style="font-size:11px;color:var(--mu)">Rental records and activity</div>
     </div>
     <button onclick="loadLogs()" style="background:none;border:1px solid var(--b);border-radius:8px;padding:6px 14px;color:var(--mu);font-size:12px;cursor:pointer;">⟳ Refresh</button>
+  </div>
+  <!-- Rental Logs section -->
+  <div style="padding:14px 20px 0;">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+      <span style="font-family:'Syne',sans-serif;font-size:13px;font-weight:800;color:var(--gold)">&#128273; Rental Logs</span>
+      <span style="font-size:11px;color:var(--mu)">Carros alugados — registro interno</span>
+    </div>
+    <div id="rentalLogsContainer">
+      <div style="padding:16px 0;text-align:center;color:var(--mu);font-size:13px">Click Refresh to load</div>
+    </div>
+  </div>
+  <!-- Divider -->
+  <div style="display:flex;align-items:center;gap:10px;padding:10px 20px;">
+    <div style="flex:1;height:1px;background:var(--b)"></div>
+    <div style="font-size:11px;color:var(--mu);white-space:nowrap">Activity Log</div>
+    <div style="flex:1;height:1px;background:var(--b)"></div>
   </div>
   <div id="logsContainer" style="padding:0 20px 20px">
     <div style="padding:40px;text-align:center;color:var(--mu)">Click Refresh to load logs</div>
@@ -1592,7 +1670,7 @@ function getNextAscendTicket(){
   return 'A-'+mm+dd+'-'+String(getSharedDailyMax()+1);
 }
 function selOp(el,op){
-  document.querySelectorAll('.ob').forEach(function(b){b.classList.remove('on');});
+  document.querySelectorAll('#passengerFields .ob').forEach(function(b){b.classList.remove('on');});
   el.classList.add('on');
   document.getElementById('fOperation').value=op;
   var ticketEl=document.getElementById('fTicket');
@@ -1710,6 +1788,103 @@ function getNextTicket() {
 }
 
 // ── OPEN / CLOSE MODAL ─────────────────────────────────────────
+// ── RENTAL LOG MODE TOGGLE ─────────────────────────────────────
+function selMode(el, mode) {
+  document.querySelectorAll('#modeValet,#modeRental').forEach(function(b){ b.classList.remove('on'); });
+  el.classList.add('on');
+  var isPax = mode === 'VALET';
+  document.getElementById('passengerFields').style.display = isPax ? '' : 'none';
+  document.getElementById('rentalFields').style.display    = isPax ? 'none' : '';
+  document.getElementById('modalTitle').textContent = isPax ? 'New Entry' : 'Rental Log';
+  document.getElementById('modalSub').textContent   = isPax ? 'Add a new passenger' : 'Internal record — no valet delivery';
+  if (!isPax) {
+    var d = new Date();
+    var yyyy = d.getFullYear();
+    var mm = String(d.getMonth()+1).padStart(2,'0');
+    var dd = String(d.getDate()).padStart(2,'0');
+    var el2 = document.getElementById('rlFlightDate');
+    if (el2 && !el2.value) el2.value = yyyy+'-'+mm+'-'+dd;
+    var n = document.getElementById('rlName'); if(n) n.focus();
+  }
+}
+
+// ── SAVE RENTAL LOG ────────────────────────────────────────────
+async function saveRentalLog(doPrint) {
+  var name    = (document.getElementById('rlName').value || '').trim();
+  var company = document.getElementById('rlCompany').value;
+  var fdate   = document.getElementById('rlFlightDate').value;
+  var vehicle = (document.getElementById('rlVehicle').value || '').trim();
+  var color   = (document.getElementById('rlColor').value || '').trim();
+  var notes   = (document.getElementById('rlNotes').value || '').trim();
+  if (!name)    { showMsg('Passenger name is required.', true); return; }
+  if (!company) { showMsg('Select a rental company.', true); return; }
+  if (!fdate)   { showMsg('Flight date is required.', true); return; }
+  var payload = {
+    passenger_name:  name,
+    rental_company:  company,
+    flight_date:     fdate,
+    vehicle:         vehicle || null,
+    color:           color   || null,
+    notes:           notes   || null,
+    parked_location: 'Parked on grass.',
+    key_location:    'Key left at office.',
+    record_note:     'For record only — not valet delivery.',
+    logged_at:       new Date().toISOString(),
+    logged_by:       _currentUserEmail || null
+  };
+  try {
+    showMsg('Saving...', false);
+    var res = await fetch(SUPABASE_URL + '/rest/v1/rental_logs', {
+      method:  'POST',
+      headers: Object.assign({'Content-Type':'application/json','Prefer':'return=representation'}, sbHeaders()),
+      body:    JSON.stringify(payload)
+    });
+    if (!res.ok) { var e = await res.text(); throw new Error(e); }
+    showMsg('&#128273; Rental log saved!', false);
+    if (doPrint) {
+      var xml = buildRentalLogXml({name:name,company:company,flight_date:fdate,vehicle:vehicle,color:color});
+      await epsonSend(xml, 'Rental Log');
+    }
+    document.getElementById('addOv').classList.remove('on');
+  } catch(e) {
+    showMsg('Error saving rental log: ' + e.message, true);
+  }
+}
+
+// ── BUILD RENTAL LOG TICKET XML ────────────────────────────────
+function buildRentalLogXml(r) {
+  var d = r.flight_date ? (function(){
+    var p = r.flight_date.split('-');
+    return p[1]+'/'+p[2]+'/'+p[0];
+  })() : 'N/A';
+  var carLine = [r.vehicle, r.color].filter(Boolean).join(' / ') || 'N/A';
+  return '<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">'
+    + '<s:Body>'
+    + '<epos-print xmlns="http://www.epson-pos.com/schemas/2011/03/epos-print">'
+    + '<text align="center" em="true">MAKERS AIR VALET&#10;</text>'
+    + '<text align="center" font="font_b">by Farber Parking&#10;</text>'
+    + '<text align="center">------------------------&#10;</text>'
+    + '<text align="center" em="true">RENTAL LOG&#10;</text>'
+    + '<text align="center">OFFICE COPY&#10;</text>'
+    + '<text align="center">------------------------&#10;</text>'
+    + '<text>Passenger: ' + (r.name||'') + '&#10;</text>'
+    + '<text>Rental Co: ' + (r.company||'') + '&#10;</text>'
+    + '<text>Flight:    ' + d + '&#10;</text>'
+    + '<text>Vehicle:   ' + carLine + '&#10;</text>'
+    + '<text align="center">------------------------&#10;</text>'
+    + '<text align="center" em="true">PARKED ON GRASS&#10;</text>'
+    + '<text align="center" em="true">KEY LEFT AT OFFICE&#10;</text>'
+    + '<text align="center">------------------------&#10;</text>'
+    + '<text align="center" font="font_b">INTERNAL RECORD ONLY&#10;</text>'
+    + '<text align="center" font="font_b">Not customer copy&#10;</text>'
+    + '<text align="center" font="font_b">Not valet delivery&#10;</text>'
+    + '<feed line="3"/>'
+    + '<cut type="feed"/>'
+    + '</epos-print>'
+    + '</s:Body>'
+    + '</s:Envelope>';
+}
+
 function openAdd(){
   document.getElementById('modalTitle').textContent='New Entry';
   document.getElementById('modalSub').textContent='Add a new passenger';
@@ -1730,8 +1905,18 @@ function openAdd(){
   document.getElementById('fStatus').value='PENDING';
   onStatusChange('PENDING');
   var fOp=document.getElementById('fOperation'); if(fOp) fOp.value='MAKERS';
-  document.querySelectorAll('.ob').forEach(function(b){b.classList.remove('on');});
-  var defOb=document.querySelector('.ob');if(defOb)defOb.classList.add('on');
+  document.getElementById('passengerFields').style.display='';
+  document.getElementById('rentalFields').style.display='none';
+  document.querySelectorAll('#modeValet,#modeRental').forEach(function(b){b.classList.remove('on');});
+  var mv=document.getElementById('modeValet'); if(mv) mv.classList.add('on');
+  document.getElementById('rlName').value='';
+  document.getElementById('rlCompany').value='';
+  document.getElementById('rlFlightDate').value='';
+  document.getElementById('rlVehicle').value='';
+  document.getElementById('rlColor').value='';
+  document.getElementById('rlNotes').value='';
+  document.querySelectorAll('#passengerFields .ob').forEach(function(b){b.classList.remove('on');});
+  var defOb=document.querySelector('#passengerFields .ob');if(defOb)defOb.classList.add('on');
   document.getElementById('freqInfo').classList.remove('on');
   var erw=document.getElementById('erWarn'); if(erw) erw.style.display='none';
   var approxRow=document.getElementById('approxRow');
@@ -3502,8 +3687,51 @@ async function runTestAppend() {
 
 function refreshTasks(){ loadData(); }
 
+// ── LOAD RENTAL LOGS ───────────────────────────────────────────
+async function loadRentalLogs() {
+  var container = document.getElementById('rentalLogsContainer');
+  if (!container) return;
+  container.innerHTML = '<div style="padding:10px 0;text-align:center;color:var(--mu);font-size:12px">Loading...</div>';
+  try {
+    var res = await fetch(SUPABASE_URL + '/rest/v1/rental_logs?order=logged_at.desc&limit=100', {
+      headers: sbHeaders()
+    });
+    if (!res.ok) {
+      if (res.status === 404 || res.status === 400) {
+        container.innerHTML = '<div style="padding:12px;font-size:12px;color:var(--mu)">Tabela <code>rental_logs</code> não encontrada. Execute o SQL de criação no Supabase.</div>';
+        return;
+      }
+      throw new Error('HTTP ' + res.status);
+    }
+    var rows = await res.json();
+    if (!rows.length) {
+      container.innerHTML = '<div style="padding:16px 0;text-align:center;color:var(--mu);font-size:12px">No rental logs yet.</div>';
+      return;
+    }
+    container.innerHTML = rows.map(function(r) {
+      var dt = r.logged_at ? new Date(r.logged_at) : null;
+      var dtStr = dt ? dt.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) + ' · ' + dt.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}) : '';
+      var carLine = [r.vehicle, r.color].filter(Boolean).join(' / ') || '—';
+      var fd = r.flight_date ? (function(){var p=r.flight_date.split('-');return p[1]+'/'+p[2]+'/'+p[0];})() : '—';
+      return '<div style="display:flex;gap:10px;padding:12px 0;border-bottom:1px solid var(--s2);align-items:flex-start;">'
+        + '<div style="width:3px;border-radius:2px;background:var(--gold);flex-shrink:0;align-self:stretch;"></div>'
+        + '<div style="flex:1;min-width:0;">'
+        + '<div style="font-weight:700;font-size:13px;color:var(--tx)">' + escapeHTML(r.passenger_name) + '</div>'
+        + '<div style="font-size:11px;color:var(--mu);margin-top:2px;">' + escapeHTML(r.rental_company) + ' · ' + escapeHTML(carLine) + '</div>'
+        + '<div style="font-size:11px;color:var(--mu);">Flight: ' + escapeHTML(fd) + (r.notes ? ' · ' + escapeHTML(r.notes) : '') + '</div>'
+        + '<div style="margin-top:4px;"><span style="font-size:10px;background:rgba(232,197,106,0.12);color:var(--gold);border:1px solid rgba(232,197,106,0.3);border-radius:4px;padding:1px 7px;">rental log</span></div>'
+        + '</div>'
+        + '<div style="font-size:10px;color:var(--mu);text-align:right;flex-shrink:0;white-space:nowrap;">' + escapeHTML(dtStr.replace(' · ','\n')) + '</div>'
+        + '</div>';
+    }).join('');
+  } catch(e) {
+    container.innerHTML = '<div style="padding:12px;color:var(--red);font-size:12px">Error: ' + e.message + '</div>';
+  }
+}
+
 // ── LOAD LOGS ──────────────────────────────────────────────────
 async function loadLogs() {
+  loadRentalLogs();
   var container = document.getElementById('logsContainer');
   if(container) container.innerHTML = '<div style="padding:20px;text-align:center;color:var(--mu)">Loading...</div>';
   try {
