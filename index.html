@@ -485,32 +485,106 @@
 </div>
 <!-- LOGS PANE -->
 <div class="pane" id="pane-logs" style="padding:0 0 100px">
-  <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 20px;border-bottom:1px solid var(--b);">
-    <div>
-      <div style="font-family:'Syne',sans-serif;font-size:15px;font-weight:800;color:var(--navy)">📋 Logs</div>
-      <div style="font-size:11px;color:var(--mu)">Rental records and activity</div>
+
+  <!-- ── ACTIVITY LOGS SECTION ── -->
+  <div id="actSection">
+    <div onclick="toggleLogsSection('act')" style="display:flex;align-items:center;justify-content:space-between;padding:13px 20px;border-bottom:1px solid var(--b);cursor:pointer;user-select:none;">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span style="font-size:16px;">&#128203;</span>
+        <div>
+          <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:800;color:#63b3ed;">Activity Logs</div>
+          <div style="font-size:10px;color:var(--mu)">Check-ins, deliveries and edits</div>
+        </div>
+      </div>
+      <span id="actChevron" style="font-size:11px;color:var(--mu);">&#9650;</span>
     </div>
-    <button onclick="loadLogs()" style="background:none;border:1px solid var(--b);border-radius:8px;padding:6px 14px;color:var(--mu);font-size:12px;cursor:pointer;">⟳ Refresh</button>
-  </div>
-  <!-- Rental Logs section -->
-  <div style="padding:14px 20px 0;">
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
-      <span style="font-family:'Syne',sans-serif;font-size:13px;font-weight:800;color:var(--gold)">&#128273; Rental Logs</span>
-      <span style="font-size:11px;color:var(--mu)">Carros alugados — registro interno</span>
+    <div id="actBody">
+      <!-- Filters -->
+      <div style="background:var(--s);border-bottom:1px solid var(--b);padding:12px 20px;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+          <div class="fg"><label style="font-size:10px;">From date</label><input type="date" id="alfFrom" style="background:var(--s2);border:1px solid var(--b);border-radius:8px;padding:7px 10px;font-size:13px;color:var(--tx);outline:none;width:100%;box-sizing:border-box;"></div>
+          <div class="fg"><label style="font-size:10px;">To date</label><input type="date" id="alfTo" style="background:var(--s2);border:1px solid var(--b);border-radius:8px;padding:7px 10px;font-size:13px;color:var(--tx);outline:none;width:100%;box-sizing:border-box;"></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+          <div class="fg"><label style="font-size:10px;">Passenger name</label><input type="text" id="alfName" placeholder="Search..." style="background:var(--s2);border:1px solid var(--b);border-radius:8px;padding:7px 10px;font-size:13px;color:var(--tx);outline:none;width:100%;box-sizing:border-box;"></div>
+          <div class="fg"><label style="font-size:10px;">Ticket #</label><input type="text" id="alfTicket" placeholder="e.g. 1042" style="background:var(--s2);border:1px solid var(--b);border-radius:8px;padding:7px 10px;font-size:13px;color:var(--tx);outline:none;width:100%;box-sizing:border-box;font-family:'DM Mono',monospace;"></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+          <div class="fg"><label style="font-size:10px;">Action type</label>
+            <select id="alfAction" style="background:var(--s2);border:1px solid var(--b);border-radius:8px;padding:7px 10px;font-size:13px;color:var(--tx);outline:none;width:100%;box-sizing:border-box;">
+              <option value="">All actions</option>
+              <option value="CHECK-IN">CHECK-IN</option>
+              <option value="DELIVERED">DELIVERED</option>
+              <option value="LATE DELIVER">LATE DELIVER</option>
+              <option value="EARLY RETURN">EARLY RETURN</option>
+              <option value="EDITED">EDITED</option>
+              <option value="DELETED">DELETED</option>
+              <option value="ARCHIVED">ARCHIVED</option>
+            </select>
+          </div>
+          <div class="fg"><label style="font-size:10px;">User (email)</label><input type="text" id="alfUser" placeholder="email..." style="background:var(--s2);border:1px solid var(--b);border-radius:8px;padding:7px 10px;font-size:13px;color:var(--tx);outline:none;width:100%;box-sizing:border-box;"></div>
+        </div>
+        <button onclick="searchActivityLogs()" style="width:100%;background:linear-gradient(135deg,var(--navy),#2a5db0);color:#fff;border:1px solid var(--gold);border-radius:10px;padding:10px;font-family:'Syne',sans-serif;font-weight:800;font-size:13px;cursor:pointer;">&#128269; Search Activity Logs</button>
+      </div>
+      <!-- Results -->
+      <div id="actLogsContainer" style="padding:0 20px 12px;">
+        <div style="padding:20px 0;text-align:center;color:var(--mu);font-size:12px;">Loading last 200 entries...</div>
+      </div>
     </div>
-    <div id="rentalLogsContainer">
-      <div style="padding:16px 0;text-align:center;color:var(--mu);font-size:13px">Click Refresh to load</div>
+  </div>
+
+  <!-- ── DIVIDER ── -->
+  <div style="display:flex;align-items:center;gap:8px;padding:6px 20px;">
+    <div style="flex:1;height:1px;background:var(--b);"></div>
+    <div style="flex:1;height:1px;background:var(--b);"></div>
+  </div>
+
+  <!-- ── RENTAL LOGS SECTION ── -->
+  <div id="rlSection">
+    <div onclick="toggleLogsSection('rl')" style="display:flex;align-items:center;justify-content:space-between;padding:13px 20px;border-top:1px solid var(--b);cursor:pointer;user-select:none;">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span style="font-size:16px;">&#128273;</span>
+        <div>
+          <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:800;color:var(--gold);">Rental Logs</div>
+          <div style="font-size:10px;color:var(--mu)">Internal rental car records — search to load</div>
+        </div>
+      </div>
+      <span id="rlChevron" style="font-size:11px;color:var(--mu);">&#9660;</span>
+    </div>
+    <div id="rlBody" style="display:none;">
+      <!-- Filters -->
+      <div style="background:var(--s);border-bottom:1px solid var(--b);padding:12px 20px;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+          <div class="fg"><label style="font-size:10px;">From date</label><input type="date" id="rlfFrom" style="background:var(--s2);border:1px solid var(--b);border-radius:8px;padding:7px 10px;font-size:13px;color:var(--tx);outline:none;width:100%;box-sizing:border-box;"></div>
+          <div class="fg"><label style="font-size:10px;">To date</label><input type="date" id="rlfTo" style="background:var(--s2);border:1px solid var(--b);border-radius:8px;padding:7px 10px;font-size:13px;color:var(--tx);outline:none;width:100%;box-sizing:border-box;"></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+          <div class="fg"><label style="font-size:10px;">Passenger name</label><input type="text" id="rlfName" placeholder="Search..." style="background:var(--s2);border:1px solid var(--b);border-radius:8px;padding:7px 10px;font-size:13px;color:var(--tx);outline:none;width:100%;box-sizing:border-box;"></div>
+          <div class="fg"><label style="font-size:10px;">Rental company</label>
+            <select id="rlfCompany" style="background:var(--s2);border:1px solid var(--b);border-radius:8px;padding:7px 10px;font-size:13px;color:var(--tx);outline:none;width:100%;box-sizing:border-box;">
+              <option value="">All companies</option>
+              <option value="Enterprise">Enterprise</option>
+              <option value="Hertz">Hertz</option>
+              <option value="Avis">Avis</option>
+              <option value="Budget">Budget</option>
+              <option value="National">National</option>
+              <option value="Alamo">Alamo</option>
+              <option value="Sixt">Sixt</option>
+              <option value="Dollar">Dollar</option>
+              <option value="Thrifty">Thrifty</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+        </div>
+        <button onclick="searchRentalLogs()" style="width:100%;background:linear-gradient(135deg,#7a4e00,#c47a00);color:#fff;border:1px solid var(--gold);border-radius:10px;padding:10px;font-family:'Syne',sans-serif;font-weight:800;font-size:13px;cursor:pointer;">&#128273; Search Rental Logs</button>
+      </div>
+      <!-- Results -->
+      <div id="rentalLogsContainer" style="padding:0 20px 12px;">
+        <div style="padding:20px 0;text-align:center;color:var(--mu);font-size:12px;">Use the filters above and click Search to load rental records.</div>
+      </div>
     </div>
   </div>
-  <!-- Divider -->
-  <div style="display:flex;align-items:center;gap:10px;padding:10px 20px;">
-    <div style="flex:1;height:1px;background:var(--b)"></div>
-    <div style="font-size:11px;color:var(--mu);white-space:nowrap">Activity Log</div>
-    <div style="flex:1;height:1px;background:var(--b)"></div>
-  </div>
-  <div id="logsContainer" style="padding:0 20px 20px">
-    <div style="padding:40px;text-align:center;color:var(--mu)">Click Refresh to load logs</div>
-  </div>
+
 </div>
 
 <!-- DEBUG PANE -->
@@ -3687,96 +3761,191 @@ async function runTestAppend() {
 
 function refreshTasks(){ loadData(); }
 
-// ── LOAD RENTAL LOGS ───────────────────────────────────────────
-async function loadRentalLogs() {
-  var container = document.getElementById('rentalLogsContainer');
-  if (!container) return;
-  container.innerHTML = '<div style="padding:10px 0;text-align:center;color:var(--mu);font-size:12px">Loading...</div>';
+// ── LOGS HELPERS ───────────────────────────────────────────────
+var _actOpen = true;
+var _rlOpen  = false;
+
+function toggleLogsSection(sec) {
+  if (sec === 'act') {
+    _actOpen = !_actOpen;
+    document.getElementById('actBody').style.display    = _actOpen ? '' : 'none';
+    document.getElementById('actChevron').innerHTML     = _actOpen ? '&#9650;' : '&#9660;';
+  } else {
+    _rlOpen = !_rlOpen;
+    document.getElementById('rlBody').style.display     = _rlOpen ? '' : 'none';
+    document.getElementById('rlChevron').innerHTML      = _rlOpen ? '&#9650;' : '&#9660;';
+  }
+}
+
+function _dateInputToISO(val, endOfDay) {
+  if (!val) return null;
+  return val + (endOfDay ? 'T23:59:59' : 'T00:00:00');
+}
+
+function _renderActivityLogs(logs, container, label) {
+  var LIMIT = 500;
+  var overLimit = logs.length > LIMIT;
+  if (overLimit) logs = logs.slice(0, LIMIT);
+  var actionColors = {
+    'CHECK-IN':'var(--ok)','DELIVERED':'var(--ok)','LATE DELIVER':'var(--red)',
+    'EARLY RETURN':'var(--pur)','EDITED':'var(--acc)','DELETED':'var(--red)','ARCHIVED':'#6B7280'
+  };
+  var warn = overLimit
+    ? '<div style="padding:8px 0 4px;font-size:12px;color:var(--acc);">&#9888; More than 500 results found. Narrow your search.</div>'
+    : '';
+  var html = logs.map(function(log) {
+    var color = actionColors[log.action] || 'var(--mu)';
+    return '<div style="display:flex;gap:12px;padding:10px 0;border-bottom:1px solid var(--s2);align-items:flex-start;">'
+      + '<div style="min-width:86px;font-family:monospace;font-size:10px;color:var(--mu);padding-top:2px">' + escapeHTML(log.ts||'') + '</div>'
+      + '<div style="min-width:88px;"><span style="background:'+color+';color:#fff;border-radius:4px;padding:2px 6px;font-size:10px;font-family:monospace;font-weight:700">' + escapeHTML(log.action||'') + '</span></div>'
+      + '<div style="flex:1;min-width:0;">'
+      + '<div style="font-weight:600;font-size:13px">' + escapeHTML(log.passenger||'') + '</div>'
+      + '<div style="font-size:11px;color:var(--mu)">Ticket: <span style="color:var(--gold)">' + escapeHTML(log.ticket||'') + '</span>'
+      + (log.location ? ' · ' + escapeHTML(log.location) : '')
+      + (log.detail   ? ' · ' + escapeHTML(log.detail)   : '')
+      + '</div></div></div>';
+  }).join('');
+  container.innerHTML = '<div style="font-size:11px;color:var(--mu);padding:10px 0">' + label + '</div>' + warn + html;
+}
+
+function _renderRentalLogs(rows, container) {
+  var LIMIT = 500;
+  var overLimit = rows.length > LIMIT;
+  if (overLimit) rows = rows.slice(0, LIMIT);
+  var warn = overLimit
+    ? '<div style="padding:8px 0 4px;font-size:12px;color:var(--acc);">&#9888; More than 500 results found. Narrow your search.</div>'
+    : '';
+  var cards = rows.map(function(r) {
+    var dt = r.logged_at ? new Date(r.logged_at) : null;
+    var dtStr = dt ? dt.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})
+                     + ' · ' + dt.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}) : '—';
+    var carLine = [r.vehicle, r.color].filter(Boolean).join(' / ') || '—';
+    var fd = r.flight_date ? (function(){ var p=r.flight_date.split('-'); return p[1]+'/'+p[2]+'/'+p[0]; })() : '—';
+    var dataAttr = escapeHTML(JSON.stringify({
+      name: r.passenger_name, company: r.rental_company,
+      flight_date: r.flight_date, vehicle: r.vehicle, color: r.color
+    }));
+    return '<div style="background:var(--s);border:1px solid var(--b);border-left:3px solid var(--gold);border-radius:10px;padding:12px 14px;margin-bottom:10px;">'
+      + '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">'
+      + '<div><div style="font-size:14px;font-weight:700;color:var(--tx)">' + escapeHTML(r.passenger_name) + '</div>'
+      + '<div style="font-size:11px;color:var(--gold);font-weight:600;margin-top:2px">' + escapeHTML(r.rental_company) + '</div></div>'
+      + '<span style="font-size:10px;background:rgba(232,197,106,0.12);color:var(--gold);border:1px solid rgba(232,197,106,0.3);border-radius:4px;padding:2px 7px;">rental log</span>'
+      + '</div>'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 14px;margin-bottom:10px;">'
+      + _rlField('Flight Date', fd)
+      + _rlField('Vehicle / Color', carLine)
+      + _rlField('Notes', r.notes || '—')
+      + _rlField('Logged by', r.logged_by || '—')
+      + '</div>'
+      + '<div style="display:flex;justify-content:space-between;align-items:center;padding-top:8px;border-top:1px solid var(--b);">'
+      + '<div style="font-size:10px;color:var(--mu)">Logged: ' + escapeHTML(dtStr) + '</div>'
+      + '<button onclick="reprintRentalLog(this)" data-r=\'' + dataAttr + '\' '
+      + 'style="font-size:11px;font-weight:700;padding:5px 12px;border-radius:7px;background:rgba(232,197,106,0.1);border:1px solid rgba(232,197,106,0.35);color:var(--gold);cursor:pointer;">&#128438; Reprint</button>'
+      + '</div></div>';
+  }).join('');
+  container.innerHTML = '<div style="padding:10px 0 4px;"></div>' + warn + cards;
+}
+
+function _rlField(lbl, val) {
+  return '<div><div style="font-size:9px;color:var(--mu);text-transform:uppercase;letter-spacing:0.06em">' + lbl + '</div>'
+    + '<div style="font-size:11px;color:var(--tx);font-family:\'DM Mono\',monospace">' + escapeHTML(String(val)) + '</div></div>';
+}
+
+async function reprintRentalLog(btn) {
   try {
-    var res = await fetch(SUPABASE_URL + '/rest/v1/rental_logs?order=logged_at.desc&limit=100', {
-      headers: sbHeaders()
-    });
+    var r = JSON.parse(btn.getAttribute('data-r'));
+    var xml = buildRentalLogXml(r);
+    await epsonSend(xml, 'Rental Log Reprint');
+  } catch(e) {
+    showMsg('Reprint error: ' + e.message, true);
+  }
+}
+
+// ── SEARCH ACTIVITY LOGS ───────────────────────────────────────
+async function searchActivityLogs() {
+  var container = document.getElementById('actLogsContainer');
+  if (!container) return;
+  container.innerHTML = '<div style="padding:20px 0;text-align:center;color:var(--mu);font-size:12px">Searching...</div>';
+  var fromVal   = document.getElementById('alfFrom').value;
+  var toVal     = document.getElementById('alfTo').value;
+  var nameVal   = (document.getElementById('alfName').value || '').trim();
+  var ticketVal = (document.getElementById('alfTicket').value || '').trim();
+  var actionVal = document.getElementById('alfAction').value;
+  var userVal   = (document.getElementById('alfUser').value || '').trim();
+  var hasFilter = fromVal || toVal || nameVal || ticketVal || actionVal || userVal;
+  var params = [];
+  if (fromVal)   params.push('created_at=gte.' + _dateInputToISO(fromVal, false));
+  if (toVal)     params.push('created_at=lte.' + _dateInputToISO(toVal, true));
+  if (nameVal)   params.push('passenger=ilike.*' + encodeURIComponent(nameVal) + '*');
+  if (ticketVal) params.push('ticket=eq.' + encodeURIComponent(ticketVal));
+  if (actionVal) params.push('action=eq.' + encodeURIComponent(actionVal));
+  if (userVal)   params.push('detail=ilike.*' + encodeURIComponent(userVal) + '*');
+  var limit  = hasFilter ? 501 : 200;
+  var qs     = (params.length ? params.join('&') + '&' : '') + 'order=id.desc&limit=' + limit;
+  try {
+    var res = await fetch(SUPABASE_URL + '/rest/v1/activity_log?' + qs, { headers: sbHeaders() });
     if (!res.ok) {
       if (res.status === 404 || res.status === 400) {
-        container.innerHTML = '<div style="padding:12px;font-size:12px;color:var(--mu)">Tabela <code>rental_logs</code> não encontrada. Execute o SQL de criação no Supabase.</div>';
+        container.innerHTML = '<div style="padding:20px;text-align:center;color:var(--mu);font-size:13px">'
+          + 'Log table not created yet.<br><br>'
+          + '<button onclick="createLogTable()" style="background:var(--navy);color:#fff;border:none;border-radius:8px;padding:10px 18px;font-family:Syne,sans-serif;font-weight:700;cursor:pointer;">Create Log Table in Supabase</button>'
+          + '</div>';
+        return;
+      }
+      throw new Error('HTTP ' + res.status);
+    }
+    var logs = await res.json();
+    if (!logs.length) {
+      container.innerHTML = '<div style="padding:20px 0;text-align:center;color:var(--mu)">No activity logs found.</div>';
+      return;
+    }
+    var label = hasFilter
+      ? logs.length + (logs.length > 500 ? '+' : '') + ' result' + (logs.length !== 1 ? 's' : '') + ' found'
+      : 'Showing last 200 entries — use filters to search older records';
+    _renderActivityLogs(logs, container, label);
+  } catch(e) {
+    container.innerHTML = '<div style="padding:20px;color:var(--red)">Error: ' + e.message + '</div>';
+  }
+}
+
+// ── SEARCH RENTAL LOGS ─────────────────────────────────────────
+async function searchRentalLogs() {
+  var container = document.getElementById('rentalLogsContainer');
+  if (!container) return;
+  container.innerHTML = '<div style="padding:20px 0;text-align:center;color:var(--mu);font-size:12px">Searching...</div>';
+  var fromVal    = document.getElementById('rlfFrom').value;
+  var toVal      = document.getElementById('rlfTo').value;
+  var nameVal    = (document.getElementById('rlfName').value || '').trim();
+  var companyVal = document.getElementById('rlfCompany').value;
+  var params = [];
+  if (fromVal)    params.push('logged_at=gte.' + _dateInputToISO(fromVal, false));
+  if (toVal)      params.push('logged_at=lte.' + _dateInputToISO(toVal, true));
+  if (nameVal)    params.push('passenger_name=ilike.*' + encodeURIComponent(nameVal) + '*');
+  if (companyVal) params.push('rental_company=eq.' + encodeURIComponent(companyVal));
+  var qs = (params.length ? params.join('&') + '&' : '') + 'order=logged_at.desc&limit=501';
+  try {
+    var res = await fetch(SUPABASE_URL + '/rest/v1/rental_logs?' + qs, { headers: sbHeaders() });
+    if (!res.ok) {
+      if (res.status === 404 || res.status === 400) {
+        container.innerHTML = '<div style="padding:12px;font-size:12px;color:var(--mu)">Table <code>rental_logs</code> not found. Run the SQL in Supabase first.</div>';
         return;
       }
       throw new Error('HTTP ' + res.status);
     }
     var rows = await res.json();
     if (!rows.length) {
-      container.innerHTML = '<div style="padding:16px 0;text-align:center;color:var(--mu);font-size:12px">No rental logs yet.</div>';
+      container.innerHTML = '<div style="padding:20px 0;text-align:center;color:var(--mu)">No rental logs found.</div>';
       return;
     }
-    container.innerHTML = rows.map(function(r) {
-      var dt = r.logged_at ? new Date(r.logged_at) : null;
-      var dtStr = dt ? dt.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) + ' · ' + dt.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}) : '';
-      var carLine = [r.vehicle, r.color].filter(Boolean).join(' / ') || '—';
-      var fd = r.flight_date ? (function(){var p=r.flight_date.split('-');return p[1]+'/'+p[2]+'/'+p[0];})() : '—';
-      return '<div style="display:flex;gap:10px;padding:12px 0;border-bottom:1px solid var(--s2);align-items:flex-start;">'
-        + '<div style="width:3px;border-radius:2px;background:var(--gold);flex-shrink:0;align-self:stretch;"></div>'
-        + '<div style="flex:1;min-width:0;">'
-        + '<div style="font-weight:700;font-size:13px;color:var(--tx)">' + escapeHTML(r.passenger_name) + '</div>'
-        + '<div style="font-size:11px;color:var(--mu);margin-top:2px;">' + escapeHTML(r.rental_company) + ' · ' + escapeHTML(carLine) + '</div>'
-        + '<div style="font-size:11px;color:var(--mu);">Flight: ' + escapeHTML(fd) + (r.notes ? ' · ' + escapeHTML(r.notes) : '') + '</div>'
-        + '<div style="margin-top:4px;"><span style="font-size:10px;background:rgba(232,197,106,0.12);color:var(--gold);border:1px solid rgba(232,197,106,0.3);border-radius:4px;padding:1px 7px;">rental log</span></div>'
-        + '</div>'
-        + '<div style="font-size:10px;color:var(--mu);text-align:right;flex-shrink:0;white-space:nowrap;">' + escapeHTML(dtStr.replace(' · ','\n')) + '</div>'
-        + '</div>';
-    }).join('');
+    _renderRentalLogs(rows, container);
   } catch(e) {
     container.innerHTML = '<div style="padding:12px;color:var(--red);font-size:12px">Error: ' + e.message + '</div>';
   }
 }
 
-// ── LOAD LOGS ──────────────────────────────────────────────────
+// ── LOAD LOGS (called on tab open) ────────────────────────────
 async function loadLogs() {
-  loadRentalLogs();
-  var container = document.getElementById('logsContainer');
-  if(container) container.innerHTML = '<div style="padding:20px;text-align:center;color:var(--mu)">Loading...</div>';
-  try {
-    var res = await fetch(SUPABASE_URL + '/rest/v1/activity_log?order=id.desc&limit=200', {
-      headers: sbHeaders()
-    });
-    if(!res.ok) {
-      // Table might not exist yet
-      if(res.status===404||res.status===400) {
-        if(container) container.innerHTML = '<div style="padding:20px;text-align:center;color:var(--mu);font-size:13px">'+
-          'Log table not created yet.<br><br>'+
-          '<button onclick="createLogTable()" style="background:var(--navy);color:#fff;border:none;border-radius:8px;padding:10px 18px;font-family:Syne,sans-serif;font-weight:700;cursor:pointer;">Create Log Table in Supabase</button>'+
-          '</div>';
-        return;
-      }
-      throw new Error('HTTP '+res.status);
-    }
-    var logs = await res.json();
-    if(!logs.length) {
-      if(container) container.innerHTML = '<div style="padding:40px;text-align:center;color:var(--mu)">No logs yet. Actions will be recorded here.</div>';
-      return;
-    }
-    var actionColors = {
-      'CHECK-IN': 'var(--ok)', 'DELIVERED': 'var(--ok)', 'LATE DELIVER': 'var(--red)',
-      'EARLY RETURN': 'var(--pur)', 'EDITED': 'var(--acc)', 'DELETED': 'var(--red)',
-      'ARCHIVED': '#6B7280'
-    };
-    var html = logs.map(function(log) {
-      var color = actionColors[log.action] || 'var(--mu)';
-      return '<div style="display:flex;gap:12px;padding:12px 0;border-bottom:1px solid var(--s2);align-items:flex-start;">'+
-        '<div style="min-width:90px;font-family:monospace;font-size:10px;color:var(--mu);padding-top:2px">'+escapeHTML(log.ts)+'</div>'+
-        '<div style="min-width:90px;"><span style="background:'+color+';color:#fff;border-radius:4px;padding:2px 7px;font-size:10px;font-family:monospace;font-weight:700">'+escapeHTML(log.action)+'</span></div>'+
-        '<div style="flex:1;min-width:0;">'+
-          '<div style="font-weight:600;font-size:13px">'+escapeHTML(log.passenger)+'</div>'+
-          '<div style="font-size:11px;color:var(--mu)">Ticket: <span style="color:var(--gold)">'+escapeHTML(log.ticket)+'</span>'+
-          (log.location?' · '+escapeHTML(log.location):'')+
-          (log.detail?' · '+escapeHTML(log.detail):'')+
-          '</div>'+
-        '</div>'+
-      '</div>';
-    }).join('');
-    if(container) container.innerHTML = '<div style="font-size:11px;color:var(--mu);padding:10px 0">'+logs.length+' most recent actions</div>' + html;
-  } catch(e) {
-    if(container) container.innerHTML = '<div style="padding:20px;color:var(--red)">Error loading logs: '+e.message+'</div>';
-  }
+  searchActivityLogs();
 }
 
 function createLogTable() {
@@ -3792,7 +3961,7 @@ function createLogTable() {
     ");\n" +
     "ALTER TABLE activity_log ENABLE ROW LEVEL SECURITY;\n" +
     "CREATE POLICY \"allow_all\" ON activity_log FOR ALL USING (true) WITH CHECK (true);";
-  var el = document.getElementById('logsContainer');
+  var el = document.getElementById('actLogsContainer');
   if(el) el.innerHTML = '<div style="background:#0a0f1e;border-radius:10px;padding:16px;font-family:monospace;font-size:12px;color:#6fc898;white-space:pre-wrap">'+
     'Run this SQL in Supabase SQL Editor:\n\n'+sql+'\n\n'+
     '<button onclick="navigator.clipboard.writeText(`'+sql.replace(/`/g,"'"+'`'+"'")+'`).then(function(){alert(\'Copied!\');})" '+
