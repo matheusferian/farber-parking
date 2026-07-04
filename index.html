@@ -593,11 +593,11 @@
   <!-- EPSON DIAGNOSTICS START -->
   <div id="epsonDiagCard" class="epson-card">
     <div class="epson-card-title">🖨 Epson Printer Diagnostics</div>
-    <div class="epson-card-sub">Test the Epson TM-m30II connection over HTTP ePOS-Print.</div>
+    <div class="epson-card-sub">Test the Epson TM-m30II connection over HTTPS ePOS-Print.</div>
 
     <div class="epson-stat-grid">
       <div class="epson-stat"><div class="epson-stat-label">Status</div><div class="epson-stat-value" id="epsonStatStatus">Not tested</div></div>
-      <div class="epson-stat"><div class="epson-stat-label">Protocol</div><div class="epson-stat-value">HTTP</div></div>
+      <div class="epson-stat"><div class="epson-stat-label">Protocol</div><div class="epson-stat-value">HTTPS</div></div>
       <div class="epson-stat"><div class="epson-stat-label">Printer IP</div><div class="epson-stat-value">10.20.60.142</div></div>
       <div class="epson-stat"><div class="epson-stat-label">Device ID</div><div class="epson-stat-value">local_printer</div></div>
       <div class="epson-stat"><div class="epson-stat-label">Last Test</div><div class="epson-stat-value" id="epsonStatLastTest">—</div></div>
@@ -607,7 +607,9 @@
     <div class="epson-btn-row">
       <button onclick="epsonTestConnection()" class="epson-btn epson-btn-navy">🔌 Test Connection</button>
       <button onclick="epsonTestPrint()" class="epson-btn epson-btn-gold">🧾 Test Print</button>
+      <button onclick="epsonReconnectPrinter()" class="epson-btn epson-btn-outline">🔁 Reconnect Printer</button>
     </div>
+    <div class="epson-card-sub" style="margin:-8px 0 14px;">If the printer shows Offline, tap Reconnect Printer, accept/trust the certificate (Show Details → Visit This Website), then return here and test again.</div>
 
     <div class="epson-history-title">Connection History</div>
     <div class="epson-history-wrap">
@@ -702,7 +704,7 @@ async function sbDelete(id) {
 
 
 // ── EPSON SHARED FETCH (URL logging + 1 automatic retry) ───────
-var EPSON_CONN_FAIL_MSG = 'Printer connection failed. Confirm the printer is online and that HTTP ePOS is enabled.';
+var EPSON_CONN_FAIL_MSG = 'Printer connection failed. If Safari blocks the Epson certificate, tap Reconnect Printer, choose Show Details, then Visit This Website. Then return to the app and try again.';
 
 async function epsonFetch(xml) {
   var url = epsonUrl();
@@ -832,6 +834,14 @@ function epsonUpdateStatusCard(ok, rt) {
   }
   if (lastEl) lastEl.textContent = new Date().toLocaleString();
   if (rtEl)   rtEl.textContent = (rt != null ? rt + ' ms' : '—');
+}
+
+// ── EPSON DIAGNOSTICS: Reconnect Printer (trust HTTPS certificate) ──
+function epsonReconnectPrinter() {
+  var url = PRINTER_PROTOCOL + '://' + PRINTER_HOST;
+  console.log('EPSON RECONNECT URL:', url);
+  window.open(url, '_blank');
+  showMsg('🔁 Opening printer page — accept the certificate, then return and test again.', false);
 }
 
 // ── EPSON DIAGNOSTICS: Test Connection (no cut, no visible print) ──
@@ -1232,9 +1242,11 @@ var HANGARS  = ['HANGAR 19','HANGAR 18','HANGAR 16','HANGAR 7','HH'];
 // ── PRINTER CONFIG ─────────────────────────────────────────────
 // Update PRINTER_HOST if the printer IP or hostname changes.
 // PRINTER_HOST should not include protocol or trailing slash.
-// Automatic HTTP→HTTPS redirect is disabled on this printer, so ePOS-Print
-// must be reached over plain HTTP (see EPSON DIAGNOSTICS section below).
-var PRINTER_PROTOCOL  = 'http';
+// The app is served over HTTPS (GitHub Pages), so ePOS-Print requests must
+// also use HTTPS — browsers block HTTP requests from an HTTPS page as mixed
+// content. The printer's self-signed HTTPS certificate must be trusted once
+// per device (see "Reconnect Printer" in EPSON DIAGNOSTICS below).
+var PRINTER_PROTOCOL  = 'https';
 var PRINTER_HOST      = localStorage.getItem('printer_host') || '10.20.60.142';
 var PRINTER_DEVICE_ID = 'local_printer';
 

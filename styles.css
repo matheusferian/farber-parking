@@ -679,6 +679,8 @@ body{-webkit-text-size-adjust:100%;}
 .epson-btn:hover { transform: translateY(-1px); }
 .epson-btn-navy { background: linear-gradient(135deg, var(--navy), var(--blue)); color: #fff; }
 .epson-btn-gold { background: linear-gradient(135deg, var(--gold2), var(--gold)); color: var(--navy); }
+.epson-btn-outline { background: var(--s); color: var(--navy); border: 1.5px solid var(--navy); }
+.epson-btn-outline:hover { background: rgba(27,59,111,.06); }
 
 .epson-history-title {
   font-family: 'Syne', sans-serif; font-size: 12px; font-weight: 800;
