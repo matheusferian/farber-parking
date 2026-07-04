@@ -589,6 +589,36 @@
 
 <!-- DEBUG PANE -->
 <div class="pane" id="pane-debug" style="padding:16px 20px 100px">
+
+  <!-- EPSON DIAGNOSTICS START -->
+  <div id="epsonDiagCard" class="epson-card">
+    <div class="epson-card-title">🖨 Epson Printer Diagnostics</div>
+    <div class="epson-card-sub">Test the Epson TM-m30II connection over HTTP ePOS-Print.</div>
+
+    <div class="epson-stat-grid">
+      <div class="epson-stat"><div class="epson-stat-label">Status</div><div class="epson-stat-value" id="epsonStatStatus">Not tested</div></div>
+      <div class="epson-stat"><div class="epson-stat-label">Protocol</div><div class="epson-stat-value">HTTP</div></div>
+      <div class="epson-stat"><div class="epson-stat-label">Printer IP</div><div class="epson-stat-value">10.20.60.142</div></div>
+      <div class="epson-stat"><div class="epson-stat-label">Device ID</div><div class="epson-stat-value">local_printer</div></div>
+      <div class="epson-stat"><div class="epson-stat-label">Last Test</div><div class="epson-stat-value" id="epsonStatLastTest">—</div></div>
+      <div class="epson-stat"><div class="epson-stat-label">Response Time</div><div class="epson-stat-value" id="epsonStatRT">—</div></div>
+    </div>
+
+    <div class="epson-btn-row">
+      <button onclick="epsonTestConnection()" class="epson-btn epson-btn-navy">🔌 Test Connection</button>
+      <button onclick="epsonTestPrint()" class="epson-btn epson-btn-gold">🧾 Test Print</button>
+    </div>
+
+    <div class="epson-history-title">Connection History</div>
+    <div class="epson-history-wrap">
+      <table class="epson-history-table">
+        <thead><tr><th>Time</th><th>Result</th><th>Response</th><th>Error</th></tr></thead>
+        <tbody id="epsonHistoryBody"><tr><td colspan="4" style="text-align:center;color:var(--mu);padding:10px;">No tests yet</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+  <!-- EPSON DIAGNOSTICS END -->
+
   <div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:800;color:#e86030;margin-bottom:4px">&#128295; Connection Diagnostics</div>
   <div style="font-size:11px;color:var(--mu);margin-bottom:16px">Use this tab to test if the Google Apps Script is responding correctly.</div>
   <button onclick="runDiagnostic()" style="background:linear-gradient(135deg,#1a3d7c,#2a5db0);color:#fff;border:1px solid var(--gold);border-radius:10px;padding:12px 20px;font-family:'Syne',sans-serif;font-weight:700;font-size:13px;cursor:pointer;margin-bottom:12px;">&#9654; Run Connection Test</button>
@@ -671,6 +701,37 @@ async function sbDelete(id) {
 }
 
 
+// ── EPSON SHARED FETCH (URL logging + 1 automatic retry) ───────
+var EPSON_CONN_FAIL_MSG = 'Printer connection failed. Confirm the printer is online and that HTTP ePOS is enabled.';
+
+async function epsonFetch(xml) {
+  var url = epsonUrl();
+  var attempt = 0;
+  while (true) {
+    console.log('EPSON URL:', url);
+    try {
+      var res = await fetch(url, {
+        method:  'POST',
+        headers: {
+          'Content-Type': 'text/xml; charset=utf-8',
+          'SOAPAction':   '"http://www.epson-pos.com/schemas/2011/03/epos-print"'
+        },
+        body: xml
+      });
+      if (!res.ok) throw new Error('Printer responded: HTTP ' + res.status);
+      return res;
+    } catch (e) {
+      if (attempt === 0) {
+        attempt++;
+        console.warn('EPSON fetch failed, retrying once in 1s:', e.message);
+        await new Promise(function(r){ setTimeout(r, 1000); });
+        continue;
+      }
+      throw e;
+    }
+  }
+}
+
 // ── EPSON TEST PRINT ───────────────────────────────────────────
 async function testPrint() {
   var xml = '<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">'
@@ -683,21 +744,9 @@ async function testPrint() {
     + '</s:Body>'
     + '</s:Envelope>';
 
-  var url = 'https://' + PRINTER_HOST
-    + '/cgi-bin/epos/service.cgi'
-    + '?devid=' + PRINTER_DEVICE_ID + '&timeout=10000';
-
   try {
     showMsg('🖨 Sending to printer...', false);
-    var res = await fetch(url, {
-      method:  'POST',
-      headers: {
-        'Content-Type': 'text/xml; charset=utf-8',
-        'SOAPAction':   '"http://www.epson-pos.com/schemas/2011/03/epos-print"'
-      },
-      body: xml
-    });
-    if (!res.ok) throw new Error('Printer responded: HTTP ' + res.status);
+    var res = await epsonFetch(xml);
     var txt = await res.text();
     var epsonSuccess = (txt.match(/success="([^"]*)"/) || [])[1] || 'unknown';
     var epsonCode    = (txt.match(/code="([^"]*)"/)    || [])[1] || 'none';
@@ -714,27 +763,16 @@ async function testPrint() {
       return;
     }
   } catch(e) {
-    showMsg('❌ Print error: ' + e.message, true);
+    showMsg('❌ ' + EPSON_CONN_FAIL_MSG, true);
     console.error('testPrint error:', e);
   }
 }
 
 // ── EPSON SHARED SEND ──────────────────────────────────────────
 async function epsonSend(xml, label) {
-  var url = 'https://' + PRINTER_HOST
-    + '/cgi-bin/epos/service.cgi'
-    + '?devid=' + PRINTER_DEVICE_ID + '&timeout=10000';
   try {
     showMsg('🖨 Imprimindo ' + label + '...', false);
-    var res = await fetch(url, {
-      method:  'POST',
-      headers: {
-        'Content-Type': 'text/xml; charset=utf-8',
-        'SOAPAction':   '"http://www.epson-pos.com/schemas/2011/03/epos-print"'
-      },
-      body: xml
-    });
-    if (!res.ok) throw new Error('Printer responded: HTTP ' + res.status);
+    var res = await epsonFetch(xml);
     var txt = await res.text();
     var epsonSuccess = (txt.match(/success="([^"]*)"/) || [])[1] || 'unknown';
     var epsonCode    = (txt.match(/code="([^"]*)"/)    || [])[1] || 'none';
@@ -751,11 +789,127 @@ async function epsonSend(xml, label) {
     }
     return epsonSuccess === 'true';
   } catch(e) {
-    showMsg('❌ Erro na impressão: ' + e.message, true);
+    showMsg('❌ ' + EPSON_CONN_FAIL_MSG, true);
     console.error('epsonSend error:', e);
     return false;
   }
 }
+
+// EPSON DIAGNOSTICS START
+// ── EPSON DIAGNOSTICS: connection history + status card ────────
+var EPSON_HISTORY = [];
+
+function epsonRecordHistory(entry) {
+  EPSON_HISTORY.unshift(entry);
+  if (EPSON_HISTORY.length > 20) EPSON_HISTORY.length = 20;
+  epsonRenderHistory();
+}
+
+function epsonRenderHistory() {
+  var body = document.getElementById('epsonHistoryBody');
+  if (!body) return;
+  if (!EPSON_HISTORY.length) {
+    body.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--mu);padding:10px;">No tests yet</td></tr>';
+    return;
+  }
+  body.innerHTML = EPSON_HISTORY.map(function(h) {
+    return '<tr>'
+      + '<td>' + h.time + '</td>'
+      + '<td style="color:' + (h.ok ? 'var(--ok)' : 'var(--red)') + ';font-weight:700;">' + h.result + '</td>'
+      + '<td>' + (h.response != null ? h.response + ' ms' : '—') + '</td>'
+      + '<td>' + (h.error || '—') + '</td>'
+      + '</tr>';
+  }).join('');
+}
+
+function epsonUpdateStatusCard(ok, rt) {
+  var statusEl = document.getElementById('epsonStatStatus');
+  var lastEl   = document.getElementById('epsonStatLastTest');
+  var rtEl     = document.getElementById('epsonStatRT');
+  if (statusEl) {
+    statusEl.textContent = ok ? 'Online' : 'Offline';
+    statusEl.className = 'epson-stat-value ' + (ok ? 'online' : 'offline');
+  }
+  if (lastEl) lastEl.textContent = new Date().toLocaleString();
+  if (rtEl)   rtEl.textContent = (rt != null ? rt + ' ms' : '—');
+}
+
+// ── EPSON DIAGNOSTICS: Test Connection (no cut, no visible print) ──
+async function epsonTestConnection() {
+  var xml = '<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">'
+    + '<s:Body>'
+    + '<epos-print xmlns="http://www.epson-pos.com/schemas/2011/03/epos-print">'
+    + '</epos-print>'
+    + '</s:Body>'
+    + '</s:Envelope>';
+
+  var start = performance.now();
+  try {
+    showMsg('🔌 Testing printer connection...', false);
+    var res = await epsonFetch(xml);
+    await res.text();
+    var rt = Math.round(performance.now() - start);
+    epsonUpdateStatusCard(true, rt);
+    epsonRecordHistory({ time: new Date().toLocaleTimeString(), result: 'Online', response: rt, error: null, ok: true });
+    showMsg('✅ Printer online (' + rt + ' ms)', false);
+  } catch (e) {
+    epsonUpdateStatusCard(false, null);
+    epsonRecordHistory({ time: new Date().toLocaleTimeString(), result: 'Offline', response: null, error: e.message, ok: false });
+    showMsg('❌ ' + EPSON_CONN_FAIL_MSG, true);
+    console.error('epsonTestConnection error:', e);
+  }
+}
+
+// ── EPSON DIAGNOSTICS: Test Print (real diagnostic ticket + cut) ──
+async function epsonTestPrint() {
+  var now     = new Date();
+  var dateStr = (now.getMonth() + 1) + '/' + now.getDate() + '/' + now.getFullYear();
+  var timeStr = now.toLocaleTimeString();
+  var xml = '<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">'
+    + '<s:Body>'
+    + '<epos-print xmlns="http://www.epson-pos.com/schemas/2011/03/epos-print">'
+    + '<text align="center" em="true">EPSON CONNECTION TEST&#10;</text>'
+    + '<text>------------------------------------------&#10;</text>'
+    + '<text>Date: ' + dateStr + '&#10;</text>'
+    + '<text>Time: ' + timeStr + '&#10;</text>'
+    + '<text>Protocol: HTTP&#10;</text>'
+    + '<text>IP: ' + PRINTER_HOST + '&#10;</text>'
+    + '<text>Device: ' + PRINTER_DEVICE_ID + '&#10;</text>'
+    + '<text>ePOS: OK&#10;</text>'
+    + '<text>Communication Successful&#10;</text>'
+    + '<feed line="3"/>'
+    + '<cut type="feed"/>'
+    + '</epos-print>'
+    + '</s:Body>'
+    + '</s:Envelope>';
+
+  var start = performance.now();
+  try {
+    showMsg('🧾 Sending test print...', false);
+    var res = await epsonFetch(xml);
+    var txt = await res.text();
+    var rt = Math.round(performance.now() - start);
+    var epsonSuccess = (txt.match(/success="([^"]*)"/) || [])[1] || 'unknown';
+    console.log('EPSON TEST PRINT SUCCESS:', epsonSuccess);
+    console.log('EPSON TEST PRINT FULL:   ', txt);
+    if (epsonSuccess === 'true') {
+      epsonUpdateStatusCard(true, rt);
+      epsonRecordHistory({ time: new Date().toLocaleTimeString(), result: 'Test Print OK', response: rt, error: null, ok: true });
+      showMsg('✅ Test ticket printed!', false);
+    } else {
+      epsonUpdateStatusCard(false, rt);
+      epsonRecordHistory({ time: new Date().toLocaleTimeString(), result: 'Rejected', response: rt, error: 'Epson rejected job', ok: false });
+      showMsg('❌ Epson rejected print job. Check console.', true);
+      console.error('EPSON REJECTED:', txt);
+    }
+  } catch (e) {
+    epsonUpdateStatusCard(false, null);
+    epsonRecordHistory({ time: new Date().toLocaleTimeString(), result: 'Offline', response: null, error: e.message, ok: false });
+    showMsg('❌ ' + EPSON_CONN_FAIL_MSG, true);
+    console.error('epsonTestPrint error:', e);
+  }
+}
+// EPSON DIAGNOSTICS END
 
 // ── BUILD CUSTOMER TICKET XML ──────────────────────────────────
 function buildCustomerTicketXml(r) {
@@ -1078,8 +1232,16 @@ var HANGARS  = ['HANGAR 19','HANGAR 18','HANGAR 16','HANGAR 7','HH'];
 // ── PRINTER CONFIG ─────────────────────────────────────────────
 // Update PRINTER_HOST if the printer IP or hostname changes.
 // PRINTER_HOST should not include protocol or trailing slash.
+// Automatic HTTP→HTTPS redirect is disabled on this printer, so ePOS-Print
+// must be reached over plain HTTP (see EPSON DIAGNOSTICS section below).
+var PRINTER_PROTOCOL  = 'http';
 var PRINTER_HOST      = localStorage.getItem('printer_host') || '10.20.60.142';
 var PRINTER_DEVICE_ID = 'local_printer';
+
+function epsonUrl() {
+  return PRINTER_PROTOCOL + '://' + PRINTER_HOST
+    + '/cgi-bin/epos/service.cgi?devid=' + PRINTER_DEVICE_ID + '&timeout=10000';
+}
 
 function setPrinterHost(ip) {
   ip = String(ip || '').trim();
@@ -1091,6 +1253,7 @@ function setPrinterHost(ip) {
 }
 
 function printerInfo() {
+  console.log('Printer Protocol: ' + PRINTER_PROTOCOL);
   console.log('Printer Host:  ' + PRINTER_HOST);
   console.log('Device ID:     ' + PRINTER_DEVICE_ID);
   console.log('Stored Host:   ' + (localStorage.getItem('printer_host') || '(none — using default)'));
@@ -1100,11 +1263,12 @@ function showPrinterDebug() {
   var stored   = localStorage.getItem('printer_host');
   var active   = PRINTER_HOST;
   var devid    = PRINTER_DEVICE_ID;
-  var urlBase  = 'https://' + active + '/cgi-bin/epos/service.cgi?devid=' + devid + '&timeout=10000';
+  var urlBase  = epsonUrl();
 
   console.log('══════════════════════════════════════');
   console.log('  EPSON PRINTER DEBUG');
   console.log('══════════════════════════════════════');
+  console.log('PRINTER_PROTOCOL:        ' + PRINTER_PROTOCOL);
   console.log('PRINTER_HOST (runtime):  ' + active);
   console.log('localStorage value:      ' + (stored || '(not set — using default)'));
   console.log('Source:                  ' + (stored ? 'localStorage override' : 'code default'));

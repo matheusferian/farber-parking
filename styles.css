@@ -639,3 +639,62 @@ body{-webkit-text-size-adjust:100%;}
   }
   .hangar-missing-alert { margin-left: 0; font-size: 10px; padding: 4px 8px; }
 }
+
+/* EPSON DIAGNOSTICS START */
+.epson-card {
+  background: var(--s); border: 1px solid var(--b); border-radius: 14px;
+  padding: 18px 20px; margin-bottom: 20px;
+  box-shadow: 0 2px 10px rgba(27,59,111,.06);
+}
+.epson-card-title {
+  font-family: 'Syne', sans-serif; font-size: 16px; font-weight: 800;
+  color: var(--navy); margin-bottom: 2px;
+}
+.epson-card-sub { font-size: 11px; color: var(--mu); margin-bottom: 16px; }
+
+.epson-stat-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 10px; margin-bottom: 16px;
+}
+.epson-stat {
+  background: var(--bg); border: 1px solid var(--b); border-radius: 10px;
+  padding: 8px 12px;
+}
+.epson-stat-label {
+  font-size: 10px; color: var(--mu); text-transform: uppercase;
+  letter-spacing: .4px; margin-bottom: 2px;
+}
+.epson-stat-value {
+  font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 700; color: var(--tx);
+}
+.epson-stat-value.online  { color: var(--ok); }
+.epson-stat-value.offline { color: var(--red); }
+
+.epson-btn-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 18px; }
+.epson-btn {
+  flex: 1 1 160px; border-radius: 10px; padding: 12px 18px;
+  font-family: 'Syne', sans-serif; font-weight: 700; font-size: 13px;
+  cursor: pointer; border: 1px solid var(--gold); transition: transform .15s;
+}
+.epson-btn:hover { transform: translateY(-1px); }
+.epson-btn-navy { background: linear-gradient(135deg, var(--navy), var(--blue)); color: #fff; }
+.epson-btn-gold { background: linear-gradient(135deg, var(--gold2), var(--gold)); color: var(--navy); }
+
+.epson-history-title {
+  font-family: 'Syne', sans-serif; font-size: 12px; font-weight: 800;
+  color: var(--mu); margin-bottom: 8px; text-transform: uppercase; letter-spacing: .4px;
+}
+.epson-history-wrap { overflow-x: auto; }
+.epson-history-table { width: 100%; min-width: 0; border-collapse: collapse; font-size: 11px; }
+.epson-history-table th, .epson-history-table td {
+  padding: 6px 8px; border-bottom: 1px solid var(--b); text-align: left; white-space: nowrap;
+}
+.epson-history-table th {
+  color: var(--mu); font-weight: 700; font-size: 10px; text-transform: uppercase;
+}
+
+@media (max-width: 480px) {
+  .epson-card { padding: 14px 14px; }
+  .epson-btn { flex: 1 1 100%; }
+}
+/* EPSON DIAGNOSTICS END */
