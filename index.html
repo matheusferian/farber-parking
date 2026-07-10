@@ -1343,7 +1343,8 @@ async function loadData() {
         not_returning_with_makers_air: r.not_returning_with_makers_air||false,
         archived_by: r.archived_by||'',
         archived_at: r.archived_at||'',
-        previous_delivery_location: r.previous_delivery_location||''
+        previous_delivery_location: r.previous_delivery_location||'',
+        welcome_back_sent_at: r.welcome_back_sent_at||''
       };
     });
     render();
@@ -1511,7 +1512,7 @@ function renderDay() {
   var lm=sortByDepartureTime(data.filter(function(r){return isTmrw(r.ret)&&r.status!=='DELIVERED'&&r.status!=='ARCHIVED';}));
   var ls=data.filter(function(r){return isSunday(r.ret)&&r.status!=='DELIVERED'&&r.status!=='ARCHIVED';});
   var sun=nextSunday();
-  function mkCards(list,cls,btnCls,showCustoms,showDeliver,showCheckin,showReturnFlight,isArrivedSection,showFlightPrint){
+  function mkCards(list,cls,btnCls,showCustoms,showDeliver,showCheckin,showReturnFlight,isArrivedSection,showFlightPrint,showWelcomeBack){
     if(!list.length) return '<div class="eday">No cars in this group</div>';
     return list.map(function(r){
       var isApprox=isApproxRecord(r);
@@ -1531,6 +1532,7 @@ function renderDay() {
             (showCustoms?'<button class="qd-btn customs" onclick="quickDeliver('+r.id+',\'CUSTOMS\')">Customs</button>':'')+
             '<button class="qd-btn lockbox" onclick="quickDeliver('+r.id+',\'LOCKBOX\')" style="background:rgba(201,168,76,0.15);border-color:rgba(201,168,76,0.5);color:var(--gold)">🔒 Lockbox</button>'+
             (showFlightPrint?'<button class="qd-btn fbprint" title="Print flight tag" onclick="printFlightBagOne('+r.id+')">🖨</button>':'')+
+            (showWelcomeBack?welcomeBackButtonHtml(r):'')+
           '</div>';
       }
       var flightHtml='';
@@ -1566,7 +1568,7 @@ function renderDay() {
     }).join('');
   }
   document.getElementById('dArrived').innerHTML=mkCards(arrived,'ca','',false,false,true,false,true,false);
-  document.getElementById('dToday').innerHTML=mkCards(lt,'ct','',true,true,false,true,false,true);
+  document.getElementById('dToday').innerHTML=mkCards(lt,'ct','',true,true,false,true,false,true,true);
   document.getElementById('dTomorrow').innerHTML=(function(){
     // Build tail+time group counts
     var tailTimeCounts={};
@@ -2260,6 +2262,73 @@ function sendWelcomeSms(id) {
   if (!r || !r.phone) return;
   var cleanPhone = r.phone.replace(/\D/g, '');
   window.open('sms:' + cleanPhone + '&body=' + encodeURIComponent(buildWelcomeSms(r)), '_self');
+}
+
+// ── WELCOME BACK SMS (Makers Air only) ───────────────────────────
+function getWelcomeBackEta(r){
+  var t=getDepartureTime(r);
+  if(!t||!isValidDepTime(t)) return null;
+  var d=pd(r.ret);
+  if(!d) return null;
+  var parts=t.split(':');
+  var eta=new Date(d.getFullYear(),d.getMonth(),d.getDate(),parseInt(parts[0],10),parseInt(parts[1],10),0,0);
+  return isNaN(eta.getTime())?null:eta;
+}
+
+function buildWelcomeBackSms(){
+  return 'Welcome back!\n\nAfter clearing U.S. Customs, please remain with your pilots and return to Makers Air at Hangar 19, where your vehicle will be ready and waiting for you.\n\nPlease do not exit through the U.S. Customs terminal, as transportation back to Makers Air is not available from that location.\n\nWe hope you had a wonderful trip. We look forward to welcoming you back.';
+}
+
+function welcomeBackButtonHtml(r){
+  if(isAscend(r)) return '';
+  var sent=!!r.welcome_back_sent_at;
+  var eta=sent?null:getWelcomeBackEta(r);
+  var urgent=!!eta&&(Date.now()>=(eta.getTime()-20*60000));
+  return '<span class="wcb-wrap'+(urgent?' urgent':'')+'"'+(eta?' data-wcb-eta="'+eta.toISOString()+'"':'')+' data-wcb-sent="'+(sent?'1':'0')+'">'+
+      '<button type="button" class="qd-btn wcb-btn '+(sent?'wcb-sent':'wcb-pending')+'" onclick="event.stopPropagation();sendWelcomeBackSms('+r.id+')">'+(sent?'✓ Welcome Back Sent':'💬 Welcome Back')+'</button>'+
+      '<span class="wcb-badge">SEND NOW</span>'+
+    '</span>';
+}
+
+function sendWelcomeBackSms(id){
+  var r = data.find(function(x){ return x.id === id; });
+  if (!r || isAscend(r)) return;
+  if (!r.phone) { showMsg('No phone number on file for ' + r.name, true); return; }
+  var cleanPhone = r.phone.replace(/\D/g, '');
+  var smsBody = buildWelcomeBackSms();
+
+  if (r.welcome_back_sent_at) {
+    var sentD = new Date(r.welcome_back_sent_at);
+    var timeStr = isNaN(sentD.getTime()) ? r.welcome_back_sent_at : sentD.toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit'});
+    if (!confirm('The Welcome Back message was already prepared at ' + timeStr + '. Open it again?')) return;
+    window.open('sms:' + cleanPhone + '&body=' + encodeURIComponent(smsBody), '_self');
+    return;
+  }
+
+  var nowIso = new Date().toISOString();
+  var prevValue = r.welcome_back_sent_at;
+  r.welcome_back_sent_at = nowIso;
+  renderDay();
+  window.open('sms:' + cleanPhone + '&body=' + encodeURIComponent(smsBody), '_self');
+
+  sbUpdate(r.id, {welcome_back_sent_at: nowIso}).catch(function(e){
+    r.welcome_back_sent_at = prevValue;
+    renderDay();
+    showMsg('Could not save Welcome Back status — add the "welcome_back_sent_at" column in Supabase. (' + e.message + ')', true);
+  });
+}
+
+function refreshWelcomeBackUrgency(){
+  var wraps=document.querySelectorAll('.wcb-wrap[data-wcb-eta]');
+  var now=Date.now();
+  for(var i=0;i<wraps.length;i++){
+    var el=wraps[i];
+    var eta=new Date(el.getAttribute('data-wcb-eta')).getTime();
+    el.classList.toggle('urgent', !isNaN(eta)&&now>=(eta-20*60000));
+  }
+}
+if(!window._wcbReminderInterval){
+  window._wcbReminderInterval=setInterval(refreshWelcomeBackUrgency,60000);
 }
 
 // ── SAVE NEW ENTRY ─────────────────────────────────────────────
