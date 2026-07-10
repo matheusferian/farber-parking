@@ -2282,10 +2282,16 @@ function buildWelcomeBackSms(){
 function welcomeBackButtonHtml(r){
   if(isAscend(r)) return '';
   var sent=!!r.welcome_back_sent_at;
-  var eta=sent?null:getWelcomeBackEta(r);
+  if(sent){
+    return '<span class="wcb-wrap" data-wcb-sent="1">'+
+        '<button type="button" class="qd-btn wcb-btn wcb-sent" onclick="event.stopPropagation();sendWelcomeBackSms('+r.id+')">✓ Sent</button>'+
+        '<button type="button" class="qd-btn wcb-btn wcb-undo" onclick="event.stopPropagation();undoWelcomeBackSms('+r.id+')">Undo</button>'+
+      '</span>';
+  }
+  var eta=getWelcomeBackEta(r);
   var urgent=!!eta&&(Date.now()>=(eta.getTime()-20*60000));
-  return '<span class="wcb-wrap'+(urgent?' urgent':'')+'"'+(eta?' data-wcb-eta="'+eta.toISOString()+'"':'')+' data-wcb-sent="'+(sent?'1':'0')+'">'+
-      '<button type="button" class="qd-btn wcb-btn '+(sent?'wcb-sent':'wcb-pending')+'" onclick="event.stopPropagation();sendWelcomeBackSms('+r.id+')">'+(sent?'✓ Welcome Back Sent':'💬 Welcome Back')+'</button>'+
+  return '<span class="wcb-wrap'+(urgent?' urgent':'')+'"'+(eta?' data-wcb-eta="'+eta.toISOString()+'"':'')+' data-wcb-sent="0">'+
+      '<button type="button" class="qd-btn wcb-btn wcb-pending" onclick="event.stopPropagation();sendWelcomeBackSms('+r.id+')">Welcome Back</button>'+
       '<span class="wcb-badge">SEND NOW</span>'+
     '</span>';
 }
@@ -2315,6 +2321,21 @@ function sendWelcomeBackSms(id){
     r.welcome_back_sent_at = prevValue;
     renderDay();
     showMsg('Could not save Welcome Back status — add the "welcome_back_sent_at" column in Supabase. (' + e.message + ')', true);
+  });
+}
+
+function undoWelcomeBackSms(id){
+  var r = data.find(function(x){ return x.id === id; });
+  if (!r || isAscend(r)) return;
+  if (!r.welcome_back_sent_at) return;
+  if (!confirm('Clear the Welcome Back status for this passenger?')) return;
+  var prevValue = r.welcome_back_sent_at;
+  r.welcome_back_sent_at = '';
+  renderDay();
+  sbUpdate(r.id, {welcome_back_sent_at: null}).catch(function(e){
+    r.welcome_back_sent_at = prevValue;
+    renderDay();
+    showMsg('Could not clear Welcome Back status. (' + e.message + ')', true);
   });
 }
 
