@@ -485,6 +485,18 @@
     <button class="btnc" onclick="closeRating()">Cancel</button>
   </div>
 </div>
+<!-- LEAVING TOMORROW SHARE-IMAGE FALLBACK -->
+<div class="ov" id="ltShareFallbackOv" onclick="if(event.target===this)closeLeavingTomorrowShareFallback()">
+  <div class="modal" style="max-width:340px;text-align:center">
+    <div style="font-size:28px;margin-bottom:10px;">📲</div>
+    <h2 style="font-size:16px;margin-bottom:8px;">Couldn't Send Directly</h2>
+    <p class="msub" style="margin-bottom:24px;">The image was generated successfully, but iPhone could not send it directly to WhatsApp.<br><br>You can save the full-quality image and send it manually.</p>
+    <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+      <button class="btnc" onclick="closeLeavingTomorrowShareFallback()">Cancel</button>
+      <button class="btnp" onclick="saveLeavingTomorrowShareFallback()">Save Full-Quality Image</button>
+    </div>
+  </div>
+</div>
 <!-- LOGS PANE -->
 <div class="pane" id="pane-logs" style="padding:0 0 100px">
 
@@ -3499,35 +3511,89 @@ function downloadBlobAs(blob,filename){
   setTimeout(function(){document.body.removeChild(a);URL.revokeObjectURL(url);},1000);
 }
 
-// 📲 Share Image — vertical PNG via Web Share (falls back to download). No print dialog.
+// Fallback modal state — holds the already-generated full-quality Blob so a failed
+// direct share never forces a recapture/resize/reconversion, just a manual save.
+var pendingLeavingTomorrowShareBlob=null;
+var pendingLeavingTomorrowShareFilename='';
+
+function showLeavingTomorrowShareFallback(blob,filename){
+  pendingLeavingTomorrowShareBlob=blob;
+  pendingLeavingTomorrowShareFilename=filename;
+  var ov=document.getElementById('ltShareFallbackOv');
+  if(ov) ov.classList.add('on');
+}
+function closeLeavingTomorrowShareFallback(){
+  var ov=document.getElementById('ltShareFallbackOv');
+  if(ov) ov.classList.remove('on');
+  pendingLeavingTomorrowShareBlob=null;
+  pendingLeavingTomorrowShareFilename='';
+}
+function saveLeavingTomorrowShareFallback(){
+  if(pendingLeavingTomorrowShareBlob){
+    downloadBlobAs(pendingLeavingTomorrowShareBlob,pendingLeavingTomorrowShareFilename||'Makers-Air-Leaving-Tomorrow.png');
+  }
+  closeLeavingTomorrowShareFallback();
+}
+
+// 📲 Share Image — shares the full-resolution PNG directly via Web Share (file-only
+// payload, no extra fields). No print dialog, no silent download on failure.
 async function shareLeavingTomorrowImage(){
   var btn=document.getElementById('ltShareImageBtn');
   var restore=btn?btn.textContent:null;
-  if(btn){btn.disabled=true;btn.textContent='⏳ Generating…';}
+  if(btn){btn.disabled=true;btn.textContent='…';}
+  var blob=null;
   try{
     var canvas=await captureLeavingTomorrowCanvas();
+
+    blob=await new Promise(function(resolve,reject){
+      canvas.toBlob(function(result){
+        if(!result){ reject(new Error('Failed to generate PNG Blob.')); return; }
+        resolve(result);
+      },'image/png');
+    });
+    if(!blob||blob.size===0){ throw new Error('Generated image Blob is empty.'); }
+
     var fileBase=window.__ltExportFileBase||'Makers-Air-Leaving-Tomorrow';
     var filename=fileBase+'.png';
-    canvas.toBlob(async function(blob){
-      if(!blob){ showMsg('Failed to generate image.',true); if(btn){btn.disabled=false;btn.textContent=restore;} return; }
-      var file=null;
-      try{ file=new File([blob],filename,{type:'image/png'}); }catch(e){}
-      if(file&&navigator.canShare&&navigator.canShare({files:[file]})){
-        try{
-          await navigator.share({files:[file],title:'Makers Air — Leaving Tomorrow'});
-          if(btn){btn.disabled=false;btn.textContent=restore;}
-          return;
-        }catch(shareErr){
-          if(shareErr&&shareErr.name==='AbortError'){ if(btn){btn.disabled=false;btn.textContent=restore;} return; }
-        }
-      }
-      downloadBlobAs(blob,filename);
-      showMsg('Image saved: '+filename);
-      if(btn){btn.disabled=false;btn.textContent=restore;}
-    },'image/png');
+
+    var file=new File([blob],filename,{type:'image/png',lastModified:Date.now()});
+    if(!file||file.size===0){ throw new Error('Generated image File is empty.'); }
+
+    var hasShare=typeof navigator.share==='function';
+    var hasCanShare=typeof navigator.canShare==='function';
+    var canShareFiles=hasShare&&hasCanShare&&navigator.canShare({files:[file]});
+
+    console.log('Leaving Tomorrow share diagnostics:',{
+      isIOS:/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1),
+      userAgent:navigator.userAgent,
+      platform:navigator.platform,
+      maxTouchPoints:navigator.maxTouchPoints,
+      blobType:blob.type,
+      blobSize:blob.size,
+      fileName:file.name,
+      fileType:file.type,
+      fileSize:file.size,
+      canvasWidth:canvas.width,
+      canvasHeight:canvas.height,
+      hasShare:hasShare,
+      hasCanShare:hasCanShare,
+      canShareFiles:canShareFiles
+    });
+
+    if(!canShareFiles){
+      throw new Error('This browser does not support sharing the generated PNG file directly.');
+    }
+
+    await navigator.share({files:[file]});
   }catch(e){
-    console.error(e);
-    showMsg('Failed to generate image.',true);
+    if(e&&e.name==='AbortError'){ if(btn){btn.disabled=false;btn.textContent=restore;} return; }
+    console.error('Leaving Tomorrow direct share failed:',e);
+    if(blob&&blob.size>0){
+      showLeavingTomorrowShareFallback(blob,(window.__ltExportFileBase||'Makers-Air-Leaving-Tomorrow')+'.png');
+    }else{
+      showMsg('Failed to generate image.',true);
+    }
+  }finally{
     if(btn){btn.disabled=false;btn.textContent=restore;}
   }
 }
