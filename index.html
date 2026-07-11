@@ -12,6 +12,8 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -1615,7 +1617,8 @@ function renderDay() {
   titleTomorrowEl.innerHTML='<span>📆 Leaving Tomorrow <span class="tbadge" style="background:var(--pur);color:#fff">'+lm.length+'</span></span>'+
     (lm.length?'<span style="display:flex;gap:6px;align-items:center">'+
       '<button class="fb-print-all-btn" onclick="event.stopPropagation();printFlightBagAll(\'tomorrow\')">🖨 Print All</button>'+
-      '<button class="fb-print-all-btn" style="background:rgba(37,211,102,0.12);border-color:rgba(37,211,102,0.45);color:#25d366" onclick="event.stopPropagation();generateLeavingTomorrowPdf()">📲 PDF</button>'+
+      '<button id="ltShareImageBtn" class="fb-print-all-btn" style="background:rgba(37,211,102,0.12);border-color:rgba(37,211,102,0.45);color:#25d366" onclick="event.stopPropagation();shareLeavingTomorrowImage()">📲 Share Image</button>'+
+      '<button id="ltSavePdfBtn" class="fb-print-all-btn" style="background:rgba(220,120,40,0.12);border-color:rgba(220,120,40,0.45);color:#d4780a" onclick="event.stopPropagation();saveLeavingTomorrowPdf()">📄 Save PDF</button>'+
       '<button class="fb-print-all-btn" style="background:rgba(99,179,237,0.12);border-color:rgba(99,179,237,0.45);color:#2b7cb5" onclick="event.stopPropagation();generateLeavingTomorrowScreenshot()">📱 Screenshot</button>'+
     '</span>':'');
   var sunLabel=sun.toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'});
@@ -3269,8 +3272,11 @@ function generatePDF(mode) {
 }
 
 
-// ── LEAVING TOMORROW WHATSAPP PDF ─────────────────────────────
-function generateLeavingTomorrowPdf(){
+// ── LEAVING TOMORROW WHATSAPP EXPORT (direct PNG/PDF, no print dialog) ──
+var LT_EXPORT_HOST_WIDTH=390;   // px — capture width, matches compact mobile card design
+var LT_EXPORT_TARGET_PNG_WIDTH=1080; // px — target output width for WhatsApp
+
+function buildLeavingTomorrowExportData(){
   var tmrw=new Date(getToday());tmrw.setDate(tmrw.getDate()+1);
   var tmrwLabel=tmrw.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
   var fileDate=tmrw.toISOString().slice(0,10);
@@ -3307,56 +3313,6 @@ function generateLeavingTomorrowPdf(){
   // Midday: 11:00–13:00
   var middayCount=rows.filter(function(r){var t=getDepartureTime(r);return t&&t>='11:00'&&t<='13:00';}).length;
 
-  // ── CSS ──────────────────────────────────────────────────────
-  var CSS=
-    '*{box-sizing:border-box;margin:0;padding:0}'+
-    'body{font-family:"Segoe UI",Arial,sans-serif;background:#f0f2f8;color:#1a1a2e;font-size:12.5px}'+
-    '.page{max-width:600px;margin:0 auto;padding:10px 8px}'+
-    '.hdr{background:linear-gradient(135deg,#1a3d7c,#2a5db0);color:#fff;border-radius:10px;padding:12px 14px;margin-bottom:9px}'+
-    '.hdr h1{font-size:15px;font-weight:800;letter-spacing:.4px;margin-bottom:2px}'+
-    '.hdr .sub{font-size:10.5px;opacity:.8}'+
-    '.hdr .total{font-size:26px;font-weight:800;margin-top:6px;letter-spacing:-1px;line-height:1}'+
-    '.hdr .total-lbl{font-size:9.5px;opacity:.72;text-transform:uppercase;letter-spacing:.4px}'+
-    '.summary{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin-bottom:8px}'+
-    '.kpi{background:#fff;border:1px solid #dde4f0;border-radius:8px;padding:7px 10px}'+
-    '.kpi .num{font-size:18px;font-weight:800;color:#1a3d7c;line-height:1}'+
-    '.kpi .lbl{font-size:9px;color:#888;margin-top:1px;text-transform:uppercase;letter-spacing:.4px}'+
-    '.kpi.warn .num{color:#c0392b}.kpi.warn{border-color:rgba(192,57,43,.25)}'+
-    '.kpi.asc .num{color:#2a7ab5}'+
-    '.kpi.time .num{font-size:12px;color:#5a4a00}'+
-    '.alert-midday{background:#fff0f0;border:1.5px solid #e74c3c;border-radius:8px;padding:7px 10px;margin-bottom:8px;font-size:11.5px;font-weight:700;color:#c0392b}'+
-    '.section-lbl{font-size:9px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.6px;margin:8px 0 4px;padding-bottom:2px;border-bottom:1px solid #dde4f0;break-after:avoid;page-break-after:avoid}'+
-    '.rush-lbl{font-size:10.5px;font-weight:700;color:#c0392b;background:rgba(192,57,43,.07);border:1px solid rgba(192,57,43,.2);border-radius:6px;padding:3px 8px;margin:4px 0 3px;display:inline-block;break-after:avoid;page-break-after:avoid}'+
-    '.pdf-passenger-card{background:#fff;border:1px solid #dde4f0;border-radius:6px;padding:7px 9px;margin-bottom:5px;page-break-inside:avoid;break-inside:avoid}'+
-    '.pdf-passenger-card.rush{border-color:rgba(192,57,43,.35);border-left:3px solid #e74c3c}'+
-    '.pdf-passenger-card-header{display:flex;align-items:center;justify-content:space-between;gap:8px}'+
-    '.pdf-passenger-name{flex:1;min-width:0;font-size:12.5px;font-weight:800;line-height:1.15;color:#1a1a2e}'+
-    '.pdf-flight-info{display:inline-flex;align-items:center;gap:4px;flex-shrink:0}'+
-    '.pdf-tail-badge{display:inline-flex;align-items:center;justify-content:center;min-width:20px;padding:2px 5px;border-radius:4px;font-size:8px;font-weight:800;line-height:1;color:#fff;letter-spacing:.2px;white-space:nowrap}'+
-    '.pdf-tail-badge.pdf-tail-noinfo{background:#6b7280}'+
-    '.pdf-tail-badge.pdf-tail-ops{background:#c2410c;font-size:8.5px;padding:3px 7px;min-width:0}'+
-    '.pdf-return-time{display:inline-flex;align-items:center;padding:2px 6px;border-radius:4px;background:#e7eefb;color:#1b3b6f;font-size:9.5px;font-weight:800;white-space:nowrap;line-height:1.1}'+
-    '.pdf-return-time.none{background:rgba(0,0,0,.04);color:#bbb;font-weight:400;font-size:8.5px}'+
-    '.pdf-ticket-location,.pdf-vehicle-info,.pdf-phone{font-size:8.5px;line-height:1.25;margin-top:2px;color:#666}'+
-    '.pdf-ticket-location .ticket{font-family:monospace;color:#7a5c00}'+
-    '.pdf-ticket-location .no-loc{color:#c0392b;font-weight:700}'+
-    '.pdf-obs{font-size:8.5px;color:#aaa;margin-top:2px;font-style:italic}'+
-    '.pdf-asc-badge{font-size:8px;font-weight:800;background:rgba(42,122,181,.12);color:#1a5c8a;border-radius:3px;padding:1px 5px;display:inline-block;margin-left:4px;vertical-align:middle}'+
-    '.no-print{text-align:center;margin-bottom:10px}'+
-    '.no-print button{background:#25d366;color:#fff;border:none;padding:10px 26px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer}'+
-    '.footer{text-align:center;color:#bbb;font-size:9px;margin-top:10px;padding-top:6px;border-top:1px solid #dde4f0}'+
-    '@media print{'+
-      '@page{size:auto;margin:7mm}'+
-      'body{margin:0;background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}'+
-      '.no-print{display:none}'+
-      '.page{padding:0;max-width:100%}'+
-    '}'+
-    '@media (max-width:600px){'+
-      '.pdf-passenger-card-header{align-items:flex-start}'+
-      '.pdf-passenger-name{font-size:11px}'+
-      '.pdf-flight-info{gap:3px}'+
-    '}';
-
   // ── Card builder ─────────────────────────────────────────────
   function cardHtml(r,isRush){
     var eta=getDepartureTime(r);
@@ -3371,8 +3327,8 @@ function generateLeavingTomorrowPdf(){
     }
     var timeBadge=eta?('<span class="pdf-return-time">'+fmt12(eta)+'</span>'):'<span class="pdf-return-time none">No ETA</span>';
     var loc=r.loc&&String(r.loc).trim();
-    var locHtml=loc?escapeHTML(loc):'<span class="no-loc">NO HANGAR</span>';
-    var ticketHtml=r.ticket?('<span class="ticket">'+escapeHTML(r.ticket)+'</span>'):'';
+    var locHtml=loc?escapeHTML(loc):'<span class="pdf-no-loc">NO HANGAR</span>';
+    var ticketHtml=r.ticket?('<span class="pdf-ticket-num">'+escapeHTML(r.ticket)+'</span>'):'';
     var ticketLocParts=[ticketHtml,locHtml].filter(Boolean);
     var vehicleParts=[r.car?escapeHTML(r.car):'',r.color?escapeHTML(r.color):''].filter(Boolean);
     var obs=r.obs&&String(r.obs).trim();
@@ -3399,55 +3355,208 @@ function generateLeavingTomorrowPdf(){
 
   var cardsHtml='';
   if(withTime.length){
-    cardsHtml+='<div class="section-lbl">By Return ETA ('+withTime.length+')</div>';
+    cardsHtml+='<div class="pdf-section-lbl">By Return ETA ('+withTime.length+')</div>';
     etaKeys.forEach(function(eta){
       var grp=byEta[eta];
       if(rushEtaSet[eta]){
-        cardsHtml+='<div class="rush-lbl">⚠ '+grp.length+' VEHICLES AT '+fmt12(eta)+'</div>';
+        cardsHtml+='<div class="pdf-rush-lbl">⚠ '+grp.length+' VEHICLES AT '+fmt12(eta)+'</div>';
       }
       grp.forEach(function(r){cardsHtml+=cardHtml(r,!!rushEtaSet[eta]);});
     });
   }
   if(noTime.length){
-    cardsHtml+='<div class="section-lbl">No Return ETA ('+noTime.length+')</div>';
+    cardsHtml+='<div class="pdf-section-lbl">No Return ETA ('+noTime.length+')</div>';
     noTime.forEach(function(r){cardsHtml+=cardHtml(r,false);});
   }
 
   // ── Midday rush alert banner (shown above cards) ──────────────
   var middayAlert=middayCount>2
-    ?'<div class="alert-midday">⚠ MIDDAY RUSH: '+middayCount+' vehicles between 11:00 AM and 1:00 PM</div>'
+    ?'<div class="pdf-alert-midday">⚠ MIDDAY RUSH: '+middayCount+' vehicles between 11:00 AM and 1:00 PM</div>'
     :'';
 
   // ── Return ETA window display ─────────────────────────────────
   var etaWindow=earliest==='—'?'—':(fmt12(earliest)+(latest!==earliest&&latest!=='—'?' – '+fmt12(latest):''));
 
   var genTime=new Date().toLocaleString('en-US');
-  var html='<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">'+
-    '<meta name="viewport" content="width=device-width,initial-scale=1">'+
-    '<title>Makers Air — Leaving Tomorrow '+fileDate+'<\/title>'+
-    '<style>'+CSS+'<\/style><\/head><body><div class="page">'+
-    '<div class="no-print"><button onclick="window.print()">📄 Save as PDF<\/button><\/div>'+
-    '<div class="hdr">'+
-      '<div class="sub">MAKERS AIR VALET — By Farber Parking<\/div>'+
-      '<h1>Leaving Tomorrow Report<\/h1>'+
-      '<div class="sub" style="margin-top:1px">'+escapeHTML(tmrwLabel)+'<\/div>'+
-      '<div class="total">'+rows.length+'<\/div>'+
-      '<div class="total-lbl">Vehicle'+(rows.length===1?'':'s')+' leaving tomorrow<\/div>'+
-    '<\/div>'+
-    '<div class="summary">'+
-      '<div class="kpi"><div class="num">'+rows.length+'<\/div><div class="lbl">Total Vehicles<\/div><\/div>'+
-      '<div class="kpi asc"><div class="num">'+totalAscend+'<\/div><div class="lbl">ASCEND \/ Private Flight<\/div><\/div>'+
-      '<div class="kpi'+(totalNoLoc?' warn':'')+'"><div class="num">'+totalNoLoc+'<\/div><div class="lbl">Missing Hangar<\/div><\/div>'+
-      '<div class="kpi time"><div class="num">'+escapeHTML(etaWindow)+'<\/div><div class="lbl">Return ETA Window<\/div><\/div>'+
-    '<\/div>'+
+  var markup=
+    '<div class="pdf-hdr">'+
+      '<div class="pdf-hdr-sub">MAKERS AIR VALET — By Farber Parking</div>'+
+      '<h1>Leaving Tomorrow Report</h1>'+
+      '<div class="pdf-hdr-sub" style="margin-top:1px">'+escapeHTML(tmrwLabel)+'</div>'+
+      '<div class="pdf-hdr-total">'+rows.length+'</div>'+
+      '<div class="pdf-hdr-total-lbl">Vehicle'+(rows.length===1?'':'s')+' leaving tomorrow</div>'+
+    '</div>'+
+    '<div class="pdf-summary">'+
+      '<div class="pdf-kpi"><div class="num">'+rows.length+'</div><div class="lbl">Total Vehicles</div></div>'+
+      '<div class="pdf-kpi asc"><div class="num">'+totalAscend+'</div><div class="lbl">ASCEND / Private Flight</div></div>'+
+      '<div class="pdf-kpi'+(totalNoLoc?' warn':'')+'"><div class="num">'+totalNoLoc+'</div><div class="lbl">Missing Hangar</div></div>'+
+      '<div class="pdf-kpi time"><div class="num">'+escapeHTML(etaWindow)+'</div><div class="lbl">Return ETA Window</div></div>'+
+    '</div>'+
     middayAlert+
     cardsHtml+
-    '<div class="footer">Generated '+escapeHTML(genTime)+' \xb7 Makers Air Valet<\/div>'+
-    '<\/div><\/body><\/html>';
+    '<div class="pdf-footer">Generated '+escapeHTML(genTime)+' · Makers Air Valet</div>';
 
-  var w=window.open('','_blank');
-  if(w){w.document.write(html);w.document.close();}
-  else{showMsg('Pop-up blocked — allow pop-ups and try again.',true);}
+  return { markup:markup, fileBase:'Makers-Air-Leaving-Tomorrow-'+fileDate, rowCount:rows.length };
+}
+
+function ensureLeavingTomorrowExportStyle(){
+  if(document.getElementById('ltExportStyle')) return;
+  var css=
+    '#leavingTomorrowExportHost{position:fixed;top:0;left:-10000px;z-index:-1;pointer-events:none}'+
+    '#leavingTomorrowExport{width:'+LT_EXPORT_HOST_WIDTH+'px;box-sizing:border-box;font-family:"Segoe UI",Arial,sans-serif;background:#fff;color:#1a1a2e;font-size:12.5px;padding:10px 8px}'+
+    '#leavingTomorrowExport *{box-sizing:border-box}'+
+    '#leavingTomorrowExport .pdf-hdr{background:linear-gradient(135deg,#1a3d7c,#2a5db0);color:#fff;border-radius:10px;padding:12px 14px;margin-bottom:9px}'+
+    '#leavingTomorrowExport .pdf-hdr h1{font-size:15px;font-weight:800;letter-spacing:.4px;margin-bottom:2px}'+
+    '#leavingTomorrowExport .pdf-hdr-sub{font-size:10.5px;opacity:.8}'+
+    '#leavingTomorrowExport .pdf-hdr-total{font-size:26px;font-weight:800;margin-top:6px;letter-spacing:-1px;line-height:1}'+
+    '#leavingTomorrowExport .pdf-hdr-total-lbl{font-size:9.5px;opacity:.72;text-transform:uppercase;letter-spacing:.4px}'+
+    '#leavingTomorrowExport .pdf-summary{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin-bottom:8px}'+
+    '#leavingTomorrowExport .pdf-kpi{background:#fff;border:1px solid #dde4f0;border-radius:8px;padding:7px 10px}'+
+    '#leavingTomorrowExport .pdf-kpi .num{font-size:18px;font-weight:800;color:#1a3d7c;line-height:1}'+
+    '#leavingTomorrowExport .pdf-kpi .lbl{font-size:9px;color:#888;margin-top:1px;text-transform:uppercase;letter-spacing:.4px}'+
+    '#leavingTomorrowExport .pdf-kpi.warn .num{color:#c0392b}#leavingTomorrowExport .pdf-kpi.warn{border-color:rgba(192,57,43,.25)}'+
+    '#leavingTomorrowExport .pdf-kpi.asc .num{color:#2a7ab5}'+
+    '#leavingTomorrowExport .pdf-kpi.time .num{font-size:12px;color:#5a4a00}'+
+    '#leavingTomorrowExport .pdf-alert-midday{background:#fff0f0;border:1.5px solid #e74c3c;border-radius:8px;padding:7px 10px;margin-bottom:8px;font-size:11.5px;font-weight:700;color:#c0392b}'+
+    '#leavingTomorrowExport .pdf-section-lbl{font-size:9px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.6px;margin:8px 0 4px;padding-bottom:2px;border-bottom:1px solid #dde4f0}'+
+    '#leavingTomorrowExport .pdf-rush-lbl{font-size:10.5px;font-weight:700;color:#c0392b;background:rgba(192,57,43,.07);border:1px solid rgba(192,57,43,.2);border-radius:6px;padding:3px 8px;margin:4px 0 3px;display:inline-block}'+
+    '#leavingTomorrowExport .pdf-passenger-card{background:#fff;border:1px solid #dde4f0;border-radius:6px;padding:7px 9px;margin-bottom:5px}'+
+    '#leavingTomorrowExport .pdf-passenger-card.rush{border-color:rgba(192,57,43,.35);border-left:3px solid #e74c3c}'+
+    '#leavingTomorrowExport .pdf-passenger-card-header{display:flex;align-items:center;justify-content:space-between;gap:8px}'+
+    '#leavingTomorrowExport .pdf-passenger-name{flex:1;min-width:0;font-size:12.5px;font-weight:800;line-height:1.15;color:#1a1a2e}'+
+    '#leavingTomorrowExport .pdf-flight-info{display:inline-flex;align-items:center;gap:4px;flex-shrink:0}'+
+    '#leavingTomorrowExport .pdf-tail-badge{display:inline-flex;align-items:center;justify-content:center;min-width:20px;padding:2px 5px;border-radius:4px;font-size:8px;font-weight:800;line-height:1;color:#fff;letter-spacing:.2px;white-space:nowrap}'+
+    '#leavingTomorrowExport .pdf-tail-badge.pdf-tail-noinfo{background:#6b7280}'+
+    '#leavingTomorrowExport .pdf-tail-badge.pdf-tail-ops{background:#c2410c;font-size:8.5px;padding:3px 7px;min-width:0}'+
+    '#leavingTomorrowExport .pdf-return-time{display:inline-flex;align-items:center;padding:2px 6px;border-radius:4px;background:#e7eefb;color:#1b3b6f;font-size:9.5px;font-weight:800;white-space:nowrap;line-height:1.1}'+
+    '#leavingTomorrowExport .pdf-return-time.none{background:rgba(0,0,0,.04);color:#bbb;font-weight:400;font-size:8.5px}'+
+    '#leavingTomorrowExport .pdf-ticket-location,#leavingTomorrowExport .pdf-vehicle-info,#leavingTomorrowExport .pdf-phone{font-size:8.5px;line-height:1.25;margin-top:2px;color:#666}'+
+    '#leavingTomorrowExport .pdf-ticket-num{font-family:monospace;color:#7a5c00}'+
+    '#leavingTomorrowExport .pdf-no-loc{color:#c0392b;font-weight:700}'+
+    '#leavingTomorrowExport .pdf-obs{font-size:8.5px;color:#aaa;margin-top:2px;font-style:italic}'+
+    '#leavingTomorrowExport .pdf-asc-badge{font-size:8px;font-weight:800;background:rgba(42,122,181,.12);color:#1a5c8a;border-radius:3px;padding:1px 5px;display:inline-block;margin-left:4px;vertical-align:middle}'+
+    '#leavingTomorrowExport .pdf-footer{text-align:center;color:#bbb;font-size:9px;margin-top:10px;padding-top:6px;border-top:1px solid #dde4f0}';
+  var tag=document.createElement('style');
+  tag.id='ltExportStyle';
+  tag.textContent=css;
+  document.head.appendChild(tag);
+}
+
+function mountLeavingTomorrowExport(){
+  ensureLeavingTomorrowExportStyle();
+  var built=buildLeavingTomorrowExportData();
+  var host=document.getElementById('leavingTomorrowExportHost');
+  if(!host){
+    host=document.createElement('div');
+    host.id='leavingTomorrowExportHost';
+    document.body.appendChild(host);
+  }
+  host.innerHTML='<div id="leavingTomorrowExport"></div>';
+  document.getElementById('leavingTomorrowExport').innerHTML=built.markup;
+  window.__ltExportFileBase=built.fileBase;
+  window.__ltExportRowCount=built.rowCount;
+  return host;
+}
+
+// Renders the report off-screen (never shown, never includes buttons/browser UI),
+// waits for fonts, strips transitions, then hands back a canvas at ~1080px wide.
+async function captureLeavingTomorrowCanvas(){
+  if(typeof html2canvas!=='function'){
+    showMsg('Export library failed to load — check your connection and reload.',true);
+    throw new Error('html2canvas unavailable');
+  }
+  mountLeavingTomorrowExport();
+  if(document.fonts&&document.fonts.ready){ try{ await document.fonts.ready; }catch(e){} }
+  var noAnim=document.createElement('style');
+  noAnim.id='ltExportNoAnim';
+  noAnim.textContent='*{transition:none!important;animation:none!important}';
+  document.head.appendChild(noAnim);
+  var el=document.getElementById('leavingTomorrowExport');
+  var w=el.scrollWidth, h=el.scrollHeight;
+  try{
+    return await html2canvas(el,{
+      backgroundColor:'#ffffff',
+      scale: LT_EXPORT_TARGET_PNG_WIDTH / w,
+      useCORS:true,
+      logging:false,
+      width:w,
+      height:h,
+      windowWidth:w,
+      windowHeight:h
+    });
+  } finally {
+    var n=document.getElementById('ltExportNoAnim'); if(n) n.remove();
+    var host=document.getElementById('leavingTomorrowExportHost'); if(host) host.remove();
+  }
+}
+
+function downloadBlobAs(blob,filename){
+  var url=URL.createObjectURL(blob);
+  var a=document.createElement('a');
+  a.href=url; a.download=filename;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(function(){document.body.removeChild(a);URL.revokeObjectURL(url);},1000);
+}
+
+// 📲 Share Image — vertical PNG via Web Share (falls back to download). No print dialog.
+async function shareLeavingTomorrowImage(){
+  var btn=document.getElementById('ltShareImageBtn');
+  var restore=btn?btn.textContent:null;
+  if(btn){btn.disabled=true;btn.textContent='⏳ Generating…';}
+  try{
+    var canvas=await captureLeavingTomorrowCanvas();
+    var fileBase=window.__ltExportFileBase||'Makers-Air-Leaving-Tomorrow';
+    var filename=fileBase+'.png';
+    canvas.toBlob(async function(blob){
+      if(!blob){ showMsg('Failed to generate image.',true); if(btn){btn.disabled=false;btn.textContent=restore;} return; }
+      var file=null;
+      try{ file=new File([blob],filename,{type:'image/png'}); }catch(e){}
+      if(file&&navigator.canShare&&navigator.canShare({files:[file]})){
+        try{
+          await navigator.share({files:[file],title:'Makers Air — Leaving Tomorrow'});
+          if(btn){btn.disabled=false;btn.textContent=restore;}
+          return;
+        }catch(shareErr){
+          if(shareErr&&shareErr.name==='AbortError'){ if(btn){btn.disabled=false;btn.textContent=restore;} return; }
+        }
+      }
+      downloadBlobAs(blob,filename);
+      showMsg('Image saved: '+filename);
+      if(btn){btn.disabled=false;btn.textContent=restore;}
+    },'image/png',1);
+  }catch(e){
+    console.error(e);
+    showMsg('Failed to generate image.',true);
+    if(btn){btn.disabled=false;btn.textContent=restore;}
+  }
+}
+
+// 📄 Save PDF — single custom-height page via jsPDF. No window.print(), no AirPrint.
+async function saveLeavingTomorrowPdf(){
+  var btn=document.getElementById('ltSavePdfBtn');
+  var restore=btn?btn.textContent:null;
+  if(btn){btn.disabled=true;btn.textContent='⏳ Generating…';}
+  try{
+    if(typeof jspdf==='undefined'||!jspdf.jsPDF){
+      showMsg('PDF library failed to load — check your connection and reload.',true);
+      return;
+    }
+    var canvas=await captureLeavingTomorrowCanvas();
+    var imgData=canvas.toDataURL('image/jpeg',0.95);
+    var pdfWidthMm=108;
+    var pdfHeightMm=pdfWidthMm*(canvas.height/canvas.width);
+    var pdf=new jspdf.jsPDF({orientation:'portrait',unit:'mm',format:[pdfWidthMm,pdfHeightMm],compress:true});
+    pdf.addImage(imgData,'JPEG',0,0,pdfWidthMm,pdfHeightMm,undefined,'FAST');
+    var fileBase=window.__ltExportFileBase||'Makers-Air-Leaving-Tomorrow';
+    pdf.save(fileBase+'.pdf');
+    showMsg('PDF saved: '+fileBase+'.pdf');
+  }catch(e){
+    console.error(e);
+    showMsg('Failed to generate PDF.',true);
+  } finally {
+    if(btn){btn.disabled=false;btn.textContent=restore;}
+  }
 }
 
 // ── LEAVING TOMORROW SCREENSHOT VIEW ──────────────────────────
