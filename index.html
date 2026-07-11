@@ -1615,11 +1615,11 @@ function renderDay() {
   var titleTomorrowEl=document.getElementById('titleTomorrow');
   titleTomorrowEl.style.display='flex';titleTomorrowEl.style.alignItems='center';titleTomorrowEl.style.justifyContent='space-between';
   titleTomorrowEl.innerHTML='<span>📆 Leaving Tomorrow <span class="tbadge" style="background:var(--pur);color:#fff">'+lm.length+'</span></span>'+
-    (lm.length?'<span style="display:flex;gap:6px;align-items:center">'+
-      '<button class="fb-print-all-btn" onclick="event.stopPropagation();printFlightBagAll(\'tomorrow\')">🖨 Print All</button>'+
-      '<button id="ltShareImageBtn" class="fb-print-all-btn" style="background:rgba(37,211,102,0.12);border-color:rgba(37,211,102,0.45);color:#25d366" onclick="event.stopPropagation();shareLeavingTomorrowImage()">📲 Share Image</button>'+
-      '<button id="ltSavePdfBtn" class="fb-print-all-btn" style="background:rgba(220,120,40,0.12);border-color:rgba(220,120,40,0.45);color:#d4780a" onclick="event.stopPropagation();saveLeavingTomorrowPdf()">📄 Save PDF</button>'+
-      '<button class="fb-print-all-btn" style="background:rgba(99,179,237,0.12);border-color:rgba(99,179,237,0.45);color:#2b7cb5" onclick="event.stopPropagation();generateLeavingTomorrowScreenshot()">📱 Screenshot</button>'+
+    (lm.length?'<span style="display:flex;gap:4px;align-items:center;flex-wrap:nowrap">'+
+      '<button class="fb-print-all-btn lt-toolbar-btn" onclick="event.stopPropagation();printFlightBagAll(\'tomorrow\')">🖨 All</button>'+
+      '<button id="ltShareImageBtn" class="fb-print-all-btn lt-toolbar-btn-icon" title="Share Image" aria-label="Share Image" style="background:rgba(37,211,102,0.12);border-color:rgba(37,211,102,0.45);color:#25d366" onclick="event.stopPropagation();shareLeavingTomorrowImage()">📲</button>'+
+      '<button id="ltSavePdfBtn" class="fb-print-all-btn lt-toolbar-btn-icon" title="Save PDF" aria-label="Save PDF" style="background:rgba(220,120,40,0.12);border-color:rgba(220,120,40,0.45);color:#d4780a" onclick="event.stopPropagation();saveLeavingTomorrowPdf()">📄</button>'+
+      '<button class="fb-print-all-btn lt-toolbar-btn" style="background:rgba(99,179,237,0.12);border-color:rgba(99,179,237,0.45);color:#2b7cb5" onclick="event.stopPropagation();generateLeavingTomorrowScreenshot()">📱 Screenshot</button>'+
     '</span>':'');
   var sunLabel=sun.toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'});
   var sunCount=ls.length;
@@ -3273,8 +3273,8 @@ function generatePDF(mode) {
 
 
 // ── LEAVING TOMORROW WHATSAPP EXPORT (direct PNG/PDF, no print dialog) ──
-var LT_EXPORT_HOST_WIDTH=390;   // px — capture width, matches compact mobile card design
-var LT_EXPORT_TARGET_PNG_WIDTH=1080; // px — target output width for WhatsApp
+var LT_EXPORT_HOST_WIDTH=390;   // px — capture width, matches compact mobile card design (layout unchanged)
+var LT_EXPORT_TARGET_PNG_WIDTH=2160; // px — output width for crisp WhatsApp viewing after its recompression
 
 function buildLeavingTomorrowExportData(){
   var tmrw=new Date(getToday());tmrw.setDate(tmrw.getDate()+1);
@@ -3430,7 +3430,7 @@ function ensureLeavingTomorrowExportStyle(){
     '#leavingTomorrowExport .pdf-tail-badge.pdf-tail-ops{background:#c2410c;font-size:8.5px;padding:3px 7px;min-width:0}'+
     '#leavingTomorrowExport .pdf-return-time{display:inline-flex;align-items:center;padding:2px 6px;border-radius:4px;background:#e7eefb;color:#1b3b6f;font-size:9.5px;font-weight:800;white-space:nowrap;line-height:1.1}'+
     '#leavingTomorrowExport .pdf-return-time.none{background:rgba(0,0,0,.04);color:#bbb;font-weight:400;font-size:8.5px}'+
-    '#leavingTomorrowExport .pdf-ticket-location,#leavingTomorrowExport .pdf-vehicle-info,#leavingTomorrowExport .pdf-phone{font-size:8.5px;line-height:1.25;margin-top:2px;color:#666}'+
+    '#leavingTomorrowExport .pdf-ticket-location,#leavingTomorrowExport .pdf-vehicle-info,#leavingTomorrowExport .pdf-phone{font-size:9.5px;line-height:1.25;margin-top:2px;color:#666}'+
     '#leavingTomorrowExport .pdf-ticket-num{font-family:monospace;color:#7a5c00}'+
     '#leavingTomorrowExport .pdf-no-loc{color:#c0392b;font-weight:700}'+
     '#leavingTomorrowExport .pdf-obs{font-size:8.5px;color:#aaa;margin-top:2px;font-style:italic}'+
