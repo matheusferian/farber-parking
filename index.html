@@ -49,7 +49,6 @@
   <div class="tab on" data-t="all"><i class="fa-solid fa-users"></i><span>All Passengers</span><span class="tbadge" id="ball">0</span></div>
   <div class="tab" data-t="day"><i class="fa-solid fa-table-columns"></i><span>Dashboard</span><span class="tbadge red" id="bday">!</span></div>
   <div class="tab" data-t="tasks"><i class="fa-solid fa-square-check"></i><span>Tasks</span><span class="tbadge red" id="btasks">0</span></div>
-  <div class="tab" data-t="flight"><i class="fa-solid fa-plane-departure"></i><span>Flight List</span></div>
   <div class="tab" data-t="report"><i class="fa-solid fa-chart-line"></i><span>Report</span></div>
   <div class="tab" data-t="debug"><i class="fa-solid fa-screwdriver-wrench"></i><span>Debug</span></div>
   <div class="tab" data-t="logs"><i class="fa-solid fa-clipboard-list"></i><span>Logs</span></div>
@@ -145,51 +144,6 @@
     </div>
     <div class="dsub">Passengers with approximate return dates that need text confirmation</div>
     <div id="tasksList"></div>
-  </div>
-</div>
-
-<!-- FLIGHT LIST PANE -->
-<div class="pane" id="pane-flight">
-  <div class="flight-sec">
-    <div class="dtitle" style="color:var(--gold);margin-bottom:4px">&#9992; Flight Check</div>
-    <div class="dsub" style="margin-bottom:16px">Check which passengers arriving tomorrow have a car in valet</div>
-
-    <!-- Flight Info Fields - always visible -->
-    <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
-      <div class="fg" style="flex:1;min-width:120px;">
-        <label>Tail Number</label>
-        <input type="text" id="fcTail" placeholder="N624JR" oninput="this.value=this.value.toUpperCase()" style="background:var(--s);border:1px solid var(--b);border-radius:8px;padding:10px 12px;color:var(--tx);font-size:16px;outline:none;width:100%;">
-      </div>
-      <div class="fg" style="flex:1;min-width:100px;">
-        <label>Arrival (ETA)</label>
-        <input type="text" id="fcETA" placeholder="08:45" style="background:var(--s);border:1px solid var(--b);border-radius:8px;padding:10px 12px;color:var(--tx);font-size:16px;outline:none;width:100%;">
-      </div>
-      <div class="fg" style="flex:1;min-width:120px;">
-        <label>Flight Date</label>
-        <input type="date" id="fcDate" style="background:var(--s);border:1px solid var(--b);border-radius:8px;padding:10px 12px;color:var(--tx);font-size:16px;outline:none;width:100%;">
-      </div>
-    </div>
-
-    <!-- Paste names -->
-    <div class="fg" style="margin-bottom:12px;">
-      <label>Passenger Names — one per line</label>
-      <textarea id="fcNames" rows="7" placeholder="CHRISTOPHER KILLIAN&#10;ASHLEY KILLIAN&#10;NICOLE TARUMIANZ&#10;..."
-        style="background:var(--s);border:1px solid var(--b);border-radius:10px;padding:12px;color:var(--tx);font-size:16px;outline:none;width:100%;resize:vertical;font-family:monospace;line-height:1.8;"></textarea>
-    </div>
-
-    <button onclick="runFCCheck2()" style="width:100%;background:linear-gradient(135deg,var(--navy),#2a5db0);color:#fff;border:1px solid var(--gold);border-radius:12px;padding:16px;font-family:'Syne',sans-serif;font-weight:800;font-size:15px;cursor:pointer;letter-spacing:0.5px;margin-bottom:20px;">
-      &#9989; CHECK NOW
-    </button>
-
-    <!-- Results -->
-    <div id="fcResults" style="display:none;">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-        <div id="fcResultTitle" style="font-family:'Syne',sans-serif;font-size:14px;font-weight:800;color:var(--tx)">Results</div>
-        <button onclick="resetFC()" style="background:none;border:1px solid var(--b);border-radius:8px;padding:6px 12px;color:var(--mu);font-size:12px;cursor:pointer;">&#8635; New Check</button>
-      </div>
-      <div id="fcSummary" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;"></div>
-      <div id="fcCards"></div>
-    </div>
   </div>
 </div>
 
@@ -484,6 +438,23 @@
       </button>
     </div>
     <button class="btnc" onclick="closeRating()">Cancel</button>
+  </div>
+</div>
+<!-- CUSTOMS COMMUNICATION MODAL -->
+<div class="ov" id="customsCommOv" onclick="if(event.target===this)closeCustomsCommModal()">
+  <div class="modal" style="max-width:400px">
+    <h2>Vehicle moved to Customs</h2>
+    <div id="customsCommBody"></div>
+    <div class="mact">
+      <button class="btnc" onclick="closeCustomsCommModal()">Close</button>
+    </div>
+  </div>
+</div>
+<!-- CUSTOMS GRATUITY REMINDER MODAL -->
+<div class="ov" id="customsGratuityReminderOv">
+  <div class="modal" style="max-width:360px">
+    <h2>⏰ Gratuity Reminder</h2>
+    <div id="customsGratuityReminderBody"></div>
   </div>
 </div>
 <!-- LEAVING TOMORROW SHARE-IMAGE FALLBACK -->
@@ -1707,7 +1678,7 @@ function renderDay() {
       } else if(showDeliver&&r.status==='DELIVERED'){
         actionHtml=
           '<div class="dc-qd" onclick="event.stopPropagation()">'+
-            '<div class="checkin-badge" style="background:rgba(26,158,106,.15);color:var(--ok);border-color:rgba(26,158,106,.35)">✓ DELIVERED</div>'+
+            (isCustomsDelivered(r)?customsCardBadgeHtml(r):'<div class="checkin-badge" style="background:rgba(26,158,106,.15);color:var(--ok);border-color:rgba(26,158,106,.35)">✓ DELIVERED</div>')+
             '<button class="qd-btn" style="background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.18);color:var(--mu);font-size:11px" onclick="undoDeliverToday('+r.id+')">↩ Undo</button>'+
           '</div>';
       } else if(showDeliver){
@@ -1793,7 +1764,9 @@ function renderDay() {
   var titleTodayEl=document.getElementById('titleToday');
   titleTodayEl.style.display='flex';titleTodayEl.style.alignItems='center';titleTodayEl.style.justifyContent='space-between';
   var ltPending=lt.filter(function(r){return r.status!=='DELIVERED';}).length;
-  titleTodayEl.innerHTML='<span>🔔 Leaving Today <span class="tbadge" style="background:var(--acc);color:#000">'+ltPending+'</span></span>'+
+  var custReminderDue=lt.filter(function(r){return isCustomsDelivered(r)&&!r.customs_gratuity_sent&&!r.customs_gratuity_dismissed&&customsGratuityReminderDue(r);}).length;
+  titleTodayEl.innerHTML='<span>🔔 Leaving Today <span class="tbadge" style="background:var(--acc);color:#000">'+ltPending+'</span>'+
+    '<span class="tbadge" id="custReminderBadge" style="background:var(--red);color:#fff;'+(custReminderDue?'':'display:none;')+'margin-left:4px" title="Gratuity reminders due">⏰ '+custReminderDue+'</span></span>'+
     (lt.length?'<button class="fb-print-all-btn" onclick="event.stopPropagation();printFlightBagAll(\'today\')">🖨 Print All</button>':'');
   var titleTomorrowEl=document.getElementById('titleTomorrow');
   titleTomorrowEl.style.display='flex';titleTomorrowEl.style.alignItems='center';titleTomorrowEl.style.justifyContent='space-between';
@@ -2466,6 +2439,10 @@ function buildWelcomeBackSms(){
 
 function welcomeBackButtonHtml(r){
   if(isAscend(r)) return '';
+  // Customs deliveries use the separate Customs communication workflow
+  // (Customs pickup wording) — never the Hangar 19 message, to avoid
+  // sending the passenger contradictory pickup instructions.
+  if(r.delivery_type==='CUSTOMS') return '';
   var sent=!!r.welcome_back_sent_at;
   if(sent){
     return '<span class="wcb-wrap" data-wcb-sent="1">'+
@@ -2484,6 +2461,7 @@ function welcomeBackButtonHtml(r){
 function sendWelcomeBackSms(id){
   var r = data.find(function(x){ return x.id === id; });
   if (!r || isAscend(r)) return;
+  if (r.delivery_type==='CUSTOMS') return; // use the Customs communication workflow instead
   if (!r.phone) { showMsg('No phone number on file for ' + r.name, true); return; }
   var cleanPhone = r.phone.replace(/\D/g, '');
   var smsBody = buildWelcomeBackSms();
@@ -2535,6 +2513,251 @@ function refreshWelcomeBackUrgency(){
 }
 if(!window._wcbReminderInterval){
   window._wcbReminderInterval=setInterval(refreshWelcomeBackUrgency,60000);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ── CUSTOMS COMMUNICATION WORKFLOW ────────────────────────────
+// Separate from the Hangar 19 "Welcome Back" feature above. Only
+// applies to vehicles delivered via Customs (delivery_type==='CUSTOMS').
+// Never sends anything automatically — every SMS requires a manual
+// staff click. State lives on the passenger row itself (customs_*
+// columns), so a new trip (new row) always starts clean.
+// ═══════════════════════════════════════════════════════════════
+function isCustomsDelivered(r){
+  return !!(r && r.status==='DELIVERED' && r.delivery_type==='CUSTOMS');
+}
+
+function fmtTime12FromDate(d){
+  if(!d||isNaN(d.getTime())) return '';
+  var h=d.getHours(), m=d.getMinutes();
+  var ap=h>=12?'PM':'AM', h12=h%12||12;
+  return h12+':'+String(m).padStart(2,'0')+' '+ap;
+}
+function fmtSentTimestamp(iso){
+  if(!iso) return '';
+  var d=new Date(iso);
+  return isNaN(d.getTime())?String(iso):d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+}
+
+function buildCustomsWelcomeSms(r){
+  if(isAscend(r)){
+    return 'Welcome back!\n\nYour vehicle is ready at Customs.\n\nAn Ascend team member will personally provide your key upon your arrival.\n\nThank you for choosing Ascend Valet.';
+  }
+  return 'Welcome back!\n\nYour vehicle is ready at Customs.\n\nThe key is located on the driver\'s-side tire.\n\nThank you for choosing Makers Air Valet.';
+}
+function buildCustomsGratuitySms(r){
+  var brand=isAscend(r)?'Ascend Valet':'Makers Air Valet';
+  return 'Thank you for choosing '+brand+'.\n\nWe truly appreciate your business.\n\nIf we exceeded your expectations, here is our discretionary valet team gratuity link:\n\nhttps://buy.stripe.com/8x214mccK0uh9TjgIM6Vq00';
+}
+
+// Reuses the same ETA source as the Hangar 19 feature (departure_time +
+// return date) — read-only, never modified by this workflow.
+function getCustomsGratuityReminderTime(r){
+  var eta=getWelcomeBackEta(r);
+  if(!eta) return null;
+  return new Date(eta.getTime()+10*60000);
+}
+function customsGratuityReminderDue(r){
+  var t=getCustomsGratuityReminderTime(r);
+  return !!(t && Date.now()>=t.getTime());
+}
+
+// ── Card badge (Leaving Today, post-Customs-delivery) ────────────
+function customsCardBadgeHtml(r){
+  var eta=getWelcomeBackEta(r);
+  var etaStr=eta?fmtTime12FromDate(eta):'No ETA';
+  var wbBadge=r.customs_welcome_sent?'📩 WB ✓':'📩 WB Pending';
+  var tipBadge;
+  if(r.customs_gratuity_sent) tipBadge='💳 Tip ✓';
+  else if(!eta) tipBadge='💳 Tip Pending';
+  else tipBadge='💳 Tip ⏰';
+  return '<div class="cst-card-badge" onclick="event.stopPropagation();openCustomsCommModal('+r.id+')">'+
+    '<span class="cst-cb-tag">CUSTOMS</span><span class="cst-cb-sep">·</span>'+
+    '<span class="cst-cb-eta">'+escapeHTML(etaStr)+'</span><span class="cst-cb-sep">·</span>'+
+    '<span class="cst-cb-wb">'+wbBadge+'</span><span class="cst-cb-sep">·</span>'+
+    '<span class="cst-cb-tip">'+tipBadge+'</span>'+
+  '</div>';
+}
+
+// ── Action modal ───────────────────────────────────────────────
+var _customsCommOpenId=null;
+function openCustomsCommModal(id){
+  var r=data.find(function(x){return x.id===id;});
+  if(!r) return;
+  _customsCommOpenId=id;
+  renderCustomsCommModal(r);
+  document.getElementById('customsCommOv').classList.add('on');
+}
+function closeCustomsCommModal(){
+  document.getElementById('customsCommOv').classList.remove('on');
+  _customsCommOpenId=null;
+}
+function renderCustomsCommModal(r){
+  var eta=getWelcomeBackEta(r);
+  var etaStr=eta?fmtTime12FromDate(eta):'No ETA';
+  var reminderDt=getCustomsGratuityReminderTime(r);
+
+  var wbHtml=r.customs_welcome_sent
+    ? '<div class="cst-section done"><div class="cst-sec-top"><span class="cst-sec-lbl">📩 Welcome Back</span><span class="cst-sec-status ok">✓ Sent '+escapeHTML(fmtSentTimestamp(r.customs_welcome_sent_at))+'</span></div><button class="cst-undo-btn" onclick="undoCustomsWelcomeSms('+r.id+')">Undo Welcome Back</button></div>'
+    : '<div class="cst-section"><div class="cst-sec-top"><span class="cst-sec-lbl">📩 Welcome Back</span></div><button class="cst-send-btn" onclick="sendCustomsWelcomeSms('+r.id+')">Send Welcome Back</button></div>';
+
+  var gratSub=r.customs_gratuity_sent?'':(reminderDt
+      ?'<div class="cst-sec-sub">Reminder set for '+escapeHTML(fmtTime12FromDate(reminderDt))+'</div>'
+      :'<div class="cst-sec-sub">No ETA on file — send manually when ready</div>');
+  var gratHtml=r.customs_gratuity_sent
+    ? '<div class="cst-section done"><div class="cst-sec-top"><span class="cst-sec-lbl">💳 Gratuity</span><span class="cst-sec-status ok">✓ Sent '+escapeHTML(fmtSentTimestamp(r.customs_gratuity_sent_at))+'</span></div><button class="cst-undo-btn" onclick="undoCustomsGratuitySms('+r.id+')">Undo Gratuity</button></div>'
+    : '<div class="cst-section"><div class="cst-sec-top"><span class="cst-sec-lbl">💳 Gratuity</span></div><button class="cst-send-btn" onclick="sendCustomsGratuitySms('+r.id+')">Send Gratuity</button>'+gratSub+'</div>';
+
+  document.getElementById('customsCommBody').innerHTML=
+    '<div class="cst-meta">'+escapeHTML(r.name)+' · '+escapeHTML(r.ticket)+'</div>'+
+    '<div class="cst-eta">Passenger ETA: '+escapeHTML(etaStr)+'</div>'+
+    wbHtml+gratHtml;
+}
+
+// ── Send / Undo — Welcome Back ────────────────────────────────
+function sendCustomsWelcomeSms(id){
+  var r=data.find(function(x){return x.id===id;});
+  if(!r) return;
+  if(!r.phone){ showMsg('No phone number on file for '+r.name, true); return; }
+  var cleanPhone=r.phone.replace(/\D/g,'');
+  var smsBody=buildCustomsWelcomeSms(r);
+
+  if(r.customs_welcome_sent){
+    if(!confirm('The Welcome Back message was already sent at '+fmtSentTimestamp(r.customs_welcome_sent_at)+'. Open it again?')) return;
+    window.open('sms:'+cleanPhone+'&body='+encodeURIComponent(smsBody),'_self');
+    return;
+  }
+
+  var nowIso=new Date().toISOString();
+  var prev={sent:r.customs_welcome_sent,at:r.customs_welcome_sent_at};
+  r.customs_welcome_sent=true; r.customs_welcome_sent_at=nowIso;
+  renderDay(); if(_customsCommOpenId===id) renderCustomsCommModal(r);
+  window.open('sms:'+cleanPhone+'&body='+encodeURIComponent(smsBody),'_self');
+
+  sbUpdate(r.id,{customs_welcome_sent:true, customs_welcome_sent_at:nowIso}).catch(function(e){
+    r.customs_welcome_sent=prev.sent; r.customs_welcome_sent_at=prev.at;
+    renderDay(); if(_customsCommOpenId===id) renderCustomsCommModal(r);
+    showMsg('Could not save Welcome Back status — add the "customs_welcome_sent"/"customs_welcome_sent_at" columns in Supabase. ('+e.message+')', true);
+  });
+}
+function undoCustomsWelcomeSms(id){
+  var r=data.find(function(x){return x.id===id;});
+  if(!r || !r.customs_welcome_sent) return;
+  if(!confirm('Clear the Welcome Back status for this passenger?')) return;
+  var prev={sent:r.customs_welcome_sent,at:r.customs_welcome_sent_at};
+  r.customs_welcome_sent=false; r.customs_welcome_sent_at=null;
+  renderDay(); if(_customsCommOpenId===id) renderCustomsCommModal(r);
+  sbUpdate(r.id,{customs_welcome_sent:false, customs_welcome_sent_at:null}).catch(function(e){
+    r.customs_welcome_sent=prev.sent; r.customs_welcome_sent_at=prev.at;
+    renderDay(); if(_customsCommOpenId===id) renderCustomsCommModal(r);
+    showMsg('Could not clear Welcome Back status. ('+e.message+')', true);
+  });
+}
+
+// ── Send / Undo — Gratuity ─────────────────────────────────────
+function sendCustomsGratuitySms(id){
+  var r=data.find(function(x){return x.id===id;});
+  if(!r) return;
+  if(!r.phone){ showMsg('No phone number on file for '+r.name, true); return; }
+  var cleanPhone=r.phone.replace(/\D/g,'');
+  var smsBody=buildCustomsGratuitySms(r);
+
+  if(r.customs_gratuity_sent){
+    if(!confirm('The Gratuity message was already sent at '+fmtSentTimestamp(r.customs_gratuity_sent_at)+'. Open it again?')) return;
+    window.open('sms:'+cleanPhone+'&body='+encodeURIComponent(smsBody),'_self');
+    return;
+  }
+
+  var nowIso=new Date().toISOString();
+  var prev={sent:r.customs_gratuity_sent,at:r.customs_gratuity_sent_at,dismissed:r.customs_gratuity_dismissed};
+  r.customs_gratuity_sent=true; r.customs_gratuity_sent_at=nowIso;
+  closeCustomsGratuityReminderModal(id);
+  renderDay(); if(_customsCommOpenId===id) renderCustomsCommModal(r);
+  window.open('sms:'+cleanPhone+'&body='+encodeURIComponent(smsBody),'_self');
+
+  sbUpdate(r.id,{customs_gratuity_sent:true, customs_gratuity_sent_at:nowIso}).catch(function(e){
+    r.customs_gratuity_sent=prev.sent; r.customs_gratuity_sent_at=prev.at;
+    renderDay(); if(_customsCommOpenId===id) renderCustomsCommModal(r);
+    showMsg('Could not save Gratuity status — add the "customs_gratuity_sent"/"customs_gratuity_sent_at" columns in Supabase. ('+e.message+')', true);
+  });
+}
+function undoCustomsGratuitySms(id){
+  var r=data.find(function(x){return x.id===id;});
+  if(!r || !r.customs_gratuity_sent) return;
+  if(!confirm('Clear the Gratuity status for this passenger? This restores the reminder if it is already due.')) return;
+  var prev={sent:r.customs_gratuity_sent,at:r.customs_gratuity_sent_at,dismissed:r.customs_gratuity_dismissed};
+  r.customs_gratuity_sent=false; r.customs_gratuity_sent_at=null; r.customs_gratuity_dismissed=false;
+  renderDay(); if(_customsCommOpenId===id) renderCustomsCommModal(r);
+  sbUpdate(r.id,{customs_gratuity_sent:false, customs_gratuity_sent_at:null, customs_gratuity_dismissed:false}).catch(function(e){
+    r.customs_gratuity_sent=prev.sent; r.customs_gratuity_sent_at=prev.at; r.customs_gratuity_dismissed=prev.dismissed;
+    renderDay(); if(_customsCommOpenId===id) renderCustomsCommModal(r);
+    showMsg('Could not clear Gratuity status. ('+e.message+')', true);
+  });
+}
+
+// ── ETA+10 reminder — staff-facing only, never auto-sends ────────
+var _customsReminderShownIds={};
+var _customsReminderCurrentId=null;
+
+function checkCustomsGratuityReminders(){
+  var ov=document.getElementById('customsGratuityReminderOv');
+  if(ov && ov.classList.contains('on')) return; // one at a time
+  var commOv=document.getElementById('customsCommOv');
+  var commOpen=!!(commOv && commOv.classList.contains('on'));
+  var due=(typeof data!=='undefined'?data:[]).filter(function(r){
+    return isCustomsDelivered(r) && !r.customs_gratuity_sent && !r.customs_gratuity_dismissed && customsGratuityReminderDue(r);
+  });
+  var badge=document.getElementById('custReminderBadge');
+  if(badge){
+    badge.textContent='⏰ '+due.length;
+    badge.style.display=due.length?'inline-flex':'none';
+  }
+  if(!due.length) return;
+  // Don't pop the reminder over the action modal for the same record —
+  // staff is already looking at that passenger's Send Gratuity option.
+  var candidates=commOpen?due.filter(function(r){return r.id!==_customsCommOpenId;}):due;
+  if(!candidates.length) return;
+  var next=candidates.find(function(r){return !_customsReminderShownIds[r.id];})||candidates[0];
+  openCustomsGratuityReminderModal(next.id);
+}
+function openCustomsGratuityReminderModal(id){
+  var r=data.find(function(x){return x.id===id;});
+  if(!r) return;
+  _customsReminderCurrentId=id;
+  _customsReminderShownIds[id]=true;
+  var eta=getWelcomeBackEta(r);
+  var reminderDt=getCustomsGratuityReminderTime(r);
+  document.getElementById('customsGratuityReminderBody').innerHTML=
+    '<p class="msub" style="margin-bottom:16px">'+escapeHTML(r.name)+' should have arrived.<br>ETA was '+escapeHTML(eta?fmtTime12FromDate(eta):'—')+' (reminder set for '+escapeHTML(reminderDt?fmtTime12FromDate(reminderDt):'—')+')</p>'+
+    '<div style="font-weight:700;margin-bottom:14px">Send gratuity message?</div>'+
+    '<div class="mact">'+
+      '<button class="btnc" onclick="dismissCustomsGratuityReminder('+r.id+')">Dismiss</button>'+
+      '<button class="btnp" onclick="sendCustomsGratuitySms('+r.id+')">Send Gratuity</button>'+
+    '</div>';
+  document.getElementById('customsGratuityReminderOv').classList.add('on');
+}
+function closeCustomsGratuityReminderModal(id){
+  if(id!=null && _customsReminderCurrentId!==id) return;
+  var ov=document.getElementById('customsGratuityReminderOv');
+  if(ov) ov.classList.remove('on');
+  _customsReminderCurrentId=null;
+  setTimeout(checkCustomsGratuityReminders,300); // surface the next due reminder, if any
+}
+function dismissCustomsGratuityReminder(id){
+  var r=data.find(function(x){return x.id===id;});
+  if(!r) return;
+  var prev=r.customs_gratuity_dismissed;
+  r.customs_gratuity_dismissed=true;
+  closeCustomsGratuityReminderModal(id);
+  renderDay();
+  sbUpdate(r.id,{customs_gratuity_dismissed:true}).catch(function(e){
+    r.customs_gratuity_dismissed=prev;
+    renderDay();
+    showMsg('Could not save dismissal. ('+e.message+')', true);
+  });
+}
+if(!window._customsReminderInterval){
+  window._customsReminderInterval=setInterval(checkCustomsGratuityReminders,60000);
 }
 
 // ── SAVE NEW ENTRY ─────────────────────────────────────────────
@@ -2796,12 +3019,8 @@ async function deliverWithRating(id, deliveryType, rating){
   }finally{
     loading(false);
   }
-  if(deliveryOk && deliveryType==='CUSTOMS' && r.phone){
-    if(confirm('Vehicle moved to Customs.\n\nSend Welcome Back message?')){
-      var brand=isAscend(r)?'Ascend Valet':'Makers Air Valet';
-      var smsBody='Welcome back.\n\nYour vehicle has been pre-positioned at Customs and will be ready upon your arrival for a seamless pickup experience.\n\nThank you for choosing '+brand+'. We truly appreciate your business and look forward to serving you again.\n\nIf we exceeded your expectations, here is our discretionary valet team gratuity link:\n\nhttps://square.link/u/1oPb8Veu';
-      window.open('sms:'+r.phone.replace(/\D/g,'')+'&body='+encodeURIComponent(smsBody),'_self');
-    }
+  if(deliveryOk && deliveryType==='CUSTOMS'){
+    openCustomsCommModal(r.id);
   }
 }
 
@@ -2853,11 +3072,23 @@ async function undoDeliverToday(id){
   try{
     var updUndo={status:'PENDING',deldate:null,checkout_date:null,delivery_type:null,previous_delivery_location:null};
     if(r.previous_delivery_location){updUndo.loc=restoredLoc;}
+    // Undoing a Customs delivery un-does the "vehicle is at Customs" state
+    // entirely, so its communication flags must not linger as stale state.
+    if(r.delivery_type==='CUSTOMS'){
+      updUndo.customs_welcome_sent=false; updUndo.customs_welcome_sent_at=null;
+      updUndo.customs_gratuity_sent=false; updUndo.customs_gratuity_sent_at=null;
+      updUndo.customs_gratuity_dismissed=false;
+    }
     await sbUpdate(r.id,updUndo);
     for(var i=0;i<data.length;i++){
       if(data[i].id===id){
         data[i].status='PENDING';data[i].deldate=null;data[i].checkout_date=null;data[i].delivery_type=null;data[i].previous_delivery_location=null;
         if(r.previous_delivery_location) data[i].loc=restoredLoc;
+        if(updUndo.customs_welcome_sent===false){
+          data[i].customs_welcome_sent=false;data[i].customs_welcome_sent_at=null;
+          data[i].customs_gratuity_sent=false;data[i].customs_gratuity_sent_at=null;
+          data[i].customs_gratuity_dismissed=false;
+        }
         break;
       }
     }
@@ -3338,93 +3569,8 @@ _supaClient.auth.getSession().then(function(result) {
 document.getElementById('hdrDate').textContent=today.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'});
 var rd=document.getElementById('reportDate');
 if(rd){var t2=new Date();rd.value=t2.getFullYear()+'-'+String(t2.getMonth()+1).padStart(2,'0')+'-'+String(t2.getDate()).padStart(2,'0');}
-var fcd=document.getElementById('fcDate');
-if(fcd){var t3=new Date();t3.setDate(t3.getDate()+1);fcd.value=t3.getFullYear()+'-'+String(t3.getMonth()+1).padStart(2,'0')+'-'+String(t3.getDate()).padStart(2,'0');}
-var fcpd=document.getElementById('fcPasteDate');
-if(fcpd){var t4=new Date();t4.setDate(t4.getDate()+1);fcpd.value=t4.getFullYear()+'-'+String(t4.getMonth()+1).padStart(2,'0')+'-'+String(t4.getDate()).padStart(2,'0');}
 var defEl=document.getElementById('s-ts');
 if(defEl) defEl.textContent=' ▼';
-
-// ── FLIGHT CHECK ───────────────────────────────────────────────
-function runFCCheck2() {
-  var namesRaw = (document.getElementById('fcNames')||{value:''}).value;
-  var tail = (document.getElementById('fcTail')||{value:''}).value.trim().toUpperCase();
-  var eta  = (document.getElementById('fcETA')||{value:''}).value.trim();
-  var fcDate = (document.getElementById('fcDate')||{value:''}).value;
-
-  var names = namesRaw.split('\n').map(function(n){return n.trim().toUpperCase();}).filter(Boolean);
-  if(!names.length){ alert('Please enter at least one passenger name.'); return; }
-
-  var results = [];
-  names.forEach(function(inputName){
-    var matched = null;
-    var score = 0;
-    data.forEach(function(r){
-      if(r.status==='DELIVERED') return;
-      var a = inputName.toUpperCase().trim();
-      var b = r.name.toUpperCase().trim();
-      if(a===b){ matched=r; score=100; return; }
-      var ap=a.split(' '), bp=b.split(' ');
-      var hits=0;
-      ap.forEach(function(p){ if(p.length>1&&bp.some(function(q){return q===p||q.indexOf(p)>=0||p.indexOf(q)>=0;})) hits++; });
-      var s = hits>=Math.min(ap.length,bp.length)&&hits>0 ? hits*30 : 0;
-      if(s>score){ score=s; matched=r; }
-    });
-    results.push({input:inputName, match:matched, score:score});
-  });
-
-  var found = results.filter(function(r){return r.match;});
-  var notFound = results.filter(function(r){return !r.match;});
-
-  var el = document.getElementById('fcResults');
-  var title = document.getElementById('fcResultTitle');
-  if(el) el.style.display='block';
-
-  var info = '';
-  if(tail) info += '<b>Tail:</b> '+escapeHTML(tail)+'&nbsp;&nbsp;';
-  if(eta) info += '<b>ETA:</b> '+escapeHTML(eta)+'&nbsp;&nbsp;';
-  if(fcDate) info += '<b>Date:</b> '+escapeHTML(fcDate);
-
-  var html = (info?'<div style="font-size:12px;color:var(--mu);margin-bottom:10px">'+info+'</div>':'')+
-    '<div style="font-size:12px;color:var(--ok);font-weight:700;margin-bottom:8px">✅ FOUND IN VALET ('+found.length+')</div>';
-
-  if(found.length) {
-    html += found.map(function(r){
-      var m=r.match;
-      return '<div class="dcard ca" style="margin-bottom:8px" onclick="showDet('+m.id+')">'+
-        '<div class="dc-body"><div class="dc-n">'+escapeHTML(m.name)+'</div>'+
-        '<div class="dc-c">'+escapeHTML(m.car)+' · '+escapeHTML(fmtP(m.phone))+'</div></div>'+
-        '<div class="dc-meta"><div class="dc-tk">'+escapeHTML(m.ticket)+'</div><div class="dc-l">'+escapeHTML(m.loc)+'</div></div>'+
-      '</div>';
-    }).join('');
-  } else {
-    html += '<div style="color:var(--mu);font-size:13px;margin-bottom:12px">None found.</div>';
-  }
-
-  html += '<div style="font-size:12px;color:var(--red);font-weight:700;margin-bottom:8px;margin-top:4px">❌ NOT IN VALET ('+notFound.length+')</div>';
-  if(notFound.length) {
-    html += notFound.map(function(r){
-      return '<div style="padding:10px 12px;background:var(--s2);border-radius:8px;margin-bottom:6px;font-size:13px;color:var(--mu)">'+escapeHTML(r.input)+'</div>';
-    }).join('');
-  } else {
-    html += '<div style="color:var(--mu);font-size:13px">All passengers accounted for!</div>';
-  }
-
-  var container = document.getElementById('fcCards');
-  if(container) container.innerHTML = html;
-  if(title) title.textContent = 'Results — '+found.length+'/'+results.length+' matched';
-}
-
-function resetFC() {
-  var el = document.getElementById('fcResults');
-  if(el) el.style.display='none';
-  var names = document.getElementById('fcNames');
-  if(names) names.value='';
-  var tail = document.getElementById('fcTail');
-  if(tail) tail.value='';
-  var eta = document.getElementById('fcETA');
-  if(eta) eta.value='';
-}
 
 // ── REPORT ─────────────────────────────────────────────────────
 var _rType = 'all_pending';

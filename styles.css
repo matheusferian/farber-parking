@@ -378,6 +378,35 @@ input[type=checkbox]{width:17px;height:17px;accent-color:var(--gold);cursor:poin
   .qd-btn.wcb-btn{font-size:9px;padding:0 6px;}
   .checkin-badge{font-size:9px;padding:5px 10px;}
 }
+/* ── CUSTOMS COMMUNICATION START ── */
+.cst-card-badge{
+  display:flex;flex-wrap:wrap;align-items:center;gap:4px;
+  background:rgba(27,59,111,.08);border:1px solid rgba(27,59,111,.25);
+  border-radius:8px;padding:6px 10px;cursor:pointer;
+  font-size:10px;font-family:'DM Mono',monospace;font-weight:700;
+  letter-spacing:.3px;color:var(--tx);
+}
+.cst-card-badge:hover{background:rgba(27,59,111,.14);}
+.cst-cb-tag{color:var(--navy);font-weight:800;}
+.cst-cb-sep{color:var(--mu);opacity:.5;}
+.cst-cb-eta{color:var(--mu);}
+.cst-cb-wb,.cst-cb-tip{white-space:nowrap;}
+@media (max-width:600px){.cst-card-badge{font-size:9px;padding:5px 8px;gap:3px;}}
+
+.cst-meta{font-family:'Syne',sans-serif;font-size:14px;font-weight:800;color:var(--navy);margin-bottom:2px;}
+.cst-eta{font-size:12px;color:var(--mu);margin-bottom:16px;font-family:'DM Mono',monospace;}
+.cst-section{background:var(--s2);border:1.5px solid var(--b);border-radius:12px;padding:12px 14px;margin-bottom:10px;}
+.cst-section.done{border-color:rgba(26,158,106,.35);background:rgba(26,158,106,.06);}
+.cst-sec-top{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;}
+.cst-sec-lbl{font-family:'Syne',sans-serif;font-weight:800;font-size:13px;color:var(--tx);}
+.cst-sec-status.ok{font-size:11px;font-weight:700;color:var(--ok);}
+.cst-sec-sub{font-size:10.5px;color:var(--mu);margin-top:6px;}
+.cst-send-btn{width:100%;background:var(--navy);color:#fff;border:1px solid var(--gold);border-radius:9px;padding:11px;font-family:'Syne',sans-serif;font-weight:800;font-size:13px;cursor:pointer;}
+.cst-send-btn:hover{background:var(--navy2);}
+.cst-undo-btn{width:100%;background:rgba(255,255,255,.06);border:1px solid var(--b);color:var(--mu);border-radius:9px;padding:8px;font-size:12px;cursor:pointer;}
+.cst-undo-btn:hover{border-color:var(--red);color:var(--red);}
+/* ── CUSTOMS COMMUNICATION END ── */
+
 .eday{text-align:center;padding:18px;color:var(--mu);font-size:12px;background:var(--s);border-radius:10px;border:1px dashed var(--b);}
 
 /* ── TASKS ── */
