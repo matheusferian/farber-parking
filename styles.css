@@ -385,6 +385,7 @@ input[type=checkbox]{width:17px;height:17px;accent-color:var(--gold);cursor:poin
   border-radius:8px;padding:6px 10px;cursor:pointer;
   font-size:10px;font-family:'DM Mono',monospace;font-weight:700;
   letter-spacing:.3px;color:var(--tx);
+  margin-right:4px; /* extra room before the adjacent Undo button, on top of .dc-qd's own gap */
 }
 .cst-card-badge:hover{background:rgba(27,59,111,.14);}
 .cst-cb-tag{color:var(--navy);font-weight:800;}
@@ -392,6 +393,10 @@ input[type=checkbox]{width:17px;height:17px;accent-color:var(--gold);cursor:poin
 .cst-cb-eta{color:var(--mu);}
 .cst-cb-wb,.cst-cb-tip{white-space:nowrap;}
 @media (max-width:600px){.cst-card-badge{font-size:9px;padding:5px 8px;gap:3px;}}
+/* Scoped size bump for the Undo-delivery button next to the Customs/delivered
+   badge — deliberately not touching the shared .qd-btn rule used by
+   Deliver/Customs/Lockbox/Print elsewhere on the same card. */
+.dc-undo-deliver-btn{min-height:40px;padding:0 10px;}
 
 .cst-meta{font-family:'Syne',sans-serif;font-size:14px;font-weight:800;color:var(--navy);margin-bottom:2px;}
 .cst-eta{font-size:12px;color:var(--mu);margin-bottom:16px;font-family:'DM Mono',monospace;}
@@ -405,6 +410,12 @@ input[type=checkbox]{width:17px;height:17px;accent-color:var(--gold);cursor:poin
 .cst-send-btn:hover{background:var(--navy2);}
 .cst-undo-btn{width:100%;background:rgba(255,255,255,.06);border:1px solid var(--b);color:var(--mu);border-radius:9px;padding:8px;font-size:12px;cursor:pointer;}
 .cst-undo-btn:hover{border-color:var(--red);color:var(--red);}
+.cst-summary-list{list-style:none;padding:0;margin:0 0 4px;}
+.cst-summary-list li{font-size:12.5px;color:var(--tx);padding:7px 10px;background:var(--s2);border-radius:8px;margin-bottom:6px;}
+.cst-summary-more{font-size:11px;color:var(--mu);font-weight:700;margin-bottom:8px;}
+.mact.cst-nav-row{flex-wrap:wrap;}
+.mact.cst-nav-row button{min-width:0;}
+.mact.cst-nav-row button:disabled{opacity:.4;cursor:default;}
 /* ── CUSTOMS COMMUNICATION END ── */
 
 .eday{text-align:center;padding:18px;color:var(--mu);font-size:12px;background:var(--s);border-radius:10px;border:1px dashed var(--b);}

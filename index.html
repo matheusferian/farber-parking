@@ -443,18 +443,25 @@
 <!-- CUSTOMS COMMUNICATION MODAL -->
 <div class="ov" id="customsCommOv" onclick="if(event.target===this)closeCustomsCommModal()">
   <div class="modal" style="max-width:400px">
-    <h2>Vehicle moved to Customs</h2>
+    <h2 id="customsCommTitle">Vehicle moved to Customs</h2>
     <div id="customsCommBody"></div>
     <div class="mact">
       <button class="btnc" onclick="closeCustomsCommModal()">Close</button>
     </div>
   </div>
 </div>
-<!-- CUSTOMS GRATUITY REMINDER MODAL -->
-<div class="ov" id="customsGratuityReminderOv">
-  <div class="modal" style="max-width:360px">
+<!-- CUSTOMS GRATUITY REMINDER — SUMMARY (max one at a time) -->
+<div class="ov" id="customsReminderSummaryOv">
+  <div class="modal" style="max-width:380px">
     <h2>⏰ Gratuity Reminder</h2>
-    <div id="customsGratuityReminderBody"></div>
+    <div id="customsReminderSummaryBody"></div>
+  </div>
+</div>
+<!-- CUSTOMS GRATUITY REMINDER — DETAILED QUEUE (one modal, Previous/Next) -->
+<div class="ov" id="customsReminderDetailOv">
+  <div class="modal" style="max-width:400px">
+    <h2>Gratuity Follow-Up</h2>
+    <div id="customsReminderDetailBody"></div>
   </div>
 </div>
 <!-- LEAVING TOMORROW SHARE-IMAGE FALLBACK -->
@@ -1679,7 +1686,7 @@ function renderDay() {
         actionHtml=
           '<div class="dc-qd" onclick="event.stopPropagation()">'+
             (isCustomsDelivered(r)?customsCardBadgeHtml(r):'<div class="checkin-badge" style="background:rgba(26,158,106,.15);color:var(--ok);border-color:rgba(26,158,106,.35)">✓ DELIVERED</div>')+
-            '<button class="qd-btn" style="background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.18);color:var(--mu);font-size:11px" onclick="undoDeliverToday('+r.id+')">↩ Undo</button>'+
+            '<button class="qd-btn dc-undo-deliver-btn" style="background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.18);color:var(--mu);font-size:11px" onclick="undoDeliverToday('+r.id+')">↩ Undo</button>'+
           '</div>';
       } else if(showDeliver){
         actionHtml=
@@ -1764,9 +1771,12 @@ function renderDay() {
   var titleTodayEl=document.getElementById('titleToday');
   titleTodayEl.style.display='flex';titleTodayEl.style.alignItems='center';titleTodayEl.style.justifyContent='space-between';
   var ltPending=lt.filter(function(r){return r.status!=='DELIVERED';}).length;
-  var custReminderDue=lt.filter(function(r){return isCustomsDelivered(r)&&!r.customs_gratuity_sent&&!r.customs_gratuity_dismissed&&customsGratuityReminderDue(r);}).length;
+  var custReminderDue=getCustomsDueRecords().length;
+  var custBadgeAttrs=custReminderDue
+    ? ' onclick="event.stopPropagation();openCustomsReminderSummary()" style="cursor:pointer;background:var(--red);color:#fff;margin-left:4px" title="Open gratuity reminders" aria-label="Open gratuity reminders"'
+    : ' style="background:var(--red);color:#fff;display:none;margin-left:4px" title="Open gratuity reminders" aria-label="Open gratuity reminders"';
   titleTodayEl.innerHTML='<span>🔔 Leaving Today <span class="tbadge" style="background:var(--acc);color:#000">'+ltPending+'</span>'+
-    '<span class="tbadge" id="custReminderBadge" style="background:var(--red);color:#fff;'+(custReminderDue?'':'display:none;')+'margin-left:4px" title="Gratuity reminders due">⏰ '+custReminderDue+'</span></span>'+
+    '<span class="tbadge" id="custReminderBadge"'+custBadgeAttrs+'>⏰ '+custReminderDue+'</span></span>'+
     (lt.length?'<button class="fb-print-all-btn" onclick="event.stopPropagation();printFlightBagAll(\'today\')">🖨 Print All</button>':'');
   var titleTomorrowEl=document.getElementById('titleTomorrow');
   titleTomorrowEl.style.display='flex';titleTomorrowEl.style.alignItems='center';titleTomorrowEl.style.justifyContent='space-between';
@@ -2550,28 +2560,120 @@ function buildCustomsGratuitySms(r){
   return 'Thank you for choosing '+brand+'.\n\nWe truly appreciate your business.\n\nIf we exceeded your expectations, here is our discretionary valet team gratuity link:\n\nhttps://buy.stripe.com/8x214mccK0uh9TjgIM6Vq00';
 }
 
-// Reuses the same ETA source as the Hangar 19 feature (departure_time +
-// return date) — read-only, never modified by this workflow.
-function getCustomsGratuityReminderTime(r){
-  var eta=getWelcomeBackEta(r);
-  if(!eta) return null;
-  return new Date(eta.getTime()+10*60000);
+// ── Feature activation cutoff ────────────────────────────────────
+// Only Customs deliveries recorded at/after this moment are eligible for
+// the automatic gratuity reminder. Set to the moment this workflow shipped
+// (local business time) so pre-existing Customs rows — which all got
+// customs_gratuity_sent/dismissed defaulted to false by the migration —
+// never retroactively surface as "due" reminders. Adjust this forward if
+// the real production deploy happens later than this timestamp.
+var CUSTOMS_COMM_FEATURE_START=new Date('2026-07-12T09:50:00-04:00');
+
+// ── Strict ETA parsing — rejects anything that isn't a real, specific
+// clock time. In particular '00:00'/'12:00 AM' must NEVER be treated as
+// a valid ETA — those mean "not set", not midnight. Deliberately does
+// NOT reuse isValidDepTime() (which accepts '00:00') — that helper backs
+// the unrelated Hangar 19 Welcome Back feature and must stay untouched.
+function getValidCustomsEtaMinutes(r){
+  var raw=String((r&&r.departure_time)||'').trim();
+  if(!raw) return null;
+  var normalized=raw.toUpperCase();
+  var invalidValues=['HH:MM','--:--','00:00','0:00','12:00 AM','NO ETA','NO'];
+  if(invalidValues.indexOf(normalized)>=0) return null;
+  var match24=normalized.match(/^([01]?\d|2[0-3]):([0-5]\d)$/);
+  if(match24){
+    var h24=parseInt(match24[1],10), m24=parseInt(match24[2],10);
+    if(h24===0&&m24===0) return null;
+    return h24*60+m24;
+  }
+  var match12=normalized.match(/^(0?[1-9]|1[0-2]):([0-5]\d)\s*(AM|PM)$/);
+  if(match12){
+    var h12=parseInt(match12[1],10), m12=parseInt(match12[2],10), period=match12[3];
+    if(h12===12) h12=0;
+    if(period==='PM') h12+=12;
+    if(h12===0&&m12===0) return null;
+    return h12*60+m12;
+  }
+  return null;
 }
-function customsGratuityReminderDue(r){
-  var t=getCustomsGratuityReminderTime(r);
-  return !!(t && Date.now()>=t.getTime());
+// Combines the passenger's return date (same field that already powers
+// Leaving Today) with a validated minutes-of-day value, plus an optional
+// offset. Returns null rather than guessing if the return date is missing.
+function buildReminderDateForRecord(r,etaMinutes,offsetMinutes){
+  if(etaMinutes==null) return null;
+  var d=pd(r.ret);
+  if(!d) return null;
+  var h=Math.floor(etaMinutes/60), m=etaMinutes%60;
+  var base=new Date(d.getFullYear(),d.getMonth(),d.getDate(),h,m,0,0);
+  if(isNaN(base.getTime())) return null;
+  return new Date(base.getTime()+(offsetMinutes||0)*60000);
+}
+function getCustomsEtaDate(r){
+  return buildReminderDateForRecord(r,getValidCustomsEtaMinutes(r),0);
+}
+function getCustomsGratuityReminderTime(r){
+  return buildReminderDateForRecord(r,getValidCustomsEtaMinutes(r),10);
+}
+
+// A record can ever be eligible for the *automatic* reminder machinery
+// only if it was actually delivered via Customs at/after the feature's
+// go-live — never based on check-in date, return date, or status alone.
+function isCustomsCommEligible(r){
+  if(!isCustomsDelivered(r)) return false;
+  var rawDeliveredAt=r.checkout_date||r.deldate;
+  if(!rawDeliveredAt) return false;
+  var deliveredAt=new Date(rawDeliveredAt);
+  if(isNaN(deliveredAt.getTime())) return false;
+  return deliveredAt>=CUSTOMS_COMM_FEATURE_START;
+}
+function isCustomsGratuityReminderDue(r,now){
+  now=now||Date.now();
+  if(!isCustomsCommEligible(r)) return false;
+  if(r.customs_welcome_sent!==true) return false; // WB must go out first
+  if(r.customs_gratuity_sent===true) return false;
+  if(r.customs_gratuity_dismissed===true) return false;
+  var etaMinutes=getValidCustomsEtaMinutes(r);
+  if(etaMinutes==null) return false;
+  var reminderAt=buildReminderDateForRecord(r,etaMinutes,10);
+  if(!reminderAt) return false;
+  return now>=reminderAt.getTime();
+}
+function getCustomsDueRecords(){
+  var now=Date.now();
+  var due=(typeof data!=='undefined'?data:[]).filter(function(r){return isCustomsGratuityReminderDue(r,now);});
+  due.sort(function(a,b){
+    var ta=getCustomsGratuityReminderTime(a), tb=getCustomsGratuityReminderTime(b);
+    return (ta?ta.getTime():0)-(tb?tb.getTime():0);
+  });
+  return due;
+}
+function updateCustomsReminderBadgeCount(){
+  var due=getCustomsDueRecords();
+  var badge=document.getElementById('custReminderBadge');
+  if(badge){
+    badge.textContent='⏰ '+due.length;
+    badge.style.display=due.length?'inline-flex':'none';
+    badge.style.cursor=due.length?'pointer':'';
+    badge.onclick=due.length?function(e){e.stopPropagation();openCustomsReminderSummary();}:null;
+    badge.title='Open gratuity reminders';
+    badge.setAttribute('aria-label','Open gratuity reminders');
+  }
+  return due;
 }
 
 // ── Card badge (Leaving Today, post-Customs-delivery) ────────────
+// The clock icon means "an automatic reminder is actually scheduled" —
+// it only shows once Welcome Back is sent, the delivery is eligible, and
+// gratuity isn't already sent/dismissed. No-ETA records never get it.
 function customsCardBadgeHtml(r){
-  var eta=getWelcomeBackEta(r);
-  var etaStr=eta?fmtTime12FromDate(eta):'No ETA';
+  var etaDate=getCustomsEtaDate(r);
+  var etaStr=etaDate?fmtTime12FromDate(etaDate):'No ETA';
   var wbBadge=r.customs_welcome_sent?'📩 WB ✓':'📩 WB Pending';
   var tipBadge;
   if(r.customs_gratuity_sent) tipBadge='💳 Tip ✓';
-  else if(!eta) tipBadge='💳 Tip Pending';
-  else tipBadge='💳 Tip ⏰';
-  return '<div class="cst-card-badge" onclick="event.stopPropagation();openCustomsCommModal('+r.id+')">'+
+  else if(etaDate && r.customs_welcome_sent && isCustomsCommEligible(r) && !r.customs_gratuity_dismissed) tipBadge='💳 Tip ⏰';
+  else tipBadge='💳 Tip Pending';
+  return '<div class="cst-card-badge" onclick="event.stopPropagation();openCustomsCommModal('+r.id+',\'reopen\')">'+
     '<span class="cst-cb-tag">CUSTOMS</span><span class="cst-cb-sep">·</span>'+
     '<span class="cst-cb-eta">'+escapeHTML(etaStr)+'</span><span class="cst-cb-sep">·</span>'+
     '<span class="cst-cb-wb">'+wbBadge+'</span><span class="cst-cb-sep">·</span>'+
@@ -2579,12 +2681,15 @@ function customsCardBadgeHtml(r){
   '</div>';
 }
 
-// ── Action modal ───────────────────────────────────────────────
+// ── Action modal (manual send/undo — always available, regardless of
+//    automatic-reminder eligibility) ──────────────────────────────
 var _customsCommOpenId=null;
-function openCustomsCommModal(id){
+function openCustomsCommModal(id,mode){
   var r=data.find(function(x){return x.id===id;});
   if(!r) return;
   _customsCommOpenId=id;
+  document.getElementById('customsCommTitle').textContent=
+    mode==='reopen' ? 'Customs Communication' : 'Vehicle moved to Customs';
   renderCustomsCommModal(r);
   document.getElementById('customsCommOv').classList.add('on');
 }
@@ -2593,17 +2698,21 @@ function closeCustomsCommModal(){
   _customsCommOpenId=null;
 }
 function renderCustomsCommModal(r){
-  var eta=getWelcomeBackEta(r);
-  var etaStr=eta?fmtTime12FromDate(eta):'No ETA';
-  var reminderDt=getCustomsGratuityReminderTime(r);
+  var etaDate=getCustomsEtaDate(r);
+  var etaStr=etaDate?fmtTime12FromDate(etaDate):'No ETA';
 
   var wbHtml=r.customs_welcome_sent
     ? '<div class="cst-section done"><div class="cst-sec-top"><span class="cst-sec-lbl">📩 Welcome Back</span><span class="cst-sec-status ok">✓ Sent '+escapeHTML(fmtSentTimestamp(r.customs_welcome_sent_at))+'</span></div><button class="cst-undo-btn" onclick="undoCustomsWelcomeSms('+r.id+')">Undo Welcome Back</button></div>'
     : '<div class="cst-section"><div class="cst-sec-top"><span class="cst-sec-lbl">📩 Welcome Back</span></div><button class="cst-send-btn" onclick="sendCustomsWelcomeSms('+r.id+')">Send Welcome Back</button></div>';
 
-  var gratSub=r.customs_gratuity_sent?'':(reminderDt
-      ?'<div class="cst-sec-sub">Reminder set for '+escapeHTML(fmtTime12FromDate(reminderDt))+'</div>'
-      :'<div class="cst-sec-sub">No ETA on file — send manually when ready</div>');
+  var gratSub;
+  if(r.customs_gratuity_sent){ gratSub=''; }
+  else if(!etaDate){ gratSub='<div class="cst-sec-sub">No ETA on file — send manually when ready</div>'; }
+  else if(!r.customs_welcome_sent){ gratSub='<div class="cst-sec-sub">Reminder will be scheduled after Welcome Back is sent</div>'; }
+  else {
+    var reminderDt=getCustomsGratuityReminderTime(r);
+    gratSub='<div class="cst-sec-sub">Reminder set for '+escapeHTML(reminderDt?fmtTime12FromDate(reminderDt):'—')+'</div>';
+  }
   var gratHtml=r.customs_gratuity_sent
     ? '<div class="cst-section done"><div class="cst-sec-top"><span class="cst-sec-lbl">💳 Gratuity</span><span class="cst-sec-status ok">✓ Sent '+escapeHTML(fmtSentTimestamp(r.customs_gratuity_sent_at))+'</span></div><button class="cst-undo-btn" onclick="undoCustomsGratuitySms('+r.id+')">Undo Gratuity</button></div>'
     : '<div class="cst-section"><div class="cst-sec-top"><span class="cst-sec-lbl">💳 Gratuity</span></div><button class="cst-send-btn" onclick="sendCustomsGratuitySms('+r.id+')">Send Gratuity</button>'+gratSub+'</div>';
@@ -2631,12 +2740,12 @@ function sendCustomsWelcomeSms(id){
   var nowIso=new Date().toISOString();
   var prev={sent:r.customs_welcome_sent,at:r.customs_welcome_sent_at};
   r.customs_welcome_sent=true; r.customs_welcome_sent_at=nowIso;
-  renderDay(); if(_customsCommOpenId===id) renderCustomsCommModal(r);
+  renderDay(); updateCustomsReminderBadgeCount(); if(_customsCommOpenId===id) renderCustomsCommModal(r);
   window.open('sms:'+cleanPhone+'&body='+encodeURIComponent(smsBody),'_self');
 
   sbUpdate(r.id,{customs_welcome_sent:true, customs_welcome_sent_at:nowIso}).catch(function(e){
     r.customs_welcome_sent=prev.sent; r.customs_welcome_sent_at=prev.at;
-    renderDay(); if(_customsCommOpenId===id) renderCustomsCommModal(r);
+    renderDay(); updateCustomsReminderBadgeCount(); if(_customsCommOpenId===id) renderCustomsCommModal(r);
     showMsg('Could not save Welcome Back status — add the "customs_welcome_sent"/"customs_welcome_sent_at" columns in Supabase. ('+e.message+')', true);
   });
 }
@@ -2646,10 +2755,10 @@ function undoCustomsWelcomeSms(id){
   if(!confirm('Clear the Welcome Back status for this passenger?')) return;
   var prev={sent:r.customs_welcome_sent,at:r.customs_welcome_sent_at};
   r.customs_welcome_sent=false; r.customs_welcome_sent_at=null;
-  renderDay(); if(_customsCommOpenId===id) renderCustomsCommModal(r);
+  renderDay(); updateCustomsReminderBadgeCount(); if(_customsCommOpenId===id) renderCustomsCommModal(r);
   sbUpdate(r.id,{customs_welcome_sent:false, customs_welcome_sent_at:null}).catch(function(e){
     r.customs_welcome_sent=prev.sent; r.customs_welcome_sent_at=prev.at;
-    renderDay(); if(_customsCommOpenId===id) renderCustomsCommModal(r);
+    renderDay(); updateCustomsReminderBadgeCount(); if(_customsCommOpenId===id) renderCustomsCommModal(r);
     showMsg('Could not clear Welcome Back status. ('+e.message+')', true);
   });
 }
@@ -2671,13 +2780,16 @@ function sendCustomsGratuitySms(id){
   var nowIso=new Date().toISOString();
   var prev={sent:r.customs_gratuity_sent,at:r.customs_gratuity_sent_at,dismissed:r.customs_gratuity_dismissed};
   r.customs_gratuity_sent=true; r.customs_gratuity_sent_at=nowIso;
-  closeCustomsGratuityReminderModal(id);
-  renderDay(); if(_customsCommOpenId===id) renderCustomsCommModal(r);
+  renderDay(); updateCustomsReminderBadgeCount();
+  if(_customsCommOpenId===id) renderCustomsCommModal(r);
+  if(document.getElementById('customsReminderDetailOv').classList.contains('on')) renderCustomsReminderDetail();
   window.open('sms:'+cleanPhone+'&body='+encodeURIComponent(smsBody),'_self');
 
   sbUpdate(r.id,{customs_gratuity_sent:true, customs_gratuity_sent_at:nowIso}).catch(function(e){
     r.customs_gratuity_sent=prev.sent; r.customs_gratuity_sent_at=prev.at;
-    renderDay(); if(_customsCommOpenId===id) renderCustomsCommModal(r);
+    renderDay(); updateCustomsReminderBadgeCount();
+    if(_customsCommOpenId===id) renderCustomsCommModal(r);
+    if(document.getElementById('customsReminderDetailOv').classList.contains('on')) renderCustomsReminderDetail();
     showMsg('Could not save Gratuity status — add the "customs_gratuity_sent"/"customs_gratuity_sent_at" columns in Supabase. ('+e.message+')', true);
   });
 }
@@ -2687,75 +2799,126 @@ function undoCustomsGratuitySms(id){
   if(!confirm('Clear the Gratuity status for this passenger? This restores the reminder if it is already due.')) return;
   var prev={sent:r.customs_gratuity_sent,at:r.customs_gratuity_sent_at,dismissed:r.customs_gratuity_dismissed};
   r.customs_gratuity_sent=false; r.customs_gratuity_sent_at=null; r.customs_gratuity_dismissed=false;
-  renderDay(); if(_customsCommOpenId===id) renderCustomsCommModal(r);
+  renderDay(); updateCustomsReminderBadgeCount(); if(_customsCommOpenId===id) renderCustomsCommModal(r);
   sbUpdate(r.id,{customs_gratuity_sent:false, customs_gratuity_sent_at:null, customs_gratuity_dismissed:false}).catch(function(e){
     r.customs_gratuity_sent=prev.sent; r.customs_gratuity_sent_at=prev.at; r.customs_gratuity_dismissed=prev.dismissed;
-    renderDay(); if(_customsCommOpenId===id) renderCustomsCommModal(r);
+    renderDay(); updateCustomsReminderBadgeCount(); if(_customsCommOpenId===id) renderCustomsCommModal(r);
     showMsg('Could not clear Gratuity status. ('+e.message+')', true);
   });
 }
-
-// ── ETA+10 reminder — staff-facing only, never auto-sends ────────
-var _customsReminderShownIds={};
-var _customsReminderCurrentId=null;
-
-function checkCustomsGratuityReminders(){
-  var ov=document.getElementById('customsGratuityReminderOv');
-  if(ov && ov.classList.contains('on')) return; // one at a time
-  var commOv=document.getElementById('customsCommOv');
-  var commOpen=!!(commOv && commOv.classList.contains('on'));
-  var due=(typeof data!=='undefined'?data:[]).filter(function(r){
-    return isCustomsDelivered(r) && !r.customs_gratuity_sent && !r.customs_gratuity_dismissed && customsGratuityReminderDue(r);
-  });
-  var badge=document.getElementById('custReminderBadge');
-  if(badge){
-    badge.textContent='⏰ '+due.length;
-    badge.style.display=due.length?'inline-flex':'none';
-  }
-  if(!due.length) return;
-  // Don't pop the reminder over the action modal for the same record —
-  // staff is already looking at that passenger's Send Gratuity option.
-  var candidates=commOpen?due.filter(function(r){return r.id!==_customsCommOpenId;}):due;
-  if(!candidates.length) return;
-  var next=candidates.find(function(r){return !_customsReminderShownIds[r.id];})||candidates[0];
-  openCustomsGratuityReminderModal(next.id);
-}
-function openCustomsGratuityReminderModal(id){
-  var r=data.find(function(x){return x.id===id;});
-  if(!r) return;
-  _customsReminderCurrentId=id;
-  _customsReminderShownIds[id]=true;
-  var eta=getWelcomeBackEta(r);
-  var reminderDt=getCustomsGratuityReminderTime(r);
-  document.getElementById('customsGratuityReminderBody').innerHTML=
-    '<p class="msub" style="margin-bottom:16px">'+escapeHTML(r.name)+' should have arrived.<br>ETA was '+escapeHTML(eta?fmtTime12FromDate(eta):'—')+' (reminder set for '+escapeHTML(reminderDt?fmtTime12FromDate(reminderDt):'—')+')</p>'+
-    '<div style="font-weight:700;margin-bottom:14px">Send gratuity message?</div>'+
-    '<div class="mact">'+
-      '<button class="btnc" onclick="dismissCustomsGratuityReminder('+r.id+')">Dismiss</button>'+
-      '<button class="btnp" onclick="sendCustomsGratuitySms('+r.id+')">Send Gratuity</button>'+
-    '</div>';
-  document.getElementById('customsGratuityReminderOv').classList.add('on');
-}
-function closeCustomsGratuityReminderModal(id){
-  if(id!=null && _customsReminderCurrentId!==id) return;
-  var ov=document.getElementById('customsGratuityReminderOv');
-  if(ov) ov.classList.remove('on');
-  _customsReminderCurrentId=null;
-  setTimeout(checkCustomsGratuityReminders,300); // surface the next due reminder, if any
-}
+// Per-passenger dismiss — sets only this record's flag, never touches
+// any other row. Used both from the detailed queue list and standalone.
 function dismissCustomsGratuityReminder(id){
   var r=data.find(function(x){return x.id===id;});
   if(!r) return;
   var prev=r.customs_gratuity_dismissed;
   r.customs_gratuity_dismissed=true;
-  closeCustomsGratuityReminderModal(id);
-  renderDay();
+  renderDay(); updateCustomsReminderBadgeCount(); if(_customsCommOpenId===id) renderCustomsCommModal(r);
   sbUpdate(r.id,{customs_gratuity_dismissed:true}).catch(function(e){
     r.customs_gratuity_dismissed=prev;
-    renderDay();
+    renderDay(); updateCustomsReminderBadgeCount(); if(_customsCommOpenId===id) renderCustomsCommModal(r);
     showMsg('Could not save dismissal. ('+e.message+')', true);
   });
 }
+
+// ── ETA+10 reminder — staff-facing only, never auto-sends ────────
+// One summary modal at most; a detailed queue (Previous/Next) for
+// working through everyone due; a 15-minute in-memory snooze so
+// "Dismiss for Now" doesn't reopen every interval tick.
+var customsReminderSnoozedUntil=0;
+var _customsReminderQueueIds=[];
+var _customsReminderQueueIndex=0;
+
+function checkCustomsGratuityReminders(){
+  var due=updateCustomsReminderBadgeCount();
+  if(!due.length) return;
+  if(Date.now()<customsReminderSnoozedUntil) return;
+  var summaryOv=document.getElementById('customsReminderSummaryOv');
+  var detailOv=document.getElementById('customsReminderDetailOv');
+  var commOv=document.getElementById('customsCommOv');
+  if(summaryOv.classList.contains('on')) return; // one at a time
+  if(detailOv.classList.contains('on')) return; // staff already working the queue
+  if(commOv.classList.contains('on')) return; // don't interrupt an in-progress manual action
+  openCustomsReminderSummary(due);
+}
+
+function openCustomsReminderSummary(due){
+  due=due||getCustomsDueRecords();
+  if(!due.length) return;
+  var shown=due.slice(0,3);
+  var items=shown.map(function(r){
+    var etaDate=getCustomsEtaDate(r);
+    return '<li>'+escapeHTML(r.name)+' — ETA '+(etaDate?escapeHTML(fmtTime12FromDate(etaDate)):'—')+'</li>';
+  }).join('');
+  var more=due.length>3?('<div class="cst-summary-more">+ '+(due.length-3)+' more</div>'):'';
+  document.getElementById('customsReminderSummaryBody').innerHTML=
+    '<p class="msub" style="margin-bottom:10px">'+due.length+' passenger'+(due.length===1?' is':'s are')+' ready for gratuity follow-up.</p>'+
+    '<ul class="cst-summary-list">'+items+'</ul>'+more+
+    '<div class="mact">'+
+      '<button class="btnc" onclick="snoozeCustomsReminders()">Dismiss for Now</button>'+
+      '<button class="btnp" onclick="openCustomsReminderDetail()">Open List</button>'+
+    '</div>';
+  document.getElementById('customsReminderSummaryOv').classList.add('on');
+}
+function closeCustomsReminderSummary(){
+  document.getElementById('customsReminderSummaryOv').classList.remove('on');
+}
+// Session-only snooze — closes the summary for 15 minutes without
+// touching any database flag on any record.
+function snoozeCustomsReminders(){
+  customsReminderSnoozedUntil=Date.now()+15*60000;
+  closeCustomsReminderSummary();
+}
+
+function openCustomsReminderDetail(){
+  closeCustomsReminderSummary();
+  _customsReminderQueueIds=getCustomsDueRecords().map(function(r){return r.id;});
+  _customsReminderQueueIndex=0;
+  if(!_customsReminderQueueIds.length) return;
+  document.getElementById('customsReminderDetailOv').classList.add('on');
+  renderCustomsReminderDetail();
+}
+function closeCustomsReminderDetail(){
+  document.getElementById('customsReminderDetailOv').classList.remove('on');
+}
+function renderCustomsReminderDetail(){
+  var now=Date.now();
+  _customsReminderQueueIds=_customsReminderQueueIds.filter(function(id){
+    var r=data.find(function(x){return x.id===id;});
+    return r && isCustomsGratuityReminderDue(r,now);
+  });
+  if(!_customsReminderQueueIds.length){ closeCustomsReminderDetail(); return; }
+  if(_customsReminderQueueIndex>=_customsReminderQueueIds.length) _customsReminderQueueIndex=_customsReminderQueueIds.length-1;
+  var r=data.find(function(x){return x.id===_customsReminderQueueIds[_customsReminderQueueIndex];});
+  var etaDate=getCustomsEtaDate(r);
+  var reminderDate=getCustomsGratuityReminderTime(r);
+  document.getElementById('customsReminderDetailBody').innerHTML=
+    '<div class="msub" style="margin-bottom:10px">'+(_customsReminderQueueIndex+1)+' of '+_customsReminderQueueIds.length+'</div>'+
+    '<div class="cst-meta">'+escapeHTML((r.name||'').toUpperCase())+'</div>'+
+    '<div class="cst-eta">Ticket: '+escapeHTML(r.ticket)+'</div>'+
+    '<div class="cst-eta">ETA: '+(etaDate?escapeHTML(fmtTime12FromDate(etaDate)):'—')+'</div>'+
+    '<div class="cst-eta">Reminder due: '+(reminderDate?escapeHTML(fmtTime12FromDate(reminderDate)):'—')+'</div>'+
+    '<div class="mact" style="margin-top:14px">'+
+      '<button class="btnc" onclick="dismissCustomsReminderQueueItem('+r.id+')">Dismiss Passenger</button>'+
+      '<button class="btnp" onclick="sendCustomsGratuitySms('+r.id+')">Send Gratuity</button>'+
+    '</div>'+
+    '<div class="mact cst-nav-row" style="margin-top:10px">'+
+      '<button class="btnc" onclick="customsReminderDetailNav(-1)"'+(_customsReminderQueueIndex<=0?' disabled':'')+'>Previous</button>'+
+      '<button class="btnc" onclick="customsReminderDetailNav(1)"'+(_customsReminderQueueIndex>=_customsReminderQueueIds.length-1?' disabled':'')+'>Next</button>'+
+      '<button class="btnc" onclick="closeCustomsReminderDetail()">Close</button>'+
+    '</div>';
+}
+function customsReminderDetailNav(delta){
+  var next=_customsReminderQueueIndex+delta;
+  if(next<0||next>=_customsReminderQueueIds.length) return;
+  _customsReminderQueueIndex=next;
+  renderCustomsReminderDetail();
+}
+function dismissCustomsReminderQueueItem(id){
+  dismissCustomsGratuityReminder(id);
+  renderCustomsReminderDetail();
+}
+
 if(!window._customsReminderInterval){
   window._customsReminderInterval=setInterval(checkCustomsGratuityReminders,60000);
 }
@@ -3020,7 +3183,7 @@ async function deliverWithRating(id, deliveryType, rating){
     loading(false);
   }
   if(deliveryOk && deliveryType==='CUSTOMS'){
-    openCustomsCommModal(r.id);
+    openCustomsCommModal(r.id,'delivered');
   }
 }
 
