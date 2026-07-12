@@ -53,6 +53,7 @@
   <div class="tab" data-t="report"><i class="fa-solid fa-chart-line"></i><span>Report</span></div>
   <div class="tab" data-t="debug"><i class="fa-solid fa-screwdriver-wrench"></i><span>Debug</span></div>
   <div class="tab" data-t="logs"><i class="fa-solid fa-clipboard-list"></i><span>Logs</span></div>
+  <div class="tab" data-t="closing" onclick="openDailyClosingTab()"><i class="fa-solid fa-clipboard-check"></i><span>Daily Closing</span></div>
 </div>
 <div class="pane on" id="pane-all">
   <div class="stats" id="statsBar"></div>
@@ -645,6 +646,176 @@
     <button onclick="openArchiveModal('2025')" style="background:rgba(107,114,128,0.08);border:1px solid rgba(107,114,128,0.25);color:#4B5563;border-radius:8px;padding:10px 16px;font-family:'Syne',sans-serif;font-weight:700;font-size:12px;cursor:pointer;">📦 Archive All Pending Records From 2025</button>
   </div>
 </div>
+
+<!-- DAILY CLOSING PANE -->
+<div class="pane" id="pane-closing" style="padding:16px 14px 120px">
+<div class="dc-wrap">
+
+  <div style="font-family:'Syne',sans-serif;font-size:18px;font-weight:800;color:var(--navy);margin-bottom:2px">📋 Daily Closing</div>
+  <div style="font-size:11px;color:var(--mu);margin-bottom:16px">Internal end-of-day control · no customer data</div>
+
+  <div id="dcStatusBanner" class="dc-status-banner draft" style="display:none"></div>
+
+  <!-- Date & Tickets -->
+  <div class="dc-card" id="dcFormCard">
+    <div class="dc-sec-title">📅 Date &amp; Tickets <span class="dc-recalc" onclick="dcRecalculate()">↻ Recalculate</span></div>
+    <div class="fg" style="margin-bottom:12px">
+      <label>Closing Date</label>
+      <input type="date" id="dcDate" onchange="dcOnDateChange()">
+    </div>
+    <div class="dc-grid2" style="margin-bottom:12px">
+      <div class="fg">
+        <label>First Ticket</label>
+        <div class="dc-readonly" id="dcFirstTicket">—</div>
+      </div>
+      <div class="fg">
+        <label>Last Ticket</label>
+        <div class="dc-readonly" id="dcLastTicket">—</div>
+      </div>
+    </div>
+    <div class="fg">
+      <label>Total Cars</label>
+      <input type="text" inputmode="numeric" pattern="[0-9]*" id="dcTotalCars" placeholder="0" oninput="dcSanitizeIntInput(this);dcMarkDirty()">
+    </div>
+  </div>
+
+  <!-- Today's Activity -->
+  <div class="dc-card dc-lockable">
+    <div class="dc-sec-title">🚗 Today's Activity</div>
+    <div class="dc-grid2">
+      <div class="fg">
+        <label>Checked In Today</label>
+        <input type="text" inputmode="numeric" pattern="[0-9]*" id="dcCheckedIn" placeholder="0" oninput="dcSanitizeIntInput(this);dcMarkDirty()">
+      </div>
+      <div class="fg">
+        <label>Delivered Today</label>
+        <input type="text" inputmode="numeric" pattern="[0-9]*" id="dcDelivered" placeholder="0" oninput="dcSanitizeIntInput(this);dcMarkDirty()">
+      </div>
+    </div>
+  </div>
+
+  <!-- Payment Totals -->
+  <div class="dc-card dc-lockable">
+    <div class="dc-sec-title">💵 Payment Totals</div>
+    <div class="dc-grid2" id="dcPaymentGrid">
+      <div class="fg">
+        <label>Cash</label>
+        <div class="dc-money-wrap"><span class="dc-money-sign">$</span>
+          <input type="text" inputmode="decimal" id="dcCash" placeholder="0.00" oninput="dcSanitizeCurrencyInput(this);dcMarkDirty()" onblur="dcFormatCurrencyBlur(this)">
+        </div>
+      </div>
+      <div class="fg">
+        <label>Card</label>
+        <div class="dc-money-wrap"><span class="dc-money-sign">$</span>
+          <input type="text" inputmode="decimal" id="dcCard" placeholder="0.00" oninput="dcSanitizeCurrencyInput(this);dcMarkDirty()" onblur="dcFormatCurrencyBlur(this)">
+        </div>
+      </div>
+      <div class="fg">
+        <label>Venmo</label>
+        <div class="dc-money-wrap"><span class="dc-money-sign">$</span>
+          <input type="text" inputmode="decimal" id="dcVenmo" placeholder="0.00" oninput="dcSanitizeCurrencyInput(this);dcMarkDirty()" onblur="dcFormatCurrencyBlur(this)">
+        </div>
+      </div>
+      <div class="fg">
+        <label>Cash App</label>
+        <div class="dc-money-wrap"><span class="dc-money-sign">$</span>
+          <input type="text" inputmode="decimal" id="dcCashApp" placeholder="0.00" oninput="dcSanitizeCurrencyInput(this);dcMarkDirty()" onblur="dcFormatCurrencyBlur(this)">
+        </div>
+      </div>
+      <div class="fg">
+        <label>Zelle</label>
+        <div class="dc-money-wrap"><span class="dc-money-sign">$</span>
+          <input type="text" inputmode="decimal" id="dcZelle" placeholder="0.00" oninput="dcSanitizeCurrencyInput(this);dcMarkDirty()" onblur="dcFormatCurrencyBlur(this)">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Valet Attendants -->
+  <div class="dc-card dc-lockable">
+    <div class="dc-sec-title">🧑‍✈️ Valet Attendants</div>
+    <div id="dcAttendantsList"></div>
+    <div class="dc-add-btn" onclick="dcAddAttendant()">+ Add Attendant</div>
+  </div>
+
+  <!-- Money Pick-Up -->
+  <div class="dc-card dc-lockable">
+    <div class="dc-sec-title">💰 Money Pick-Up</div>
+    <div id="dcPickupsList"></div>
+    <div class="dc-add-btn" onclick="dcAddPickup()">+ Add Pick-Up</div>
+  </div>
+
+  <!-- Money Left -->
+  <div class="dc-card dc-lockable">
+    <div class="dc-sec-title">🏦 Money Left</div>
+    <div class="fg">
+      <label>Money Left</label>
+      <div class="dc-money-wrap"><span class="dc-money-sign">$</span>
+        <input type="text" inputmode="decimal" id="dcMoneyLeft" placeholder="0.00" oninput="dcSanitizeCurrencyInput(this);dcMarkDirty()" onblur="dcFormatCurrencyBlur(this)">
+      </div>
+    </div>
+  </div>
+
+  <!-- Closing Verification -->
+  <div class="dc-card dc-lockable">
+    <div class="dc-sec-title">✅ Closing Verification</div>
+    <label class="dc-checklist-item" id="dcCheckDeliveredWrap">
+      <input type="checkbox" id="dcCheckDelivered" onchange="dcToggleChecklist(this,'dcCheckDeliveredWrap');dcMarkDirty()">
+      <span>All delivered vehicles have been marked as delivered.</span>
+    </label>
+    <label class="dc-checklist-item" id="dcCheckHangarsWrap">
+      <input type="checkbox" id="dcCheckHangars" onchange="dcToggleChecklist(this,'dcCheckHangarsWrap');dcMarkDirty()">
+      <span>All hangar locations have been updated before closing.</span>
+    </label>
+    <div style="font-size:10.5px;color:var(--mu);margin-top:4px">Required only to finalize. Not required to save a draft.</div>
+  </div>
+
+  <!-- Notes -->
+  <div class="dc-card dc-lockable">
+    <div class="dc-sec-title">📝 Closing Notes <span style="font-weight:400;text-transform:none;font-family:'DM Sans',sans-serif;font-size:10.5px;color:var(--mu)">(optional)</span></div>
+    <textarea class="dc-textarea" id="dcNotes" placeholder="Optional notes for this closing…" oninput="dcMarkDirty()"></textarea>
+  </div>
+
+  <!-- Save Controls -->
+  <div class="dc-card" id="dcSaveCard">
+    <div class="dc-save-row">
+      <button class="btnc" onclick="dcSaveDraft()" id="dcSaveDraftBtn">💾 Save Draft</button>
+      <button class="btnp" onclick="dcFinalizeClosing()" id="dcFinalizeBtn">🔒 Finalize Closing</button>
+    </div>
+  </div>
+
+  <!-- Preview / Export -->
+  <div class="dc-card">
+    <div class="dc-sec-title">📤 Preview &amp; Export</div>
+    <div class="dc-export-row">
+      <button class="btnc" onclick="dcPreview()">👁 Preview</button>
+      <button class="btnp" onclick="dcSharePng()" id="dcShareBtn">📲 Share PNG</button>
+      <button class="btnc" onclick="dcSavePdf()" id="dcPdfBtn">📄 Save PDF</button>
+    </div>
+  </div>
+
+  <!-- Previous Closing Reports -->
+  <div class="dc-card">
+    <div class="dc-sec-title">🗂 Previous Closing Reports</div>
+    <div id="dcHistoryList"><div class="dc-empty">Loading…</div></div>
+  </div>
+
+</div>
+</div>
+
+<!-- Daily Closing preview modal -->
+<div class="ov" id="dcPreviewOv" onclick="if(event.target===this)dcClosePreview()">
+  <div class="modal" style="max-width:460px">
+    <h2>Closing Report Preview</h2>
+    <div class="msub">This is exactly what will be exported as PNG.</div>
+    <div id="dcPreviewHost" style="border:1px solid var(--b);border-radius:10px;overflow:hidden;margin-bottom:14px"></div>
+    <div class="mact">
+      <button class="btnc" onclick="dcClosePreview()">Close</button>
+      <button class="btnp" onclick="dcSharePng()">📲 Share PNG</button>
+    </div>
+  </div>
+</div>
+
 <script src="utils.js"></script>
 <script>
 // ── SUPABASE CONFIG ────────────────────────────────────────────
@@ -4557,6 +4728,758 @@ function resetContactsExportDate() {
 document.addEventListener('DOMContentLoaded', function() {
   updateContactsExportStatus();
 });
+
+// ═══════════════════════════════════════════════════════════════
+// ── DAILY CLOSING ─────────────────────────────────────────────
+// Internal end-of-day control. Reads passenger check-in/checkout
+// timestamps read-only to compute counts; never writes back to
+// `passengers`. Stores nothing but operational totals — no names,
+// phones, vehicles, or return-flight data.
+// ═══════════════════════════════════════════════════════════════
+var DCR_TABLE='daily_closing_reports';
+var DCR_EXPORT_HOST_WIDTH=430;
+var DCR_EXPORT_TARGET_PNG_WIDTH=2200;
+
+var _dcBooted=false;
+var _dcCurrentDate='';
+var _dcCurrentReport=null;
+var _dcAttendants=[];
+var _dcPickups=[];
+var _dcDirty=false;
+var _dcHistoryCache=[];
+
+// ── Supabase REST helpers (own table — passengers table untouched) ─
+async function dcrList(){
+  var url=SUPABASE_URL+'/rest/v1/'+DCR_TABLE+'?order=report_date.desc';
+  var res=await fetch(url,{headers:sbHeaders()});
+  if(!res.ok) throw new Error('Failed to load closing reports: '+res.status);
+  return res.json();
+}
+async function dcrGetByDate(dateStr){
+  var url=SUPABASE_URL+'/rest/v1/'+DCR_TABLE+'?report_date=eq.'+encodeURIComponent(dateStr)+'&limit=1';
+  var res=await fetch(url,{headers:sbHeaders()});
+  if(!res.ok) throw new Error('Failed to load closing report: '+res.status);
+  var rows=await res.json();
+  return rows[0]||null;
+}
+async function dcrInsert(payload){
+  var res=await fetch(SUPABASE_URL+'/rest/v1/'+DCR_TABLE,{
+    method:'POST',
+    headers:Object.assign({},sbHeaders(),{'Prefer':'return=representation'}),
+    body:JSON.stringify(payload)
+  });
+  if(!res.ok){ var e=await res.text(); throw new Error(e); }
+  var rows=await res.json();
+  return rows[0];
+}
+async function dcrPatch(id,payload,extraFilter){
+  var url=SUPABASE_URL+'/rest/v1/'+DCR_TABLE+'?id=eq.'+id+(extraFilter||'');
+  var res=await fetch(url,{
+    method:'PATCH',
+    headers:Object.assign({},sbHeaders(),{'Prefer':'return=representation'}),
+    body:JSON.stringify(payload)
+  });
+  if(!res.ok){ var e=await res.text(); throw new Error(e); }
+  return res.json();
+}
+
+// ── Date helpers (mirrors the ISO-date parsing already used by the
+//    Operations Report, so "today" means the same thing everywhere) ─
+function dcTodayStr(){
+  var d=getToday();
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+function dcDateOnly(str){
+  if(!str) return null;
+  str=String(str).trim();
+  if(!str) return null;
+  if(/^\d{4}-\d{2}-\d{2}/.test(str)){
+    var p=str.split('T')[0].split('-').map(Number);
+    return (p[0]&&p[1]&&p[2])?new Date(p[0],p[1]-1,p[2]):null;
+  }
+  var pts=str.split('/');
+  if(pts.length===3){
+    var m=+pts[0],d=+pts[1],y=+pts[2];
+    return (m&&d&&y&&y>=2000&&y<=2099)?new Date(y,m-1,d):null;
+  }
+  return null;
+}
+function dcSameDate(a,b){ return a&&b&&a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth()&&a.getDate()===b.getDate(); }
+function dcCheckinDateOf(r){
+  var src=(r.checkin_date&&String(r.checkin_date).trim())?r.checkin_date:(r.ts||'');
+  return dcDateOnly(src);
+}
+function dcCheckoutDateOf(r){
+  var src=(r.checkout_date&&String(r.checkout_date).trim())?r.checkout_date:(r.deldate||'');
+  return dcDateOnly(src);
+}
+
+// ── Ticket parsing — MMDD-N and A-MMDD-N, sorted by numeric sequence ─
+function dcParseTicketSeq(ticket){
+  var t=String(ticket||'').trim();
+  var m=t.match(/^(A-)?(\d{2})(\d{2})-(\d+)$/);
+  if(!m) return null;
+  return {raw:t,seq:parseInt(m[4],10)};
+}
+
+// ── Automatic operational fields — reads `data` (passengers) only,
+//    read-only, never rental_logs, never future dates ─────────────
+function dcComputeAutoFields(dateStr){
+  var p=dateStr.split('-').map(Number);
+  var target=new Date(p[0],p[1]-1,p[2]);
+  var src=(typeof data!=='undefined'&&data)?data:[];
+  var checkins=src.filter(function(r){ var d=dcCheckinDateOf(r); return d&&dcSameDate(d,target); });
+  var deliveries=src.filter(function(r){ var d=dcCheckoutDateOf(r); return d&&dcSameDate(d,target); });
+  var tickets=checkins.map(function(r){return dcParseTicketSeq(r.ticket);}).filter(Boolean);
+  tickets.sort(function(a,b){return a.seq-b.seq;});
+  return {
+    firstTicket: tickets.length?tickets[0].raw:'',
+    lastTicket: tickets.length?tickets[tickets.length-1].raw:'',
+    checkedInToday: checkins.length,
+    deliveredToday: deliveries.length
+  };
+}
+
+// ── Tab open / boot ──────────────────────────────────────────────
+function openDailyClosingTab(){
+  if(_dcBooted) return;
+  _dcBooted=true;
+  document.getElementById('dcDate').value=dcTodayStr();
+  dcLoadForDate(dcTodayStr());
+  dcLoadHistory();
+}
+
+function dcOnDateChange(){
+  var dateEl=document.getElementById('dcDate');
+  var v=dateEl.value;
+  if(!v) return;
+  if(_dcDirty && !confirm('You have unsaved changes on this closing form. Discard them and switch date?')){
+    dateEl.value=_dcCurrentDate;
+    return;
+  }
+  dcLoadForDate(v);
+}
+
+async function dcLoadForDate(dateStr){
+  _dcCurrentDate=dateStr;
+  document.getElementById('dcDate').value=dateStr;
+  try{
+    var existing=await dcrGetByDate(dateStr);
+    _dcCurrentReport=existing;
+    if(existing) dcApplyReportToForm(existing);
+    else dcResetFormDefaults(dcComputeAutoFields(dateStr));
+  }catch(e){
+    console.error(e);
+    showMsg('Failed to load closing report: '+e.message,true);
+    _dcCurrentReport=null;
+    dcResetFormDefaults(dcComputeAutoFields(dateStr));
+  }
+  dcRenderStatusBanner();
+  dcClearDirty();
+}
+
+function dcSetTicketDisplay(id,val){
+  var el=document.getElementById(id);
+  if(val){ el.textContent=val; el.classList.remove('empty'); }
+  else { el.textContent='No tickets found'; el.classList.add('empty'); }
+}
+function dcCurrentTicketVal(id){
+  var el=document.getElementById(id);
+  return el.classList.contains('empty')?'':el.textContent;
+}
+
+function dcResetFormDefaults(auto){
+  dcSetTicketDisplay('dcFirstTicket',auto.firstTicket);
+  dcSetTicketDisplay('dcLastTicket',auto.lastTicket);
+  document.getElementById('dcCheckedIn').value=String(auto.checkedInToday);
+  document.getElementById('dcDelivered').value=String(auto.deliveredToday);
+  document.getElementById('dcTotalCars').value=String(auto.checkedInToday);
+  ['dcCash','dcCard','dcVenmo','dcCashApp','dcZelle','dcMoneyLeft'].forEach(function(id){document.getElementById(id).value='';});
+  document.getElementById('dcNotes').value='';
+  document.getElementById('dcCheckDelivered').checked=false;
+  dcToggleChecklist(document.getElementById('dcCheckDelivered'),'dcCheckDeliveredWrap');
+  document.getElementById('dcCheckHangars').checked=false;
+  dcToggleChecklist(document.getElementById('dcCheckHangars'),'dcCheckHangarsWrap');
+  _dcAttendants=[]; for(var i=0;i<4;i++) _dcAttendants.push({name:'',time_in:'',time_out:''});
+  _dcPickups=[]; for(var j=0;j<2;j++) _dcPickups.push({value:'',name:''});
+  dcRenderAttendants();
+  dcRenderPickups();
+}
+
+function dcMoneyStr(v){
+  if(v===null||v===undefined||v==='') return '';
+  var n=parseFloat(v);
+  return isNaN(n)?'':n.toFixed(2);
+}
+
+function dcApplyReportToForm(r){
+  dcSetTicketDisplay('dcFirstTicket',r.first_ticket||'');
+  dcSetTicketDisplay('dcLastTicket',r.last_ticket||'');
+  document.getElementById('dcCheckedIn').value=String(r.checked_in_today||0);
+  document.getElementById('dcDelivered').value=String(r.delivered_today||0);
+  document.getElementById('dcTotalCars').value=String(r.total_cars||0);
+  document.getElementById('dcCash').value=dcMoneyStr(r.cash);
+  document.getElementById('dcCard').value=dcMoneyStr(r.card);
+  document.getElementById('dcVenmo').value=dcMoneyStr(r.venmo);
+  document.getElementById('dcCashApp').value=dcMoneyStr(r.cash_app);
+  document.getElementById('dcZelle').value=dcMoneyStr(r.zelle);
+  document.getElementById('dcMoneyLeft').value=dcMoneyStr(r.money_left);
+  document.getElementById('dcNotes').value=r.notes||'';
+  document.getElementById('dcCheckDelivered').checked=!!r.delivered_verified;
+  dcToggleChecklist(document.getElementById('dcCheckDelivered'),'dcCheckDeliveredWrap');
+  document.getElementById('dcCheckHangars').checked=!!r.hangars_verified;
+  dcToggleChecklist(document.getElementById('dcCheckHangars'),'dcCheckHangarsWrap');
+  _dcAttendants=(Array.isArray(r.attendants)&&r.attendants.length)
+    ? r.attendants.map(function(a){return {name:a.name||'',time_in:a.time_in||'',time_out:a.time_out||''};})
+    : [{name:'',time_in:'',time_out:''},{name:'',time_in:'',time_out:''},{name:'',time_in:'',time_out:''},{name:'',time_in:'',time_out:''}];
+  _dcPickups=(Array.isArray(r.money_pickups)&&r.money_pickups.length)
+    ? r.money_pickups.map(function(p){return {value:(p.value!=null?String(p.value):''),name:p.name||''};})
+    : [{value:'',name:''},{value:'',name:''}];
+  dcRenderAttendants();
+  dcRenderPickups();
+}
+
+function dcRecalculate(){
+  if(_dcCurrentReport && _dcCurrentReport.status==='FINALIZED'){
+    showMsg('This closing report is finalized and cannot be recalculated.',true);
+    return;
+  }
+  var dateStr=document.getElementById('dcDate').value;
+  if(!dateStr) return;
+  var auto=dcComputeAutoFields(dateStr);
+  dcSetTicketDisplay('dcFirstTicket',auto.firstTicket);
+  dcSetTicketDisplay('dcLastTicket',auto.lastTicket);
+  document.getElementById('dcCheckedIn').value=String(auto.checkedInToday);
+  document.getElementById('dcDelivered').value=String(auto.deliveredToday);
+  document.getElementById('dcTotalCars').value=String(auto.checkedInToday);
+  dcMarkDirty();
+  showMsg('Automatic fields recalculated.',false);
+}
+
+// ── Lock / status banner — only the data-entry cards lock; Date,
+//    Save row, Export and History stay usable on a finalized report ─
+function dcSetFormLocked(locked){
+  document.querySelectorAll('.dc-wrap .dc-lockable').forEach(function(c){
+    c.classList.toggle('dc-locked',locked);
+    c.querySelectorAll('input,textarea,button').forEach(function(el){ el.disabled=locked; });
+  });
+  var tc=document.getElementById('dcTotalCars'); if(tc) tc.disabled=locked;
+  document.getElementById('dcSaveCard').style.display=locked?'none':'';
+}
+
+function dcRenderStatusBanner(){
+  var banner=document.getElementById('dcStatusBanner');
+  if(!_dcCurrentReport){
+    banner.style.display='none';
+    dcSetFormLocked(false);
+    return;
+  }
+  if(_dcCurrentReport.status==='FINALIZED'){
+    banner.className='dc-status-banner finalized';
+    banner.style.display='flex';
+    var when=_dcCurrentReport.finalized_at?new Date(_dcCurrentReport.finalized_at).toLocaleString():'';
+    banner.innerHTML='<span class="dc-badge">FINALIZED</span><span>A finalized closing report already exists for this date'+
+      (when?' — finalized '+escapeHTML(when):'')+(_dcCurrentReport.finalized_by?' by '+escapeHTML(_dcCurrentReport.finalized_by):'')+'.</span>';
+    dcSetFormLocked(true);
+  } else {
+    banner.className='dc-status-banner draft';
+    banner.style.display='flex';
+    banner.innerHTML='<span class="dc-badge">DRAFT</span><span>Draft saved'+
+      (_dcCurrentReport.updated_at?' '+escapeHTML(new Date(_dcCurrentReport.updated_at).toLocaleString()):'')+'. Not yet finalized.</span>';
+    dcSetFormLocked(false);
+  }
+}
+
+// ── Valet Attendants (dynamic rows) ──────────────────────────────
+function dcRenderAttendants(){
+  var host=document.getElementById('dcAttendantsList');
+  host.innerHTML=_dcAttendants.map(function(a,i){
+    return '<div class="dc-row-card"><div class="dc-row-grid">'+
+      '<div class="fg"><label>Name</label><input type="text" value="'+escapeHTML(a.name)+'" placeholder="Attendant name" onchange="dcAttendantSet('+i+',\'name\',this.value)"></div>'+
+      '<div class="fg"><label>Time In</label><input type="time" value="'+escapeHTML(a.time_in)+'" onchange="dcAttendantSet('+i+',\'time_in\',this.value)"></div>'+
+      '<div class="fg"><label>Time Out</label><input type="time" value="'+escapeHTML(a.time_out)+'" onchange="dcAttendantSet('+i+',\'time_out\',this.value)"></div>'+
+      '<button type="button" class="dc-row-remove" onclick="dcRemoveAttendant('+i+')">✕ Remove</button>'+
+    '</div></div>';
+  }).join('')||'<div class="dc-empty">No attendants added.</div>';
+}
+function dcAddAttendant(){ _dcAttendants.push({name:'',time_in:'',time_out:''}); dcRenderAttendants(); dcMarkDirty(); }
+function dcRemoveAttendant(i){ _dcAttendants.splice(i,1); dcRenderAttendants(); dcMarkDirty(); }
+function dcAttendantSet(i,field,val){ if(_dcAttendants[i]){ _dcAttendants[i][field]=val; dcMarkDirty(); } }
+
+// ── Money Pick-Up (dynamic rows) ─────────────────────────────────
+function dcRenderPickups(){
+  var host=document.getElementById('dcPickupsList');
+  host.innerHTML=_dcPickups.map(function(p,i){
+    return '<div class="dc-row-card"><div class="dc-pickup-grid">'+
+      '<div class="fg"><label>Value</label><div class="dc-money-wrap"><span class="dc-money-sign">$</span>'+
+        '<input type="text" inputmode="decimal" value="'+escapeHTML(p.value)+'" placeholder="0.00" '+
+        'oninput="dcSanitizeCurrencyInput(this);dcPickupSet('+i+',\'value\',this.value)" '+
+        'onblur="dcFormatCurrencyBlur(this);dcPickupSet('+i+',\'value\',this.value)"></div></div>'+
+      '<div class="fg"><label>Name</label><input type="text" value="'+escapeHTML(p.name)+'" placeholder="Who picked up" onchange="dcPickupSet('+i+',\'name\',this.value)"></div>'+
+      '<button type="button" class="dc-row-remove" onclick="dcRemovePickup('+i+')">✕ Remove</button>'+
+    '</div></div>';
+  }).join('')||'<div class="dc-empty">No pick-ups added.</div>';
+}
+function dcAddPickup(){ _dcPickups.push({value:'',name:''}); dcRenderPickups(); dcMarkDirty(); }
+function dcRemovePickup(i){ _dcPickups.splice(i,1); dcRenderPickups(); dcMarkDirty(); }
+function dcPickupSet(i,field,val){ if(_dcPickups[i]){ _dcPickups[i][field]=val; dcMarkDirty(); } }
+
+// ── Input helpers ─────────────────────────────────────────────
+function dcSanitizeIntInput(el){ el.value=el.value.replace(/[^\d]/g,''); }
+function dcSanitizeCurrencyInput(el){
+  var v=el.value.replace(/[^\d.]/g,'');
+  var parts=v.split('.');
+  if(parts.length>2) v=parts[0]+'.'+parts.slice(1).join('');
+  el.value=v;
+}
+function dcFormatCurrencyBlur(el){
+  var v=el.value.trim();
+  if(v===''){ return; }
+  var n=parseFloat(v);
+  el.value=(isNaN(n)||n<0)?'':n.toFixed(2);
+}
+function dcToggleChecklist(el,wrapId){
+  var wrap=document.getElementById(wrapId);
+  wrap.classList.toggle('checked',!!el.checked);
+}
+function dcMarkDirty(){ _dcDirty=true; }
+function dcClearDirty(){ _dcDirty=false; }
+window.addEventListener('beforeunload',function(e){
+  if(!_dcDirty) return;
+  e.preventDefault(); e.returnValue=''; return '';
+});
+
+// ── Gather + validate ─────────────────────────────────────────
+function dcParseMoney(v){
+  if(v===''||v===null||v===undefined) return 0;
+  var n=parseFloat(v);
+  return (isNaN(n)||n<0)?0:Math.round(n*100)/100;
+}
+function dcGatherPayload(){
+  var attendants=_dcAttendants.filter(function(a){return a.name||a.time_in||a.time_out;})
+    .map(function(a){return {name:(a.name||'').trim(),time_in:a.time_in||'',time_out:a.time_out||''};});
+  var pickups=_dcPickups.filter(function(p){return p.value||p.name;})
+    .map(function(p){return {value:dcParseMoney(p.value),name:(p.name||'').trim()};});
+  return {
+    report_date:document.getElementById('dcDate').value,
+    first_ticket:dcCurrentTicketVal('dcFirstTicket'),
+    last_ticket:dcCurrentTicketVal('dcLastTicket'),
+    total_cars:parseInt(document.getElementById('dcTotalCars').value||'0',10)||0,
+    checked_in_today:parseInt(document.getElementById('dcCheckedIn').value||'0',10)||0,
+    delivered_today:parseInt(document.getElementById('dcDelivered').value||'0',10)||0,
+    cash:dcParseMoney(document.getElementById('dcCash').value),
+    card:dcParseMoney(document.getElementById('dcCard').value),
+    venmo:dcParseMoney(document.getElementById('dcVenmo').value),
+    cash_app:dcParseMoney(document.getElementById('dcCashApp').value),
+    zelle:dcParseMoney(document.getElementById('dcZelle').value),
+    attendants:attendants,
+    money_pickups:pickups,
+    money_left:dcParseMoney(document.getElementById('dcMoneyLeft').value),
+    delivered_verified:document.getElementById('dcCheckDelivered').checked,
+    hangars_verified:document.getElementById('dcCheckHangars').checked,
+    notes:(document.getElementById('dcNotes').value||'').trim()
+  };
+}
+function dcCurrentFormAsReport(){
+  var payload=dcGatherPayload();
+  payload.status=(_dcCurrentReport&&_dcCurrentReport.status)||'DRAFT';
+  payload.finalized_at=(_dcCurrentReport&&_dcCurrentReport.finalized_at)||null;
+  payload.finalized_by=(_dcCurrentReport&&_dcCurrentReport.finalized_by)||null;
+  return payload;
+}
+function dcValidateBasic(p){
+  if(!p.report_date) return 'Date is required.';
+  if(p.total_cars<0||p.checked_in_today<0||p.delivered_today<0) return 'Counts cannot be negative.';
+  var neg=[p.cash,p.card,p.venmo,p.cash_app,p.zelle,p.money_left].some(function(v){return v<0;});
+  if(neg) return 'Currency values cannot be negative.';
+  for(var i=0;i<p.money_pickups.length;i++){
+    var pk=p.money_pickups[i];
+    if(pk.value>0 && !pk.name) return 'Each money pick-up with a value greater than $0 needs a name.';
+  }
+  return null;
+}
+function dcValidateForFinalize(p){
+  var basic=dcValidateBasic(p);
+  if(basic) return basic;
+  if(!p.delivered_verified||!p.hangars_verified) return 'Both closing verification checkboxes are required to finalize.';
+  return null;
+}
+
+// ── Save Draft ────────────────────────────────────────────────
+async function dcSaveDraft(){
+  var btn=document.getElementById('dcSaveDraftBtn');
+  var restore=btn.textContent;
+  var payload=dcGatherPayload();
+  var err=dcValidateBasic(payload);
+  if(err){ showMsg(err,true); return; }
+  btn.disabled=true; btn.textContent='Saving…';
+  try{
+    payload.status='DRAFT';
+    var saved;
+    if(_dcCurrentReport && _dcCurrentReport.id){
+      if(_dcCurrentReport.status==='FINALIZED'){ showMsg('A finalized closing report already exists for this date.',true); return; }
+      var rows=await dcrPatch(_dcCurrentReport.id,payload,'&status=eq.DRAFT');
+      if(!rows.length){
+        showMsg('A finalized closing report already exists for this date.',true);
+        _dcCurrentReport=await dcrGetByDate(payload.report_date);
+        dcRenderStatusBanner();
+        return;
+      }
+      saved=rows[0];
+    } else {
+      payload.created_by=_currentUserEmail||null;
+      try{ saved=await dcrInsert(payload); }
+      catch(e){
+        if(/duplicate key|23505/i.test(e.message||'')){
+          showMsg('A closing report for this date already exists. Reloading…',true);
+          var fresh=await dcrGetByDate(payload.report_date);
+          _dcCurrentReport=fresh;
+          if(fresh) dcApplyReportToForm(fresh);
+          dcRenderStatusBanner();
+          return;
+        }
+        throw e;
+      }
+    }
+    _dcCurrentReport=saved;
+    dcRenderStatusBanner();
+    dcClearDirty();
+    showMsg('Draft saved.',false);
+    dcLoadHistory();
+  }catch(e){
+    console.error(e);
+    showMsg('Failed to save draft: '+e.message,true);
+  }finally{
+    btn.disabled=false; btn.textContent=restore;
+  }
+}
+
+// ── Finalize Closing ──────────────────────────────────────────
+async function dcFinalizeClosing(){
+  var btn=document.getElementById('dcFinalizeBtn');
+  var restore=btn.textContent;
+  var payload=dcGatherPayload();
+  var err=dcValidateForFinalize(payload);
+  if(err){ showMsg(err,true); return; }
+  if(!confirm('Finalize the closing report for '+payload.report_date+'? A finalized report cannot be silently overwritten afterward.')) return;
+  btn.disabled=true; btn.textContent='Finalizing…';
+  try{
+    var fresh=await dcrGetByDate(payload.report_date);
+    if(fresh && fresh.status==='FINALIZED'){
+      showMsg('A finalized closing report already exists for this date.',true);
+      _dcCurrentReport=fresh; dcApplyReportToForm(fresh); dcRenderStatusBanner();
+      return;
+    }
+    payload.status='FINALIZED';
+    payload.finalized_at=new Date().toISOString();
+    payload.finalized_by=_currentUserEmail||null;
+    var saved;
+    if(fresh && fresh.id){
+      var rows=await dcrPatch(fresh.id,payload,'&status=eq.DRAFT');
+      if(!rows.length){
+        showMsg('A finalized closing report already exists for this date.',true);
+        var refetch=await dcrGetByDate(payload.report_date);
+        _dcCurrentReport=refetch; if(refetch) dcApplyReportToForm(refetch); dcRenderStatusBanner();
+        return;
+      }
+      saved=rows[0];
+    } else {
+      payload.created_by=_currentUserEmail||null;
+      try{ saved=await dcrInsert(payload); }
+      catch(e){
+        if(/duplicate key|23505/i.test(e.message||'')){
+          showMsg('A finalized closing report already exists for this date.',true);
+          var refetch2=await dcrGetByDate(payload.report_date);
+          _dcCurrentReport=refetch2; if(refetch2) dcApplyReportToForm(refetch2); dcRenderStatusBanner();
+          return;
+        }
+        throw e;
+      }
+    }
+    _dcCurrentReport=saved;
+    dcRenderStatusBanner();
+    dcClearDirty();
+    showMsg('🔒 Closing report finalized.',false);
+    dcLoadHistory();
+  }catch(e){
+    console.error(e);
+    showMsg('Failed to finalize closing: '+e.message,true);
+  }finally{
+    btn.disabled=false; btn.textContent=restore;
+  }
+}
+
+// ── Previous Closing Reports (history) — separate from Activity Log ─
+async function dcLoadHistory(){
+  var host=document.getElementById('dcHistoryList');
+  try{
+    var rows=await dcrList();
+    _dcHistoryCache=rows;
+    dcRenderHistory(rows);
+  }catch(e){
+    console.error(e);
+    host.innerHTML='<div class="dc-empty">Failed to load history.</div>';
+  }
+}
+function dcRenderHistory(rows){
+  var host=document.getElementById('dcHistoryList');
+  if(!rows.length){ host.innerHTML='<div class="dc-empty">No closing reports yet.</div>'; return; }
+  host.innerHTML=rows.map(function(r){
+    var badge=r.status==='FINALIZED'?'<span class="dc-history-badge finalized">Finalized</span>':'<span class="dc-history-badge draft">Draft</span>';
+    var finTime=r.finalized_at?new Date(r.finalized_at).toLocaleString():'';
+    return '<div class="dc-history-item">'+
+      '<div class="dc-history-top"><span class="dc-history-date">'+escapeHTML(r.report_date)+'</span>'+badge+'</div>'+
+      '<div class="dc-history-meta">'+
+        '<span>Tickets: '+escapeHTML(r.first_ticket||'—')+' – '+escapeHTML(r.last_ticket||'—')+'</span>'+
+        '<span>Total Cars: '+(r.total_cars||0)+'</span>'+
+        '<span>Checked In: '+(r.checked_in_today||0)+'</span>'+
+        '<span>Delivered: '+(r.delivered_today||0)+'</span>'+
+        (finTime?'<span>Finalized: '+escapeHTML(finTime)+'</span>':'')+
+      '</div>'+
+      '<div class="dc-history-actions">'+
+        '<button onclick="dcHistoryOpen(\''+r.report_date+'\')">👁 '+(r.status==='FINALIZED'?'View':'Edit Draft')+'</button>'+
+        '<button onclick="dcHistoryExport(\''+r.report_date+'\')">📤 Export</button>'+
+      '</div>'+
+    '</div>';
+  }).join('');
+}
+function dcHistoryOpen(dateStr){
+  if(_dcDirty && !confirm('You have unsaved changes. Discard them and open '+dateStr+'?')) return;
+  document.getElementById('dcDate').value=dateStr;
+  dcLoadForDate(dateStr);
+  var card=document.getElementById('dcFormCard');
+  if(card) card.scrollIntoView({behavior:'smooth',block:'start'});
+}
+async function dcHistoryExport(dateStr){
+  var report=_dcHistoryCache.find(function(r){return r.report_date===dateStr;});
+  if(!report){ showMsg('Report not found.',true); return; }
+  await dcSharePngImpl(report);
+}
+
+// ── PNG export — mirrors the Leaving Tomorrow off-screen capture
+//    pattern: build markup, mount off-screen, html2canvas at target
+//    width, share via navigator.share() with a download fallback.
+//    One report per image — no two-copy paper layout. ─────────────
+function dcFmtDateLabel(dateStr){
+  var p=dateStr.split('-').map(Number);
+  var d=new Date(p[0],p[1]-1,p[2]);
+  return d.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
+}
+function dcFmtMoney(v){ return '$'+(parseFloat(v||0)).toFixed(2); }
+
+function dcBuildExportMarkup(report){
+  var dateLabel=dcFmtDateLabel(report.report_date);
+  var totalPayments=parseFloat(report.cash||0)+parseFloat(report.card||0)+parseFloat(report.venmo||0)+parseFloat(report.cash_app||0)+parseFloat(report.zelle||0);
+  var attendantsRows=(report.attendants||[]).filter(function(a){return a.name||a.time_in||a.time_out;}).map(function(a){
+    return '<tr><td>'+escapeHTML(a.name||'—')+'</td><td>'+escapeHTML(a.time_in||'—')+'</td><td>'+escapeHTML(a.time_out||'—')+'</td></tr>';
+  }).join('');
+  var pickupRows=(report.money_pickups||[]).filter(function(p){return p.value||p.name;}).map(function(p){
+    return '<tr><td>'+dcFmtMoney(p.value)+'</td><td>'+escapeHTML(p.name||'—')+'</td></tr>';
+  }).join('');
+  var statusBadge=report.status==='FINALIZED'?'<span class="dcx-badge dcx-badge-final">FINALIZED</span>':'<span class="dcx-badge dcx-badge-draft">DRAFT</span>';
+
+  return '<div class="dcx-hdr">'+
+      '<img class="dcx-logo" src="logo.PNG">'+
+      '<div class="dcx-hdr-date">'+escapeHTML(dateLabel)+'</div>'+
+      statusBadge+
+    '</div>'+
+    '<div class="dcx-title">Daily Closing Report</div>'+
+    '<div class="dcx-kpis">'+
+      '<div class="dcx-kpi"><div class="n">'+(report.first_ticket?escapeHTML(report.first_ticket):'—')+'</div><div class="l">First Ticket</div></div>'+
+      '<div class="dcx-kpi"><div class="n">'+(report.last_ticket?escapeHTML(report.last_ticket):'—')+'</div><div class="l">Last Ticket</div></div>'+
+      '<div class="dcx-kpi"><div class="n">'+(report.total_cars||0)+'</div><div class="l">Total Cars</div></div>'+
+    '</div>'+
+    '<div class="dcx-kpis">'+
+      '<div class="dcx-kpi"><div class="n">'+(report.checked_in_today||0)+'</div><div class="l">Checked In Today</div></div>'+
+      '<div class="dcx-kpi"><div class="n">'+(report.delivered_today||0)+'</div><div class="l">Delivered Today</div></div>'+
+    '</div>'+
+    '<div class="dcx-sec-lbl">Payment Totals</div>'+
+    '<table class="dcx-pay-table">'+
+      '<tr><td>Cash</td><td>'+dcFmtMoney(report.cash)+'</td></tr>'+
+      '<tr><td>Card</td><td>'+dcFmtMoney(report.card)+'</td></tr>'+
+      '<tr><td>Venmo</td><td>'+dcFmtMoney(report.venmo)+'</td></tr>'+
+      '<tr><td>Cash App</td><td>'+dcFmtMoney(report.cash_app)+'</td></tr>'+
+      '<tr><td>Zelle</td><td>'+dcFmtMoney(report.zelle)+'</td></tr>'+
+      '<tr class="dcx-total-row"><td>Total</td><td>'+dcFmtMoney(totalPayments)+'</td></tr>'+
+    '</table>'+
+    (attendantsRows?('<div class="dcx-sec-lbl">Valet Attendants</div><table class="dcx-table"><thead><tr><th>Name</th><th>Time In</th><th>Time Out</th></tr></thead><tbody>'+attendantsRows+'</tbody></table>'):'')+
+    (pickupRows?('<div class="dcx-sec-lbl">Money Pick-Up</div><table class="dcx-table"><thead><tr><th>Value</th><th>Name</th></tr></thead><tbody>'+pickupRows+'</tbody></table>'):'')+
+    '<div class="dcx-sec-lbl">Money Left</div>'+
+    '<div class="dcx-money-left">'+dcFmtMoney(report.money_left)+'</div>'+
+    '<div class="dcx-sec-lbl">Closing Verification</div>'+
+    '<div class="dcx-check"><span class="'+(report.delivered_verified?'y':'n')+'">'+(report.delivered_verified?'✓':'✗')+'</span> All delivered vehicles have been marked as delivered.</div>'+
+    '<div class="dcx-check"><span class="'+(report.hangars_verified?'y':'n')+'">'+(report.hangars_verified?'✓':'✗')+'</span> All hangar locations have been updated before closing.</div>'+
+    (report.notes?('<div class="dcx-sec-lbl">Notes</div><div class="dcx-notes">'+escapeHTML(report.notes).replace(/\n/g,'<br>')+'</div>'):'')+
+    '<div class="dcx-footer">Makers Air Valet — By Farber Parking · Generated '+escapeHTML(new Date().toLocaleString('en-US'))+'</div>';
+}
+
+function ensureDcExportStyle(){
+  if(document.getElementById('dcExportStyle')) return;
+  var css=
+    '#dailyClosingExportHost{position:fixed;top:0;left:-10000px;z-index:-1;pointer-events:none}'+
+    '#dailyClosingExport{width:'+DCR_EXPORT_HOST_WIDTH+'px;box-sizing:border-box;font-family:"Segoe UI",Arial,sans-serif;background:#fff;color:#0D1B2E;font-size:12.5px;padding:14px 14px 10px}'+
+    '#dailyClosingExport *{box-sizing:border-box}'+
+    '#dailyClosingExport .dcx-hdr{display:flex;align-items:center;justify-content:space-between;gap:8px;border-bottom:2px solid #1B3B6F;padding-bottom:8px;margin-bottom:8px}'+
+    '#dailyClosingExport .dcx-logo{height:30px;width:auto;object-fit:contain;background:#0a0f1e;padding:4px 8px;border-radius:6px}'+
+    '#dailyClosingExport .dcx-hdr-date{font-size:11px;font-weight:700;color:#1B3B6F;flex:1;text-align:right;margin-right:6px}'+
+    '#dailyClosingExport .dcx-badge{font-size:9px;font-weight:800;padding:3px 8px;border-radius:5px;letter-spacing:.4px;white-space:nowrap}'+
+    '#dailyClosingExport .dcx-badge-draft{background:rgba(201,172,84,.2);color:#7A5A00}'+
+    '#dailyClosingExport .dcx-badge-final{background:#1A9E6A;color:#fff}'+
+    '#dailyClosingExport .dcx-title{font-size:15px;font-weight:800;color:#1B3B6F;margin-bottom:8px}'+
+    '#dailyClosingExport .dcx-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:7px}'+
+    '#dailyClosingExport .dcx-kpi{background:#F0F3FA;border:1px solid #E8EDF7;border-radius:8px;padding:7px 8px;text-align:center}'+
+    '#dailyClosingExport .dcx-kpi .n{font-size:13px;font-weight:800;color:#1B3B6F;font-family:"DM Mono",monospace}'+
+    '#dailyClosingExport .dcx-kpi .l{font-size:7.5px;color:#888;text-transform:uppercase;letter-spacing:.3px;margin-top:2px}'+
+    '#dailyClosingExport .dcx-sec-lbl{font-size:9.5px;font-weight:800;color:#888;text-transform:uppercase;letter-spacing:.5px;margin:10px 0 4px;padding-bottom:2px;border-bottom:1px solid #E8EDF7}'+
+    '#dailyClosingExport .dcx-pay-table,#dailyClosingExport .dcx-table{width:100%;border-collapse:collapse;font-size:11.5px}'+
+    '#dailyClosingExport .dcx-pay-table td{padding:3px 2px;border-bottom:1px solid #F0F3FA}'+
+    '#dailyClosingExport .dcx-pay-table td:last-child{text-align:right;font-weight:700;font-family:"DM Mono",monospace}'+
+    '#dailyClosingExport .dcx-total-row td{border-top:1.5px solid #1B3B6F;border-bottom:none;font-weight:800;color:#1B3B6F;padding-top:5px}'+
+    '#dailyClosingExport .dcx-table th{text-align:left;font-size:9px;color:#888;text-transform:uppercase;padding:3px 4px;border-bottom:1px solid #C8D3E8}'+
+    '#dailyClosingExport .dcx-table td{padding:4px;border-bottom:1px solid #F0F3FA}'+
+    '#dailyClosingExport .dcx-money-left{font-size:16px;font-weight:800;color:#1B3B6F;font-family:"DM Mono",monospace;background:#F0F3FA;border-radius:8px;padding:8px 10px}'+
+    '#dailyClosingExport .dcx-check{font-size:10.5px;margin-bottom:4px;display:flex;gap:6px;align-items:flex-start}'+
+    '#dailyClosingExport .dcx-check .y{color:#1A9E6A;font-weight:800}'+
+    '#dailyClosingExport .dcx-check .n{color:#CC3333;font-weight:800}'+
+    '#dailyClosingExport .dcx-notes{font-size:11px;color:#333;background:#F0F3FA;border-radius:8px;padding:8px 10px;white-space:pre-wrap}'+
+    '#dailyClosingExport .dcx-footer{text-align:center;color:#bbb;font-size:8.5px;margin-top:10px;padding-top:6px;border-top:1px solid #E8EDF7}';
+  var tag=document.createElement('style');
+  tag.id='dcExportStyle';
+  tag.textContent=css;
+  document.head.appendChild(tag);
+}
+
+function dcMountExport(report){
+  ensureDcExportStyle();
+  var previewHost=document.getElementById('dcPreviewHost');
+  if(previewHost) previewHost.innerHTML=''; // avoid duplicate #dailyClosingExport ids while capturing
+  var host=document.getElementById('dailyClosingExportHost');
+  if(!host){ host=document.createElement('div'); host.id='dailyClosingExportHost'; document.body.appendChild(host); }
+  host.innerHTML='<div id="dailyClosingExport"></div>';
+  document.getElementById('dailyClosingExport').innerHTML=dcBuildExportMarkup(report);
+  window.__dcExportFileBase='Makers-Air-Closing-'+report.report_date;
+  return host;
+}
+
+async function dcCaptureCanvas(report){
+  if(typeof html2canvas!=='function'){
+    showMsg('Export library failed to load — check your connection and reload.',true);
+    throw new Error('html2canvas unavailable');
+  }
+  dcMountExport(report);
+  if(document.fonts&&document.fonts.ready){ try{ await document.fonts.ready; }catch(e){} }
+  var noAnim=document.createElement('style');
+  noAnim.id='dcExportNoAnim';
+  noAnim.textContent='*{transition:none!important;animation:none!important}';
+  document.head.appendChild(noAnim);
+  var el=document.getElementById('dailyClosingExport');
+  var w=el.scrollWidth,h=el.scrollHeight;
+  try{
+    return await html2canvas(el,{
+      backgroundColor:'#ffffff',
+      scale:DCR_EXPORT_TARGET_PNG_WIDTH/w,
+      useCORS:true, logging:false,
+      width:w, height:h, windowWidth:w, windowHeight:h
+    });
+  } finally {
+    var n=document.getElementById('dcExportNoAnim'); if(n) n.remove();
+    var host=document.getElementById('dailyClosingExportHost'); if(host) host.remove();
+  }
+}
+
+function dcPreview(){
+  var report=dcCurrentFormAsReport();
+  ensureDcExportStyle();
+  var previewHost=document.getElementById('dcPreviewHost');
+  previewHost.innerHTML='<div class="dcx-preview-wrap"><div id="dailyClosingExport"></div></div>';
+  document.getElementById('dailyClosingExport').innerHTML=dcBuildExportMarkup(report);
+  document.getElementById('dcPreviewOv').classList.add('on');
+  // The export card has a fixed width (matches the captured PNG); scale it
+  // down to fit narrow phone screens so nothing is clipped off-screen.
+  requestAnimationFrame(function(){
+    var wrap=previewHost.querySelector('.dcx-preview-wrap');
+    var inner=document.getElementById('dailyClosingExport');
+    if(!wrap||!inner) return;
+    var availW=previewHost.clientWidth||inner.scrollWidth;
+    var natW=inner.scrollWidth||DCR_EXPORT_HOST_WIDTH;
+    var scale=Math.min(1,availW/natW);
+    inner.style.transform='scale('+scale+')';
+    inner.style.transformOrigin='top left';
+    wrap.style.width=(natW*scale)+'px';
+    wrap.style.height=(inner.scrollHeight*scale)+'px';
+    wrap.style.margin='0 auto';
+  });
+}
+function dcClosePreview(){
+  document.getElementById('dcPreviewOv').classList.remove('on');
+  var host=document.getElementById('dcPreviewHost');
+  if(host) host.innerHTML='';
+}
+
+async function dcSharePngImpl(report){
+  var btn=document.getElementById('dcShareBtn');
+  var restore=btn?btn.textContent:null;
+  if(btn){btn.disabled=true;btn.textContent='…';}
+  var blob=null;
+  try{
+    var canvas=await dcCaptureCanvas(report);
+    blob=await new Promise(function(resolve,reject){
+      canvas.toBlob(function(result){
+        if(!result){ reject(new Error('Failed to generate PNG Blob.')); return; }
+        resolve(result);
+      },'image/png');
+    });
+    if(!blob||blob.size===0) throw new Error('Generated image Blob is empty.');
+    var fileBase=window.__dcExportFileBase||'Makers-Air-Closing';
+    var filename=fileBase+'.png';
+    var file=new File([blob],filename,{type:'image/png',lastModified:Date.now()});
+    var hasShare=typeof navigator.share==='function';
+    var hasCanShare=typeof navigator.canShare==='function';
+    var canShareFiles=hasShare&&hasCanShare&&navigator.canShare({files:[file]});
+    if(!canShareFiles) throw new Error('This browser does not support sharing the generated PNG file directly.');
+    await navigator.share({files:[file]});
+  }catch(e){
+    if(e&&e.name==='AbortError'){ if(btn){btn.disabled=false;btn.textContent=restore;} return; }
+    console.error('Daily Closing share failed:',e);
+    if(blob&&blob.size>0){
+      downloadBlobAs(blob,(window.__dcExportFileBase||'Makers-Air-Closing')+'.png');
+      showMsg('Direct share unavailable — image downloaded instead.',false);
+    } else {
+      showMsg('Failed to generate image.',true);
+    }
+  }finally{
+    if(btn){btn.disabled=false;btn.textContent=restore;}
+  }
+}
+function dcSharePng(){ return dcSharePngImpl(dcCurrentFormAsReport()); }
+
+async function dcSavePdf(){
+  var btn=document.getElementById('dcPdfBtn');
+  var restore=btn?btn.textContent:null;
+  if(btn){btn.disabled=true;btn.textContent='⏳ Generating…';}
+  try{
+    if(typeof jspdf==='undefined'||!jspdf.jsPDF){
+      showMsg('PDF library failed to load — check your connection and reload.',true);
+      return;
+    }
+    var report=dcCurrentFormAsReport();
+    var canvas=await dcCaptureCanvas(report);
+    var imgData=canvas.toDataURL('image/jpeg',0.95);
+    var pdfWidthMm=100;
+    var pdfHeightMm=pdfWidthMm*(canvas.height/canvas.width);
+    var pdf=new jspdf.jsPDF({orientation:'portrait',unit:'mm',format:[pdfWidthMm,pdfHeightMm],compress:true});
+    pdf.addImage(imgData,'JPEG',0,0,pdfWidthMm,pdfHeightMm,undefined,'FAST');
+    var fileBase=window.__dcExportFileBase||'Makers-Air-Closing';
+    pdf.save(fileBase+'.pdf');
+    showMsg('PDF saved: '+fileBase+'.pdf');
+  }catch(e){
+    console.error(e);
+    showMsg('Failed to generate PDF.',true);
+  } finally {
+    if(btn){btn.disabled=false;btn.textContent=restore;}
+  }
+}
+// ── DAILY CLOSING END ─────────────────────────────────────────
 
 </script>
 </body>
