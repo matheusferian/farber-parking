@@ -669,7 +669,7 @@ body{-webkit-text-size-adjust:100%;}
   border-radius:8px;
 }
 
-/* ── CUSTOMER RATING BADGE ── */
+/* ── STATUS BADGE (shared: delivery-type + tip status) ── */
 .cr-badge{
   display:inline-block;
   font-size:10px;
@@ -681,14 +681,41 @@ body{-webkit-text-size-adjust:100%;}
   vertical-align:middle;
   letter-spacing:0.4px;
 }
-.cr-great{background:rgba(26,158,106,0.18);color:#1A9E6A;border:1px solid rgba(26,158,106,0.35);}
 .cr-normal{background:rgba(100,120,180,0.15);color:#8aa0cc;border:1px solid rgba(100,120,180,0.3);}
-.cr-difficult{background:rgba(204,51,51,0.15);color:#CC3333;border:1px solid rgba(204,51,51,0.3);}
 
-/* ── RATING MODAL BUTTON SELECTED STATE ── */
-.rating-opt.selected[data-rating="GREAT"]{background:rgba(26,158,106,0.25);border-color:var(--ok);}
-.rating-opt.selected[data-rating="NORMAL"]{background:rgba(100,120,180,0.25);border-color:#8aa0cc;}
-.rating-opt.selected[data-rating="DIFFICULT"]{background:rgba(204,51,51,0.25);border-color:var(--red);}
+/* ── TIP STATUS BADGE (passenger detail panel, full text) ── */
+.cr-tip-yes{background:rgba(26,158,106,0.18);color:#1A9E6A;border:1px solid rgba(26,158,106,0.35);}
+.cr-tip-no{background:rgba(100,120,180,0.15);color:#8aa0cc;border:1px solid rgba(100,120,180,0.3);}
+.cr-tip-none{background:rgba(107,114,128,0.15);color:#6B7280;border:1px solid rgba(107,114,128,0.3);}
+
+/* ── TIP STATUS CHIP (dashboard delivered card, compact icon-only) ── */
+.tip-chip{
+  display:inline-block;
+  font-size:11px;
+  font-family:'DM Mono',monospace;
+  font-weight:700;
+  padding:1px 5px;
+  border-radius:6px;
+  margin-left:6px;
+  vertical-align:middle;
+}
+.tip-chip-yes{background:rgba(26,158,106,0.18);color:#1A9E6A;border:1px solid rgba(26,158,106,0.35);}
+.tip-chip-no{background:rgba(100,120,180,0.15);color:#8aa0cc;border:1px solid rgba(100,120,180,0.3);}
+.tip-chip-none{background:rgba(107,114,128,0.15);color:#6B7280;border:1px solid rgba(107,114,128,0.3);}
+
+/* ── TIP CONFIRMATION MODAL BUTTONS (large iPhone/iPad tap targets) ── */
+.tip-opt{
+  display:flex;align-items:center;justify-content:center;gap:10px;
+  width:100%;min-height:52px;padding:14px 18px;
+  border-radius:12px;cursor:pointer;
+  font-family:'Syne',sans-serif;font-size:16px;font-weight:800;
+  transition:all .15s;
+}
+.tip-yes{background:rgba(26,158,106,0.1);border:2px solid rgba(26,158,106,0.3);color:var(--ok);}
+.tip-yes:active{background:rgba(26,158,106,0.22);}
+.tip-no{background:rgba(180,40,40,0.1);border:2px solid rgba(180,40,40,0.3);color:var(--red);}
+.tip-no:active{background:rgba(180,40,40,0.22);}
+.tip-opt:disabled{opacity:0.5;cursor:not-allowed;}
 
 /* ── DISCARD CONFIRMATION ── */
 #discardOv{z-index:400;}

@@ -421,23 +421,18 @@
 <div class="ov" id="detOv">
   <div class="modal" id="detPanel"></div>
 </div>
-<!-- PASSENGER RATING OVERLAY -->
-<div class="ov" id="ratingOv">
+<!-- TIP CONFIRMATION OVERLAY -->
+<div class="ov" id="tipOv">
   <div class="modal" style="max-width:340px;text-align:center">
-    <div style="font-family:'Syne',sans-serif;font-size:18px;font-weight:800;color:var(--tx);margin-bottom:4px">Passenger Rating</div>
-    <div id="ratingPassName" style="font-size:13px;color:var(--mu);margin-bottom:20px;font-family:'DM Mono',monospace"></div>
+    <div style="font-family:'Syne',sans-serif;font-size:18px;font-weight:800;color:var(--tx);margin-bottom:4px">💵 Tip Received?</div>
+    <div id="tipPassName" style="font-size:16px;font-weight:800;color:var(--tx);margin-top:8px;font-family:'Syne',sans-serif"></div>
+    <div id="tipVehicleLine" style="font-size:12px;color:var(--mu);margin-top:2px;font-family:'DM Mono',monospace"></div>
+    <div style="font-size:13px;color:var(--mu);margin:14px 0 16px">Did the passenger leave a tip?</div>
     <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px">
-      <button class="rating-opt" data-rating="GREAT" onclick="selectRating(this)" style="display:flex;align-items:center;gap:12px;padding:14px 18px;background:rgba(26,158,106,0.1);border:2px solid rgba(26,158,106,0.3);border-radius:12px;cursor:pointer;font-family:'Syne',sans-serif;font-size:15px;font-weight:700;color:var(--ok);transition:all .15s">
-        🟢 Great
-      </button>
-      <button class="rating-opt" data-rating="NORMAL" onclick="selectRating(this)" style="display:flex;align-items:center;gap:12px;padding:14px 18px;background:rgba(100,120,180,0.1);border:2px solid rgba(100,120,180,0.3);border-radius:12px;cursor:pointer;font-family:'Syne',sans-serif;font-size:15px;font-weight:700;color:var(--mu);transition:all .15s">
-        ⚪ Normal
-      </button>
-      <button class="rating-opt" data-rating="DIFFICULT" onclick="selectRating(this)" style="display:flex;align-items:center;gap:12px;padding:14px 18px;background:rgba(180,40,40,0.1);border:2px solid rgba(180,40,40,0.3);border-radius:12px;cursor:pointer;font-family:'Syne',sans-serif;font-size:15px;font-weight:700;color:var(--red);transition:all .15s">
-        🔴 Difficult
-      </button>
+      <button class="tip-opt tip-yes" id="tipYesBtn" onclick="selectTip(true)">✅ Yes</button>
+      <button class="tip-opt tip-no" id="tipNoBtn" onclick="selectTip(false)">❌ No</button>
     </div>
-    <button class="btnc" onclick="closeRating()">Cancel</button>
+    <button class="btnc" id="tipCancelBtn" onclick="closeTipModal()">Cancel</button>
   </div>
 </div>
 <!-- CUSTOMS COMMUNICATION MODAL -->
@@ -1503,6 +1498,7 @@ async function loadData() {
         return_flight: r.return_flight||'',
         departure_time: r.departure_time||'',
         customer_rating: r.customer_rating||'',
+        tip_received: r.tip_received===undefined ? null : r.tip_received,
         not_returning_with_makers_air: r.not_returning_with_makers_air||false,
         archived_by: r.archived_by||'',
         archived_at: r.archived_at||'',
@@ -1720,7 +1716,7 @@ function renderDay() {
       return '<div class="dcard '+cls+(isApprox?' approx-card':'')+(r.status==='DELIVERED'&&showDeliver?' delivered-today-card':'')+'" onclick="showDet('+r.id+')">'+
         '<div class="dc-top">'+
           '<div class="dc-body">'+
-            '<div class="dc-n">'+(r.status==='DELIVERED'&&showDeliver?'<span style="text-decoration:line-through;opacity:0.6">'+(isAscend(r)?'[A] ':'')+escapeHTML(r.name)+'</span>':(isAscend(r)?'[A] ':'')+escapeHTML(r.name))+(isApprox?' <span style="font-size:9px;background:rgba(201,168,76,0.2);color:var(--gold);border-radius:4px;padding:2px 5px;margin-left:4px">~APPROX</span>':'')+(isAscend(r)?'<span style="font-size:9px;background:rgba(99,179,237,0.18);color:#63b3ed;border-radius:4px;padding:2px 5px;margin-left:4px;font-family:\'DM Mono\',monospace">✈ ASCEND</span>':'')+(r.customer_rating?ratingBadgeHtml(r.customer_rating):'')+'</div>'+
+            '<div class="dc-n">'+(r.status==='DELIVERED'&&showDeliver?'<span style="text-decoration:line-through;opacity:0.6">'+(isAscend(r)?'[A] ':'')+escapeHTML(r.name)+'</span>':(isAscend(r)?'[A] ':'')+escapeHTML(r.name))+(isApprox?' <span style="font-size:9px;background:rgba(201,168,76,0.2);color:var(--gold);border-radius:4px;padding:2px 5px;margin-left:4px">~APPROX</span>':'')+(isAscend(r)?'<span style="font-size:9px;background:rgba(99,179,237,0.18);color:#63b3ed;border-radius:4px;padding:2px 5px;margin-left:4px;font-family:\'DM Mono\',monospace">✈ ASCEND</span>':'')+(r.status==='DELIVERED'?tipStatusCompact(r):'')+'</div>'+
             '<div class="dc-c">'+escapeHTML(r.car)+' · '+escapeHTML(fmtP(r.phone))+'</div>'+
             flightHtml+
           '</div>'+
@@ -2139,6 +2135,7 @@ function acSearch(q){
       document.getElementById('fColor').value=r.color||'';
       drop.classList.remove('open');
       chkFreq();
+      updateVcf();
     });
   });
   drop.classList.add('open');
@@ -2170,19 +2167,66 @@ function chkEarlyReturn(){
   warn.style.display=found?'block':'none';
 }
 
+// ── NAME CASING FOR VCF (stored names are ALL CAPS; iPhone contacts want
+//    Title Case). Preserves apostrophes/hyphens (O'CONNOR → O'Connor,
+//    MARY-JANE → Mary-Jane) and never invents a last name for a single-word
+//    name. Shared by both the individual Save-to-Contacts link and the
+//    bulk Export All/New VCF files. ──
+function titleCaseWord(w){
+  return String(w||'').replace(/[A-Za-z]+/g, function(seg){
+    return seg.charAt(0).toUpperCase()+seg.slice(1).toLowerCase();
+  });
+}
+function titleCaseName(name){
+  return String(name||'').trim().split(/\s+/).filter(Boolean).map(titleCaseWord).join(' ');
+}
+function splitNameForVcard(fullName){
+  var parts=String(fullName||'').trim().split(/\s+/).filter(Boolean);
+  if(parts.length===0) return {given:'',family:''};
+  if(parts.length===1) return {given:titleCaseWord(parts[0]),family:''};
+  var family=titleCaseWord(parts[parts.length-1]);
+  var given=parts.slice(0,-1).map(titleCaseWord).join(' ');
+  return {given:given,family:family};
+}
+// Builds one standards-compliant vCard 3.0 block (CRLF line endings,
+// trailing CRLF, N:+FN: fields, escaped text). Shared by individual and
+// bulk export so both produce identical, iPhone-compatible card structure.
+function buildVcardBlock(displayName, phone){
+  var n=splitNameForVcard(displayName);
+  return [
+    'BEGIN:VCARD',
+    'VERSION:3.0',
+    'N:'+escapeVCardText(n.family)+';'+escapeVCardText(n.given)+';;;',
+    'FN:'+escapeVCardText(displayName),
+    'TEL;TYPE=CELL:'+phone,
+    'ORG:Makers Air Valet',
+    'NOTE:'+escapeVCardText('Passenger contact from Makers Air Valet'),
+    'END:VCARD'
+  ].join('\r\n')+'\r\n';
+}
+
+// Tracks the last Blob URL handed to the "Save to Contacts" link so it can
+// be revoked before the next one is created — updateVcf() runs on every
+// keystroke of Name/Phone, so without this each keystroke leaked a URL.
+var _vcfLastUrl=null;
 function updateVcf(){
-  var name = (document.getElementById('fName').value||'').trim();
-  var phone = (document.getElementById('fPhone').value||'').trim().replace(/\D/g,'');
+  var rawName = (document.getElementById('fName').value||'').trim();
+  var rawPhone = (document.getElementById('fPhone').value||'').trim();
   var wrap = document.getElementById('vcfWrap');
   var link = document.getElementById('vcfLink');
-  if(name && phone){
-    var vcf = 'BEGIN:VCARD\nVERSION:3.0\nFN:'+name+'\nTEL;TYPE=CELL:'+phone+'\nEND:VCARD';
-    var blob = new Blob([vcf],{type:'text/vcard'});
+  if(_vcfLastUrl){ URL.revokeObjectURL(_vcfLastUrl); _vcfLastUrl=null; }
+  var phone = normalizePhoneForVcf(rawPhone);
+  if(rawName && phone){
+    var displayName = titleCaseName(rawName);
+    var vcf = buildVcardBlock(displayName, phone);
+    var blob = new Blob([vcf],{type:'text/vcard;charset=utf-8'});
     var url = URL.createObjectURL(blob);
+    _vcfLastUrl = url;
     link.href = url;
-    link.download = name.replace(/\s+/g,'_')+'.vcf';
+    link.download = displayName.replace(/\s+/g,'-')+'.vcf';
     wrap.style.display='block';
   } else {
+    link.removeAttribute('href');
     wrap.style.display='none';
   }
 }
@@ -2315,6 +2359,7 @@ function openAdd(){
   document.getElementById('modalSub').textContent='Add a new passenger';
   document.getElementById('fName').value='';
   document.getElementById('fPhone').value='';
+  updateVcf(); // clears/hides Save-to-Contacts and revokes any leftover Blob URL from a previous passenger
   _autoTicket = getNextTicket();
   document.getElementById('fTicket').value = _autoTicket;
   var fRet=document.getElementById('fReturn');
@@ -2392,19 +2437,39 @@ document.addEventListener('keydown',function(e){
   if(document.getElementById('addOv').classList.contains('on')){tryCloseAdd();return;}
   if(document.getElementById('detOv').classList.contains('on')){closeAll();}
 });
-document.querySelectorAll('.ov').forEach(function(o){o.addEventListener('click',function(e){if(e.target===e.currentTarget){if(o.id==='ratingOv')closeRating();else if(o.id==='addOv')tryCloseAdd();else if(o.id==='discardOv')keepEditing();else if(o.id==='archiveOv')closeArchiveModal();else closeAll();}});});
+document.querySelectorAll('.ov').forEach(function(o){o.addEventListener('click',function(e){if(e.target===e.currentTarget){if(o.id==='tipOv')closeTipModal();else if(o.id==='addOv')tryCloseAdd();else if(o.id==='discardOv')keepEditing();else if(o.id==='archiveOv')closeArchiveModal();else closeAll();}});});
 
-function selectRating(btn){
-  document.querySelectorAll('.rating-opt').forEach(function(b){b.classList.remove('selected');});
-  btn.classList.add('selected');
-  var ov=document.getElementById('ratingOv');
+// ── TIP CONFIRMATION MODAL ──────────────────────────────────────
+var _tipSaving=false;
+function setTipButtonsDisabled(disabled){
+  ['tipYesBtn','tipNoBtn','tipCancelBtn'].forEach(function(id){
+    var b=document.getElementById(id);
+    if(b) b.disabled=disabled;
+  });
+}
+function closeTipModal(){
+  if(_tipSaving) return; // a save is in flight — ignore Cancel/outside-click until it resolves
+  document.getElementById('tipOv').classList.remove('on');
+}
+async function selectTip(tipReceived){
+  if(_tipSaving) return; // duplicate-tap guard: ignore extra Yes/No taps mid-save
+  _tipSaving=true;
+  setTipButtonsDisabled(true);
+  var ov=document.getElementById('tipOv');
   var id=parseInt(ov.getAttribute('data-id'),10);
   var dtype=ov.getAttribute('data-dtype')||'NORMAL';
-  var rating=btn.getAttribute('data-rating');
-  closeRating();
-  deliverWithRating(id, dtype, rating);
+  var ok=false;
+  try{
+    ok=await deliverWithTip(id, dtype, tipReceived);
+  } finally {
+    _tipSaving=false;
+  }
+  if(ok){
+    document.getElementById('tipOv').classList.remove('on');
+  } else {
+    setTipButtonsDisabled(false);
+  }
 }
-function closeRating(){document.getElementById('ratingOv').classList.remove('on');}
 
 // ── WELCOME SMS ────────────────────────────────────────────────
 function buildWelcomeSms(r) {
@@ -3039,7 +3104,7 @@ function showDet(id){
   if(hist.length>1){histH='<div class="htitle">Visit History ('+hist.length+' visit'+(hist.length>1?'s':'')+' - all contacts)</div><div class="hlist">'+hist.map(function(h){return '<div class="hi" style="flex-direction:column;gap:3px;align-items:flex-start"><div style="display:flex;justify-content:space-between;width:100%"><span class="h-tk">'+escapeHTML(h.ticket)+'</span><span class="h-dt">'+escapeHTML(fmtA(h.ts))+'</span></div><div style="font-size:11px;color:var(--mu)">'+escapeHTML(h.car)+(h.phone?' · '+escapeHTML(fmtP(h.phone)):'')+'</div><div style="font-size:10px;color:'+(h.status==='DELIVERED'?'var(--ok)':'var(--acc)')+'">'+escapeHTML(h.status)+'</div></div>';}).join('')+'</div>';}
   document.getElementById('detPanel').innerHTML=
     (isAscend(r)?'<div style="background:rgba(99,179,237,0.12);border:1px solid rgba(99,179,237,0.4);border-radius:10px;padding:10px 14px;margin-bottom:12px;display:flex;align-items:center;gap:8px"><span style="font-size:13px;font-weight:800;font-family:\'DM Mono\',monospace;color:#63b3ed;letter-spacing:.5px">✈ ASCEND / PRIVATE FLIGHT</span></div>':'')+
-    '<div class="dname">'+escapeHTML(r.name)+(r.customer_rating?'<span style="margin-left:10px;vertical-align:middle">'+ratingBadgeHtml(r.customer_rating)+'</span>':'')+'</div>'+
+    '<div class="dname">'+escapeHTML(r.name)+'</div>'+
     '<div class="dphone" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'+escapeHTML(fmtP(r.phone))+
       (r.phone?'<a href="tel:'+r.phone.replace(/\D/g,'')+'" style="background:var(--ok);color:#000;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;text-decoration:none;font-family:Syne,sans-serif;">📞 CALL</a>':'')+
       (r.phone?'<a href="sms:'+r.phone.replace(/\D/g,'')+'" style="background:var(--pur);color:#fff;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;text-decoration:none;font-family:Syne,sans-serif;">💬 TEXT</a>':'')+
@@ -3070,7 +3135,7 @@ function showDet(id){
       (r.status==='DELIVERED'?
         '<div class="di" style="grid-column:1/-1"><div class="di-l">Delivery Method</div><div class="di-v">'+deliveryMethodHtml(r.delivery_type)+'</div></div>'+
         (r.previous_delivery_location?'<div class="di" style="grid-column:1/-1"><div class="di-l">Delivered From</div><div class="di-v" style="font-family:\'DM Mono\',monospace;font-size:13px;color:var(--mu)">'+escapeHTML(r.previous_delivery_location)+'</div></div>':'')+
-        (r.customer_rating?'<div class="di" style="grid-column:1/-1"><div class="di-l">Passenger Rating</div><div class="di-v">'+ratingBadgeHtml(r.customer_rating)+'</div></div>':'')
+        '<div class="di" style="grid-column:1/-1"><div class="di-l">Tip</div><div class="di-v">'+tipStatusHtml(r)+'</div></div>'
       :'')+
     '</div>'+histH+
     (r.archived_by?
@@ -3120,48 +3185,59 @@ document.getElementById('detPanel').addEventListener('click',function(e){
   }
 });
 
-// ── PASSENGER RATING ──────────────────────────────────────────
-function openPassengerRating(id, deliveryType){
+// ── TIP CONFIRMATION MODAL ──────────────────────────────────────
+// Vehicle identification line: "Color Model" if both exist, just the
+// model if no color, or nothing at all if no vehicle is on file — never
+// renders a blank separator or the word "undefined".
+function formatVehicleLine(r){
+  var car=(r.car||'').trim();
+  var color=(r.color||'').trim();
+  if(!car) return '';
+  return color ? (color+' '+car) : car;
+}
+function openTipModal(id, deliveryType){
   deliveryType = deliveryType || 'NORMAL';
   var r=null; for(var i=0;i<data.length;i++){if(data[i].id===id){r=data[i];break;}}
   if(!r) return;
-  var ov=document.getElementById('ratingOv');
+  var ov=document.getElementById('tipOv');
   ov.setAttribute('data-id', id);
   ov.setAttribute('data-dtype', deliveryType);
-  document.getElementById('ratingPassName').textContent=r.name;
-  // pre-select existing rating if any
-  var existing=(r.customer_rating||'NORMAL').toUpperCase();
-  document.querySelectorAll('.rating-opt').forEach(function(btn){
-    btn.classList.toggle('selected', btn.getAttribute('data-rating')===existing);
-  });
+  document.getElementById('tipPassName').textContent=r.name||'';
+  var vehLine=formatVehicleLine(r);
+  var vehEl=document.getElementById('tipVehicleLine');
+  vehEl.textContent=vehLine;
+  vehEl.style.display=vehLine?'':'none';
+  setTipButtonsDisabled(false);
   ov.classList.add('on');
 }
 
-async function deliverWithRating(id, deliveryType, rating){
-  rating = String(rating||'').toUpperCase();
-  if(!['GREAT','NORMAL','DIFFICULT'].includes(rating)){
-    showMsg('Invalid rating', true);
-    return;
+async function deliverWithTip(id, deliveryType, tipReceived){
+  if(tipReceived!==true && tipReceived!==false){
+    showMsg('Invalid tip status', true);
+    return false;
   }
   var r=null; for(var i=0;i<data.length;i++){if(data[i].id===id){r=data[i];break;}}
-  if(!r) return;
+  if(!r) return false;
   var isLateDeliver=isLate(r.ret);
   var isCustoms=deliveryType==='CUSTOMS';
   var prevLoc=r.loc||'';
   var deliveryOk=false;
+  var tipLabel=tipReceived?'YES':'NO';
   loading(true);
   try{
     var todayStr=getTodayStr();
     var checkoutIso=new Date().toISOString();
-    var upd={status:'DELIVERED',deldate:todayStr,checkout_date:checkoutIso,delivery_type:deliveryType,customer_rating:rating};
+    // customer_rating is intentionally never written here — it is a
+    // retired historical field, preserved as-is for old records.
+    var upd={status:'DELIVERED',deldate:todayStr,checkout_date:checkoutIso,delivery_type:deliveryType,tip_received:tipReceived};
     if(!isCustoms){upd.loc='HANGAR 19';upd.previous_delivery_location=prevLoc;}
     await sbUpdate(r.id,upd);
     if(!isCustoms){
-      await sbLog('DELIVERED_FROM_LOCATION',r.name,r.ticket,'HANGAR 19','Delivered as '+deliveryType+'. Previous location: '+prevLoc+'. Final location automatically changed to HANGAR 19.'+(isLateDeliver?' (late)':'')+' | Rating: '+rating);
-      vlhInsert({passenger_id:r.id,ticket:r.ticket,passenger_name:r.name,from_location:prevLoc,to_location:'HANGAR 19',action:'DELIVERED ('+deliveryType+')',note:'Rating: '+rating+(isLateDeliver?' | Late delivery':''),created_by:_currentUserEmail});
+      await sbLog('DELIVERED_FROM_LOCATION',r.name,r.ticket,'HANGAR 19','Delivered as '+deliveryType+'. Previous location: '+prevLoc+'. Final location automatically changed to HANGAR 19.'+(isLateDeliver?' (late)':'')+' | Tip: '+tipLabel);
+      vlhInsert({passenger_id:r.id,ticket:r.ticket,passenger_name:r.name,from_location:prevLoc,to_location:'HANGAR 19',action:'DELIVERED ('+deliveryType+')',note:'Tip: '+tipLabel+(isLateDeliver?' | Late delivery':''),created_by:_currentUserEmail});
     } else {
-      await sbLog('DELIVERED',r.name,r.ticket,r.loc,'Vehicle delivered'+(isLateDeliver?' (late)':'')+' via CUSTOMS | Rating: '+rating);
-      vlhInsert({passenger_id:r.id,ticket:r.ticket,passenger_name:r.name,from_location:prevLoc,to_location:r.loc,action:'DELIVERED (CUSTOMS)',note:'Rating: '+rating+(isLateDeliver?' | Late delivery':''),created_by:_currentUserEmail});
+      await sbLog('DELIVERED',r.name,r.ticket,r.loc,'Vehicle delivered'+(isLateDeliver?' (late)':'')+' via CUSTOMS | Tip: '+tipLabel);
+      vlhInsert({passenger_id:r.id,ticket:r.ticket,passenger_name:r.name,from_location:prevLoc,to_location:r.loc,action:'DELIVERED (CUSTOMS)',note:'Tip: '+tipLabel+(isLateDeliver?' | Late delivery':''),created_by:_currentUserEmail});
     }
     for(var i=0;i<data.length;i++){
       if(data[i].id===r.id){
@@ -3169,22 +3245,48 @@ async function deliverWithRating(id, deliveryType, rating){
         data[i].deldate=todayStr;
         data[i].checkout_date=checkoutIso;
         data[i].delivery_type=deliveryType;
-        data[i].customer_rating=rating;
+        data[i].tip_received=tipReceived;
         if(!isCustoms){data[i].loc='HANGAR 19';data[i].previous_delivery_location=prevLoc;}
         break;
       }
     }
     render();
-    showMsg('✓ Delivered: '+r.name+' ('+rating+')', false);
+    showMsg('✓ Delivered: '+r.name+' (Tip: '+tipLabel+')', false);
     deliveryOk=true;
   }catch(e){
     showMsg('Error: '+e.message,true);
   }finally{
     loading(false);
   }
-  if(deliveryOk && deliveryType==='CUSTOMS'){
-    openCustomsCommModal(r.id,'delivered');
+  if(deliveryOk){
+    // Customs keeps its own Welcome Back → Gratuity sequence — never open
+    // the generic tip SMS on top of it (would duplicate the gratuity ask).
+    if(isCustoms){
+      openCustomsCommModal(r.id,'delivered');
+    } else {
+      openTipSms(r.id, tipReceived);
+    }
   }
+  return deliveryOk;
+}
+
+// ── TIP STATUS SMS (Normal / Lockbox deliveries only) ───────────
+function buildTipSms(r, tipReceived){
+  var brand = isAscend(r) ? 'Ascend Valet' : 'Makers Air Valet';
+  if(tipReceived){
+    return 'Your vehicle has been delivered successfully. Thank you for choosing '+brand+'. We truly appreciate your business and your generosity. It was our pleasure assisting you, and we look forward to welcoming you again on your next trip. Have a wonderful day!';
+  }
+  return 'Your vehicle has been delivered successfully. Thank you for choosing '+brand+'. If you were happy with our service and would still like to leave a gratuity, you can do so securely using the link below. Your support is greatly appreciated and helps our team continue providing exceptional service.\n\nhttps://buy.stripe.com/8x214mccK0uh9TjgIM6Vq00';
+}
+function openTipSms(id, tipReceived){
+  var r=data.find(function(x){return x.id===id;});
+  if(!r) return;
+  var digits=String(r.phone||'').replace(/\D/g,'');
+  if(digits.length<10){
+    showMsg('Vehicle delivered, but no valid phone number on file — could not open the tip SMS for '+(r.name||'this passenger')+'.', true);
+    return;
+  }
+  window.open('sms:'+digits+'&body='+encodeURIComponent(buildTipSms(r,tipReceived)), '_self');
 }
 
 function deliveryMethodHtml(type){
@@ -3193,17 +3295,26 @@ function deliveryMethodHtml(type){
   if(t==='CUSTOMS') return '<span class="cr-badge" style="background:rgba(100,120,220,0.15);color:var(--pur);border:1px solid rgba(100,120,220,0.35);border-radius:6px;padding:2px 8px;font-size:12px;font-weight:700">📦 CUSTOMS</span>';
   return '<span class="cr-badge cr-normal" style="border-radius:6px;padding:2px 8px;font-size:12px;font-weight:700">📋 NORMAL</span>';
 }
-function ratingBadgeHtml(rating){
-  if(!rating) return '';
-  var r=String(rating).toUpperCase();
-  if(r==='GREAT') return '<span class="cr-badge cr-great">🟢 GREAT</span>';
-  if(r==='DIFFICULT') return '<span class="cr-badge cr-difficult">🔴 DIFFICULT</span>';
-  return '<span class="cr-badge cr-normal">⚪ NORMAL</span>';
+// Tip status display — uses strict true/false/else checks throughout so a
+// recorded "No" (false) can never be confused with "Not recorded" (null).
+function tipStatusLabel(tipReceived){
+  if(tipReceived===true) return '💵 Tip: Yes';
+  if(tipReceived===false) return 'Tip: No';
+  return 'Tip: Not recorded';
+}
+function tipStatusHtml(r){
+  var cls = r.tip_received===true?'cr-badge cr-tip-yes':r.tip_received===false?'cr-badge cr-tip-no':'cr-badge cr-tip-none';
+  return '<span class="'+cls+'">'+tipStatusLabel(r.tip_received)+'</span>';
+}
+function tipStatusCompact(r){
+  if(r.tip_received===true) return '<span class="tip-chip tip-chip-yes" title="Tip: Yes">💵✓</span>';
+  if(r.tip_received===false) return '<span class="tip-chip tip-chip-no" title="Tip: No">💵✕</span>';
+  return '<span class="tip-chip tip-chip-none" title="Tip: Not recorded">💵?</span>';
 }
 
 // ── QUICK DELIVER ──────────────────────────────────────────────
 function quickDeliver(id, deliveryType){
-  openPassengerRating(id, deliveryType || 'NORMAL');
+  openTipModal(id, deliveryType || 'NORMAL');
 }
 
 // ── MARK DELIVERED ─────────────────────────────────────────────
@@ -4881,7 +4992,16 @@ async function saveReturnFlight(id, value) {
 var CONTACTS_LS_KEY = 'passengerContactsLastExportAt';
 
 function normalizePhoneForVcf(phone) {
-  var digits = String(phone || '').replace(/\D/g, '');
+  var raw = String(phone || '').trim();
+  // Explicit international number (leading "+") — preserve as-is rather
+  // than assuming US formatting, per the same-number-different-formatting
+  // dedup rule (only applies to actual US-style variants below).
+  if (raw.charAt(0) === '+') {
+    var intlDigits = raw.replace(/[^\d]/g, '');
+    if (intlDigits.length >= 8) return '+' + intlDigits;
+    return '';
+  }
+  var digits = raw.replace(/\D/g, '');
   if (digits.length === 11 && digits.charAt(0) === '1') return '+' + digits;
   if (digits.length === 10) return '+1' + digits;
   return '';
@@ -4971,45 +5091,38 @@ function downloadVcfContacts(mode) {
     return;
   }
 
-  console.log('Total passenger records:', data.length);
-  console.log('Valid unique contacts:', contacts.length);
-
   var vcf = contacts.map(function(c) {
-    return [
-      'BEGIN:VCARD',
-      'VERSION:3.0',
-      'FN:' + escapeVCardText(c.name),
-      'TEL;TYPE=CELL:' + c.phone,
-      'END:VCARD'
-    ].join('\r\n');
-  }).join('\r\n\r\n');
+    return buildVcardBlock(titleCaseName(c.name), c.phone);
+  }).join('');
 
   var blockCount = (vcf.match(/BEGIN:VCARD/g) || []).length;
-  console.log('VCF block count:', blockCount);
   if (blockCount !== contacts.length) {
     alert('VCF generation error: contact count mismatch.');
     return;
   }
-
-  console.log('VCF contacts exported:', contacts.length);
 
   var today = new Date();
   var dateStr = today.getFullYear() + '-' +
     String(today.getMonth() + 1).padStart(2, '0') + '-' +
     String(today.getDate()).padStart(2, '0');
   var filename = mode === 'all'
-    ? 'passenger-contacts-all-' + dateStr + '.vcf'
-    : 'passenger-contacts-new-' + dateStr + '.vcf';
+    ? 'makers-air-contacts-' + dateStr + '.vcf'
+    : 'makers-air-new-contacts-' + dateStr + '.vcf';
 
-  var blob = new Blob([vcf], { type: 'text/x-vcard;charset=utf-8' });
-  var url = URL.createObjectURL(blob);
-  var a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
+  try {
+    var blob = new Blob([vcf], { type: 'text/vcard;charset=utf-8' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
+  } catch (e) {
+    showMsg('Could not download the contacts file: ' + e.message, true);
+    return; // do not mark the export as successful if the download failed
+  }
 
   localStorage.setItem(CONTACTS_LS_KEY, new Date().toISOString());
   updateContactsExportStatus();
@@ -5029,8 +5142,10 @@ function updateContactsExportStatus() {
 }
 
 function resetContactsExportDate() {
+  if (!confirm('Reset contact-export tracking?\n\nThis only clears the "last export" timestamp used by Export New Contacts. It does not delete, modify, or affect any passenger records.')) return;
   localStorage.removeItem(CONTACTS_LS_KEY);
   updateContactsExportStatus();
+  showMsg('Export tracking reset. The next "Export New Contacts" will include all contacts.', false);
 }
 
 // Initialize status on load
