@@ -53,6 +53,7 @@
   <div class="tab" data-t="debug"><i class="fa-solid fa-screwdriver-wrench"></i><span>Debug</span></div>
   <div class="tab" data-t="logs"><i class="fa-solid fa-clipboard-list"></i><span>Logs</span></div>
   <div class="tab" data-t="closing" onclick="openDailyClosingTab()"><i class="fa-solid fa-clipboard-check"></i><span>Daily Closing</span></div>
+  <div class="tab" data-t="tvdash" onclick="tvOpenTab()"><i class="fa-solid fa-tv"></i><span>📺 TV Dashboard</span><span class="tbadge" style="background:var(--gold);color:#3a2e00">MOCKUP</span></div>
 </div>
 <div class="pane on" id="pane-all">
   <div class="stats" id="statsBar"></div>
@@ -774,6 +775,52 @@
   </div>
 
 </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     TV DASHBOARD — VISUAL MOCKUP ONLY
+     Demo data, simulated interactions. Never touches the real `data`
+     array, Supabase (sbInsert/sbUpdate/sbGet), or the SMS `sms:` links.
+     All classes prefixed `tv-`, all JS functions prefixed `tv`.
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="pane" id="pane-tvdash">
+  <div class="tv-root" id="tvRoot">
+    <div class="tv-demo-badge">⚠ DEMO DATA — MOCKUP, NOT LIVE</div>
+
+    <div class="tv-header">
+      <div class="tv-header-l">
+        <div class="tv-brand">MAKERS AIR VALET</div>
+        <div class="tv-subtitle">TOMORROW OPERATIONS — <span id="tvTomorrowDate">—</span></div>
+      </div>
+      <div class="tv-header-r">
+        <div class="tv-clock-wrap">
+          <span class="tv-live-dot"></span>
+          <span id="tvClock">--:--:--</span>
+        </div>
+        <div class="tv-updated">Last updated <span id="tvLastUpdated">—</span></div>
+        <div class="tv-header-actions">
+          <button class="tv-btn" id="tvFullscreenBtn" onclick="tvToggleFullscreen()">⛶ Full Screen</button>
+          <button class="tv-btn tv-btn-gold" id="tvModeBtn" onclick="tvToggleTvMode()">📺 TV Mode</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tv-metrics" id="tvMetrics"></div>
+
+    <div class="tv-toolbar">
+      <div class="tv-group-nav" id="tvGroupNav"></div>
+      <div class="tv-toolbar-actions">
+        <button class="tv-btn tv-btn-sm" id="tvRotateBtn" onclick="tvToggleRotation()">⏸ Pause Rotation</button>
+        <button class="tv-btn tv-btn-sm" onclick="tvPrevGroup()">◀ Prev</button>
+        <button class="tv-btn tv-btn-sm" onclick="tvNextGroup()">Next ▶</button>
+        <button class="tv-btn tv-btn-sm tv-btn-amber" onclick="tvSendAllPending()">📨 Send All Pending Messages</button>
+      </div>
+    </div>
+
+    <div class="tv-board" id="tvBoard"></div>
+
+    <button class="tv-exit-btn" id="tvExitBtn" onclick="tvToggleTvMode()" title="Exit TV Mode">✕ Exit TV Mode</button>
+  </div>
 </div>
 
 <!-- Daily Closing preview modal -->
@@ -5897,6 +5944,217 @@ async function dcSavePdf(){
   }
 }
 // ── DAILY CLOSING END ─────────────────────────────────────────
+
+// ═══════════════════════════════════════════════════════════════
+// ── TV DASHBOARD — VISUAL MOCKUP ONLY ───────────────────────────
+// Demo data + simulated interactions. Deliberately isolated from
+// the real app: never reads/writes the `data` array, never calls
+// sbInsert/sbUpdate/sbGet, never opens a real `sms:` link. Every
+// function here is prefixed `tv`; every CSS class is prefixed `tv-`.
+// Safe to delete this whole block without touching production code.
+// ═══════════════════════════════════════════════════════════════
+var TV_DEMO_DATA = [
+  {id:1,  name:'MARCUS DEMO',  car:'Escalade',    color:'Black',  ticket:'0715-1',  loc:'HANGAR 19', etaMin:6*60+15,  isAscend:false, deliveryType:'NORMAL',  ready:true,  messageSent:true,  messageSentAt:'8:10 PM', urgent:false, notReturning:false, phone:'(555) 010-0001', notes:''},
+  {id:2,  name:'ELENA DEMO',   car:'Suburban',    color:'White',  ticket:'0715-2',  loc:'HANGAR 18', etaMin:7*60+40,  isAscend:false, deliveryType:'NORMAL',  ready:false, messageSent:false, messageSentAt:'',       urgent:true,  notReturning:false, phone:'(555) 010-0002', notes:'Requested early pickup if possible.'},
+  {id:3,  name:'CARLOS DEMO',  car:'Tahoe',       color:'Silver', ticket:'0715-3',  loc:'HANGAR 16', etaMin:10*60+20, isAscend:false, deliveryType:'CUSTOMS', ready:false, messageSent:true,  messageSentAt:'7:55 PM', urgent:false, notReturning:false, phone:'(555) 010-0003', notes:''},
+  {id:4,  name:'SOPHIA DEMO',  car:'Range Rover', color:'Green',  ticket:'0715-4',  loc:'HANGAR 7',  etaMin:11*60+5,  isAscend:false, deliveryType:'LOCKBOX', ready:true,  messageSent:true,  messageSentAt:'6:30 PM', urgent:false, notReturning:false, phone:'(555) 010-0004', notes:'Lockbox code shared separately.'},
+  {id:5,  name:'DANIEL DEMO',  car:'G-Wagon',     color:'Black',  ticket:'A-0715-5',loc:'HH',        etaMin:13*60+15, isAscend:true,  deliveryType:'NORMAL',  ready:false, messageSent:false, messageSentAt:'',       urgent:false, notReturning:false, phone:'(555) 010-0005', notes:'Private flight — Ascend team handles key handoff.'},
+  {id:6,  name:'OLIVIA DEMO',  car:'Yukon',       color:'Blue',   ticket:'0715-6',  loc:'HANGAR 18', etaMin:14*60+45, isAscend:false, deliveryType:'NORMAL',  ready:true,  messageSent:true,  messageSentAt:'5:15 PM', urgent:false, notReturning:true,  phone:'(555) 010-0006', notes:''},
+  {id:7,  name:'NATHAN DEMO',  car:'Expedition',  color:'Gray',   ticket:'0715-7',  loc:'HANGAR 19', etaMin:16*60+10, isAscend:false, deliveryType:'NORMAL',  ready:false, messageSent:false, messageSentAt:'',       urgent:false, notReturning:false, phone:'(555) 010-0007', notes:''},
+  {id:8,  name:'PRIYA DEMO',   car:'Bentayga',    color:'White',  ticket:'A-0715-8',loc:'HANGAR 16', etaMin:17*60+30, isAscend:true,  deliveryType:'NORMAL',  ready:true,  messageSent:true,  messageSentAt:'4:50 PM', urgent:false, notReturning:false, phone:'(555) 010-0008', notes:''},
+  {id:9,  name:'VICTOR DEMO',  car:'Panamera',    color:'Red',    ticket:'0715-9',  loc:'HANGAR 7',  etaMin:19*60+20, isAscend:false, deliveryType:'NORMAL',  ready:false, messageSent:false, messageSentAt:'',       urgent:false, notReturning:false, phone:'(555) 010-0009', notes:''},
+  {id:10, name:'GRACE DEMO',   car:'Wrangler',    color:'Orange', ticket:'0715-10', loc:'HANGAR 18', etaMin:20*60+50, isAscend:false, deliveryType:'LOCKBOX', ready:true,  messageSent:true,  messageSentAt:'3:40 PM', urgent:false, notReturning:false, phone:'(555) 010-0010', notes:''},
+  {id:11, name:'LIAM DEMO',    car:'Model X',     color:'Black',  ticket:'0715-11', loc:'HANGAR 19', etaMin:null,     isAscend:false, deliveryType:'NORMAL',  ready:false, messageSent:false, messageSentAt:'',       urgent:false, notReturning:false, phone:'(555) 010-0011', notes:'No return date confirmed yet.'},
+  {id:12, name:'ZOE DEMO',     car:'Cayenne',     color:'White',  ticket:'0715-12', loc:'HANGAR 16', etaMin:null,     isAscend:false, deliveryType:'NORMAL',  ready:true,  messageSent:true,  messageSentAt:'2:05 PM', urgent:false, notReturning:true,  phone:'(555) 010-0012', notes:''}
+];
+
+var TV_GROUPS = [
+  {key:'early',     label:'EARLY MORNING',   sub:'5:00 AM – 8:59 AM',   startMin:5*60,  endMin:9*60-1},
+  {key:'morning',   label:'MORNING',         sub:'9:00 AM – 11:59 AM',  startMin:9*60,  endMin:12*60-1},
+  {key:'midday',    label:'MIDDAY',          sub:'12:00 PM – 2:59 PM',  startMin:12*60, endMin:15*60-1},
+  {key:'afternoon', label:'AFTERNOON',       sub:'3:00 PM – 5:59 PM',   startMin:15*60, endMin:18*60-1},
+  {key:'evening',   label:'EVENING',         sub:'After 6:00 PM',       startMin:18*60, endMin:24*60-1},
+  {key:'noeta',     label:'NO TIME PROVIDED',sub:'No ETA on file',      startMin:null,  endMin:null}
+];
+
+var _tvBooted=false, _tvClockTimer=null, _tvRotateTimer=null, _tvRotating=true, _tvGroupIndex=0, _tvExpandedIds={};
+
+function tvOpenTab(){
+  if(_tvBooted) return;
+  _tvBooted=true;
+  document.getElementById('tvTomorrowDate').textContent=tvFormatTomorrowDate();
+  tvStartClock();
+  tvRender();
+  tvStartRotation();
+}
+function tvFormatTomorrowDate(){
+  var t=getTomorrow();
+  return t.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'}).toUpperCase();
+}
+function tvStartClock(){
+  function tick(){
+    var el=document.getElementById('tvClock');
+    if(el) el.textContent=new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  }
+  tick();
+  if(_tvClockTimer) clearInterval(_tvClockTimer);
+  _tvClockTimer=setInterval(tick,1000);
+}
+function tvTouchUpdated(){
+  var el=document.getElementById('tvLastUpdated');
+  if(el) el.textContent=new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
+}
+function tvMinutesToLabel(min){
+  if(min==null) return 'NO ETA';
+  var h=Math.floor(min/60), m=min%60;
+  var ap=h>=12?'PM':'AM';
+  var h12=h%12; if(h12===0) h12=12;
+  return (h12<10?'0'+h12:h12)+':'+(m<10?'0'+m:m)+' '+ap;
+}
+function tvGroupFor(rec){
+  if(rec.etaMin==null) return 'noeta';
+  for(var i=0;i<TV_GROUPS.length-1;i++){
+    var g=TV_GROUPS[i];
+    if(rec.etaMin>=g.startMin && rec.etaMin<=g.endMin) return g.key;
+  }
+  return 'noeta';
+}
+function tvMetricsCompute(){
+  var total=TV_DEMO_DATA.length;
+  var ready=TV_DEMO_DATA.filter(function(r){return r.ready;}).length;
+  var sent=TV_DEMO_DATA.filter(function(r){return r.messageSent;}).length;
+  return {
+    total:total, ready:ready, notReady:total-ready,
+    sent:sent, pending:total-sent,
+    customs:TV_DEMO_DATA.filter(function(r){return r.deliveryType==='CUSTOMS';}).length,
+    ascend:TV_DEMO_DATA.filter(function(r){return r.isAscend;}).length,
+    noEta:TV_DEMO_DATA.filter(function(r){return r.etaMin==null;}).length
+  };
+}
+function tvRenderMetrics(){
+  var m=tvMetricsCompute();
+  var tiles=[
+    {label:'TOTAL VEHICLES',   val:m.total,   cls:''},
+    {label:'READY',            val:m.ready,   cls:'tv-m-ok'},
+    {label:'NOT READY',        val:m.notReady,cls:'tv-m-warn'},
+    {label:'MESSAGES SENT',    val:m.sent,    cls:'tv-m-ok'},
+    {label:'MESSAGES PENDING', val:m.pending, cls:'tv-m-warn'},
+    {label:'CUSTOMS',          val:m.customs, cls:''},
+    {label:'ASCEND',           val:m.ascend,  cls:''},
+    {label:'NO RETURN TIME',   val:m.noEta,   cls:'tv-m-warn'}
+  ];
+  var host=document.getElementById('tvMetrics'); if(!host) return;
+  host.innerHTML=tiles.map(function(t){
+    return '<div class="tv-metric '+t.cls+'"><div class="tv-metric-val">'+t.val+'</div><div class="tv-metric-label">'+t.label+'</div></div>';
+  }).join('');
+}
+function tvRenderGroupNav(){
+  var host=document.getElementById('tvGroupNav'); if(!host) return;
+  host.innerHTML=TV_GROUPS.map(function(g,i){
+    var count=TV_DEMO_DATA.filter(function(r){return tvGroupFor(r)===g.key;}).length;
+    return '<button class="tv-group-dot'+(i===_tvGroupIndex?' on':'')+'" onclick="tvGoToGroup('+i+')">'+g.label+' <span class="tv-group-count">'+count+'</span></button>';
+  }).join('');
+}
+function tvIsUrgent(rec){ return !rec.ready && rec.urgent===true; }
+function tvCardHtml(rec){
+  var urgent=tvIsUrgent(rec);
+  var cls='tv-card'+(urgent?' tv-card-urgent':'')+(rec.ready?' tv-card-ready':'');
+  var badges='';
+  if(rec.isAscend) badges+='<span class="tv-badge tv-badge-ascend">✈ ASCEND</span>';
+  if(rec.deliveryType==='CUSTOMS') badges+='<span class="tv-badge tv-badge-customs">📦 CUSTOMS</span>';
+  if(rec.deliveryType==='LOCKBOX') badges+='<span class="tv-badge tv-badge-lockbox">🔒 LOCKBOX</span>';
+  if(rec.notReturning) badges+='<span class="tv-badge tv-badge-notreturn">NOT RETURNING WITH MAKERS AIR</span>';
+  if(urgent) badges+='<span class="tv-badge tv-badge-urgent">⚠ URGENT</span>';
+  var etaLabel=tvMinutesToLabel(rec.etaMin);
+  var etaCls=rec.etaMin==null?'tv-eta-none':(urgent?'tv-eta-urgent':'');
+  var msgHtml=rec.messageSent
+    ? '<div class="tv-msg-row tv-msg-sent"><span class="tv-status-dot tv-dot-ok"></span> MESSAGE: SENT <span class="tv-msg-time">'+rec.messageSentAt+'</span><button class="tv-btn tv-btn-xs" onclick="tvResendMessage('+rec.id+')">↻ Resend</button></div>'
+    : '<div class="tv-msg-row tv-msg-pending"><span class="tv-status-dot tv-dot-warn"></span> MESSAGE PENDING<button class="tv-btn tv-btn-xs tv-btn-amber" id="tvSendBtn'+rec.id+'" onclick="tvSendMessage('+rec.id+')">Send Message</button></div>';
+  var readyHtml=rec.ready
+    ? '<div class="tv-ready-row tv-ready-yes"><span class="tv-status-dot tv-dot-ok"></span> VEHICLE: READY <button class="tv-btn tv-btn-xs" onclick="tvUndoReady('+rec.id+')">Undo Ready</button></div>'
+    : '<div class="tv-ready-row tv-ready-no"><span class="tv-status-dot '+(urgent?'tv-dot-urgent':'tv-dot-warn')+'"></span> VEHICLE: NOT READY <button class="tv-btn tv-btn-xs tv-btn-green" onclick="tvMarkReady('+rec.id+')">Mark Ready</button></div>';
+  var expanded=_tvExpandedIds[rec.id];
+  var detailHtml=expanded?('<div class="tv-card-detail">Phone: '+rec.phone+(rec.notes?'<br>Notes: '+rec.notes:'')+'</div>'):'';
+  return '<div class="'+cls+'">'
+    +'<div class="tv-card-top"><div class="tv-eta '+etaCls+'">'+etaLabel+'</div><div class="tv-card-badges">'+badges+'</div></div>'
+    +'<div class="tv-card-name">'+rec.name+'</div>'
+    +'<div class="tv-card-vehicle">'+rec.color+' '+rec.car+'</div>'
+    +'<div class="tv-card-ticket">TICKET '+rec.ticket+'</div>'
+    +'<div class="tv-card-loc">📍 '+rec.loc+' &nbsp;·&nbsp; '+(rec.isAscend?'ASCEND':'MAKERS AIR')+'</div>'
+    +msgHtml+readyHtml+detailHtml
+    +'<button class="tv-btn tv-btn-xs tv-btn-ghost" onclick="tvToggleExpand('+rec.id+')">'+(expanded?'▲ Hide Details':'▼ View Passenger')+'</button>'
+    +'</div>';
+}
+function tvRenderBoard(){
+  var g=TV_GROUPS[_tvGroupIndex];
+  var recs=TV_DEMO_DATA.filter(function(r){return tvGroupFor(r)===g.key;}).sort(function(a,b){
+    var am=a.etaMin==null?9999:a.etaMin, bm=b.etaMin==null?9999:b.etaMin;
+    return am-bm;
+  });
+  var host=document.getElementById('tvBoard'); if(!host) return;
+  var header='<div class="tv-group-header"><span class="tv-group-title">'+g.label+'</span><span class="tv-group-sub">'+g.sub+'</span><span class="tv-group-count-big">'+recs.length+' VEHICLE'+(recs.length===1?'':'S')+'</span></div>';
+  host.innerHTML=header+(recs.length===0
+    ? '<div class="tv-empty">No vehicles in this window.</div>'
+    : '<div class="tv-grid">'+recs.map(tvCardHtml).join('')+'</div>');
+  host.classList.remove('tv-fade-in'); void host.offsetWidth; host.classList.add('tv-fade-in');
+}
+function tvRender(){ tvRenderMetrics(); tvRenderGroupNav(); tvRenderBoard(); tvTouchUpdated(); }
+function tvGoToGroup(i){ _tvGroupIndex=i; tvRenderGroupNav(); tvRenderBoard(); }
+function tvManualNav(i){ tvGoToGroup(i); if(_tvRotating) tvStopRotation(); }
+function tvNextGroup(){ tvManualNav((_tvGroupIndex+1)%TV_GROUPS.length); }
+function tvPrevGroup(){ tvManualNav((_tvGroupIndex-1+TV_GROUPS.length)%TV_GROUPS.length); }
+function tvStartRotation(){
+  if(_tvRotateTimer) clearInterval(_tvRotateTimer);
+  _tvRotateTimer=setInterval(function(){ tvGoToGroup((_tvGroupIndex+1)%TV_GROUPS.length); },18000);
+  _tvRotating=true;
+  var btn=document.getElementById('tvRotateBtn'); if(btn) btn.textContent='⏸ Pause Rotation';
+}
+function tvStopRotation(){
+  if(_tvRotateTimer) clearInterval(_tvRotateTimer);
+  _tvRotateTimer=null; _tvRotating=false;
+  var btn=document.getElementById('tvRotateBtn'); if(btn) btn.textContent='▶ Resume Rotation';
+}
+function tvToggleRotation(){ if(_tvRotating) tvStopRotation(); else tvStartRotation(); }
+function tvFindRec(id){ for(var i=0;i<TV_DEMO_DATA.length;i++){ if(TV_DEMO_DATA[i].id===id) return TV_DEMO_DATA[i]; } return null; }
+function tvToggleExpand(id){ _tvExpandedIds[id]=!_tvExpandedIds[id]; tvRenderBoard(); }
+// Simulated only — never opens a real sms: link, never calls Supabase.
+function tvSendMessage(id){
+  var rec=tvFindRec(id); if(!rec||rec.messageSent) return;
+  var btn=document.getElementById('tvSendBtn'+id);
+  if(btn){ btn.textContent='Sending…'; btn.disabled=true; }
+  setTimeout(function(){
+    rec.messageSent=true;
+    rec.messageSentAt=new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
+    tvRender();
+  },900);
+}
+function tvResendMessage(id){
+  var rec=tvFindRec(id); if(!rec) return;
+  rec.messageSentAt=new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'})+' (resent)';
+  tvRenderBoard();
+}
+function tvSendAllPending(){
+  var pending=TV_DEMO_DATA.filter(function(r){return !r.messageSent;});
+  pending.forEach(function(rec,i){
+    setTimeout(function(){
+      rec.messageSent=true;
+      rec.messageSentAt=new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
+      tvRender();
+    },300*(i+1));
+  });
+}
+function tvMarkReady(id){ var rec=tvFindRec(id); if(!rec) return; rec.ready=true; tvRender(); }
+function tvUndoReady(id){ var rec=tvFindRec(id); if(!rec) return; rec.ready=false; tvRender(); }
+function tvToggleFullscreen(){
+  var el=document.getElementById('tvRoot');
+  if(!document.fullscreenElement){
+    (el.requestFullscreen||el.webkitRequestFullscreen||function(){}).call(el);
+  } else {
+    (document.exitFullscreen||document.webkitExitFullscreen||function(){}).call(document);
+  }
+}
+function tvToggleTvMode(){ document.body.classList.toggle('tv-mode-active'); }
+// ── TV DASHBOARD END ────────────────────────────────────────────
 
 </script>
 </body>
