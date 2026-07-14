@@ -1,3 +1,5 @@
+// AirValet — Developed by Matt Solutions. Built exclusively for Makers Air. © 2026
+
 // ── XSS HELPER ─────────────────────────────────────────────────
 function escapeHTML(s) {
   if (s == null) return '';

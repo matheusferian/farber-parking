@@ -1,3 +1,4 @@
+<!-- AirValet — Developed by Matt Solutions. Built exclusively for Makers Air. © 2026 -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -5,10 +6,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Valet Control">
+<meta name="apple-mobile-web-app-title" content="AirValet">
 <link rel="apple-touch-icon" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==">
-<title>Valet Control</title>
-<link rel="manifest" href="data:application/json,{&quot;name&quot;:&quot;Valet Control&quot;,&quot;short_name&quot;:&quot;Valet&quot;,&quot;display&quot;:&quot;standalone&quot;,&quot;background_color&quot;:&quot;%230a0f1e&quot;,&quot;theme_color&quot;:&quot;%231a3d7c&quot;}">
+<title>AirValet</title>
+<link rel="manifest" href="data:application/json,{&quot;name&quot;:&quot;AirValet&quot;,&quot;short_name&quot;:&quot;AirValet&quot;,&quot;display&quot;:&quot;standalone&quot;,&quot;background_color&quot;:&quot;%230a0f1e&quot;,&quot;theme_color&quot;:&quot;%231a3d7c&quot;}">
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
@@ -19,12 +20,14 @@
 <body>
 <div id="loginOv">
   <div id="loginBox">
-    <div class="login-logo">&#9992; Valet Operations</div>
+    <div class="login-logo">&#9992; AirValet</div>
+    <div class="login-tagline">Professional Valet Management System</div>
     <div class="login-sub">MAKERS AIR &middot; SECURE ACCESS</div>
     <input class="login-inp" type="email" id="loginEmail" placeholder="Email" autocomplete="username" />
     <input class="login-inp" type="password" id="loginPwd" placeholder="Password" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()" />
     <button id="loginBtn" onclick="doLogin()">Sign In</button>
     <div class="login-err" id="loginErr"></div>
+    <div class="login-dev">Developed by Matt Solutions</div>
   </div>
 </div>
 
@@ -34,9 +37,9 @@
 <div id="msg"></div>
 <header>
   <div class="brand-wrap">
-    <div class="brand-name">MAKERS AIR VALET</div>
+    <div class="brand-name">AirValet</div>
     <div class="brand-divider"></div>
-    <div class="brand-system">Valet Operations</div>
+    <div class="brand-system">Makers Air Operations</div>
   </div>
   <div class="hdr-r">
     <div class="hdr-date" id="hdrDate"></div>
@@ -788,6 +791,8 @@
     </div>
   </div>
 </div>
+
+<footer id="appFooter">AirValet v1.0 &middot; Developed by Matt Solutions &middot; Built exclusively for Makers Air &copy; 2026</footer>
 
 <script src="utils.js"></script>
 <script>
