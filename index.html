@@ -1112,13 +1112,6 @@ function buildCustomerTicketXml(r) {
     + '<text>You\'ll need this number&#10;</text>'
     + '<text>when you return.&#10;</text>'
     + '<text>------------------------------------------&#10;</text>'
-    + (r.not_returning_with_makers_air ?
-        '<text>NOTE:&#10;</text>'
-        + '<text>Passenger informed Makers Air Valet&#10;</text>'
-        + '<text>that they are not returning with&#10;</text>'
-        + '<text>Makers Air.&#10;</text>'
-        + '<text>------------------------------------------&#10;</text>'
-      : '')
     // ── Disclaimer (small font — single notice) ───────────────────
     + '<text font="font_b">Although reasonable care is given, vehicles&#10;</text>'
     + '<text font="font_b">are parked at owner\'s risk. No liability&#10;</text>'
@@ -1127,7 +1120,7 @@ function buildCustomerTicketXml(r) {
     + '<text font="font_b">claims must be presented before vehicle&#10;</text>'
     + '<text font="font_b">is taken from facility.&#10;</text>'
     + '<text font="font_a">------------------------------------------&#10;</text>'
-    + (!isAscend(r) ?
+    + (!isAscend(r) && !r.not_returning_with_makers_air ?
         '<text align="center" em="true" height="2" width="1">After clearing Customs, please return to&#10;</text>'
         + '<text align="center" em="true" height="2" width="1">Hangar 19 with your pilots to pick up&#10;</text>'
         + '<text align="center" em="true" height="2" width="1">your vehicle.&#10;</text>'
@@ -2484,7 +2477,7 @@ function buildWelcomeSms(r) {
     body += '\n\nWe currently do not have a return date on file.\n\nOnce your travel plans are confirmed, please reply to this message with your expected return date and arrival time so your vehicle will be ready upon arrival.';
   }
   body += '\n\nThank you and safe travels!';
-  if (!isAscend(r)) {
+  if (!isAscend(r) && !r.not_returning_with_makers_air) {
     body += '\n\nReminder: After clearing Customs, please return to Hangar 19 with your pilots to pick up your vehicle.';
   }
   return body;
