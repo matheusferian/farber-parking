@@ -52,7 +52,7 @@
   <div class="tab on" data-t="all"><i class="fa-solid fa-users"></i><span>All Passengers</span><span class="tbadge" id="ball">0</span></div>
   <div class="tab" data-t="day"><i class="fa-solid fa-table-columns"></i><span>Dashboard</span><span class="tbadge red" id="bday">!</span></div>
   <div class="tab" data-t="tasks"><i class="fa-solid fa-square-check"></i><span>Tasks</span><span class="tbadge red" id="btasks">0</span></div>
-  <div class="tab" data-t="report"><i class="fa-solid fa-chart-line"></i><span>Report</span></div>
+  <div class="tab" data-t="report" onclick="refreshSyncUI()"><i class="fa-solid fa-chart-line"></i><span>Report</span></div>
   <div class="tab" data-t="debug"><i class="fa-solid fa-screwdriver-wrench"></i><span>Debug</span></div>
   <div class="tab" data-t="logs"><i class="fa-solid fa-clipboard-list"></i><span>Logs</span></div>
   <div class="tab" data-t="closing" onclick="openDailyClosingTab()"><i class="fa-solid fa-clipboard-check"></i><span>Daily Closing</span></div>
@@ -236,6 +236,55 @@
       <button onclick="resetContactsExportDate()" style="background:none;border:1px solid var(--b);border-radius:8px;padding:7px 14px;color:var(--mu);font-size:12px;cursor:pointer;font-family:'DM Mono',monospace;">
         ↺ Reset Export Date
       </button>
+    </div>
+
+    <!-- DAILY CONTACT SYNC — added alongside Passenger Contacts Export above,
+         not replacing it yet. Remove the old section only once this is
+         verified against the live database (see migrations/20260714_create_contact_sync_tables.sql). -->
+    <div style="margin-top:18px;padding-top:16px;border-top:1px solid var(--b);">
+      <div style="font-size:10px;color:var(--mu);font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;">Daily Contact Sync</div>
+
+      <div id="syncSchemaWarning" style="display:none;background:var(--s2);border:1px solid var(--gold);border-radius:10px;padding:12px 14px;font-size:12px;color:var(--tx);margin-bottom:10px;overflow-wrap:break-word;word-break:break-word;">
+        ⚠️ Daily Contact Sync requires a one-time database update that has not been applied yet. Ask an administrator to run <code>migrations/20260714_create_contact_sync_tables.sql</code> in the Supabase SQL Editor. The Passenger Contacts Export above still works normally.
+      </div>
+
+      <div id="syncBody" style="display:none;">
+        <div id="syncNoBaselineWarning" style="display:none;background:var(--s2);border:1px solid var(--b);border-radius:10px;padding:10px 14px;font-size:12px;color:var(--mu);margin-bottom:10px;">
+          No baseline set yet. If your iPhone already has the historical Makers Air contacts saved, use <strong>Start Daily Sync From Current Database</strong> under Advanced before your first sync.
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:4px;background:var(--s);border:1px solid var(--b);border-radius:10px;padding:12px 14px;margin-bottom:10px;font-size:12px;font-family:'DM Mono',monospace;color:var(--mu);">
+          <div>Last confirmed sync: <span id="syncLastConfirmedText" style="color:var(--tx)">—</span></div>
+          <div>Pending contacts: <span id="syncPendingCountText" style="color:var(--tx)">—</span></div>
+          <div>Duplicate phone records in preview: <span id="syncDuplicateCountText" style="color:var(--tx)">0</span></div>
+          <div>Invalid records excluded: <span id="syncInvalidCountText" style="color:var(--tx)">0</span></div>
+        </div>
+
+        <div id="syncUnconfirmedWrap" style="display:none;background:rgba(201,168,76,0.12);border:1px solid var(--gold);border-radius:10px;padding:10px 14px;margin-bottom:10px;font-size:12px;">
+          <div id="syncUnconfirmedText" style="margin-bottom:8px;color:var(--tx)"></div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button onclick="redownloadCurrentBatch()" style="background:var(--s);border:1px solid var(--b);border-radius:8px;padding:7px 12px;font-size:11px;cursor:pointer;font-family:'Syne',sans-serif;font-weight:700;">↻ Re-download</button>
+            <button onclick="showSyncImportConfirmModal(_syncCurrentBatch,{method:'download'})" style="background:var(--navy);color:#fff;border:none;border-radius:8px;padding:7px 12px;font-size:11px;cursor:pointer;font-family:'Syne',sans-serif;font-weight:700;">✓ Confirm</button>
+            <button onclick="cancelSyncBatch(_syncCurrentBatch&&_syncCurrentBatch.id)" style="background:none;border:1px solid var(--red);color:var(--red);border-radius:8px;padding:7px 12px;font-size:11px;cursor:pointer;font-family:'Syne',sans-serif;font-weight:700;">✕ Cancel</button>
+          </div>
+        </div>
+
+        <button id="syncPrimaryBtn" onclick="openSyncPreview()" style="width:100%;background:linear-gradient(135deg,#1a3d7c,#2a5db0);color:#fff;border:1px solid var(--gold);border-radius:10px;padding:13px;font-family:'Syne',sans-serif;font-weight:800;font-size:14px;cursor:pointer;margin-bottom:8px;">
+          📲 Sync Pending Contacts
+        </button>
+        <button id="syncPreviewBtn" onclick="openSyncPreview()" style="width:100%;background:var(--s2);color:var(--tx);border:1px solid var(--b);border-radius:10px;padding:11px;font-family:'Syne',sans-serif;font-weight:700;font-size:13px;cursor:pointer;margin-bottom:8px;">
+          👁 Preview Pending Contacts
+        </button>
+
+        <div style="margin-top:10px;">
+          <div onclick="toggleSyncAdvanced()" style="cursor:pointer;font-size:11px;color:var(--mu);font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.5px;padding:6px 0;">▾ Advanced</div>
+          <div id="syncAdvancedBody" style="display:none;flex-direction:column;gap:8px;">
+            <button id="syncBaselineTriggerBtn" onclick="openBaselineModal()" style="width:100%;background:var(--s);border:1px solid var(--b);border-radius:8px;padding:10px;font-size:12px;cursor:pointer;font-family:'Syne',sans-serif;font-weight:700;color:var(--tx);">Start Daily Sync From Current Database</button>
+            <button id="syncFullExportTriggerBtn" onclick="openFullExportModal()" style="width:100%;background:var(--s);border:1px solid var(--b);border-radius:8px;padding:10px;font-size:12px;cursor:pointer;font-family:'Syne',sans-serif;font-weight:700;color:var(--tx);">Export All Contacts</button>
+            <button onclick="openSyncHistoryModal()" style="width:100%;background:var(--s);border:1px solid var(--b);border-radius:8px;padding:10px;font-size:12px;cursor:pointer;font-family:'Syne',sans-serif;font-weight:700;color:var(--tx);">View Sync History</button>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -789,6 +838,136 @@
       <button class="btnc" onclick="dcClosePreview()">Close</button>
       <button class="btnp" onclick="dcSharePng()">📲 Share PNG</button>
     </div>
+  </div>
+</div>
+
+<!-- DAILY CONTACT SYNC MODALS -->
+<div class="ov" id="syncPreviewOv" onclick="if(event.target===this)closeSyncPreviewModal()">
+  <div class="modal">
+    <h2>Daily Contact Sync</h2>
+    <div class="msub"><span id="syncPreviewEvaluated">0</span> passenger records evaluated · <span id="syncPreviewUnique">0</span> unique contacts ready · <span id="syncPreviewDuplicates">0</span> duplicate phone records removed · <span id="syncPreviewInvalid">0</span> invalid record(s) excluded</div>
+    <div id="syncPreviewDateRange" style="font-size:11px;color:var(--mu);font-family:'DM Mono',monospace;margin:8px 0;"></div>
+    <div id="syncPreviewList" style="max-height:280px;overflow-y:auto;margin:10px 0;"></div>
+    <div class="mact">
+      <button class="btnc" onclick="closeSyncPreviewModal()">Cancel</button>
+      <button class="btnp" id="syncGenerateVcfBtn" onclick="generateSyncBatch()">Generate VCF</button>
+    </div>
+  </div>
+</div>
+
+<div class="ov" id="syncUpToDateOv" onclick="if(event.target===this)closeSyncUpToDateModal()">
+  <div class="modal">
+    <h2>Daily Contact Sync</h2>
+    <div class="msub">Your iPhone contact sync is up to date.</div>
+    <div class="mact"><button class="btnc" onclick="closeSyncUpToDateModal()">Close</button></div>
+  </div>
+</div>
+
+<div class="ov" id="syncExistingBatchOv" onclick="if(event.target===this)closeSyncExistingBatchModal()">
+  <div class="modal">
+    <h2>Unconfirmed Batch Pending</h2>
+    <div class="msub" id="syncExistingBatchText"></div>
+    <div class="mact"><button class="btnc" onclick="closeSyncExistingBatchModal()">Close</button></div>
+  </div>
+</div>
+
+<div class="ov" id="syncImportConfirmOv">
+  <div class="modal">
+    <h2>Were the contacts successfully imported into your iPhone?</h2>
+    <div class="msub">Complete "Add All Contacts" in the iPhone Contacts screen before confirming.</div>
+    <input type="hidden" id="syncImportConfirmBatchId">
+    <div class="mact">
+      <button class="btnc" onclick="closeSyncImportConfirmModal()">Not Yet</button>
+      <button class="btnp" onclick="openSyncFinalConfirmModal()">Yes, Mark as Synced</button>
+    </div>
+  </div>
+</div>
+
+<div class="ov" id="syncFinalConfirmOv">
+  <div class="modal">
+    <h2>Confirm Sync</h2>
+    <div class="msub">Confirm that you completed "Add All Contacts" on the iPhone.</div>
+    <div class="mact">
+      <button class="btnc" onclick="goBackFromFinalConfirm()">Go Back</button>
+      <button class="btnp" onclick="confirmSyncBatch(document.getElementById('syncImportConfirmBatchId').value)">Confirm Sync</button>
+    </div>
+  </div>
+</div>
+
+<div class="ov" id="syncBaselineOv" onclick="if(event.target===this)closeBaselineModal()">
+  <div class="modal">
+    <h2>Start Daily Sync From Current Database</h2>
+    <div class="msub">
+      This will treat all current valid AirValet passenger contacts as already synchronized.<br><br>
+      No VCF file will be generated.<br><br>
+      Use this only if the historical passenger contacts are already saved on your iPhone.<br><br>
+      From this point forward, AirValet will export only contacts that are new or changed.
+    </div>
+    <label style="display:flex;align-items:flex-start;gap:8px;font-size:12px;color:var(--tx);margin:14px 0;cursor:pointer;">
+      <input type="checkbox" id="syncBaselineCheckbox" onchange="onBaselineCheckboxChange(this)" style="margin-top:2px;">
+      I understand that current contacts will not be included in the next Daily Contact Sync.
+    </label>
+    <div class="mact">
+      <button class="btnc" onclick="closeBaselineModal()">Cancel</button>
+      <button class="btnp" id="syncBaselineConfirmBtn" disabled onclick="confirmCreateBaseline()">Confirm Baseline</button>
+    </div>
+  </div>
+</div>
+
+<div class="ov" id="syncFullExportOv" onclick="if(event.target===this)closeFullExportModal()">
+  <div class="modal">
+    <h2>Export All Contacts</h2>
+    <div class="msub">
+      This will export every unique valid passenger phone number currently stored in AirValet.<br><br>
+      Importing this file may create duplicates for contacts already saved on your iPhone.<br><br>
+      Use this option only for recovery or a future complete reimport.
+    </div>
+    <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--tx);margin:12px 0;cursor:pointer;">
+      <input type="checkbox" id="syncFullExportIncludeArchived" onchange="onFullExportArchivedToggle(this)">
+      Include Archived Passengers
+    </label>
+    <div style="background:var(--s2);border-radius:8px;padding:10px 12px;font-size:12px;font-family:'DM Mono',monospace;color:var(--mu);display:flex;flex-direction:column;gap:3px;">
+      <div>Total records: <span id="syncFullExportEvaluated">0</span></div>
+      <div>Unique contacts: <span id="syncFullExportUnique">0</span></div>
+      <div>Duplicates removed: <span id="syncFullExportDuplicates">0</span></div>
+      <div>Invalid excluded: <span id="syncFullExportInvalid">0</span></div>
+      <div>Estimated size: <span id="syncFullExportSize">—</span></div>
+    </div>
+    <div class="mact">
+      <button class="btnc" onclick="closeFullExportModal()">Cancel</button>
+      <button class="btnp" onclick="generateFullExport()">Preview Full Export</button>
+    </div>
+  </div>
+</div>
+
+<div class="ov" id="syncFullExportFollowUpOv">
+  <div class="modal">
+    <h2>Full Export Generated</h2>
+    <div class="msub">How should this export be recorded?</div>
+    <input type="hidden" id="syncFullExportFollowUpBatchId">
+    <div class="mact" style="flex-direction:column;gap:8px;">
+      <button class="btnc" onclick="fullExportConfirmImportedOnly()">Confirm File Imported Only</button>
+      <button class="btnp" onclick="fullExportUseAsBaseline()">Use This Full Export as New Baseline</button>
+    </div>
+  </div>
+</div>
+
+<div class="ov" id="syncFullExportBaselineUpgradeOv">
+  <div class="modal">
+    <h2>Use as New Baseline?</h2>
+    <div class="msub">This will treat every contact in this full export as already synchronized, replacing the current sync baseline. Future Daily Contact Sync will only include contacts that are new or changed after this point.</div>
+    <div class="mact">
+      <button class="btnc" onclick="closeFullExportBaselineUpgradeModal()">Cancel</button>
+      <button class="btnp" onclick="confirmFullExportAsBaseline()">Confirm New Baseline</button>
+    </div>
+  </div>
+</div>
+
+<div class="ov" id="syncHistoryOv" onclick="if(event.target===this)closeSyncHistoryModal()">
+  <div class="modal">
+    <h2>Sync History</h2>
+    <div id="syncHistoryList" style="max-height:360px;overflow-y:auto;margin:10px 0;"></div>
+    <div class="mact"><button class="btnc" onclick="closeSyncHistoryModal()">Close</button></div>
   </div>
 </div>
 
@@ -5150,6 +5329,850 @@ function resetContactsExportDate() {
 document.addEventListener('DOMContentLoaded', function() {
   updateContactsExportStatus();
 });
+
+// ═══════════════════════════════════════════════════════════════
+// ── DAILY CONTACT SYNC ────────────────────────────────────────
+// Database-backed replacement for the localStorage-only "last export"
+// tracking above. Added alongside the existing Passenger Contacts Export
+// (not replacing it yet) per explicit instruction — both stay active until
+// this feature is verified. Requires the contact_sync_batches /
+// contact_sync_items tables (migrations/20260714_create_contact_sync_tables.sql).
+// If that migration has not been applied, checkSyncSchema() detects the
+// PostgREST "table not in schema cache" 404 and the UI shows a warning
+// instead of throwing.
+// ═══════════════════════════════════════════════════════════════
+var SYNC_BATCH_TABLE = 'contact_sync_batches';
+var SYNC_ITEM_TABLE = 'contact_sync_items';
+var _syncSchemaReady = null;
+var _syncGenerating = false;
+var _syncCurrentBatch = null;
+var _syncPreviewData = null;
+var _syncFullExportCandidate = null;
+var _syncObjectUrls = [];
+
+async function checkSyncSchema() {
+  if (_syncSchemaReady !== null) return _syncSchemaReady;
+  try {
+    var res = await fetch(SUPABASE_URL + '/rest/v1/' + SYNC_BATCH_TABLE + '?select=id&limit=1', { headers: sbHeaders() });
+    _syncSchemaReady = res.status !== 404;
+  } catch (e) {
+    _syncSchemaReady = false;
+  }
+  return _syncSchemaReady;
+}
+
+// ── Normalization / fingerprint ──────────────────────────────────
+// Phone normalization reuses normalizePhoneForVcf() (defined above) rather
+// than duplicating the same trim/strip/US-format rules.
+function normalizeNameForSync(name) {
+  return String(name || '').trim().replace(/\s+/g, ' ').toUpperCase();
+}
+function contactFingerprint(name, phone) {
+  return normalizeNameForSync(name) + '|' + phone;
+}
+function formatNormalizedPhoneForDisplay(phone) {
+  if (!phone) return '';
+  if (phone.charAt(0) === '+' && phone.length === 12 && phone.charAt(1) === '1') {
+    var d = phone.slice(2);
+    return '(' + d.slice(0, 3) + ') ' + d.slice(3, 6) + '-' + d.slice(6);
+  }
+  return phone;
+}
+
+// Unicode-safe name title-casing, dedicated to Daily Contact Sync only —
+// deliberately NOT sharing/modifying titleCaseName()/titleCaseWord() above
+// (used by the unrelated Save-to-Contacts link), which mis-case accented
+// letters because their regex ([A-Za-z]+) fails to match them as part of a
+// word (e.g. "GARCÍA" -> "GarcÍA"). JS's toUpperCase()/toLowerCase() already
+// handle Unicode Latin letters correctly on their own — this version simply
+// avoids the ASCII-only regex-substring approach that caused the bug.
+var SYNC_NAME_LOWERCASE_PARTICLES = { 'da':1,'de':1,'do':1,'dos':1,'das':1,'di':1,'du':1,'van':1,'von':1,'der':1,'den':1,'la':1,'le':1,'el':1 };
+function titleCaseSegmentSync(seg) {
+  if (!seg) return seg;
+  return seg.charAt(0).toUpperCase() + seg.slice(1).toLowerCase();
+}
+function titleCaseTokenSync(token) {
+  return token.split('-').map(function(hyphenPart) {
+    return hyphenPart.split("'").map(titleCaseSegmentSync).join("'");
+  }).join('-');
+}
+function titleCaseNameSync(name) {
+  var words = String(name || '').trim().split(/\s+/).filter(Boolean);
+  return words.map(function(w, i) {
+    var lower = w.toLowerCase();
+    if (i > 0 && SYNC_NAME_LOWERCASE_PARTICLES[lower]) return lower;
+    return titleCaseTokenSync(w);
+  }).join(' ');
+}
+
+// Deduplicates passengers (optionally excluding ARCHIVED) by normalized
+// phone, keeping the most-recently-updated usable record per number —
+// same "most recent wins" rule as the existing bulk VCF export above.
+function buildSyncCandidateContacts(includeArchived) {
+  var pool = (data || []).filter(function(r) { return includeArchived || r.status !== 'ARCHIVED'; });
+  var evaluated = pool.length;
+  var invalidCount = 0;
+  var byPhone = {};
+  pool.forEach(function(r) {
+    var phone = normalizePhoneForVcf(r.phone);
+    var name = String(r.name || '').trim();
+    if (!phone || !name) { invalidCount++; return; }
+    if (!byPhone[phone]) {
+      byPhone[phone] = r;
+    } else {
+      var existing = byPhone[phone];
+      var existingDate = getContactUpdatedAt(existing);
+      var newDate = getContactUpdatedAt(r);
+      var existingId = existing.id || 0, newId = r.id || 0;
+      var newer = false;
+      if (newDate && existingDate) newer = newDate > existingDate;
+      else if (newDate && !existingDate) newer = true;
+      else if (!newDate && !existingDate) newer = newId > existingId;
+      if (newer) byPhone[phone] = r;
+    }
+  });
+  var uniqueCount = Object.keys(byPhone).length;
+  var duplicateCount = evaluated - invalidCount - uniqueCount;
+  return { byPhone: byPhone, evaluated: evaluated, invalidCount: invalidCount, duplicateCount: duplicateCount, uniqueCount: uniqueCount };
+}
+
+async function fetchConfirmedFingerprints() {
+  // FULL_EXPORT batches are recovery snapshots, not sync-tracking state — a
+  // confirmed FULL_EXPORT must never suppress contacts from future Daily
+  // Contact Sync pending detection on its own. Only BASELINE/DAILY count.
+  // ("Use This Full Export as New Baseline" creates a real BASELINE batch
+  // instead, which *does* count — see confirmFullExportAsBaseline().)
+  var all = [];
+  var page = 0, pageSize = 1000;
+  while (true) {
+    var url = SUPABASE_URL + '/rest/v1/' + SYNC_ITEM_TABLE +
+      '?select=contact_fingerprint,contact_sync_batches!inner(status,batch_type)' +
+      '&contact_sync_batches.status=eq.CONFIRMED' +
+      '&contact_sync_batches.batch_type=neq.FULL_EXPORT' +
+      '&limit=' + pageSize + '&offset=' + (page * pageSize);
+    var res = await fetch(url, { headers: sbHeaders() });
+    if (!res.ok) throw new Error('Could not load sync history: ' + res.status);
+    var rows = await res.json();
+    rows.forEach(function(row) { all.push(row.contact_fingerprint); });
+    if (rows.length < pageSize) break;
+    page++;
+  }
+  return all;
+}
+
+// "Pending" = valid, non-archived contact whose current fingerprint has
+// never appeared in a CONFIRMED batch — not a date filter, so contacts
+// accumulate correctly across any number of skipped days.
+async function computePendingContacts() {
+  var candidate = buildSyncCandidateContacts(false);
+  var confirmedFingerprints = await fetchConfirmedFingerprints();
+  var confirmedSet = {};
+  confirmedFingerprints.forEach(function(fp) { confirmedSet[fp] = true; });
+  var pending = [];
+  Object.keys(candidate.byPhone).forEach(function(phone) {
+    var r = candidate.byPhone[phone];
+    var fp = contactFingerprint(r.name, phone);
+    if (!confirmedSet[fp]) {
+      pending.push({ passenger_id: r.id, name: r.name, phone: phone, fingerprint: fp, updated_at: getContactUpdatedAt(r) });
+    }
+  });
+  return { pending: pending, evaluated: candidate.evaluated, invalidCount: candidate.invalidCount, duplicateCount: candidate.duplicateCount };
+}
+
+async function fetchLastConfirmedBatch() {
+  // Same FULL_EXPORT exclusion as fetchConfirmedFingerprints(): a confirmed
+  // recovery export is not a "sync" and must not be shown/counted as one.
+  var url = SUPABASE_URL + '/rest/v1/' + SYNC_BATCH_TABLE + '?status=eq.CONFIRMED&batch_type=neq.FULL_EXPORT&order=confirmed_at.desc&limit=1';
+  var res = await fetch(url, { headers: sbHeaders() });
+  if (!res.ok) return null;
+  var rows = await res.json();
+  return rows[0] || null;
+}
+async function fetchUnconfirmedBatch(batchType) {
+  var url = SUPABASE_URL + '/rest/v1/' + SYNC_BATCH_TABLE + '?status=eq.GENERATED&batch_type=eq.' + batchType + '&order=created_at.desc&limit=1';
+  var res = await fetch(url, { headers: sbHeaders() });
+  if (!res.ok) return null;
+  var rows = await res.json();
+  return rows[0] || null;
+}
+
+function postSyncItemsChunked(itemPayload) {
+  var CHUNK = 500;
+  var chunks = [];
+  for (var i = 0; i < itemPayload.length; i += CHUNK) chunks.push(itemPayload.slice(i, i + CHUNK));
+  return chunks.reduce(function(p, chunk) {
+    return p.then(function() {
+      return fetch(SUPABASE_URL + '/rest/v1/' + SYNC_ITEM_TABLE, {
+        method: 'POST',
+        headers: Object.assign({}, sbHeaders(), { 'Prefer': 'return=minimal' }),
+        body: JSON.stringify(chunk)
+      }).then(function(res) {
+        if (!res.ok) return res.text().then(function(t) { throw new Error('Could not save sync items: ' + t); });
+      });
+    });
+  }, Promise.resolve());
+}
+
+// If item insertion fails partway through a batch (some chunks may have
+// already succeeded — contact_sync_items has no delete policy, so any
+// partial items are left in place, harmlessly, since a CANCELLED batch's
+// items are excluded from fetchConfirmedFingerprints() regardless of
+// batch_type), the batch must never be confirmed with an incomplete item
+// set. Best-effort cancel it instead of leaving it stuck GENERATED
+// forever; if even the cancel fails, it's left GENERATED and reported —
+// either way, nothing is ever treated as synchronized.
+async function safelyCancelOrphanedBatch(batchId, reason) {
+  try {
+    var payload = { status: 'CANCELLED', cancelled_at: new Date().toISOString(), cancelled_by: _currentUserEmail };
+    await fetch(SUPABASE_URL + '/rest/v1/' + SYNC_BATCH_TABLE + '?id=eq.' + batchId, {
+      method: 'PATCH', headers: sbHeaders(), body: JSON.stringify(payload)
+    });
+  } catch (e) {
+    console.error('Could not auto-cancel orphaned batch ' + batchId + ' (' + reason + '):', e);
+  }
+}
+
+// ── Status card refresh (called when the Report tab opens) ──────
+async function refreshSyncUI() {
+  var ready = await checkSyncSchema();
+  var warnEl = document.getElementById('syncSchemaWarning');
+  var bodyEl = document.getElementById('syncBody');
+  if (!ready) {
+    if (warnEl) warnEl.style.display = 'block';
+    if (bodyEl) bodyEl.style.display = 'none';
+    return;
+  }
+  if (warnEl) warnEl.style.display = 'none';
+  if (bodyEl) bodyEl.style.display = 'block';
+
+  try {
+    var lastConfirmed = await fetchLastConfirmedBatch();
+    var unconfirmedDaily = await fetchUnconfirmedBatch('DAILY');
+    var pendingResult = await computePendingContacts();
+    _syncCurrentBatch = unconfirmedDaily;
+    renderSyncStatusCard(lastConfirmed, unconfirmedDaily, pendingResult);
+  } catch (e) {
+    console.error('refreshSyncUI error:', e);
+    showMsg('Could not load Daily Contact Sync status: ' + e.message, true);
+  }
+}
+
+function renderSyncStatusCard(lastConfirmed, unconfirmedBatch, pendingResult) {
+  var lastEl = document.getElementById('syncLastConfirmedText');
+  if (lastEl) {
+    lastEl.textContent = (lastConfirmed && lastConfirmed.confirmed_at)
+      ? new Date(lastConfirmed.confirmed_at).toLocaleString() + ' · ' + (lastConfirmed.unique_count || 0) + ' contacts'
+      : 'Never';
+  }
+  var pendingEl = document.getElementById('syncPendingCountText');
+  if (pendingEl) pendingEl.textContent = String(pendingResult.pending.length);
+  var dupEl = document.getElementById('syncDuplicateCountText');
+  if (dupEl) dupEl.textContent = String(pendingResult.duplicateCount);
+  var invEl = document.getElementById('syncInvalidCountText');
+  if (invEl) invEl.textContent = String(pendingResult.invalidCount);
+
+  var unconfirmedWrap = document.getElementById('syncUnconfirmedWrap');
+  var primaryBtn = document.getElementById('syncPrimaryBtn');
+  if (unconfirmedBatch) {
+    if (unconfirmedWrap) {
+      unconfirmedWrap.style.display = 'block';
+      var txt = document.getElementById('syncUnconfirmedText');
+      if (txt) txt.textContent = 'Unconfirmed batch from ' + new Date(unconfirmedBatch.created_at).toLocaleString() + ' · ' + (unconfirmedBatch.unique_count || 0) + ' contacts';
+    }
+    if (primaryBtn) { primaryBtn.disabled = true; primaryBtn.title = 'Resolve the pending unconfirmed batch first'; }
+  } else {
+    if (unconfirmedWrap) unconfirmedWrap.style.display = 'none';
+    if (primaryBtn) { primaryBtn.disabled = pendingResult.pending.length === 0; primaryBtn.title = ''; }
+  }
+
+  var noBaselineEl = document.getElementById('syncNoBaselineWarning');
+  if (noBaselineEl) noBaselineEl.style.display = lastConfirmed ? 'none' : 'block';
+}
+
+function setSyncButtonsDisabled(disabled) {
+  ['syncPrimaryBtn', 'syncPreviewBtn', 'syncGenerateVcfBtn', 'syncBaselineTriggerBtn', 'syncFullExportTriggerBtn'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.disabled = disabled;
+  });
+}
+
+function toggleSyncAdvanced() {
+  var el = document.getElementById('syncAdvancedBody');
+  if (!el) return;
+  el.style.display = (el.style.display === 'none' || !el.style.display) ? 'flex' : 'none';
+}
+
+// ── vCard building (dedicated builder — deliberately does not reuse
+// buildVcardBlock(), which is shared with the unrelated single-passenger
+// "Save to Contacts" link and includes a NOTE: field this feature must
+// omit per spec) ──
+function buildSyncVcardBlock(name, phone) {
+  var n = splitNameForVcard(name);
+  return [
+    'BEGIN:VCARD',
+    'VERSION:3.0',
+    'N:' + escapeVCardText(n.family) + ';' + escapeVCardText(n.given) + ';;;',
+    'FN:' + escapeVCardText(name),
+    'TEL;TYPE=CELL:' + phone,
+    'ORG:Makers Air Valet',
+    'END:VCARD'
+  ].join('\r\n') + '\r\n';
+}
+function buildSyncVcfContent(contacts) {
+  return contacts.map(function(c) { return buildSyncVcardBlock(titleCaseNameSync(c.name), c.phone); }).join('');
+}
+function syncDailyFilename() {
+  var d = new Date();
+  var pad = function(n) { return String(n).padStart(2, '0'); };
+  return 'AirValet-Pending-Contacts-' + d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + '-' + pad(d.getHours()) + pad(d.getMinutes()) + '.vcf';
+}
+function syncFullExportFilename() {
+  var d = new Date();
+  var pad = function(n) { return String(n).padStart(2, '0'); };
+  return 'AirValet-All-Contacts-' + d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + '.vcf';
+}
+function formatBytesApprox(n) {
+  if (n < 1024) return n + ' B';
+  return (n / 1024).toFixed(1) + ' KB';
+}
+
+// ── iPhone Share Sheet / download fallback ───────────────────────
+// Object URLs from the download-fallback path are revoked after a delay
+// (not immediately) so iOS has time to actually read the file via Save to
+// Files. The Web Share path hands the browser a File object directly, so
+// there is no URL to revoke there.
+function scheduleObjectUrlCleanup(url, delayMs) {
+  _syncObjectUrls.push(url);
+  setTimeout(function() {
+    var idx = _syncObjectUrls.indexOf(url);
+    if (idx !== -1) { URL.revokeObjectURL(url); _syncObjectUrls.splice(idx, 1); }
+  }, delayMs || 120000);
+}
+async function deliverVcfFile(vcfContent, filename) {
+  var blob = new Blob([vcfContent], { type: 'text/vcard;charset=utf-8' });
+  var file = null;
+  try { file = new File([blob], filename, { type: 'text/vcard;charset=utf-8' }); } catch (e) { file = null; }
+
+  if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
+    try {
+      await navigator.share({ files: [file], title: 'AirValet Contact Sync', text: 'Import these passenger contacts into the iPhone Contacts app.' });
+      return { method: 'share' };
+    } catch (e) {
+      if (e && e.name === 'AbortError') return { method: 'cancelled' };
+      // real share failure — fall through to the download fallback below
+    }
+  }
+
+  try {
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    scheduleObjectUrlCleanup(url);
+    return { method: 'download' };
+  } catch (e) {
+    return { method: 'error', error: e.message };
+  }
+}
+
+// ── Preview → Generate (Sync Pending Contacts / Preview Pending Contacts) ──
+async function openSyncPreview() {
+  if (_syncGenerating) return;
+  var ready = await checkSyncSchema();
+  if (!ready) { showMsg('Daily Contact Sync requires a database migration that has not been applied yet.', true); return; }
+
+  var existing = await fetchUnconfirmedBatch('DAILY');
+  if (existing) { showSyncExistingBatchModal(existing); return; }
+
+  var result = await computePendingContacts();
+  if (result.pending.length === 0) { showSyncUpToDateModal(); return; }
+
+  var dates = result.pending.map(function(c) { return c.updated_at; }).filter(Boolean);
+  var oldest = dates.length ? new Date(Math.min.apply(null, dates)) : null;
+  var newest = dates.length ? new Date(Math.max.apply(null, dates)) : null;
+
+  _syncPreviewData = {
+    mode: 'DAILY',
+    contacts: result.pending,
+    evaluated: result.evaluated,
+    uniqueCount: result.pending.length,
+    duplicateCount: result.duplicateCount,
+    invalidCount: result.invalidCount,
+    oldest: oldest,
+    newest: newest
+  };
+  renderSyncPreviewModal(_syncPreviewData);
+  document.getElementById('syncPreviewOv').classList.add('on');
+}
+function renderSyncPreviewModal(pd) {
+  document.getElementById('syncPreviewEvaluated').textContent = String(pd.evaluated);
+  document.getElementById('syncPreviewUnique').textContent = String(pd.uniqueCount);
+  document.getElementById('syncPreviewDuplicates').textContent = String(pd.duplicateCount);
+  document.getElementById('syncPreviewInvalid').textContent = String(pd.invalidCount);
+  var rangeEl = document.getElementById('syncPreviewDateRange');
+  if (pd.oldest && pd.newest) {
+    rangeEl.textContent = 'Oldest: ' + pd.oldest.toLocaleDateString() + '  ·  Newest: ' + pd.newest.toLocaleDateString();
+    rangeEl.style.display = 'block';
+  } else {
+    rangeEl.style.display = 'none';
+  }
+  var listEl = document.getElementById('syncPreviewList');
+  listEl.innerHTML = pd.contacts.map(function(c) {
+    return '<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--b);font-size:13px">' +
+      '<span>' + escapeHTML(titleCaseNameSync(c.name)) + '</span>' +
+      '<span style="color:var(--mu);font-family:\'DM Mono\',monospace">' + escapeHTML(formatNormalizedPhoneForDisplay(c.phone)) + '</span>' +
+    '</div>';
+  }).join('');
+}
+function closeSyncPreviewModal() { document.getElementById('syncPreviewOv').classList.remove('on'); }
+function showSyncUpToDateModal() { document.getElementById('syncUpToDateOv').classList.add('on'); }
+function closeSyncUpToDateModal() { document.getElementById('syncUpToDateOv').classList.remove('on'); }
+function showSyncExistingBatchModal(batch) {
+  _syncCurrentBatch = batch;
+  document.getElementById('syncExistingBatchText').textContent = 'An unconfirmed batch from ' + new Date(batch.created_at).toLocaleString() + ' (' + (batch.unique_count || 0) + ' contacts) is already waiting. Resolve it before starting a new sync.';
+  document.getElementById('syncExistingBatchOv').classList.add('on');
+}
+function closeSyncExistingBatchModal() { document.getElementById('syncExistingBatchOv').classList.remove('on'); }
+
+// contact_sync_batches.created_by is NOT NULL and the UPDATE policy is
+// scoped to created_by = auth.jwt()->>'email' (see migration), so a batch
+// created with a null/empty created_by could never be confirmed or
+// cancelled by anyone — not even its own creator. Every insert into
+// contact_sync_batches must go through this guard first.
+function requireCurrentUserEmail() {
+  if (!_currentUserEmail) {
+    showMsg('You must be signed in to do this. Please refresh and sign in again.', true);
+    return false;
+  }
+  return true;
+}
+
+async function generateSyncBatch() {
+  if (_syncGenerating) return;
+  if (!_syncPreviewData || _syncPreviewData.mode !== 'DAILY') return;
+  if (!requireCurrentUserEmail()) return;
+  _syncGenerating = true;
+  setSyncButtonsDisabled(true);
+  try {
+    var existing = await fetchUnconfirmedBatch('DAILY');
+    if (existing) { closeSyncPreviewModal(); showSyncExistingBatchModal(existing); return; }
+
+    var contacts = _syncPreviewData.contacts;
+    var filename = syncDailyFilename();
+    var batchPayload = {
+      created_by: _currentUserEmail,
+      batch_type: 'DAILY',
+      status: 'GENERATED',
+      generated_count: _syncPreviewData.evaluated,
+      unique_count: contacts.length,
+      duplicate_count: _syncPreviewData.duplicateCount,
+      invalid_count: _syncPreviewData.invalidCount,
+      filename: filename
+    };
+    var batchRes = await fetch(SUPABASE_URL + '/rest/v1/' + SYNC_BATCH_TABLE, {
+      method: 'POST', headers: Object.assign({}, sbHeaders(), { 'Prefer': 'return=representation' }), body: JSON.stringify(batchPayload)
+    });
+    if (!batchRes.ok) throw new Error('Could not create sync batch: ' + (await batchRes.text()));
+    var batch = (await batchRes.json())[0];
+
+    var itemPayload = contacts.map(function(c) {
+      return {
+        batch_id: batch.id, passenger_id: c.passenger_id || null,
+        passenger_name: titleCaseNameSync(c.name), normalized_phone: c.phone,
+        contact_fingerprint: c.fingerprint,
+        source_updated_at: c.updated_at ? c.updated_at.toISOString() : null
+      };
+    });
+    try {
+      await postSyncItemsChunked(itemPayload);
+    } catch (itemErr) {
+      await safelyCancelOrphanedBatch(batch.id, 'daily sync item insert failed: ' + itemErr.message);
+      throw new Error('Could not save contacts — this sync was not created: ' + itemErr.message);
+    }
+
+    sbLog('CONTACT SYNC GENERATED', '', '', '', 'batch=' + batch.id + ' type=DAILY count=' + contacts.length + ' by=' + (_currentUserEmail || '?'));
+
+    _syncCurrentBatch = batch;
+    var vcf = buildSyncVcfContent(contacts);
+    closeSyncPreviewModal();
+    var deliverResult = await deliverVcfFile(vcf, filename);
+    await refreshSyncUI();
+    showSyncImportConfirmModal(batch, deliverResult);
+  } catch (e) {
+    console.error('generateSyncBatch error:', e);
+    showMsg('Could not generate the sync batch: ' + e.message, true);
+  } finally {
+    _syncGenerating = false;
+    setSyncButtonsDisabled(false);
+  }
+}
+
+async function redownloadCurrentBatch() {
+  if (!_syncCurrentBatch) return;
+  try {
+    var url = SUPABASE_URL + '/rest/v1/' + SYNC_ITEM_TABLE + '?batch_id=eq.' + _syncCurrentBatch.id + '&select=passenger_name,normalized_phone';
+    var res = await fetch(url, { headers: sbHeaders() });
+    if (!res.ok) throw new Error('Could not load batch contacts: ' + res.status);
+    var items = await res.json();
+    var contacts = items.map(function(it) { return { name: it.passenger_name, phone: it.normalized_phone }; });
+    var vcf = buildSyncVcfContent(contacts);
+    var filename = _syncCurrentBatch.filename || syncDailyFilename();
+    var result = await deliverVcfFile(vcf, filename);
+    showSyncImportConfirmModal(_syncCurrentBatch, result);
+  } catch (e) {
+    showMsg('Could not re-download batch: ' + e.message, true);
+  }
+}
+
+async function cancelSyncBatch(batchId) {
+  if (!batchId) return;
+  if (!requireCurrentUserEmail()) return;
+  if (!confirm('Cancel this unconfirmed sync batch?\n\nThe included contacts will return to the pending list. No passenger data is affected.')) return;
+  try {
+    var payload = { status: 'CANCELLED', cancelled_at: new Date().toISOString(), cancelled_by: _currentUserEmail };
+    var res = await fetch(SUPABASE_URL + '/rest/v1/' + SYNC_BATCH_TABLE + '?id=eq.' + batchId, { method: 'PATCH', headers: sbHeaders(), body: JSON.stringify(payload) });
+    if (!res.ok) throw new Error('Could not cancel sync batch: ' + (await res.text()));
+    sbLog('CONTACT SYNC CANCELLED', '', '', '', 'batch=' + batchId + ' by=' + (_currentUserEmail || '?'));
+    _syncCurrentBatch = null;
+    await refreshSyncUI();
+    showMsg('Sync batch cancelled. Contacts are pending again.', false);
+  } catch (e) {
+    showMsg('Could not cancel sync batch: ' + e.message, true);
+  }
+}
+
+// ── Import confirmation (two-step) ───────────────────────────────
+function showSyncImportConfirmModal(batch, deliverResult) {
+  if (deliverResult && deliverResult.method === 'error') {
+    showMsg('Could not share or download the file: ' + deliverResult.error + '. Use "Re-download" to try again.', true);
+    return;
+  }
+  document.getElementById('syncImportConfirmBatchId').value = batch.id;
+  document.getElementById('syncImportConfirmOv').classList.add('on');
+}
+function closeSyncImportConfirmModal() { document.getElementById('syncImportConfirmOv').classList.remove('on'); }
+function openSyncFinalConfirmModal() {
+  document.getElementById('syncImportConfirmOv').classList.remove('on');
+  document.getElementById('syncFinalConfirmOv').classList.add('on');
+}
+function goBackFromFinalConfirm() {
+  document.getElementById('syncFinalConfirmOv').classList.remove('on');
+  document.getElementById('syncImportConfirmOv').classList.add('on');
+}
+function closeSyncFinalConfirmModal() { document.getElementById('syncFinalConfirmOv').classList.remove('on'); }
+
+async function confirmSyncBatch(batchId) {
+  if (!batchId || _syncGenerating) return;
+  if (!requireCurrentUserEmail()) return;
+  _syncGenerating = true;
+  try {
+    var payload = { status: 'CONFIRMED', confirmed_at: new Date().toISOString(), confirmed_by: _currentUserEmail };
+    var res = await fetch(SUPABASE_URL + '/rest/v1/' + SYNC_BATCH_TABLE + '?id=eq.' + batchId, { method: 'PATCH', headers: sbHeaders(), body: JSON.stringify(payload) });
+    if (!res.ok) throw new Error('Could not confirm sync batch: ' + (await res.text()));
+    sbLog('CONTACT SYNC CONFIRMED', '', '', '', 'batch=' + batchId + ' by=' + (_currentUserEmail || '?'));
+    closeSyncFinalConfirmModal();
+    closeSyncImportConfirmModal();
+    _syncCurrentBatch = null;
+    await refreshSyncUI();
+    showMsg('Daily Contact Sync confirmed.', false);
+  } catch (e) {
+    showMsg('Could not confirm sync: ' + e.message, true);
+  } finally {
+    _syncGenerating = false;
+  }
+}
+
+// ── Baseline workflow ─────────────────────────────────────────────
+function openBaselineModal() {
+  document.getElementById('syncBaselineCheckbox').checked = false;
+  document.getElementById('syncBaselineConfirmBtn').disabled = true;
+  document.getElementById('syncBaselineOv').classList.add('on');
+}
+function closeBaselineModal() { document.getElementById('syncBaselineOv').classList.remove('on'); }
+function onBaselineCheckboxChange(el) { document.getElementById('syncBaselineConfirmBtn').disabled = !el.checked; }
+
+async function confirmCreateBaseline() {
+  if (_syncGenerating) return;
+  var checkbox = document.getElementById('syncBaselineCheckbox');
+  if (!checkbox || !checkbox.checked) return;
+  if (!requireCurrentUserEmail()) return;
+  _syncGenerating = true;
+  try {
+    var candidate = buildSyncCandidateContacts(false);
+    var contacts = Object.keys(candidate.byPhone).map(function(phone) {
+      var r = candidate.byPhone[phone];
+      return { passenger_id: r.id, name: r.name, phone: phone, updated_at: getContactUpdatedAt(r) };
+    });
+    // Insert as GENERATED first, not CONFIRMED — the contact_sync_items
+    // INSERT policy only allows writing items into a GENERATED batch
+    // owned by the caller. Only after every item has been saved does this
+    // get promoted to CONFIRMED, so the fingerprint set a confirmed
+    // baseline exposes is never partial.
+    var batchPayload = {
+      created_by: _currentUserEmail,
+      batch_type: 'BASELINE',
+      status: 'GENERATED',
+      generated_count: candidate.evaluated,
+      unique_count: contacts.length,
+      duplicate_count: candidate.duplicateCount,
+      invalid_count: candidate.invalidCount,
+      notes: 'Baseline: current AirValet database treated as already synchronized.'
+    };
+    var batchRes = await fetch(SUPABASE_URL + '/rest/v1/' + SYNC_BATCH_TABLE, {
+      method: 'POST', headers: Object.assign({}, sbHeaders(), { 'Prefer': 'return=representation' }), body: JSON.stringify(batchPayload)
+    });
+    if (!batchRes.ok) throw new Error('Could not create baseline: ' + (await batchRes.text()));
+    var batch = (await batchRes.json())[0];
+
+    var itemPayload = contacts.map(function(c) {
+      return {
+        batch_id: batch.id, passenger_id: c.passenger_id || null,
+        passenger_name: titleCaseNameSync(c.name), normalized_phone: c.phone,
+        contact_fingerprint: contactFingerprint(c.name, c.phone),
+        source_updated_at: c.updated_at ? c.updated_at.toISOString() : null
+      };
+    });
+    try {
+      await postSyncItemsChunked(itemPayload);
+    } catch (itemErr) {
+      await safelyCancelOrphanedBatch(batch.id, 'baseline item insert failed: ' + itemErr.message);
+      throw new Error('Could not save baseline contacts — the baseline was not created: ' + itemErr.message);
+    }
+
+    var confirmPayload = { status: 'CONFIRMED', confirmed_at: new Date().toISOString(), confirmed_by: _currentUserEmail };
+    var confirmRes = await fetch(SUPABASE_URL + '/rest/v1/' + SYNC_BATCH_TABLE + '?id=eq.' + batch.id, {
+      method: 'PATCH', headers: sbHeaders(), body: JSON.stringify(confirmPayload)
+    });
+    if (!confirmRes.ok) {
+      await safelyCancelOrphanedBatch(batch.id, 'baseline confirm step failed');
+      throw new Error('Baseline contacts were saved, but confirming the baseline failed — it was not activated: ' + (await confirmRes.text()));
+    }
+
+    sbLog('CONTACT SYNC BASELINE CREATED', '', '', '', 'batch=' + batch.id + ' count=' + contacts.length + ' by=' + (_currentUserEmail || '?'));
+
+    closeBaselineModal();
+    await refreshSyncUI();
+    showMsg('Baseline created. ' + contacts.length + ' contacts marked as already synchronized.', false);
+  } catch (e) {
+    showMsg('Could not create baseline: ' + e.message, true);
+  } finally {
+    _syncGenerating = false;
+  }
+}
+
+// ── Full export (recovery) ────────────────────────────────────────
+function openFullExportModal() {
+  document.getElementById('syncFullExportIncludeArchived').checked = false;
+  renderFullExportPreview(false);
+  document.getElementById('syncFullExportOv').classList.add('on');
+}
+function closeFullExportModal() { document.getElementById('syncFullExportOv').classList.remove('on'); }
+function onFullExportArchivedToggle(el) { renderFullExportPreview(el.checked); }
+function renderFullExportPreview(includeArchived) {
+  var candidate = buildSyncCandidateContacts(includeArchived);
+  _syncFullExportCandidate = candidate;
+  document.getElementById('syncFullExportEvaluated').textContent = String(candidate.evaluated);
+  document.getElementById('syncFullExportUnique').textContent = String(candidate.uniqueCount);
+  document.getElementById('syncFullExportDuplicates').textContent = String(candidate.duplicateCount);
+  document.getElementById('syncFullExportInvalid').textContent = String(candidate.invalidCount);
+  document.getElementById('syncFullExportSize').textContent = formatBytesApprox(candidate.uniqueCount * 180);
+}
+
+async function generateFullExport() {
+  if (_syncGenerating) return;
+  if (!requireCurrentUserEmail()) return;
+  _syncGenerating = true;
+  try {
+    var includeArchived = document.getElementById('syncFullExportIncludeArchived').checked;
+    var candidate = _syncFullExportCandidate || buildSyncCandidateContacts(includeArchived);
+    var contacts = Object.keys(candidate.byPhone).map(function(phone) {
+      var r = candidate.byPhone[phone];
+      return { passenger_id: r.id, name: r.name, phone: phone, updated_at: getContactUpdatedAt(r) };
+    });
+    if (contacts.length === 0) { showMsg('No valid contacts to export.', true); return; }
+
+    var filename = syncFullExportFilename();
+    var batchPayload = {
+      created_by: _currentUserEmail,
+      batch_type: 'FULL_EXPORT',
+      status: 'GENERATED',
+      generated_count: candidate.evaluated,
+      unique_count: contacts.length,
+      duplicate_count: candidate.duplicateCount,
+      invalid_count: candidate.invalidCount,
+      filename: filename,
+      notes: includeArchived ? 'Includes archived passengers.' : null
+    };
+    var batchRes = await fetch(SUPABASE_URL + '/rest/v1/' + SYNC_BATCH_TABLE, {
+      method: 'POST', headers: Object.assign({}, sbHeaders(), { 'Prefer': 'return=representation' }), body: JSON.stringify(batchPayload)
+    });
+    if (!batchRes.ok) throw new Error('Could not create full export batch: ' + (await batchRes.text()));
+    var batch = (await batchRes.json())[0];
+
+    var itemPayload = contacts.map(function(c) {
+      return {
+        batch_id: batch.id, passenger_id: c.passenger_id || null,
+        passenger_name: titleCaseNameSync(c.name), normalized_phone: c.phone,
+        contact_fingerprint: contactFingerprint(c.name, c.phone),
+        source_updated_at: c.updated_at ? c.updated_at.toISOString() : null
+      };
+    });
+    try {
+      await postSyncItemsChunked(itemPayload);
+    } catch (itemErr) {
+      await safelyCancelOrphanedBatch(batch.id, 'full export item insert failed: ' + itemErr.message);
+      throw new Error('Could not save export contacts — this export was not created: ' + itemErr.message);
+    }
+
+    sbLog('CONTACT FULL EXPORT GENERATED', '', '', '', 'batch=' + batch.id + ' count=' + contacts.length + ' by=' + (_currentUserEmail || '?'));
+
+    var vcf = buildSyncVcfContent(contacts);
+    closeFullExportModal();
+    var result = await deliverVcfFile(vcf, filename);
+    showFullExportFollowUpModal(batch, result);
+  } catch (e) {
+    showMsg('Could not generate full export: ' + e.message, true);
+  } finally {
+    _syncGenerating = false;
+  }
+}
+
+function showFullExportFollowUpModal(batch, deliverResult) {
+  if (deliverResult && deliverResult.method === 'error') {
+    showMsg('Could not share or download the file: ' + deliverResult.error, true);
+  }
+  document.getElementById('syncFullExportFollowUpBatchId').value = batch.id;
+  document.getElementById('syncFullExportFollowUpOv').classList.add('on');
+}
+function closeFullExportFollowUpModal() { document.getElementById('syncFullExportFollowUpOv').classList.remove('on'); }
+async function fullExportConfirmImportedOnly() {
+  var batchId = document.getElementById('syncFullExportFollowUpBatchId').value;
+  if (!requireCurrentUserEmail()) return;
+  try {
+    var payload = { status: 'CONFIRMED', confirmed_at: new Date().toISOString(), confirmed_by: _currentUserEmail };
+    var res = await fetch(SUPABASE_URL + '/rest/v1/' + SYNC_BATCH_TABLE + '?id=eq.' + batchId, { method: 'PATCH', headers: sbHeaders(), body: JSON.stringify(payload) });
+    if (!res.ok) throw new Error(await res.text());
+    sbLog('CONTACT FULL EXPORT CONFIRMED', '', '', '', 'batch=' + batchId + ' by=' + (_currentUserEmail || '?'));
+    closeFullExportFollowUpModal();
+    await refreshSyncUI();
+    showMsg('Full export marked as imported.', false);
+  } catch (e) { showMsg('Could not confirm full export: ' + e.message, true); }
+}
+function fullExportUseAsBaseline() {
+  closeFullExportFollowUpModal();
+  document.getElementById('syncFullExportBaselineUpgradeOv').classList.add('on');
+}
+function closeFullExportBaselineUpgradeModal() { document.getElementById('syncFullExportBaselineUpgradeOv').classList.remove('on'); }
+async function confirmFullExportAsBaseline() {
+  // A FULL_EXPORT batch's own fingerprints never count toward pending
+  // detection (see fetchConfirmedFingerprints()), so "using it as baseline"
+  // means creating a real BASELINE batch that copies its contacts — not
+  // just relabeling the export. The FULL_EXPORT batch itself is also
+  // marked CONFIRMED, purely for its own import-history record.
+  var batchId = document.getElementById('syncFullExportFollowUpBatchId').value;
+  if (!requireCurrentUserEmail()) return;
+  try {
+    var itemsRes = await fetch(SUPABASE_URL + '/rest/v1/' + SYNC_ITEM_TABLE + '?batch_id=eq.' + batchId + '&select=passenger_id,passenger_name,normalized_phone,contact_fingerprint,source_updated_at', { headers: sbHeaders() });
+    if (!itemsRes.ok) throw new Error('Could not load full export contacts: ' + itemsRes.status);
+    var sourceItems = await itemsRes.json();
+
+    // Insert as GENERATED first, not CONFIRMED — same reason as
+    // confirmCreateBaseline(): the contact_sync_items INSERT policy only
+    // allows writing items into a GENERATED batch owned by the caller.
+    // Promote to CONFIRMED only after every item is saved.
+    var baselinePayload = {
+      created_by: _currentUserEmail,
+      batch_type: 'BASELINE',
+      status: 'GENERATED',
+      generated_count: sourceItems.length,
+      unique_count: sourceItems.length,
+      duplicate_count: 0,
+      invalid_count: 0,
+      notes: 'Baseline created from Full Export batch ' + batchId + '.'
+    };
+    var baselineRes = await fetch(SUPABASE_URL + '/rest/v1/' + SYNC_BATCH_TABLE, {
+      method: 'POST', headers: Object.assign({}, sbHeaders(), { 'Prefer': 'return=representation' }), body: JSON.stringify(baselinePayload)
+    });
+    if (!baselineRes.ok) throw new Error('Could not create baseline: ' + (await baselineRes.text()));
+    var baselineBatch = (await baselineRes.json())[0];
+
+    var baselineItems = sourceItems.map(function(it) {
+      return {
+        batch_id: baselineBatch.id, passenger_id: it.passenger_id || null,
+        passenger_name: it.passenger_name, normalized_phone: it.normalized_phone,
+        contact_fingerprint: it.contact_fingerprint, source_updated_at: it.source_updated_at || null
+      };
+    });
+    try {
+      await postSyncItemsChunked(baselineItems);
+    } catch (itemErr) {
+      await safelyCancelOrphanedBatch(baselineBatch.id, 'full-export-as-baseline item insert failed: ' + itemErr.message);
+      throw new Error('Could not save baseline contacts — the full export was NOT set as the new baseline: ' + itemErr.message);
+    }
+
+    var baselineConfirmPayload = { status: 'CONFIRMED', confirmed_at: new Date().toISOString(), confirmed_by: _currentUserEmail };
+    var baselineConfirmRes = await fetch(SUPABASE_URL + '/rest/v1/' + SYNC_BATCH_TABLE + '?id=eq.' + baselineBatch.id, {
+      method: 'PATCH', headers: sbHeaders(), body: JSON.stringify(baselineConfirmPayload)
+    });
+    if (!baselineConfirmRes.ok) {
+      await safelyCancelOrphanedBatch(baselineBatch.id, 'full-export-as-baseline confirm step failed');
+      throw new Error('Baseline contacts were saved, but confirming the new baseline failed — it was not activated: ' + (await baselineConfirmRes.text()));
+    }
+
+    // Only mark the original FULL_EXPORT batch CONFIRMED once the new
+    // baseline it's producing has itself been successfully confirmed —
+    // if the baseline step above failed, the export is left as-is rather
+    // than being marked confirmed for a baseline promotion that didn't happen.
+    var exportConfirmPayload = { status: 'CONFIRMED', confirmed_at: new Date().toISOString(), confirmed_by: _currentUserEmail };
+    var exportRes = await fetch(SUPABASE_URL + '/rest/v1/' + SYNC_BATCH_TABLE + '?id=eq.' + batchId, { method: 'PATCH', headers: sbHeaders(), body: JSON.stringify(exportConfirmPayload) });
+    if (!exportRes.ok) throw new Error(await exportRes.text());
+
+    sbLog('CONTACT SYNC BASELINE CREATED', '', '', '', 'batch=' + baselineBatch.id + ' count=' + baselineItems.length + ' by=' + (_currentUserEmail || '?') + ' source=full_export:' + batchId);
+    sbLog('CONTACT FULL EXPORT CONFIRMED', '', '', '', 'batch=' + batchId + ' by=' + (_currentUserEmail || '?') + ' as_new_baseline=true');
+
+    closeFullExportBaselineUpgradeModal();
+    await refreshSyncUI();
+    showMsg('Full export confirmed and set as the new sync baseline.', false);
+  } catch (e) { showMsg('Could not update baseline: ' + e.message, true); }
+}
+
+// ── Sync history ───────────────────────────────────────────────────
+async function openSyncHistoryModal() {
+  var listEl = document.getElementById('syncHistoryList');
+  listEl.innerHTML = '<div style="padding:16px;text-align:center;color:var(--mu)">Loading…</div>';
+  document.getElementById('syncHistoryOv').classList.add('on');
+  try {
+    var url = SUPABASE_URL + '/rest/v1/' + SYNC_BATCH_TABLE + '?order=created_at.desc&limit=50';
+    var res = await fetch(url, { headers: sbHeaders() });
+    if (!res.ok) throw new Error('Could not load sync history: ' + res.status);
+    var rows = await res.json();
+    listEl.innerHTML = renderSyncHistoryRows(rows);
+  } catch (e) {
+    listEl.innerHTML = '<div style="padding:16px;color:var(--red);font-size:13px">Error: ' + escapeHTML(e.message) + '</div>';
+  }
+}
+function closeSyncHistoryModal() { document.getElementById('syncHistoryOv').classList.remove('on'); }
+function renderSyncHistoryRows(rows) {
+  if (!rows.length) return '<div style="padding:16px;text-align:center;color:var(--mu)">No sync batches yet.</div>';
+  return rows.map(function(b) {
+    var statusColor = b.status === 'CONFIRMED' ? 'var(--ok)' : b.status === 'CANCELLED' ? 'var(--red)' : 'var(--gold)';
+    return '<div style="padding:12px 14px;border-bottom:1px solid var(--b)">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">' +
+        '<span style="font-family:\'Syne\',sans-serif;font-weight:700;font-size:13px">' + escapeHTML(b.batch_type) + '</span>' +
+        '<span style="font-size:11px;font-weight:700;color:' + statusColor + '">' + escapeHTML(b.status) + '</span>' +
+      '</div>' +
+      '<div style="font-size:11px;color:var(--mu);font-family:\'DM Mono\',monospace">' +
+        escapeHTML(new Date(b.created_at).toLocaleString()) + ' · ' + (b.unique_count || 0) + ' contacts' +
+        (b.created_by ? ' · by ' + escapeHTML(b.created_by) : '') +
+      '</div>' +
+      (b.confirmed_at ? '<div style="font-size:11px;color:var(--ok);margin-top:2px">Confirmed ' + escapeHTML(new Date(b.confirmed_at).toLocaleString()) + (b.confirmed_by ? ' by ' + escapeHTML(b.confirmed_by) : '') + '</div>' : '') +
+      (b.filename ? '<div style="font-size:10px;color:var(--mu);margin-top:2px;font-family:\'DM Mono\',monospace">' + escapeHTML(b.filename) + '</div>' : '') +
+    '</div>';
+  }).join('');
+}
 
 // ═══════════════════════════════════════════════════════════════
 // ── DAILY CLOSING ─────────────────────────────────────────────
