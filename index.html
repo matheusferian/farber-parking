@@ -45,6 +45,7 @@
     <div class="hdr-date" id="hdrDate"></div>
     <div id="syncStatus" style="display:none;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:500;color:rgba(255,255,255,0.85);white-space:nowrap;">🟢 <span id="syncTime">—</span></div>
     <button class="ref-btn" onclick="loadData()">&#8635; Refresh</button>
+    <button class="ref-btn" style="background:linear-gradient(135deg,#1a3d7c,#2a5db0);border-color:var(--gold)" onclick="window.open(location.pathname+'?mode=tv','_blank')">📺 Open TV Mode</button>
     <button class="ref-btn" id="logoutBtn" onclick="doLogout()" style="display:none">Sign Out</button>
   </div>
 </header>
@@ -981,6 +982,66 @@
 
 <footer id="appFooter">AirValet v1.0 &middot; Developed by Matt Solutions &middot; Built exclusively for Makers Air &copy; 2026</footer>
 
+<!-- ══ TV MODE ══ read-only operations dashboard, see isTvMode()/initTvMode() ══ -->
+<div id="tvMode">
+  <div class="tv-header">
+    <div class="tv-brand">
+      <div class="tv-brand-name"><span class="tv-gold-ic">&#9992;</span> AirValet</div>
+      <div class="tv-live-pill">LIVE OPERATIONS</div>
+    </div>
+    <div class="tv-header-right">
+      <div class="tv-datetime">
+        <div class="tv-date" id="tvDate">&mdash;</div>
+        <div class="tv-clock" id="tvClock">&mdash;</div>
+      </div>
+      <div class="tv-conn-wrap">
+        <div class="tv-conn-label tv-conn-reconnecting" id="tvConnLabel"><span class="tv-conn-dot"></span><span id="tvConnText">CONNECTING</span></div>
+        <div class="tv-last-update" id="tvLastUpdate">&mdash;</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="tv-stale-banner" id="tvStaleBanner">&#9888; STALE DATA — last update <span id="tvStaleElapsed">&mdash;</span> ago</div>
+
+  <div class="tv-kpi-row" id="tvKpiRow"></div>
+
+  <div class="tv-pages" id="tvPages">
+    <div class="tv-page tv-page-active" id="tvPage0" data-page="0">
+      <div class="tv-page-title">
+        <span>&#128198; Leaving Tomorrow</span>
+        <span class="tv-count-pill" id="tvTomorrowCount">0</span>
+        <span class="tv-prep-badge"><span class="tv-dot"></span>PREP FOR TOMORROW</span>
+      </div>
+      <div class="tv-page-body" id="tvPageTomorrowBody"></div>
+    </div>
+    <div class="tv-page" id="tvPage1" data-page="1">
+      <div class="tv-page-title"><span>&#128276; Leaving Today &amp; Arrivals</span></div>
+      <div class="tv-page-body" id="tvPageTodayBody" style="flex-direction:row;gap:22px;"></div>
+    </div>
+    <div class="tv-page" id="tvPage2" data-page="2">
+      <div class="tv-page-title"><span>&#128230; Special Handling &amp; Locations</span></div>
+      <div class="tv-page-body" id="tvPageSpecialBody" style="flex-direction:row;gap:22px;"></div>
+    </div>
+    <div class="tv-page-dots tv-hidden" id="tvPageDots"></div>
+  </div>
+
+  <button class="tv-fs-btn" id="tvFsBtn" onclick="tvEnterFullscreen()">&#9974; Enter Full Screen</button>
+
+  <div class="tv-controls" id="tvControls">
+    <button onclick="tvEnterFullscreen()">Full Screen</button>
+    <button onclick="refreshTvData()">Refresh Now</button>
+    <button id="tvPauseBtn" onclick="tvToggleRotationPause()">Pause Rotation</button>
+    <button onclick="tvGoToNextPage()">Next Page</button>
+    <button onclick="tvCopyUrl()">Copy TV URL</button>
+    <button onclick="destroyTvMode(true)">Exit TV Mode</button>
+  </div>
+
+  <div class="tv-session-expired" id="tvSessionExpired">
+    <h2>&#128274; Session Expired</h2>
+    <p>Reconnecting automatically, or sign in again on this MacBook to resume TV Mode.</p>
+  </div>
+</div>
+
 <script src="utils.js"></script>
 <script>
 // ── SUPABASE CONFIG ────────────────────────────────────────────
@@ -1668,31 +1729,45 @@ function updateSyncStatus() {
   el.style.display = 'block';
 }
 
+// Single source of truth for turning a raw Supabase row into the shape the
+// rest of the app expects — used by loadData() and TV Mode's
+// refreshTvData() so both stay identical with no duplicated field list.
+// Includes customs_welcome_sent/_at, customs_gratuity_sent/_at, and
+// customs_gratuity_dismissed — previously missing here, which silently
+// made getCustomsDueRecords()/the Customs gratuity-reminder badge always
+// see these as undefined (never true). Found during the TV Mode audit;
+// fixed here since TV Mode's Customs KPI card depends on the same helper.
+function mapPassengerRow(r) {
+  return {
+    id: r.id, ri: r.id,
+    ts: r.ts||'', name: r.name||'', phone: r.phone||'',
+    ticket: r.ticket||'', ret: r.ret||'', car: r.car||'', color: r.color||'',
+    loc: r.loc||'', status: r.status||'PENDING',
+    block: r.block||'', obs: r.obs||'', deldate: r.deldate||'',
+    delivery_type: r.delivery_type||'',
+    checkin_date: r.checkin_date||r.ts||'',
+    checkout_date: r.checkout_date||r.deldate||'',
+    return_flight: r.return_flight||'',
+    departure_time: r.departure_time||'',
+    customer_rating: r.customer_rating||'',
+    tip_received: r.tip_received===undefined ? null : r.tip_received,
+    not_returning_with_makers_air: r.not_returning_with_makers_air||false,
+    archived_by: r.archived_by||'',
+    archived_at: r.archived_at||'',
+    previous_delivery_location: r.previous_delivery_location||'',
+    welcome_back_sent_at: r.welcome_back_sent_at||'',
+    customs_welcome_sent: r.customs_welcome_sent||false,
+    customs_welcome_sent_at: r.customs_welcome_sent_at||'',
+    customs_gratuity_sent: r.customs_gratuity_sent||false,
+    customs_gratuity_sent_at: r.customs_gratuity_sent_at||'',
+    customs_gratuity_dismissed: r.customs_gratuity_dismissed||false
+  };
+}
 async function loadData() {
   loading(true);
   try {
     var rows = await sbGet();
-    data = rows.map(function(r) {
-      return {
-        id: r.id, ri: r.id,
-        ts: r.ts||'', name: r.name||'', phone: r.phone||'',
-        ticket: r.ticket||'', ret: r.ret||'', car: r.car||'', color: r.color||'',
-        loc: r.loc||'', status: r.status||'PENDING',
-        block: r.block||'', obs: r.obs||'', deldate: r.deldate||'',
-        delivery_type: r.delivery_type||'',
-        checkin_date: r.checkin_date||r.ts||'',
-        checkout_date: r.checkout_date||r.deldate||'',
-        return_flight: r.return_flight||'',
-        departure_time: r.departure_time||'',
-        customer_rating: r.customer_rating||'',
-        tip_received: r.tip_received===undefined ? null : r.tip_received,
-        not_returning_with_makers_air: r.not_returning_with_makers_air||false,
-        archived_by: r.archived_by||'',
-        archived_at: r.archived_at||'',
-        previous_delivery_location: r.previous_delivery_location||'',
-        welcome_back_sent_at: r.welcome_back_sent_at||''
-      };
-    });
+    data = rows.map(mapPassengerRow);
     render();
     updateSyncStatus();
   } catch(e) {
@@ -4288,12 +4363,18 @@ async function doLogout() {
   // onAuthStateChange fires SIGNED_OUT → showLogin()
 }
 
+var _tvStarted = false;
 _supaClient.auth.onAuthStateChange(function(event, session) {
   if(event === 'SIGNED_IN') {
     _authToken = session.access_token;
     _currentUserEmail = (session.user && session.user.email) || '';
     showApp();
-    loadData();
+    if(isTvMode()){
+      if(!_tvStarted){ _tvStarted = true; initTvMode(); }
+      else { tvHideSessionExpired(); refreshTvData(); }
+    } else {
+      loadData();
+    }
   } else if(event === 'TOKEN_REFRESHED' && session) {
     _authToken = session.access_token;
     _currentUserEmail = (session.user && session.user.email) || _currentUserEmail;
@@ -4301,6 +4382,7 @@ _supaClient.auth.onAuthStateChange(function(event, session) {
     _authToken = null;
     _currentUserEmail = '';
     showLogin();
+    if(isTvMode()) tvShowSessionExpired();
   }
 });
 
@@ -7393,6 +7475,584 @@ async function dcSavePdf(){
   }
 }
 // ── DAILY CLOSING END ─────────────────────────────────────────
+
+// ══════════════════════════════════════════════════════════════
+// ── TV MODE ──────────────────────────────────────────────────
+// Dedicated read-only operations dashboard for an HDMI-connected TV.
+// Separated cleanly from the normal AirValet UI: its own state object
+// (_tv), its own render pipeline, its own CSS namespace (#tvMode/.tv-*).
+// Reuses existing helpers — pd/fmtD/fmtP/escapeHTML (utils.js),
+// isToday/isTmrw/isLate/isArrToday, getDepartureTime/sortByDepartureTime,
+// isCustomsDelivered/getCustomsDueRecords, deliveryMethodHtml,
+// isApproxRecord, HANGARS, mapPassengerRow, sbGet/sbHeaders/_supaClient —
+// no duplicated business rules. Never mutates `data` with writes; TV Mode
+// performs no create/edit/delete/delivery actions at all.
+// ══════════════════════════════════════════════════════════════
+
+function isTvMode(){
+  return /(^|[?&])mode=tv(&|$)/.test(location.search) || location.hash === '#tv';
+}
+
+var _tv = {
+  connectionState:'connecting',   // 'connecting' | 'live' | 'reconnecting' | 'offline'
+  lastSuccessAt:null,
+  reconnectAttempts:0,
+  dateKey:'',
+  currentPage:0,
+  pageCount:3,
+  rotationPaused:false,
+  rotationTimer:null,
+  clockTimer:null,
+  watchdogTimer:null,
+  reconcileTimer:null,
+  cursorTimer:null,
+  controlsHideTimer:null,
+  realtimeChannel:null,
+  realtimeDebounceTimer:null,
+  refreshInFlight:false,
+  listenersBound:false
+};
+
+var TV_ROTATE_MS            = 12000;   // pages 2 & 3 dwell time
+var TV_ROTATE_PAGE1_MS      = 15000;   // Leaving Tomorrow — longest dwell, highest priority
+var TV_RECONCILE_MS         = 60000;   // full reconciliation / fallback poll interval
+var TV_WATCHDOG_MS          = 15000;   // watchdog check cadence
+var TV_STALE_RECONCILE_MS   = 90000;   // trigger an extra reconciliation attempt past this age
+var TV_STALE_OFFLINE_MS     = 180000;  // show STALE DATA / OFFLINE past this age
+var TV_DEBOUNCE_MS          = 800;     // coalesce bursts of realtime events
+var TV_CURSOR_HIDE_MS       = 4000;
+var TV_CONTROLS_HIDE_MS     = 3500;
+var TV_DENSITY_THRESHOLD    = 14;      // total cards before switching to compact density
+var TV_RECONNECT_BASE_MS    = 2000;
+var TV_RECONNECT_MAX_MS     = 30000;
+
+// ── BOOTSTRAP ────────────────────────────────────────────────────────
+function initTvMode(){
+  document.body.classList.add('tv-active');
+  _tv.dateKey = tvLocalDateKey(new Date());
+  setTvConnectionState('connecting');
+  updateTvClock();
+  if(!_tv.clockTimer) _tv.clockTimer = setInterval(updateTvClock, 1000);
+  if(!_tv.watchdogTimer) _tv.watchdogTimer = setInterval(tvWatchdogTick, TV_WATCHDOG_MS);
+  if(!_tv.reconcileTimer) _tv.reconcileTimer = setInterval(function(){ refreshTvData(); }, TV_RECONCILE_MS);
+  tvBindLifecycleListeners();
+  tvBindCursorAndControls();
+  tvUpdateFullscreenButton();
+  rotateTvPages(); // starts the rotation scheduler
+  refreshTvData();
+  subscribeTvRealtime();
+}
+
+// Full teardown — clears every interval/listener/subscription this mode
+// created. Called before navigating away from TV Mode and on beforeunload
+// as a safety net, so nothing leaks if the tab is reused.
+function destroyTvMode(navigateAway){
+  [_tv.clockTimer,_tv.watchdogTimer,_tv.reconcileTimer,_tv.rotationTimer,_tv.cursorTimer,_tv.controlsHideTimer]
+    .forEach(function(t){ if(t) clearInterval(t); });
+  if(_tv.realtimeDebounceTimer) clearTimeout(_tv.realtimeDebounceTimer);
+  _tv.clockTimer=_tv.watchdogTimer=_tv.reconcileTimer=_tv.rotationTimer=_tv.cursorTimer=_tv.controlsHideTimer=null;
+  if(_tv.realtimeChannel){
+    try{ _supaClient.removeChannel(_tv.realtimeChannel); }catch(e){ console.warn('TV realtime cleanup error:', e); }
+    _tv.realtimeChannel=null;
+  }
+  document.body.classList.remove('tv-active','tv-cursor-hidden','tv-stale');
+  if(navigateAway) location.href = location.pathname;
+}
+window.addEventListener('beforeunload', function(){ if(isTvMode()) destroyTvMode(false); });
+
+// ── CLOCK / DATE ROLLOVER ───────────────────────────────────────────
+// Updates the on-screen clock every second purely from the local Date
+// object — never queries Supabase. Detects a local-date change (midnight,
+// or the Mac's clock/timezone being adjusted) and, when it happens,
+// triggers a full reconciliation so Today/Tomorrow groupings recompute
+// against the app's existing local-date helpers (pd/isToday/isTmrw) —
+// no separate midnight-rollover logic is needed since those helpers
+// already read `new Date()` fresh on every call.
+function tvLocalDateKey(d){
+  return d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate();
+}
+function updateTvClock(){
+  var now = new Date();
+  var dateEl = document.getElementById('tvDate');
+  var clockEl = document.getElementById('tvClock');
+  if(dateEl) dateEl.textContent = now.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
+  if(clockEl) clockEl.textContent = now.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',second:'2-digit'});
+  var key = tvLocalDateKey(now);
+  if(key !== _tv.dateKey){
+    _tv.dateKey = key;
+    renderTvDashboard(); // re-resolve Today/Tomorrow immediately, then reconcile with the server
+    refreshTvData();
+  }
+}
+
+// ── CONNECTION STATE ─────────────────────────────────────────────────
+function setTvConnectionState(state){
+  _tv.connectionState = state;
+  var label = document.getElementById('tvConnLabel');
+  var text = document.getElementById('tvConnText');
+  if(!label || !text) return;
+  label.classList.remove('tv-conn-live','tv-conn-reconnecting','tv-conn-offline');
+  if(state==='live'){ label.classList.add('tv-conn-live'); text.textContent='LIVE'; }
+  else if(state==='offline'){ label.classList.add('tv-conn-offline'); text.textContent='OFFLINE'; }
+  else { label.classList.add('tv-conn-reconnecting'); text.textContent = state==='connecting' ? 'CONNECTING' : 'RECONNECTING'; }
+}
+function tvUpdateLastUpdateLabel(){
+  var el = document.getElementById('tvLastUpdate');
+  if(!el) return;
+  if(!_tv.lastSuccessAt){ el.textContent='Waiting for first update…'; return; }
+  var secs = Math.round((Date.now()-_tv.lastSuccessAt)/1000);
+  el.textContent = 'Updated ' + (secs<5 ? 'just now' : secs+'s ago');
+}
+
+// ── WATCHDOG ─────────────────────────────────────────────────────────
+// Tracks the time of the last successful refresh. If it's been too long,
+// force an extra reconciliation attempt; if still unsuccessful past a
+// second threshold, surface STALE DATA with the elapsed time rather than
+// silently showing old data with no explanation.
+function tvWatchdogTick(){
+  tvUpdateLastUpdateLabel();
+  if(!_tv.lastSuccessAt) return;
+  var age = Date.now() - _tv.lastSuccessAt;
+  if(age > TV_STALE_OFFLINE_MS){
+    document.body.classList.add('tv-stale');
+    setTvConnectionState('offline');
+    var elapsedEl = document.getElementById('tvStaleElapsed');
+    if(elapsedEl) elapsedEl.textContent = Math.round(age/60000)+' min';
+  } else if(age > TV_STALE_RECONCILE_MS){
+    document.body.classList.remove('tv-stale');
+    refreshTvData();
+  } else {
+    document.body.classList.remove('tv-stale');
+  }
+}
+
+// ── DATA REFRESH ─────────────────────────────────────────────────────
+// Self-contained: does its own fetch + mapping (mapPassengerRow(), shared
+// with loadData()) + render. Never throws uncaught, never blanks the
+// screen — on failure the last good `data` stays exactly as it was and
+// only the connection indicator changes.
+async function refreshTvData(){
+  if(_tv.refreshInFlight) return; // prevent overlapping fetches from the poll/watchdog/realtime firing together
+  _tv.refreshInFlight = true;
+  try{
+    var rows = await sbGet();
+    data = rows.map(mapPassengerRow);
+    _tv.lastSuccessAt = Date.now();
+    _tv.reconnectAttempts = 0;
+    document.body.classList.remove('tv-stale');
+    setTvConnectionState('live');
+    tvHideSessionExpired();
+    renderTvDashboard();
+  } catch(e){
+    console.error('refreshTvData error:', e);
+    if(String(e && e.message).indexOf('401')!==-1 || String(e && e.message).toLowerCase().indexOf('jwt')!==-1){
+      tvShowSessionExpired();
+    } else if(_tv.connectionState==='live'){
+      setTvConnectionState('reconnecting');
+    }
+  } finally {
+    _tv.refreshInFlight = false;
+    tvUpdateLastUpdateLabel();
+  }
+}
+
+function tvShowSessionExpired(){
+  var el = document.getElementById('tvSessionExpired');
+  if(el) el.classList.add('tv-visible');
+}
+function tvHideSessionExpired(){
+  var el = document.getElementById('tvSessionExpired');
+  if(el) el.classList.remove('tv-visible');
+}
+
+// ── REALTIME ──────────────────────────────────────────────────────────
+// Best-effort enhancement layered on top of the reconciliation poll above
+// (which alone already satisfies "no manual refresh ever needed", just
+// with up to ~60s latency). If the `passengers` table has not been added
+// to a Supabase Realtime publication, this channel simply never fires —
+// the reconciliation poll and watchdog still keep the board correct.
+function subscribeTvRealtime(){
+  if(_tv.realtimeChannel) return; // never create a duplicate subscription
+  try{
+    _tv.realtimeChannel = _supaClient
+      .channel('tv-mode-passengers')
+      .on('postgres_changes', {event:'*', schema:'public', table:'passengers'}, function(){
+        if(_tv.realtimeDebounceTimer) clearTimeout(_tv.realtimeDebounceTimer);
+        _tv.realtimeDebounceTimer = setTimeout(function(){ refreshTvData(); }, TV_DEBOUNCE_MS);
+      })
+      .subscribe(function(status){
+        if(status==='SUBSCRIBED'){
+          _tv.reconnectAttempts = 0;
+          if(_tv.lastSuccessAt) setTvConnectionState('live');
+        } else if(status==='CHANNEL_ERROR' || status==='TIMED_OUT' || status==='CLOSED'){
+          setTvConnectionState('reconnecting');
+          tvScheduleRealtimeReconnect();
+        }
+      });
+  } catch(e){
+    console.warn('TV realtime unavailable, relying on polling:', e);
+  }
+}
+function tvScheduleRealtimeReconnect(){
+  _tv.reconnectAttempts++;
+  var delay = Math.min(TV_RECONNECT_BASE_MS * Math.pow(2, _tv.reconnectAttempts-1), TV_RECONNECT_MAX_MS);
+  setTimeout(function(){
+    if(_tv.realtimeChannel){
+      try{ _supaClient.removeChannel(_tv.realtimeChannel); }catch(e){}
+      _tv.realtimeChannel = null;
+    }
+    subscribeTvRealtime();
+  }, delay);
+}
+
+// ── LIFECYCLE LISTENERS (visibility / online / offline) ────────────────
+function tvBindLifecycleListeners(){
+  if(_tv.listenersBound) return;
+  _tv.listenersBound = true;
+  document.addEventListener('visibilitychange', function(){
+    if(document.visibilityState==='visible') refreshTvData();
+  });
+  window.addEventListener('online', function(){ refreshTvData(); subscribeTvRealtime(); });
+  window.addEventListener('offline', function(){ setTvConnectionState('offline'); });
+}
+
+// ── VIEW MODEL ───────────────────────────────────────────────────────
+// Pure function: reads the shared `data` array, returns every derived
+// group TV Mode needs. Skips malformed rows (no id/name) defensively so
+// one bad record can never break the whole dashboard.
+function tvGetTimeBucket(timeStr){
+  if(!timeStr) return 'TIME NOT SET';
+  var h = parseInt(String(timeStr).split(':')[0],10);
+  if(isNaN(h)) return 'TIME NOT SET';
+  if(h>=21 || h<5) return 'After Hours';
+  if(h<7) return 'Early Morning';
+  if(h<11) return 'Morning';
+  if(h<14) return 'Midday';
+  if(h<18) return 'Afternoon';
+  return 'Evening';
+}
+var TV_BUCKET_ORDER = ['Early Morning','Morning','Midday','Afternoon','Evening','After Hours','TIME NOT SET'];
+
+function buildTvViewModel(){
+  var rows = ((typeof data!=='undefined' && data) ? data : []).filter(function(r){
+    return r && r.id!=null && String(r.name||'').trim(); // malformed-record guard
+  });
+  var active = rows.filter(function(r){ return r.status!=='ARCHIVED'; });
+
+  // Leaving Tomorrow — exact qualification rule reused from renderDay():
+  // isTmrw(r.ret) && status!=='DELIVERED' && status!=='ARCHIVED'.
+  var leavingTomorrow = sortByDepartureTime(rows.filter(function(r){
+    return isTmrw(r.ret) && r.status!=='DELIVERED' && r.status!=='ARCHIVED';
+  }));
+
+  var leavingTodayAll = sortByDepartureTime(rows.filter(function(r){
+    return isToday(r.ret) && r.status!=='ARCHIVED';
+  }));
+  var leavingTodayRemaining = leavingTodayAll.filter(function(r){ return r.status!=='DELIVERED'; });
+  var leavingTodayDelivered = leavingTodayAll.filter(function(r){ return r.status==='DELIVERED'; });
+  var leavingTodayOverdue = leavingTodayRemaining.filter(function(r){ return isLate(r.ret); });
+
+  var arrivedToday = rows
+    .filter(function(r){ return isArrToday(r.ts) && r.status!=='ARCHIVED'; })
+    .sort(function(a,b){
+      var at=parseInt(String(a.ticket||'').replace(/\D/g,''),10);
+      var bt=parseInt(String(b.ticket||'').replace(/\D/g,''),10);
+      if(isNaN(at)) at=999999999; if(isNaN(bt)) bt=999999999;
+      return at-bt;
+    });
+
+  var noDateCount = active.filter(function(r){ return r.status==='NO DATE'; }).length;
+
+  var customsDue = (typeof getCustomsDueRecords==='function') ? getCustomsDueRecords() : [];
+  var lockboxToday = active.filter(function(r){
+    return r.status==='DELIVERED' && r.delivery_type==='LOCKBOX' && isToday(r.deldate);
+  });
+
+  var missingTimeTomorrow = leavingTomorrow.filter(function(r){ return !getDepartureTime(r); });
+  var missingLocationActive = active.filter(function(r){
+    return r.status!=='DELIVERED' && (!r.loc || !String(r.loc).trim());
+  });
+
+  // Active current-location summary — NOT the Operations Report's
+  // historical-hangar fallback (previous_delivery_location, etc.): TV
+  // Mode intentionally uses raw current `loc` for active (non-delivered)
+  // vehicles only, since that's genuinely where the vehicle is right now.
+  var hangarCounts = {};
+  HANGARS.forEach(function(h){ hangarCounts[h]=0; });
+  active.forEach(function(r){
+    if(r.status==='DELIVERED') return;
+    if(!isValidOperationalHangar(r.loc)) return;
+    hangarCounts[normalizeHangarValue(r.loc)]++;
+  });
+
+  var nextDeparture = leavingTodayRemaining.filter(function(r){ return getDepartureTime(r); })[0] || null;
+  var afterHoursTomorrowCount = leavingTomorrow.filter(function(r){ return tvGetTimeBucket(getDepartureTime(r))==='After Hours'; }).length;
+
+  var groupedTomorrow = {};
+  TV_BUCKET_ORDER.forEach(function(b){ groupedTomorrow[b]=[]; });
+  leavingTomorrow.forEach(function(r){ groupedTomorrow[tvGetTimeBucket(getDepartureTime(r))].push(r); });
+
+  return {
+    leavingTomorrow: leavingTomorrow,
+    groupedTomorrow: groupedTomorrow,
+    leavingTodayRemaining: leavingTodayRemaining,
+    leavingTodayDelivered: leavingTodayDelivered,
+    leavingTodayOverdue: leavingTodayOverdue,
+    arrivedToday: arrivedToday,
+    noDateCount: noDateCount,
+    customsDue: customsDue,
+    lockboxToday: lockboxToday,
+    missingTimeTomorrow: missingTimeTomorrow,
+    missingLocationActive: missingLocationActive,
+    hangarCounts: hangarCounts,
+    nextDeparture: nextDeparture,
+    afterHoursTomorrowCount: afterHoursTomorrowCount,
+    totalCardCount: leavingTomorrow.length + leavingTodayRemaining.length + arrivedToday.length
+  };
+}
+
+// ── RENDER HELPERS ───────────────────────────────────────────────────
+function tvBadges(r){
+  var out='';
+  if(r.delivery_type==='CUSTOMS') out+='<span class="tv-badge tv-badge-customs">CUSTOMS</span>';
+  if(r.delivery_type==='LOCKBOX') out+='<span class="tv-badge tv-badge-lockbox">LOCKBOX</span>';
+  if(r.not_returning_with_makers_air) out+='<span class="tv-badge tv-badge-notreturning">NOT RETURNING</span>';
+  return out;
+}
+function tvFlightLine(r){
+  var flight=(r.return_flight||'').trim();
+  var time=getDepartureTime(r);
+  if(!flight && !time) return '';
+  return '<div class="tv-card-meta">&#9992; '+escapeHTML([flight,time].filter(Boolean).join(' · '))+'</div>';
+}
+function tvCard(r, pulse){
+  var time=getDepartureTime(r);
+  var timeHtml = time
+    ? '<div class="tv-card-time">'+escapeHTML(tvFmt12(time))+'</div>'
+    : '<div class="tv-card-time tv-time-unset">TIME NOT SET</div>';
+  var critical = !time; // missing time on a Leaving-Tomorrow card is a critical alert
+  return '<div class="tv-card'+(pulse?' tv-pulse':'')+(critical?' tv-critical':'')+'">'+
+    '<div class="tv-card-row"><div class="tv-card-name">'+escapeHTML(r.name||'')+'</div>'+timeHtml+'</div>'+
+    '<div class="tv-card-meta">'+escapeHTML([r.color,r.car].filter(Boolean).join(' '))+' &middot; '+escapeHTML(r.loc||'No location')+' &middot; #'+escapeHTML(r.ticket||'')+'</div>'+
+    tvFlightLine(r)+
+    (tvBadges(r) ? '<div class="tv-card-badges">'+tvBadges(r)+'</div>' : '')+
+    (r.obs ? '<div class="tv-card-notes">'+escapeHTML(r.obs)+'</div>' : '')+
+  '</div>';
+}
+function tvFmt12(t){
+  var p=String(t).split(':'), h=parseInt(p[0],10), m=p[1]||'00';
+  if(isNaN(h)) return t;
+  var ap=h>=12?'PM':'AM', h12=h%12||12;
+  return h12+':'+m+' '+ap;
+}
+function tvListRow(r, opts){
+  opts=opts||{};
+  var timeStr = opts.timeField==='checkin'
+    ? (r.checkin_date ? new Date(r.checkin_date).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}) : '—')
+    : (getDepartureTime(r) ? tvFmt12(getDepartureTime(r)) : 'TIME NOT SET');
+  var overdue = opts.overdue;
+  return '<div class="tv-list-row'+(overdue?' tv-overdue':'')+'">'+
+    '<div class="tv-list-name">'+escapeHTML(r.name||'')+'</div>'+
+    '<div class="tv-list-meta">'+escapeHTML(timeStr)+' &middot; '+escapeHTML(r.loc||'—')+' &middot; #'+escapeHTML(r.ticket||'')+'</div>'+
+  '</div>';
+}
+
+// ── MAIN RENDER ──────────────────────────────────────────────────────
+// Debounced via requestAnimationFrame coalescing: multiple refresh
+// sources (realtime debounce, poll, watchdog, clock rollover) can call
+// this in quick succession, but only one DOM rebuild happens per frame.
+var _tvRenderQueued = false;
+function renderTvDashboard(){
+  if(_tvRenderQueued) return;
+  _tvRenderQueued = true;
+  requestAnimationFrame(function(){
+    _tvRenderQueued = false;
+    tvDoRender();
+  });
+}
+function tvDoRender(){
+  if(!document.body.classList.contains('tv-active')) return;
+  var vm = buildTvViewModel();
+  var densityClass = vm.totalCardCount > TV_DENSITY_THRESHOLD ? 'tv-density-compact' : '';
+  document.getElementById('tvPages').className = 'tv-pages ' + densityClass;
+
+  tvRenderKpis(vm);
+  tvRenderPageTomorrow(vm);
+  tvRenderPageToday(vm);
+  tvRenderPageSpecial(vm);
+}
+
+function tvRenderKpis(vm){
+  var el = document.getElementById('tvKpiRow');
+  if(!el) return;
+  function kpi(label, num, sub, level){
+    return '<div class="tv-kpi'+(level?' tv-lvl-'+level:'')+'">'+
+      '<div class="tv-kpi-num">'+num+'</div>'+
+      '<div class="tv-kpi-lbl">'+escapeHTML(label)+'</div>'+
+      (sub?'<div class="tv-kpi-sub">'+escapeHTML(sub)+'</div>':'')+
+    '</div>';
+  }
+  var nextDepSub = vm.nextDeparture ? 'Next departure '+tvFmt12(getDepartureTime(vm.nextDeparture)) : (vm.leavingTodayRemaining.length ? 'No times set' : 'All clear');
+  var tomorrowSub = vm.afterHoursTomorrowCount>0 ? vm.afterHoursTomorrowCount+' after-hours' : (vm.missingTimeTomorrow.length?vm.missingTimeTomorrow.length+' missing time':'');
+  el.innerHTML =
+    kpi('Arriving Today', vm.arrivedToday.length, vm.arrivedToday.length+' checked in', 'accent') +
+    kpi('Leaving Today', vm.leavingTodayRemaining.length, vm.leavingTodayRemaining.length+' remaining · '+nextDepSub, vm.leavingTodayOverdue.length?'critical':'accent') +
+    kpi('Leaving Tomorrow', vm.leavingTomorrow.length, tomorrowSub, vm.missingTimeTomorrow.length?'warning':'accent') +
+    kpi('Customs', vm.customsDue.length, vm.customsDue.length?vm.customsDue.length+' need follow-up':'All clear', vm.customsDue.length?'warning':'ok') +
+    kpi('Lockbox', vm.lockboxToday.length, vm.lockboxToday.length+' delivered today', 'accent') +
+    kpi('No Return Date', vm.noDateCount, vm.noDateCount?'Needs confirmation':'All confirmed', vm.noDateCount?'warning':'ok');
+}
+
+function tvRenderPageTomorrow(vm){
+  var el = document.getElementById('tvPageTomorrowBody');
+  var countEl = document.getElementById('tvTomorrowCount');
+  if(countEl) countEl.textContent = vm.leavingTomorrow.length;
+  if(!el) return;
+  if(!vm.leavingTomorrow.length){ el.innerHTML='<div class="tv-empty">No vehicles scheduled to leave tomorrow.</div>'; return; }
+  var html='';
+  TV_BUCKET_ORDER.forEach(function(bucket){
+    var list = vm.groupedTomorrow[bucket];
+    if(!list || !list.length) return;
+    html += '<div class="tv-group-hdr">'+escapeHTML(bucket)+' ('+list.length+')</div>';
+    html += '<div class="tv-card-grid">'+list.map(function(r){ return tvCard(r, true); }).join('')+'</div>';
+  });
+  el.innerHTML = html;
+}
+
+function tvRenderPageToday(vm){
+  var el = document.getElementById('tvPageTodayBody');
+  if(!el) return;
+  var todayHtml =
+    '<div style="flex:1.3;display:flex;flex-direction:column;min-height:0;">'+
+      '<div class="tv-page-title" style="font-size:15px;margin-bottom:8px;">&#128276; Leaving Today <span class="tv-count-pill">'+vm.leavingTodayRemaining.length+'</span></div>'+
+      '<div class="tv-list">'+
+        (vm.leavingTodayRemaining.length
+          ? vm.leavingTodayRemaining.map(function(r){ return tvListRow(r,{overdue:isLate(r.ret)}); }).join('')
+          : '<div class="tv-empty">All vehicles delivered.</div>') +
+      '</div>'+
+      (vm.leavingTodayDelivered.length ? '<div class="tv-delivered-summary">&#10003; '+vm.leavingTodayDelivered.length+' delivered today</div>' : '')+
+    '</div>'+
+    '<div style="flex:1;display:flex;flex-direction:column;min-height:0;">'+
+      '<div class="tv-page-title" style="font-size:15px;margin-bottom:8px;">&#128663; Arriving / Checked In Today <span class="tv-count-pill">'+vm.arrivedToday.length+'</span></div>'+
+      '<div class="tv-list">'+
+        (vm.arrivedToday.length
+          ? vm.arrivedToday.map(function(r){ return tvListRow(r,{timeField:'checkin'}); }).join('')
+          : '<div class="tv-empty">No check-ins yet today.</div>') +
+      '</div>'+
+    '</div>';
+  el.innerHTML = todayHtml;
+}
+
+function tvRenderPageSpecial(vm){
+  var el = document.getElementById('tvPageSpecialBody');
+  if(!el) return;
+  var alerts = []
+    .concat(vm.missingTimeTomorrow.map(function(r){ return {r:r, txt:'Leaving tomorrow — TIME NOT SET', lvl:'critical'}; }))
+    .concat(vm.leavingTodayOverdue.map(function(r){ return {r:r, txt:'Overdue — was expected '+fmtD(r.ret), lvl:'critical'}; }))
+    .concat(vm.customsDue.map(function(r){ return {r:r, txt:'Customs follow-up due', lvl:'warning'}; }))
+    .concat(vm.missingLocationActive.map(function(r){ return {r:r, txt:'Missing location', lvl:'warning'}; }));
+  var seen={};
+  alerts = alerts.filter(function(a){ if(seen[a.r.id]) return false; seen[a.r.id]=true; return true; });
+
+  var alertsHtml = alerts.length
+    ? alerts.map(function(a){
+        return '<div class="tv-list-row'+(a.lvl==='critical'?' tv-overdue':'')+'">'+
+          '<div class="tv-list-name">'+escapeHTML(a.r.name||'')+'</div>'+
+          '<div class="tv-list-meta"><span class="tv-badge tv-badge-'+a.lvl+'">'+escapeHTML(a.txt.toUpperCase())+'</span></div>'+
+        '</div>';
+      }).join('')
+    : '<div class="tv-empty">No special-handling alerts right now.</div>';
+
+  var hangarHtml = HANGARS.map(function(h){
+    return '<div class="tv-hangar-card"><div class="tv-hangar-num">'+(vm.hangarCounts[h]||0)+'</div><div class="tv-hangar-lbl">'+escapeHTML(h)+'</div></div>';
+  }).join('');
+
+  el.innerHTML =
+    '<div style="flex:1.2;display:flex;flex-direction:column;min-height:0;">'+
+      '<div class="tv-page-title" style="font-size:15px;margin-bottom:8px;">&#9888; Special Handling &amp; Alerts <span class="tv-count-pill">'+alerts.length+'</span></div>'+
+      '<div class="tv-list">'+alertsHtml+'</div>'+
+    '</div>'+
+    '<div style="flex:1;display:flex;flex-direction:column;min-height:0;">'+
+      '<div class="tv-page-title" style="font-size:15px;margin-bottom:8px;">&#127968; Active Vehicles by Location</div>'+
+      '<div class="tv-hangar-grid">'+hangarHtml+'</div>'+
+    '</div>';
+}
+
+// ── PAGE ROTATION ────────────────────────────────────────────────────
+function rotateTvPages(){
+  if(_tv.rotationTimer) clearTimeout(_tv.rotationTimer);
+  tvShowPage(_tv.currentPage);
+  var dwell = _tv.currentPage===0 ? TV_ROTATE_PAGE1_MS : TV_ROTATE_MS;
+  _tv.rotationTimer = setTimeout(function(){
+    if(!_tv.rotationPaused) _tv.currentPage = (_tv.currentPage+1) % _tv.pageCount;
+    rotateTvPages();
+  }, dwell);
+}
+function tvShowPage(idx){
+  for(var i=0;i<_tv.pageCount;i++){
+    var p = document.getElementById('tvPage'+i);
+    if(p) p.classList.toggle('tv-page-active', i===idx);
+  }
+  var dots = document.getElementById('tvPageDots');
+  if(dots){
+    dots.classList.remove('tv-hidden');
+    dots.innerHTML = '';
+    for(var j=0;j<_tv.pageCount;j++){
+      dots.innerHTML += '<div class="tv-page-dot'+(j===idx?' tv-page-dot-active':'')+'"></div>';
+    }
+  }
+}
+function tvToggleRotationPause(){
+  _tv.rotationPaused = !_tv.rotationPaused;
+  var btn = document.getElementById('tvPauseBtn');
+  if(btn) btn.textContent = _tv.rotationPaused ? 'Resume Rotation' : 'Pause Rotation';
+}
+function tvGoToNextPage(){
+  _tv.currentPage = (_tv.currentPage+1) % _tv.pageCount;
+  rotateTvPages();
+}
+
+// ── FULLSCREEN ───────────────────────────────────────────────────────
+function tvEnterFullscreen(){
+  var el = document.documentElement;
+  var req = el.requestFullscreen || el.webkitRequestFullscreen;
+  if(req) req.call(el).catch(function(e){ console.warn('Fullscreen request failed:', e); });
+}
+function tvUpdateFullscreenButton(){
+  var btn = document.getElementById('tvFsBtn');
+  if(!btn) return;
+  var active = !!(document.fullscreenElement || document.webkitFullscreenElement);
+  btn.classList.toggle('tv-hidden', active);
+}
+document.addEventListener('fullscreenchange', tvUpdateFullscreenButton);
+document.addEventListener('webkitfullscreenchange', tvUpdateFullscreenButton);
+
+// ── CURSOR AUTO-HIDE + CORNER CONTROL PANEL ─────────────────────────
+function tvBindCursorAndControls(){
+  document.addEventListener('mousemove', function(e){
+    document.body.classList.remove('tv-cursor-hidden');
+    if(_tv.cursorTimer) clearTimeout(_tv.cursorTimer);
+    _tv.cursorTimer = setTimeout(function(){
+      if(document.body.classList.contains('tv-active')) document.body.classList.add('tv-cursor-hidden');
+    }, TV_CURSOR_HIDE_MS);
+
+    var controls = document.getElementById('tvControls');
+    if(controls){
+      var nearCorner = e.clientX > window.innerWidth-260 && e.clientY < 140;
+      if(nearCorner){
+        controls.classList.add('tv-controls-visible');
+        if(_tv.controlsHideTimer) clearTimeout(_tv.controlsHideTimer);
+        _tv.controlsHideTimer = setTimeout(function(){ controls.classList.remove('tv-controls-visible'); }, TV_CONTROLS_HIDE_MS);
+      }
+    }
+  });
+}
+function tvCopyUrl(){
+  var url = location.origin + location.pathname + '?mode=tv';
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(url).catch(function(){});
+  }
+}
 
 </script>
 </body>
