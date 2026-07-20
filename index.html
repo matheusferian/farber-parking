@@ -216,7 +216,7 @@
           <option value="LOCKBOX">Lockbox Only</option>
         </select>
       </div>
-      <button onclick="try{generateOperationsReport();}catch(err){console.error(err);alert('Report generation failed: '+err.message);}" style="width:100%;background:linear-gradient(135deg,#1a3d7c,#0f2a56);color:#fff;border:1px solid var(--gold);border-radius:10px;padding:14px;font-family:'Syne',sans-serif;font-weight:800;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;">
+      <button onclick="generateOperationsReport().catch(function(err){console.error(err);alert('Report generation failed: '+err.message);})" style="width:100%;background:linear-gradient(135deg,#1a3d7c,#0f2a56);color:#fff;border:1px solid var(--gold);border-radius:10px;padding:14px;font-family:'Syne',sans-serif;font-weight:800;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;">
         📊 Generate Operations PDF
       </button>
     </div>
@@ -3371,10 +3371,6 @@ function showDet(id){
     '<button class="clsb" style="margin-top:6px;color:var(--red);border-color:var(--red)" onclick="deleteRec('+r.id+')">🗑 Delete Record</button>'+
     '<button class="clsb" onclick="closeAll()">Close</button>'+
     '<div style="margin-top:18px">'+
-      '<div class="htitle" style="margin-bottom:10px">Vehicle Movement History</div>'+
-      '<div id="vlhSection" style="font-size:12px;color:var(--mu);font-family:\'DM Mono\',monospace">Loading…</div>'+
-    '</div>'+
-    '<div style="margin-top:18px">'+
       '<div class="htitle" style="margin-bottom:10px">Passenger Change History</div>'+
       '<div id="pchSection" style="max-height:340px;overflow-y:auto;font-size:12px;color:var(--mu)">Loading passenger history...</div>'+
     '</div>';
@@ -3386,7 +3382,6 @@ function showDet(id){
     if(sb) sb.addEventListener('click',function(){saveEdits(parseInt(sb.dataset.rid));});
   },50);
   document.getElementById('detOv').classList.add('on');
-  loadVlh(r.id);
   loadPassengerChangeHistory(r);
 }
 
@@ -4697,8 +4692,89 @@ async function saveLeavingTomorrowPdf(){
   }
 }
 
+// ── OPERATIONAL HANGAR RESOLUTION (Operations Report / PDF) ─────
+// A delivered passenger's `loc` is automatically overwritten to HANGAR 19
+// as part of completing a NORMAL/LOCKBOX delivery (see deliverWithTip(),
+// markDel(), earlyReturn(), bulkAct('DELIVERED'), and saveEdits()'s
+// DELIVERED branch — every one of them saves the genuine prior location
+// into previous_delivery_location before making that change; CUSTOMS
+// deliveries never touch `loc` at all, so it stays the genuine value).
+// Treating post-delivery `loc` as real Hangar 19 storage usage would
+// inflate Hangar 19's count by every NORMAL/LOCKBOX delivery in the
+// report period. This helper is the single source of truth for "which
+// hangar counts as this passenger's operational storage location" —
+// every report output (Most Active Hangar card, the weekday matrix,
+// totals, percentages) derives from this same resolved value, never from
+// raw `loc` directly, and the on-screen report and the PDF are the same
+// generated document, so they can never disagree.
+function normalizeHangarValue(v){
+  return String(v||'').trim().toUpperCase().replace(/\s+/g,' ');
+}
+function isValidOperationalHangar(v){
+  return HANGARS.indexOf(normalizeHangarValue(v)) !== -1;
+}
+function getOperationalHangarForReport(passenger, historyByPassengerId){
+  if(!passenger) return null;
+  if(passenger.status!=='DELIVERED'){
+    var cur=normalizeHangarValue(passenger.loc);
+    return isValidOperationalHangar(cur) ? cur : null;
+  }
+  // Delivered — first choice: the genuine location captured before the
+  // automatic post-delivery reassignment.
+  var pdl=normalizeHangarValue(passenger.previous_delivery_location);
+  if(isValidOperationalHangar(pdl)) return pdl;
+  // Second choice — legacy records with no previous_delivery_location:
+  // recover the last genuine location from the automatic DELIVERED move
+  // recorded in vehicle_location_history (bulk-loaded — see
+  // fetchDeliveryMoveFromLocations() — never one request per passenger).
+  var recovered = historyByPassengerId && historyByPassengerId[passenger.id];
+  if(recovered){
+    var rec=normalizeHangarValue(recovered);
+    if(isValidOperationalHangar(rec)) return rec;
+  }
+  // Final fallback — no reliable prior location exists anywhere: use the
+  // current loc. This is an uncertain legacy fallback (see
+  // generateOperationsReport()'s legacyFallbackCount) since it may itself
+  // be the automatic HANGAR 19 value this helper exists to avoid trusting.
+  var cur2=normalizeHangarValue(passenger.loc);
+  return isValidOperationalHangar(cur2) ? cur2 : null;
+}
+// One bulk query for every passenger in the report period that is
+// DELIVERED and has no usable previous_delivery_location — never one
+// request per passenger. Finds each passenger's most recent automatic
+// DELIVERED-to-HANGAR-19 move and returns its origin (from_location),
+// which is exactly the genuine location that move overwrote. A CUSTOMS
+// delivery is not "automatic" in this sense (to_location is never forced
+// to HANGAR 19 for it) so it will not match here — its current `loc` is
+// already the genuine value, handled by getOperationalHangarForReport()'s
+// final fallback.
+async function fetchDeliveryMoveFromLocations(passengerIds){
+  var map={};
+  if(!passengerIds||!passengerIds.length) return map;
+  var url=SUPABASE_URL+'/rest/v1/'+VLH_TABLE+
+    '?passenger_id=in.('+passengerIds.join(',')+')'+
+    '&action=like.DELIVERED*'+
+    '&to_location=eq.'+encodeURIComponent('HANGAR 19')+
+    '&select=passenger_id,from_location,created_at'+
+    '&order=created_at.asc';
+  try{
+    var res=await fetch(url,{headers:sbHeaders()});
+    if(!res.ok) return map;
+    var rows=await res.json();
+    rows.forEach(function(row){
+      if(row.from_location && isValidOperationalHangar(row.from_location)){
+        // order=asc + plain overwrite keeps the LAST (most recent) match per passenger
+        map[row.passenger_id]=row.from_location;
+      }
+    });
+  }catch(e){
+    console.warn('fetchDeliveryMoveFromLocations error:', e);
+  }
+  return map;
+}
+
 // ── MONTHLY OPERATIONS REPORT ─────────────────────────────────
-function generateOperationsReport(){
+async function generateOperationsReport(){
   var MONTHS=['January','February','March','April','May','June',
               'July','August','September','October','November','December'];
   var WDAYS=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
@@ -4830,15 +4906,36 @@ function generateOperationsReport(){
   var mostActiveWD=WDAYS[avgOps.indexOf(maxOpsVal)];
   var secondOpsVal=avgOps.slice().sort(function(a,b){return b-a;})[1]||0;
 
-  var REPORT_HANGARS=['HANGAR 19','HANGAR 18','HANGAR 16','HANGAR 7','HH'];
+  var REPORT_HANGARS=HANGARS;
   var locWdCI={};
   REPORT_HANGARS.forEach(function(h){locWdCI[h]=[0,0,0,0,0,0,0];});
+
+  // Same qualifying population as before (check-in date in the selected
+  // month, any status) — only WHICH hangar is attributed per passenger
+  // has changed, via getOperationalHangarForReport(). Each qualifying
+  // passenger still counts exactly once.
+  var monthRecs=[];
   data.forEach(function(r){
     var ciSrc=r.checkin_date&&String(r.checkin_date).trim()?r.checkin_date:(r.ts||'');
     var ad=parseDt(ciSrc);
-    if(!ad||!inMonth(ad)) return;
-    var h=String(r.loc||'').trim();
-    if(locWdCI[h]) locWdCI[h][ad.getDay()]++;
+    if(ad&&inMonth(ad)) monthRecs.push({r:r, ad:ad});
+  });
+
+  // Bulk-recover legacy previous_delivery_location for exactly the
+  // records that need it — one query for the whole report period, never
+  // one request per passenger.
+  var needsLegacyLookup=monthRecs.filter(function(x){
+    return x.r.status==='DELIVERED' && !isValidOperationalHangar(x.r.previous_delivery_location);
+  }).map(function(x){return x.r.id;});
+  var deliveryHistoryMap=await fetchDeliveryMoveFromLocations(needsLegacyLookup);
+
+  var legacyFallbackCount=0;
+  monthRecs.forEach(function(x){
+    var h=getOperationalHangarForReport(x.r, deliveryHistoryMap);
+    if(x.r.status==='DELIVERED' && !isValidOperationalHangar(x.r.previous_delivery_location) && !deliveryHistoryMap[x.r.id]){
+      legacyFallbackCount++; // reached the final "current loc" fallback — no reliable prior location was found
+    }
+    if(h && locWdCI[h]) locWdCI[h][x.ad.getDay()]++;
   });
   var locWdAvg={};
   REPORT_HANGARS.forEach(function(h){
@@ -5002,6 +5099,7 @@ function generateOperationsReport(){
         '<\/tr><\/thead><tbody>'+matrixRows+'<\/tbody><\/table>'+
       '<\/div>'+
       '<div class="matrix-legend">&#9632; Gold = highest activity &nbsp;&nbsp; &#9632; Blue = moderate activity &nbsp;&nbsp; Values = avg check-ins per weekday in selected month<\/div>'+
+      (legacyFallbackCount>0?'<div class="matrix-legend" style="margin-top:2px">&#9888; '+legacyFallbackCount+' delivered record(s) this month had no recorded prior hangar and use their current location as a fallback.<\/div>':'')+
     '<\/div>'+
 
     '<\/div>'+
@@ -5054,7 +5152,16 @@ function getTailBadgeColor(tail){
   var h=0;for(var i=0;i<tail.length;i++){h=tail.charCodeAt(i)+((h<<5)-h);}
   return _tailBadgePalette[Math.abs(h)%_tailBadgePalette.length];
 }
-// ── VEHICLE MOVEMENT HISTORY ───────────────────────────────────
+// ── VEHICLE MOVEMENT HISTORY (write side only) ──────────────────
+// The "Vehicle Movement History" section was removed from the passenger
+// details modal — Passenger Change History now shows LOCATION changes
+// (timestamp, old/new value, changed by) and makes it redundant there.
+// vlhInsert() and the vehicle_location_history table are UNCHANGED and
+// still written on every check-in/move/delivery/undo — that data also
+// now feeds the Operations Report's legacy-location recovery (see
+// fetchDeliveryMoveFromLocations() near generateOperationsReport()).
+// The read/render side that only ever powered the removed modal section
+// (vlhGet, loadVlh, renderVlh) has been removed — nothing else called them.
 var VLH_TABLE = 'vehicle_location_history';
 
 function vlhInsert(entry) {
@@ -5063,60 +5170,6 @@ function vlhInsert(entry) {
     headers: Object.assign({}, sbHeaders(), {'Prefer': 'return=minimal'}),
     body: JSON.stringify(entry)
   }).catch(function(e){ console.warn('VLH insert error:', e); });
-}
-
-async function vlhGet(passengerId) {
-  var url = SUPABASE_URL + '/rest/v1/' + VLH_TABLE +
-    '?passenger_id=eq.' + passengerId + '&order=created_at.asc';
-  var res = await fetch(url, { headers: sbHeaders() });
-  if (!res.ok) throw new Error('VLH load failed: ' + res.status);
-  return res.json();
-}
-
-async function loadVlh(passengerId) {
-  var el = document.getElementById('vlhSection');
-  if (!el) return;
-  try {
-    var entries = await vlhGet(passengerId);
-    el.innerHTML = renderVlh(entries);
-  } catch(e) {
-    if (el) el.innerHTML = '<div style="font-size:12px;color:var(--mu)">Could not load movement history.</div>';
-  }
-}
-
-function renderVlh(entries) {
-  if (!entries || !entries.length) {
-    return '<div style="font-size:12px;color:var(--mu);padding:6px 0">No movement records yet.</div>';
-  }
-  var html = '';
-  entries.forEach(function(e, i) {
-    var ts = e.created_at
-      ? new Date(e.created_at).toLocaleString('en-US', {month:'2-digit',day:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})
-      : '—';
-    var action = escapeHTML(e.action || '—');
-    var isDelivered = (e.action || '').indexOf('DELIVERED') >= 0;
-    var isUndo = e.action === 'UNDO_DELIVERY';
-    var isCheckin = e.action === 'CHECK-IN';
-    var dotColor = isDelivered ? 'var(--ok)' : isUndo ? 'var(--red)' : isCheckin ? 'var(--pur)' : 'var(--acc)';
-    var labelColor = isDelivered ? 'var(--ok)' : isUndo ? 'var(--red)' : 'var(--tx)';
-    var movement = '';
-    if (e.from_location && e.to_location) movement = escapeHTML(e.from_location) + ' → ' + escapeHTML(e.to_location);
-    else if (e.to_location) movement = escapeHTML(e.to_location);
-    html +=
-      '<div style="display:flex;gap:10px;align-items:flex-start'+(i>0?';margin-top:10px':'')+'">'+
-        '<div style="display:flex;flex-direction:column;align-items:center;padding-top:3px">'+
-          '<div style="width:8px;height:8px;border-radius:50%;background:'+dotColor+';flex-shrink:0"></div>'+
-          (i < entries.length-1 ? '<div style="width:1px;flex:1;background:rgba(255,255,255,0.1);margin-top:4px;min-height:20px"></div>' : '')+
-        '</div>'+
-        '<div style="flex:1;min-width:0">'+
-          '<div style="font-size:10px;color:var(--mu);font-family:\'DM Mono\',monospace;margin-bottom:2px">'+escapeHTML(ts)+'</div>'+
-          '<div style="font-size:12px;font-weight:700;color:'+labelColor+';font-family:\'Syne\',sans-serif;letter-spacing:.3px">'+action+'</div>'+
-          (movement ? '<div style="font-size:12px;color:var(--tx);font-family:\'DM Mono\',monospace;margin-top:1px">'+movement+'</div>' : '')+
-          (e.note ? '<div style="font-size:11px;color:var(--mu);margin-top:2px">'+escapeHTML(e.note)+'</div>' : '')+
-        '</div>'+
-      '</div>';
-  });
-  return html;
 }
 // ── PASSENGER CHANGE HISTORY ────────────────────────────────────
 // Identified strictly by the passenger's stable numeric id — never by
