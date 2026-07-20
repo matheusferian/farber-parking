@@ -473,6 +473,14 @@
 <div class="ov" id="detOv">
   <div class="modal" id="detPanel"></div>
 </div>
+<!-- RETURN DATE CHANGE REASON OVERLAY -->
+<div class="ov" id="retReasonOv">
+  <div class="modal" style="max-width:420px;" id="retReasonPanel"></div>
+</div>
+<!-- KEY COPY REPRINT PROMPT OVERLAY -->
+<div class="ov" id="keyCopyPromptOv">
+  <div class="modal" style="max-width:380px;" id="keyCopyPromptPanel"></div>
+</div>
 <!-- TIP CONFIRMATION OVERLAY -->
 <div class="ov" id="tipOv">
   <div class="modal" style="max-width:340px;text-align:center">
@@ -1512,7 +1520,9 @@ async function saveDepartureTime(id, value) {
   try {
     await sbUpdate(id, { departure_time: value });
     if (typeof sbLog === 'function') {
-      sbLog('FLIGHT_NOTE', r.name, r.ticket, r.loc, value ? ('Departure time set to ' + value) : 'Departure time cleared');
+      sbLog('FLIGHT_NOTE', r.name, r.ticket, r.loc, value ? ('Departure time set to ' + value) : 'Departure time cleared', {
+        passenger_id:r.id, field_name:'departure_time', old_value:cleanLogValue(oldValue), new_value:cleanLogValue(value)
+      });
     }
     showMsg(value ? 'Departure time saved: ' + value : 'Departure time cleared', false);
   } catch(e) {
@@ -2041,12 +2051,17 @@ async function bulkAct(newStatus){
   var succeeded=results.filter(Boolean);
   succeeded.forEach(function(r){
     var prevLoc=r.loc||'';
+    var prevStatus=r.status;
     r.status=newStatus;
     if(newStatus==='DELIVERED'){
       r.deldate=todayStr;r.checkout_date=checkoutIso;r.delivery_type='NORMAL';
       r.previous_delivery_location=prevLoc;r.loc='HANGAR 19';
-      sbLog('DELIVERED_FROM_LOCATION',r.name,r.ticket,'HANGAR 19','Delivered as NORMAL. Previous location: '+prevLoc+'. Final location automatically changed to HANGAR 19.');
+      sbLog('DELIVERED_FROM_LOCATION',r.name,r.ticket,'HANGAR 19','Delivered as NORMAL. Previous location: '+prevLoc+'. Final location automatically changed to HANGAR 19.',{passenger_id:r.id});
       vlhInsert({passenger_id:r.id,ticket:r.ticket,passenger_name:r.name,from_location:prevLoc,to_location:'HANGAR 19',action:'DELIVERED (NORMAL)',note:'Bulk deliver action',created_by:_currentUserEmail});
+    } else {
+      // Missing logging path fixed: bulkAct('NO DATE') previously updated
+      // status silently with no Activity Log entry at all.
+      logFieldChange(r,'status',prevStatus,newStatus);
     }
   });
   loading(false);
@@ -2060,13 +2075,29 @@ async function bulkDelete(){
   if(!confirm('DELETE '+ids.length+' record(s)? This cannot be undone!'))return;
   loading(true);
   var recs=data.filter(function(r){return selected[r.id];});
+  // Atomic per-passenger delete: delete_passenger_with_log() writes the
+  // DELETED Activity Log entry and removes the passenger row in a single
+  // database transaction — either both happen or neither does. No
+  // sbLog()/sbDelete() calls here, and no DELETE_FAILED / contradictory
+  // log is ever possible, since there is no window between "logged" and
+  // "deleted" for a failure to fall into.
   var results=await Promise.all(recs.map(function(r){
-    return sbDelete(r.id).then(function(){return r.id;}).catch(function(e){console.error(e);return null;});
+    return deletePassengerWithLog(r.id).then(function(){
+      return {id:r.id, deleted:true};
+    }).catch(function(e){
+      console.error('bulkDelete: delete_passenger_with_log failed for passenger '+r.id, e);
+      return {id:r.id, deleted:false};
+    });
   }));
-  var deletedIds=new Set(results.filter(function(x){return x!==null;}));
+  var deletedIds=new Set(results.filter(function(x){return x.deleted;}).map(function(x){return x.id;}));
   data=data.filter(function(r){return !deletedIds.has(r.id);});
   loading(false);
-  showMsg(deletedIds.size+' record(s) deleted!', false);
+  var failedCount=recs.length-deletedIds.size;
+  if(failedCount>0){
+    showMsg(deletedIds.size+' record(s) deleted, '+failedCount+' failed — see console for details.', true);
+  } else {
+    showMsg(deletedIds.size+' record(s) deleted!', false);
+  }
   clearSel();
   render();
 }
@@ -2084,8 +2115,13 @@ async function bulkMoveLoc(hangar){
   }));
   results.filter(Boolean).forEach(function(res){
     var r=res.r;
-    vlhInsert({passenger_id:r.id,ticket:r.ticket,passenger_name:r.name,from_location:res.fromLoc,to_location:hangar,action:'MOVE',note:'Bulk hangar move',created_by:_currentUserEmail});
+    var fromLoc=res.fromLoc;
     r.loc=hangar;
+    // Missing logging path fixed: bulkMoveLoc() previously only wrote to
+    // Vehicle Movement History, with no Activity Log entry (single
+    // moveHangar() already writes both).
+    logFieldChange(r,'loc',fromLoc,hangar);
+    vlhInsert({passenger_id:r.id,ticket:r.ticket,passenger_name:r.name,from_location:fromLoc,to_location:hangar,action:'MOVE',note:'Bulk hangar move',created_by:_currentUserEmail});
   });
   loading(false);
   showMsg(recs.length+' car(s) moved to '+hangar, false);
@@ -2176,7 +2212,7 @@ async function doArchive(){
   var ok=results.filter(Boolean);
   ok.forEach(function(r){r.status='ARCHIVED';r.archived_by=archivedBy;r.archived_at=archivedAt;});
   await Promise.all(ok.map(function(r){
-    return sbLog('ARCHIVED',r.name,r.ticket,r.loc,'By: '+archivedBy+' \xb7 '+archivedAt);
+    return sbLog('ARCHIVED',r.name,r.ticket,r.loc,'By: '+archivedBy+' \xb7 '+archivedAt,{passenger_id:r.id});
   }));
   localStorage.setItem('lastArchiveName',archivedBy);
   loading(false);
@@ -3223,7 +3259,7 @@ async function saveEntry(sendSms, printMode){
       deldate: ''
     });
     var _newId = (_newRows && _newRows[0]) ? _newRows[0].id : null;
-    sbLog('CREATED', name.toUpperCase(), ticket, locVal, 'Passenger added to system');
+    sbLog('CREATED', name.toUpperCase(), ticket, locVal, 'Passenger added to system', {passenger_id:_newId});
     if (_newId) vlhInsert({passenger_id:_newId, ticket:ticket, passenger_name:name.toUpperCase(), from_location:'', to_location:locVal, action:'CHECK-IN', note:'Vehicle checked in at '+locVal, created_by:_currentUserEmail});
     maybeAddVehicle(carVal);
 
@@ -3337,6 +3373,10 @@ function showDet(id){
     '<div style="margin-top:18px">'+
       '<div class="htitle" style="margin-bottom:10px">Vehicle Movement History</div>'+
       '<div id="vlhSection" style="font-size:12px;color:var(--mu);font-family:\'DM Mono\',monospace">Loading…</div>'+
+    '</div>'+
+    '<div style="margin-top:18px">'+
+      '<div class="htitle" style="margin-bottom:10px">Passenger Change History</div>'+
+      '<div id="pchSection" style="max-height:340px;overflow-y:auto;font-size:12px;color:var(--mu)">Loading passenger history...</div>'+
     '</div>';
   setTimeout(function(){
     document.getElementById('detPanel').querySelectorAll('.di.editable').forEach(function(cell){
@@ -3347,6 +3387,7 @@ function showDet(id){
   },50);
   document.getElementById('detOv').classList.add('on');
   loadVlh(r.id);
+  loadPassengerChangeHistory(r);
 }
 
 document.getElementById('tbody').addEventListener('click', function(e) {
@@ -3410,10 +3451,10 @@ async function deliverWithTip(id, deliveryType, tipReceived){
     if(!isCustoms){upd.loc='HANGAR 19';upd.previous_delivery_location=prevLoc;}
     await sbUpdate(r.id,upd);
     if(!isCustoms){
-      await sbLog('DELIVERED_FROM_LOCATION',r.name,r.ticket,'HANGAR 19','Delivered as '+deliveryType+'. Previous location: '+prevLoc+'. Final location automatically changed to HANGAR 19.'+(isLateDeliver?' (late)':'')+' | Tip: '+tipLabel);
+      await sbLog('DELIVERED_FROM_LOCATION',r.name,r.ticket,'HANGAR 19','Delivered as '+deliveryType+'. Previous location: '+prevLoc+'. Final location automatically changed to HANGAR 19.'+(isLateDeliver?' (late)':'')+' | Tip: '+tipLabel,{passenger_id:r.id});
       vlhInsert({passenger_id:r.id,ticket:r.ticket,passenger_name:r.name,from_location:prevLoc,to_location:'HANGAR 19',action:'DELIVERED ('+deliveryType+')',note:'Tip: '+tipLabel+(isLateDeliver?' | Late delivery':''),created_by:_currentUserEmail});
     } else {
-      await sbLog('DELIVERED',r.name,r.ticket,r.loc,'Vehicle delivered'+(isLateDeliver?' (late)':'')+' via CUSTOMS | Tip: '+tipLabel);
+      await sbLog('DELIVERED',r.name,r.ticket,r.loc,'Vehicle delivered'+(isLateDeliver?' (late)':'')+' via CUSTOMS | Tip: '+tipLabel,{passenger_id:r.id});
       vlhInsert({passenger_id:r.id,ticket:r.ticket,passenger_name:r.name,from_location:prevLoc,to_location:r.loc,action:'DELIVERED (CUSTOMS)',note:'Tip: '+tipLabel+(isLateDeliver?' | Late delivery':''),created_by:_currentUserEmail});
     }
     for(var i=0;i<data.length;i++){
@@ -3506,7 +3547,7 @@ async function markDel(id){
     await sbUpdate(r.id,{status:'DELIVERED',deldate:todayStr,checkout_date:checkoutIso,delivery_type:'NORMAL',loc:'HANGAR 19',previous_delivery_location:prevLoc});
     for(var i=0;i<data.length;i++){if(data[i].id===r.id){data[i].status='DELIVERED';data[i].deldate=todayStr;data[i].checkout_date=checkoutIso;data[i].delivery_type='NORMAL';data[i].loc='HANGAR 19';data[i].previous_delivery_location=prevLoc;break;}}
     render(); closeAll();
-    sbLog('DELIVERED_FROM_LOCATION',r.name,r.ticket,'HANGAR 19','Delivered as NORMAL. Previous location: '+prevLoc+'. Final location automatically changed to HANGAR 19.'+(isLate(r.ret)?' (late)':''));
+    sbLog('DELIVERED_FROM_LOCATION',r.name,r.ticket,'HANGAR 19','Delivered as NORMAL. Previous location: '+prevLoc+'. Final location automatically changed to HANGAR 19.'+(isLate(r.ret)?' (late)':''),{passenger_id:r.id});
     vlhInsert({passenger_id:r.id,ticket:r.ticket,passenger_name:r.name,from_location:prevLoc,to_location:'HANGAR 19',action:'DELIVERED (NORMAL)',note:'Via Mark as Delivered'+(isLate(r.ret)?' | Late delivery':''),created_by:_currentUserEmail});
     showMsg('✓ Delivered: '+r.name, false);
   }catch(e){showMsg('Error: '+e.message,true);}
@@ -3544,7 +3585,7 @@ async function undoDeliverToday(id){
       }
     }
     render();
-    sbLog('UNDO DELIVER',r.name,r.ticket,restoredLoc,'Restored to PENDING from dashboard'+(r.previous_delivery_location?' | Location restored to: '+restoredLoc:''));
+    sbLog('UNDO DELIVER',r.name,r.ticket,restoredLoc,'Restored to PENDING from dashboard'+(r.previous_delivery_location?' | Location restored to: '+restoredLoc:''),{passenger_id:r.id});
     vlhInsert({passenger_id:r.id,ticket:r.ticket,passenger_name:r.name,from_location:'HANGAR 19',to_location:restoredLoc,action:'UNDO_DELIVERY',note:'Delivery undone, location restored',created_by:_currentUserEmail});
     showMsg('↩ Restored to pending: '+r.name,false);
   }catch(e){showMsg('Error: '+e.message,true);}
@@ -3566,7 +3607,7 @@ async function earlyReturn(id){
     await sbUpdate(r.id,{ret:todayStr,status:'DELIVERED',deldate:todayStr,checkout_date:checkoutIso,delivery_type:'NORMAL',obs:newObs,loc:'HANGAR 19',previous_delivery_location:prevLoc});
     for(var i=0;i<data.length;i++){if(data[i].id===r.id){data[i].ret=todayStr;data[i].status='DELIVERED';data[i].deldate=todayStr;data[i].checkout_date=checkoutIso;data[i].delivery_type='NORMAL';data[i].obs=newObs;data[i].loc='HANGAR 19';data[i].previous_delivery_location=prevLoc;break;}}
     render(); closeAll();
-    sbLog('DELIVERED_FROM_LOCATION',r.name,r.ticket,'HANGAR 19','Delivered as NORMAL (Early Return). Previous location: '+prevLoc+'. Final location automatically changed to HANGAR 19. Was expected: '+fmtD(r.ret));
+    sbLog('DELIVERED_FROM_LOCATION',r.name,r.ticket,'HANGAR 19','Delivered as NORMAL (Early Return). Previous location: '+prevLoc+'. Final location automatically changed to HANGAR 19. Was expected: '+fmtD(r.ret),{passenger_id:r.id});
     vlhInsert({passenger_id:r.id,ticket:r.ticket,passenger_name:r.name,from_location:prevLoc,to_location:'HANGAR 19',action:'DELIVERED (NORMAL)',note:'Early Return — was expected '+fmtD(r.ret),created_by:_currentUserEmail});
     showMsg('⚡ Early Return: '+r.name, false);
   }catch(e){showMsg('Error: '+e.message,true);}
@@ -3580,8 +3621,12 @@ async function deleteRec(id){
   if(!confirm('DELETE '+r.name+' ('+r.ticket+')? This cannot be undone!'))return;
   loading(true);
   try{
-    await sbLog('DELETED',r.name,r.ticket,r.loc,'Passenger removed from system');
-    await sbDelete(r.id);
+    // Atomic: delete_passenger_with_log() writes the DELETED Activity Log
+    // entry and deletes the passenger in one transaction — no separate
+    // sbLog()/sbDelete() calls, so a failure can never leave a log with no
+    // matching deletion (or vice versa). The passenger stays visible in
+    // `data` unless the RPC actually succeeds.
+    await deletePassengerWithLog(r.id);
     data=data.filter(function(x){return x.id!==id;});
     showMsg('Record deleted!', false);
     closeAll(); render();
@@ -3598,9 +3643,9 @@ async function moveHangar(id,hangar){
   loading(true);
   try{
     await sbUpdate(r.id,{loc:hangar});
-    sbLog('EDITED',r.name,r.ticket,hangar,'Location changed: '+cleanLogValue(oldLoc)+' → '+hangar);
-    vlhInsert({passenger_id:r.id,ticket:r.ticket,passenger_name:r.name,from_location:oldLoc,to_location:hangar,action:'MOVE',note:'Manual hangar change',created_by:_currentUserEmail});
     r.loc=hangar;
+    logFieldChange(r,'loc',oldLoc,hangar);
+    vlhInsert({passenger_id:r.id,ticket:r.ticket,passenger_name:r.name,from_location:oldLoc,to_location:hangar,action:'MOVE',note:'Manual hangar change',created_by:_currentUserEmail});
     showMsg('Moved to '+hangar, false);
     closeAll(); render();
     if(confirm('Hangar location changed.\n\nWould you like to print a new key tag?')) {
@@ -3717,12 +3762,55 @@ async function saveEdits(rid){
   var r=null;for(var i=0;i<data.length;i++){if(data[i].id===rid){r=data[i];break;}}
   if(!r) return;
   var prevLoc=r.loc;
+
+  // Manual return-date changes are handled first, atomically, through the
+  // change_passenger_return_date_with_reason() RPC — see the migration
+  // comments. This is the ONLY path in this app that writes `ret`, its
+  // mandatory reason, and its Activity Log entry; every other field below
+  // continues to use the existing sbUpdate()+logFieldChange() pattern.
+  var retChanged = _editChanges.ret!==undefined && hasReturnDateChanged(r.ret,_editChanges.ret);
+  var pendingRetVal = _editChanges.ret;
   var doReopen=false;
-  if(r.status==='DELIVERED'&&_editChanges.ret&&pd(_editChanges.ret)&&!_editChanges.status){
-    doReopen=confirm('This record is currently DELIVERED. Do you want to reopen it as PENDING?');
+  if(retChanged){
+    if(r.status==='DELIVERED' && !_editChanges.status){
+      doReopen=confirm('This record is currently DELIVERED. Do you want to reopen it as PENDING?');
+    }
+    var rpcResult;
+    try{
+      rpcResult = await requestReturnDateChangeReason(
+        {passengerName:r.name, ticket:r.ticket, oldDate:r.ret, newDate:pendingRetVal},
+        function(reason){
+          loading(true);
+          return changePassengerReturnDate(r.id, pendingRetVal, reason, doReopen).finally(function(){ loading(false); });
+        }
+      );
+    }catch(cancelled){
+      return; // Cancel (or the user never confirmed) — nothing written, other pending edits stay queued
+    }
+    applyServerPassengerRow(r, rpcResult);
+    delete _editChanges.ret;
+    if(doReopen) delete _editChanges.status;
   }
+
+  var remainingFields = Object.keys(_editChanges);
+  if(!remainingFields.length){
+    _editChanges={};
+    var btnDone=document.getElementById('saveEditsBtn');
+    if(btnDone) btnDone.classList.remove('visible');
+    showMsg('✅ Record updated!',false);
+    render();
+    showDet(rid);
+    if(retChanged && isActiveValetPassenger(r)) showReturnDatePrintPrompt(r);
+    return;
+  }
+
   loading(true);
   try{
+    // Build the update payload WITHOUT touching r (or any derived field:
+    // deldate, checkout_date, delivery_type, loc, previous_delivery_location)
+    // — r must keep reflecting the database-backed state until sbUpdate()
+    // actually succeeds, so a rejected update can never leave the local
+    // record or the visible UI showing unsaved values.
     var upd={};
     var oldVals={};
     for(var field in _editChanges) oldVals[field]=r[field];
@@ -3731,34 +3819,12 @@ async function saveEdits(rid){
       if(field==='name'||field==='car'||field==='ticket') val=val.toUpperCase();
       if(field==='color') val=val||null;
       upd[field]=val;
-      r[field]=val;
-    }
-    if(doReopen){
-      upd.status='PENDING';
-      upd.deldate='';
-      upd.obs=((r.obs||'').trim()?(r.obs.trim()+' | '):'')+'REOPENED FROM DELIVERED';
-      r.status='PENDING'; r.deldate=''; r.obs=upd.obs;
-    }
-    // If a real return date is being saved, strip approx markers and promote NO DATE → PENDING
-    if(!doReopen && hasRealReturnDate(upd.ret||r.ret)){
-      var obsSource=upd.obs!==undefined?upd.obs:r.obs;
-      if(isApproxRecord({obs:obsSource})){
-        upd.obs=cleanApproxFromObs(obsSource);
-        r.obs=upd.obs;
-      }
-      var effectiveStatus=upd.status||r.status;
-      if(effectiveStatus==='NO DATE'){
-        upd.status='PENDING';
-        r.status='PENDING';
-      }
     }
     if(upd.status==='DELIVERED'&&!upd.deldate){
       upd.deldate=getTodayStr();
-      r.deldate=upd.deldate;
     }
     if(upd.status==='DELIVERED'&&!upd.checkout_date){
       upd.checkout_date=new Date().toISOString();
-      r.checkout_date=upd.checkout_date;
       if(!upd.delivery_type&&!r.delivery_type) upd.delivery_type='NORMAL';
     }
     var _editDeliveredFromLoc=null;
@@ -3767,36 +3833,63 @@ async function saveEdits(rid){
       if(_effectiveDtype!=='CUSTOMS'&&upd.loc===undefined){
         _editDeliveredFromLoc=prevLoc||'';
         upd.loc='HANGAR 19';
-        r.loc='HANGAR 19';
         upd.previous_delivery_location=_editDeliveredFromLoc;
-        r.previous_delivery_location=_editDeliveredFromLoc;
       }
     }
+
     await sbUpdate(rid,upd);
-    if(_editChanges.loc !== undefined && r.loc !== prevLoc) {
-      if(confirm('Hangar location changed.\n\nWould you like to print a new key tag?')) {
-        await printKeyTicket(r);
-      }
-    }
+
+    // Only now, after the database confirmed the write, apply the exact
+    // persisted values to the local record. `r` is already the same object
+    // referenced inside `data` (found by id above), so this single
+    // assignment keeps both in sync — no separate data[] pass needed.
+    for(var updField in upd){ r[updField]=upd[updField]; }
+
+    var locChangedHere = (_editChanges.loc !== undefined && _editChanges.loc !== prevLoc);
+
     var logPromises=[];
     for(var field in _editChanges){
       logPromises.push(logFieldChange(r,field,oldVals[field],upd[field]));
     }
-    if(doReopen) logPromises.push(sbLog('REOPENED',r.name,r.ticket,r.loc,'Reopened from DELIVERED. New ret: '+(upd.ret||'')));
-    if(_editDeliveredFromLoc!==null) logPromises.push(sbLog('DELIVERED_FROM_LOCATION',r.name,r.ticket,'HANGAR 19','Delivered as '+(upd.delivery_type||r.delivery_type||'NORMAL')+'. Previous location: '+_editDeliveredFromLoc+'. Final location automatically changed to HANGAR 19.'));
-    await Promise.all(logPromises);
+    if(_editDeliveredFromLoc!==null) logPromises.push(sbLog('DELIVERED_FROM_LOCATION',r.name,r.ticket,'HANGAR 19','Delivered as '+(upd.delivery_type||r.delivery_type||'NORMAL')+'. Previous location: '+_editDeliveredFromLoc+'. Final location automatically changed to HANGAR 19.',{passenger_id:r.id}));
+    var logResults = await Promise.all(logPromises);
+    var logsFailed = logResults.some(function(ok){ return ok===false; });
+
     if(_editDeliveredFromLoc!==null){
       vlhInsert({passenger_id:r.id,ticket:r.ticket,passenger_name:r.name,from_location:_editDeliveredFromLoc,to_location:'HANGAR 19',action:'DELIVERED ('+(upd.delivery_type||r.delivery_type||'NORMAL')+')',note:'Via edit modal',created_by:_currentUserEmail});
     } else if(_editChanges.loc!==undefined && upd.loc && upd.loc!==prevLoc && upd.status!=='DELIVERED'){
       vlhInsert({passenger_id:r.id,ticket:r.ticket,passenger_name:r.name,from_location:prevLoc||'',to_location:upd.loc,action:'MOVE',note:'Location edited manually',created_by:_currentUserEmail});
     }
+
     _editChanges={};
     var btn=document.getElementById('saveEditsBtn');
     if(btn) btn.classList.remove('visible');
-    showMsg('✅ Record updated!',false);
+    if(logsFailed){
+      showMsg('⚠️ Passenger updated, but one or more history entries could not be saved.',true);
+    } else {
+      showMsg(retChanged ? '✅ Return date and other changes saved!' : '✅ Record updated!',false);
+    }
     render();
     showDet(rid);
-  }catch(e){showMsg('Error: '+e.message,true);}
+
+    // One consolidated Key Copy prompt when this save changed BOTH the
+    // return date and the location — never two separate prompts. The plain
+    // native reprint-confirm is only used when location changed WITHOUT a
+    // return-date change (unchanged existing behavior).
+    if(retChanged && isActiveValetPassenger(r)){
+      showReturnDatePrintPrompt(r);
+    } else if(locChangedHere){
+      if(confirm('Hangar location changed.\n\nWould you like to print a new key tag?')) {
+        await printKeyTicket(r);
+      }
+    }
+  }catch(e){
+    if(retChanged){
+      showMsg('Return date and reason were saved. Other edits were not saved: '+e.message,true);
+    } else {
+      showMsg('Error: '+e.message,true);
+    }
+  }
   finally{loading(false);}
 }
 async function confirmTaskDate(id) {
@@ -3806,18 +3899,22 @@ async function confirmTaskDate(id) {
   if(!r) return;
   var parts=input.value.split('-');
   var newDate=parseInt(parts[1],10)+'/'+parseInt(parts[2],10)+'/'+parts[0];
-  loading(true);
+  if(!hasReturnDateChanged(r.ret,newDate)){ showMsg('Date unchanged', false); return; }
+  var rpcResult;
   try{
-    var newObs=cleanApproxFromObs(r.obs);
-    var upd={ret:newDate,obs:newObs};
-    if(r.status==='NO DATE') upd.status='PENDING';
-    await sbUpdate(r.id,upd);
-    r.ret=upd.ret; r.obs=upd.obs; if(upd.status) r.status=upd.status;
-    showMsg('Return date confirmed: '+newDate, false);
-    taskStatus[id]='done';
-    render();
-  }catch(e){showMsg('Error: '+e.message,true);}
-  finally{loading(false);}
+    rpcResult = await requestReturnDateChangeReason(
+      {passengerName:r.name, ticket:r.ticket, oldDate:r.ret, newDate:newDate},
+      function(reason){
+        loading(true);
+        return changePassengerReturnDate(r.id, newDate, reason, false).finally(function(){ loading(false); });
+      }
+    );
+  }catch(cancelled){ return; }
+  applyServerPassengerRow(r, rpcResult);
+  showMsg('Return date confirmed: '+newDate, false);
+  taskStatus[id]='done';
+  render();
+  if(isActiveValetPassenger(r)) showReturnDatePrintPrompt(r);
 }
 
 
@@ -3936,7 +4033,8 @@ function maybeAddVehicle(carVal){
 
 // ── AUDIT LOG HELPERS ─────────────────────────────────────────
 function cleanLogValue(v){
-  if(v===null||v===undefined||String(v).trim()==='') return 'Empty';
+  if(typeof v==='boolean') return v?'Yes':'No';
+  if(v===null||v===undefined||String(v).trim()==='') return 'Blank';
   return String(v).trim();
 }
 function formatLogDate(v){
@@ -3945,16 +4043,222 @@ function formatLogDate(v){
 }
 var LOG_FIELD_LABELS={
   name:'Name', phone:'Phone', ticket:'Ticket', car:'Vehicle', color:'Color',
-  loc:'Location', ret:'Return date', status:'Status', obs:'Notes', ts:'Arrival date'
+  loc:'Location', ret:'Return date', status:'Status', obs:'Notes', ts:'Arrival date',
+  not_returning_with_makers_air:'Not Returning', departure_time:'Departure Time',
+  return_flight:'Return Flight', delivery_type:'Delivery Type'
 };
+// Uppercase field badge used by the new Passenger Change History cards —
+// derived from the same label map that drives the existing sentence-style
+// `detail` text, so the two never drift out of sync.
+function getPassengerFieldLabel(field){
+  return (LOG_FIELD_LABELS[field]||field).toUpperCase();
+}
+// Field-aware normalization used ONLY to decide whether a real change
+// occurred (never used for what gets stored/displayed — that stays
+// cleanLogValue()/formatLogDate()'s job, on the actual user-facing values).
+// Fixes a false-positive log risk: without this, "(954) 111-2222" vs
+// "9541112222" compared as different strings and would have logged a
+// phantom phone change.
+function normalizePassengerFieldForComparison(field,value){
+  if(typeof value==='boolean') return value; // true/false always distinct
+  if(value===null||value===undefined) return null; // distinct "no value" bucket
+  if(field==='phone') return String(value).replace(/\D/g,'');
+  if(field==='ret') return normalizeReturnDateValue(value);
+  var trimmed=String(value).trim();
+  if(trimmed==='') return null; // blank text and null/undefined compare equal
+  if(field==='status'||field==='loc') return trimmed.toUpperCase();
+  return trimmed;
+}
 function logFieldChange(r,field,oldVal,newVal){
+  if(normalizePassengerFieldForComparison(field,oldVal)===normalizePassengerFieldForComparison(field,newVal)){
+    return Promise.resolve(true);
+  }
   var label=LOG_FIELD_LABELS[field]||field;
   var oldClean,newClean;
   if(field==='ret'){ oldClean=formatLogDate(oldVal); newClean=formatLogDate(newVal); }
   else { oldClean=cleanLogValue(oldVal); newClean=cleanLogValue(newVal); }
-  if(oldClean===newClean) return Promise.resolve();
   var action=field==='status'?'STATUS':field==='ret'?'RETURN DATE':'EDITED';
-  return sbLog(action,r.name||'',r.ticket||'',r.loc||'',label+' changed: '+oldClean+' → '+newClean);
+  return sbLog(action,r.name||'',r.ticket||'',r.loc||'',label+' changed: '+oldClean+' → '+newClean,{
+    passenger_id:r.id, field_name:field, old_value:oldClean, new_value:newClean
+  });
+}
+
+// ── RETURN DATE CHANGE (ATOMIC RPC) ─────────────────────────────
+// Manual return-date changes are the one workflow that must be atomic: the
+// passenger's `ret`, its mandatory reason, and its Activity Log entry are
+// written together in a single Postgres transaction via
+// change_passenger_return_date_with_reason() (see migrations/
+// 20260717_add_return_date_history_and_activity_log_columns.sql) so a
+// failure partway through can never leave a changed date with no reason or
+// no audit trail.
+function normalizeReturnDateValue(v){
+  var d=pd(v);
+  return d ? (d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate()) : '';
+}
+function hasReturnDateChanged(oldVal,newVal){
+  return normalizeReturnDateValue(oldVal)!==normalizeReturnDateValue(newVal);
+}
+function isActiveValetPassenger(r){
+  return !!r && (r.status==='PENDING'||r.status==='NO DATE');
+}
+function validateReturnDateChangeReason(text){
+  var trimmed=String(text||'').trim();
+  if(trimmed.length<5) return {ok:false, error:'Please enter at least 5 characters explaining the change.'};
+  if(trimmed.length>500) return {ok:false, error:'Reason must be 500 characters or fewer.'};
+  return {ok:true, value:trimmed};
+}
+async function changePassengerReturnDate(passengerId,newDate,reason,reopen){
+  var res=await fetch(SUPABASE_URL+'/rest/v1/rpc/change_passenger_return_date_with_reason',{
+    method:'POST',
+    headers: Object.assign({}, sbHeaders(), {'Prefer':'return=representation'}),
+    body: JSON.stringify({
+      p_passenger_id: passengerId,
+      p_new_return_date: newDate||'',
+      p_reason: reason,
+      p_reopen: !!reopen
+    })
+  });
+  if(!res.ok){
+    var errText='';
+    try{ var errJson=await res.json(); errText=errJson.message||errJson.hint||JSON.stringify(errJson); }
+    catch(e){ errText='HTTP '+res.status; }
+    throw new Error(errText);
+  }
+  return res.json();
+}
+// ── DELETE (ATOMIC RPC) ──────────────────────────────────────────
+// delete_passenger_with_log() writes the DELETED Activity Log entry and
+// removes the passenger row in one database transaction — no separate
+// sbLog()/sbDelete() calls, no possibility of a false or contradictory
+// log if the delete fails partway through.
+async function deletePassengerWithLog(passengerId){
+  var res=await fetch(SUPABASE_URL+'/rest/v1/rpc/delete_passenger_with_log',{
+    method:'POST',
+    headers: Object.assign({}, sbHeaders(), {'Prefer':'return=representation'}),
+    body: JSON.stringify({ p_passenger_id: passengerId })
+  });
+  if(!res.ok){
+    var errText='';
+    try{ var errJson=await res.json(); errText=errJson.message||errJson.hint||JSON.stringify(errJson); }
+    catch(e){ errText='HTTP '+res.status; }
+    throw new Error(errText);
+  }
+  return res.json();
+}
+function applyServerPassengerRow(r,serverRow){
+  if(!serverRow) return r;
+  for(var k in serverRow){ r[k]=serverRow[k]; }
+  for(var i=0;i<data.length;i++){
+    if(data[i].id===r.id){ for(var k2 in serverRow) data[i][k2]=serverRow[k2]; break; }
+  }
+  return r;
+}
+
+// requestReturnDateChangeReason(ctx, performSave): opens the reason modal;
+// performSave(reasonText) must return a Promise resolving to the updated
+// passenger row (or rejecting with an Error). The modal owns the full
+// ask-reason -> call-RPC -> retry-on-failure lifecycle: Confirm disables
+// itself immediately (re-entrancy guard), a failed RPC re-enables it with
+// the typed reason still in the textarea (never lost), and only a
+// successful save closes the modal. Cancel rejects with a distinguishable
+// error and performs no write at all.
+function requestReturnDateChangeReason(ctx, performSave){
+  return new Promise(function(resolve, reject){
+    var oldDisp=formatLogDate(ctx.oldDate), newDisp=formatLogDate(ctx.newDate);
+    document.getElementById('retReasonPanel').innerHTML=
+      '<h2>Return Date Change Reason</h2>'+
+      '<div style="font-size:12px;color:var(--mu);margin-bottom:14px;line-height:1.6">'+
+        'Passenger: <strong style="color:var(--tx)">'+escapeHTML(ctx.passengerName||'')+'</strong><br>'+
+        'Ticket: <strong style="color:var(--tx)">'+escapeHTML(ctx.ticket||'')+'</strong><br>'+
+        'Previous Return Date: <strong style="color:var(--tx)">'+escapeHTML(oldDisp)+'</strong><br>'+
+        'New Return Date: <strong style="color:var(--tx)">'+escapeHTML(newDisp)+'</strong>'+
+      '</div>'+
+      '<p class="msub" style="margin-bottom:10px">Please explain why the passenger’s return date is being changed. This note will be permanently stored in the passenger’s records.</p>'+
+      '<textarea id="retReasonText" maxlength="500" rows="4" placeholder="e.g. Passenger replied by text and confirmed that they will return Tuesday." '+
+        'style="width:100%;background:var(--s2);border:1.5px solid var(--b);border-radius:10px;padding:10px 12px;color:var(--tx);font-size:13px;outline:none;resize:vertical;font-family:inherit;box-sizing:border-box"></textarea>'+
+      '<div id="retReasonCounter" style="text-align:right;font-size:11px;color:var(--mu);margin-top:4px">0 / 500</div>'+
+      '<div id="retReasonError" style="display:none;color:var(--red);font-size:12px;margin-top:8px"></div>'+
+      '<div class="mact">'+
+        '<button class="btnp" id="retReasonConfirmBtn" type="button">Confirm Date Change</button>'+
+        '<button class="btnc" id="retReasonCancelBtn" type="button">Cancel</button>'+
+      '</div>';
+    document.getElementById('retReasonOv').classList.add('on');
+    var textEl=document.getElementById('retReasonText');
+    var counterEl=document.getElementById('retReasonCounter');
+    var errEl=document.getElementById('retReasonError');
+    var confirmBtn=document.getElementById('retReasonConfirmBtn');
+    var cancelBtn=document.getElementById('retReasonCancelBtn');
+    var confirming=false;
+    function updateCounter(){ counterEl.textContent=(textEl.value||'').length+' / 500'; }
+    textEl.addEventListener('input', updateCounter);
+    setTimeout(function(){ textEl.focus(); }, 100);
+    function closeModal(){ document.getElementById('retReasonOv').classList.remove('on'); }
+    cancelBtn.addEventListener('click', function(){
+      if(confirming) return;
+      closeModal();
+      reject(new Error('cancelled'));
+    });
+    confirmBtn.addEventListener('click', async function(){
+      if(confirming) return;
+      var val=validateReturnDateChangeReason(textEl.value);
+      if(!val.ok){
+        errEl.textContent=val.error; errEl.style.display='block';
+        return;
+      }
+      errEl.style.display='none';
+      confirming=true;
+      confirmBtn.disabled=true; confirmBtn.textContent='Saving...';
+      cancelBtn.disabled=true;
+      try{
+        var result=await performSave(val.value);
+        closeModal();
+        resolve(result);
+      }catch(e){
+        confirming=false;
+        confirmBtn.disabled=false; confirmBtn.textContent='Confirm Date Change';
+        cancelBtn.disabled=false;
+        errEl.textContent='Return date was not changed. Please try again.';
+        errEl.style.display='block';
+        console.error('Return date RPC failed:', e);
+        // Reason text intentionally left in the textarea for retry.
+      }
+    });
+  });
+}
+
+// ── KEY COPY REPRINT PROMPT (after a successful return-date change) ─────
+var _keyCopyPrinting=false;
+function showReturnDatePrintPrompt(r){
+  document.getElementById('keyCopyPromptPanel').innerHTML=
+    '<h2>Return Date Updated</h2>'+
+    '<p class="msub" style="margin-bottom:16px">The passenger’s return date was updated successfully. Would you like to print a new Key Copy with the updated return date?</p>'+
+    '<div class="mact">'+
+      '<button class="btnp" id="keyCopyPrintBtn" onclick="confirmPrintUpdatedKeyCopy('+r.id+')">Print New Key Copy</button>'+
+      '<button class="btnc" onclick="closeKeyCopyPrompt()">No, Finish</button>'+
+    '</div>';
+  _keyCopyPrinting=false;
+  document.getElementById('keyCopyPromptOv').classList.add('on');
+}
+function closeKeyCopyPrompt(){
+  document.getElementById('keyCopyPromptOv').classList.remove('on');
+  _keyCopyPrinting=false;
+}
+async function confirmPrintUpdatedKeyCopy(id){
+  if(_keyCopyPrinting) return;
+  _keyCopyPrinting=true;
+  var btn=document.getElementById('keyCopyPrintBtn');
+  if(btn){ btn.disabled=true; btn.textContent='Printing...'; }
+  var r=data.find(function(x){return x.id===id;});
+  var ok=false;
+  try{ if(r) ok=await printKeyTicket(r); }catch(e){ ok=false; console.error('Key Copy reprint failed:', e); }
+  _keyCopyPrinting=false;
+  if(ok){
+    closeKeyCopyPrompt();
+  } else if(btn){
+    // Printer failure never undoes the already-saved return date — leave
+    // the prompt open so the user can retry or finish without printing.
+    btn.disabled=false; btn.textContent='Print New Key Copy';
+  }
 }
 
 function showApp() {
@@ -4714,9 +5018,16 @@ function generateOperationsReport(){
   win.document.close();
 }
 // ── ACTIVITY LOG ───────────────────────────────────────────────
-async function sbLog(action, passenger, ticket, location, detail) {
+// meta (optional): {passenger_id, changed_by, field_name, old_value, new_value}
+// — structured columns added for the Passenger Change History feature.
+// Existing ts/action/passenger/ticket/location/detail stay untouched so the
+// current global Activity Log UI keeps working unmodified. Returns true/false
+// (never throws) so callers can detect a failed log without disrupting the
+// fire-and-forget call sites that don't check the result.
+async function sbLog(action, passenger, ticket, location, detail, meta) {
+  meta = meta || {};
   try {
-    await fetch(SUPABASE_URL + '/rest/v1/activity_log', {
+    var res = await fetch(SUPABASE_URL + '/rest/v1/activity_log', {
       method: 'POST',
       headers: Object.assign({}, sbHeaders(), {'Prefer': 'return=minimal'}),
       body: JSON.stringify({
@@ -4725,10 +5036,16 @@ async function sbLog(action, passenger, ticket, location, detail) {
         passenger: passenger||'',
         ticket: String(ticket||''),
         location: location||'',
-        detail: detail||''
+        detail: detail||'',
+        passenger_id: meta.passenger_id!=null ? meta.passenger_id : null,
+        changed_by: meta.changed_by || _currentUserEmail || null,
+        field_name: meta.field_name || null,
+        old_value: meta.old_value!=null ? meta.old_value : null,
+        new_value: meta.new_value!=null ? meta.new_value : null
       })
     });
-  } catch(e) { console.warn('Log error:', e); }
+    return res.ok;
+  } catch(e) { console.warn('Log error:', e); return false; }
 }
 // ── TAIL BADGE COLOR ───────────────────────────────────────────
 var _tailBadgePalette=['#1D4ED8','#047857','#B45309','#7C3AED','#BE123C','#0369A1','#4338CA','#15803D','#92400E','#334155','#0F766E','#9D174D'];
@@ -4800,6 +5117,103 @@ function renderVlh(entries) {
       '</div>';
   });
   return html;
+}
+// ── PASSENGER CHANGE HISTORY ────────────────────────────────────
+// Identified strictly by the passenger's stable numeric id — never by
+// name/ticket, which are editable. RETURN DATE rows carry their mandatory
+// reason via a direct activity_log_id -> passenger_return_date_changes
+// relationship (embedded through PostgREST), so a return-date change
+// renders as exactly one card, never a second independent one. Loaded
+// lazily, only when showDet() opens — never during loadData()/render().
+var _pchPassengerId=null, _pchOffset=0;
+var PCH_PAGE_SIZE=10;
+
+async function fetchPassengerChangeHistoryPage(passengerId, offset, limit){
+  var url = SUPABASE_URL + '/rest/v1/activity_log'
+    + '?passenger_id=eq.' + passengerId
+    + '&select=*,passenger_return_date_changes(comment,old_return_date,new_return_date)'
+    + '&order=created_at.desc,id.desc'
+    + '&offset=' + offset + '&limit=' + limit;
+  var res = await fetch(url, { headers: sbHeaders() });
+  if (!res.ok) throw new Error('History load failed: HTTP ' + res.status);
+  return res.json();
+}
+
+async function loadPassengerChangeHistory(r){
+  _pchPassengerId = r.id;
+  _pchOffset = 0;
+  var el = document.getElementById('pchSection');
+  if (!el) return;
+  el.innerHTML = '<div style="padding:6px 0">Loading passenger history...</div>';
+  try {
+    var rows = await fetchPassengerChangeHistoryPage(r.id, 0, PCH_PAGE_SIZE);
+    _pchOffset = rows.length;
+    el.innerHTML = renderPassengerChangeHistory(rows)
+      + (rows.length >= PCH_PAGE_SIZE ? pchOlderButtonHtml() : '');
+  } catch(e) {
+    el.innerHTML = '<div style="padding:6px 0;color:var(--red)">Unable to load passenger history.</div>';
+    console.error('loadPassengerChangeHistory error:', e);
+  }
+}
+
+async function loadOlderPassengerChangeHistory(){
+  if (_pchPassengerId == null) return;
+  var oldBtn = document.getElementById('pchOlderBtn');
+  if (oldBtn) { oldBtn.disabled = true; oldBtn.textContent = 'Loading...'; }
+  try {
+    var rows = await fetchPassengerChangeHistoryPage(_pchPassengerId, _pchOffset, PCH_PAGE_SIZE);
+    _pchOffset += rows.length;
+    var html = renderPassengerChangeHistory(rows);
+    if (oldBtn) {
+      oldBtn.insertAdjacentHTML('beforebegin', html);
+      if (rows.length >= PCH_PAGE_SIZE) { oldBtn.disabled = false; oldBtn.textContent = 'Show Older Changes'; }
+      else { oldBtn.remove(); }
+    }
+  } catch(e) {
+    showMsg('Unable to load older history.', true);
+    if (oldBtn) { oldBtn.disabled = false; oldBtn.textContent = 'Show Older Changes'; }
+    console.error('loadOlderPassengerChangeHistory error:', e);
+  }
+}
+
+function pchOlderButtonHtml(){
+  return '<button id="pchOlderBtn" onclick="loadOlderPassengerChangeHistory()" '
+    + 'style="width:100%;margin-top:8px;background:var(--s2);border:1px solid var(--b);border-radius:8px;'
+    + 'padding:9px;font-size:12px;font-weight:700;color:var(--tx);cursor:pointer;font-family:\'Syne\',sans-serif;">'
+    + 'Show Older Changes</button>';
+}
+
+function renderPassengerChangeHistory(rows){
+  if (!rows || !rows.length) {
+    return '<div style="padding:6px 0">No passenger changes recorded yet.</div>';
+  }
+  return rows.map(function(row){
+    var ts = row.created_at
+      ? new Date(row.created_at).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'})
+      : (row.ts || '—');
+    var fieldLabel = row.field_name ? getPassengerFieldLabel(row.field_name) : (row.action || '—');
+    var changedBy = row.changed_by ? escapeHTML(row.changed_by) : 'Not recorded';
+    var prdc = (row.passenger_return_date_changes && row.passenger_return_date_changes[0]) || null;
+    var diffHtml = '';
+    if (row.field_name && (row.old_value != null || row.new_value != null)) {
+      var ov = (row.old_value == null || row.old_value === '') ? 'Blank' : row.old_value;
+      var nv = (row.new_value == null || row.new_value === '') ? 'Blank' : row.new_value;
+      diffHtml = '<div style="font-size:13px;color:var(--tx);margin-top:2px;word-break:break-word">'
+        + escapeHTML(ov) + ' → ' + escapeHTML(nv) + '</div>';
+    } else if (row.detail) {
+      diffHtml = '<div style="font-size:13px;color:var(--tx);margin-top:2px;word-break:break-word">' + escapeHTML(row.detail) + '</div>';
+    }
+    var reasonHtml = (row.field_name === 'ret' && prdc && prdc.comment)
+      ? '<div style="font-size:12px;color:var(--tx);margin-top:4px;word-break:break-word">Reason: ' + escapeHTML(prdc.comment) + '</div>'
+      : '';
+    return '<div style="padding:10px 0;border-bottom:1px solid var(--s2)">'
+      + '<div style="font-size:10px;color:var(--mu);font-family:\'DM Mono\',monospace">' + escapeHTML(String(ts)) + '</div>'
+      + '<div style="font-size:12px;font-weight:800;color:var(--gold);font-family:\'Syne\',sans-serif;letter-spacing:.4px;margin-top:2px">' + escapeHTML(String(fieldLabel)) + '</div>'
+      + diffHtml
+      + reasonHtml
+      + '<div style="font-size:11px;color:var(--mu);margin-top:4px">Changed by: ' + changedBy + '</div>'
+      + '</div>';
+  }).join('');
 }
 // ── DIAGNOSTICS ────────────────────────────────────────────────
 function diagLog(msg, color) {
@@ -5155,7 +5569,8 @@ async function saveReturnFlight(id, value) {
         r.name,
         r.ticket,
         r.loc,
-        value ? ('Return flight set to ' + value) : 'Return flight cleared'
+        value ? ('Return flight set to ' + value) : 'Return flight cleared',
+        {passenger_id:r.id, field_name:'return_flight', old_value:cleanLogValue(oldValue), new_value:cleanLogValue(value)}
       );
     }
     showMsg(value ? 'Flight saved: ' + value : 'Flight cleared', false);
