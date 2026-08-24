@@ -27,7 +27,13 @@
 // introduced by either change (verified by grepping every local
 // src/href in index.html) — only the *content* of files already on this
 // list changed, which is exactly what bumping CACHE_VERSION exists for.
-var CACHE_VERSION = 'v2';
+//
+// v3 (2026-08-24): index.html/styles.css changed again — Quick H19's
+// individual action relocated into the card's normal .dc-qd row (was a
+// separate, easy-to-miss meta-corner button) plus a fixed CSS
+// specificity bug, and a new Leaving-Today "Bulk H19" action. Same
+// SHELL_FILES, same reasoning as v2 — content changed, no new file.
+var CACHE_VERSION = 'v3';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 // Resolved relative to this file's own location, so they land in the

@@ -316,16 +316,6 @@ input[type=checkbox]{width:17px;height:17px;accent-color:var(--gold);cursor:poin
 .dc-meta{display:flex;flex-direction:column;align-items:flex-end;justify-content:center;padding:11px 12px 11px 4px;gap:2px;flex-shrink:0;}
 .dc-tk{font-family:'DM Mono',monospace;font-size:12px;color:var(--gold2);font-weight:600;}
 .dc-l{font-size:10px;color:var(--mu);}
-/* Quick H19 — deliberately tiny (this is an iPad interface and a
-   secondary shortcut, not the card's primary action); only rendered for
-   an active, non-DELIVERED, non-pending-sync record not already at
-   Hangar 19 — see mkCards() and quickMoveH19(). */
-.dc-h19-btn{
-  background:rgba(42,93,176,.1);color:var(--navy);border:1px solid rgba(42,93,176,.3);
-  border-radius:6px;padding:2px 7px;font-family:'DM Mono',monospace;font-weight:700;font-size:9.5px;
-  letter-spacing:.2px;cursor:pointer;white-space:nowrap;
-}
-.dc-h19-btn:hover{background:rgba(42,93,176,.18);}
 .dc-qd{
   display:flex;
   flex-direction:row;
@@ -346,6 +336,19 @@ input[type=checkbox]{width:17px;height:17px;accent-color:var(--gold);cursor:poin
 .qd-btn.late{background:var(--red);}
 .qd-btn.nodate{background:var(--pur);}
 .qd-btn.customs{background:var(--navy);border:1px solid var(--gold);}
+/* Quick H19 — lives in the card's normal quick-action row (.dc-qd)
+   alongside Deliver/Customs/Lockbox, inheriting .qd-btn's size (32px,
+   same font/padding) so it reads as a real action, not a hidden detail.
+   Only rendered for an active, non-DELIVERED, non-pending-sync record
+   not already at Hangar 19 — see mkCards() and quickMoveH19(). Distinct
+   light-blue "location" color keeps it visually separate from the
+   delivery-decision buttons (green Deliver / navy Customs / gold Lockbox).
+   Declared after the base .qd-btn rule (not just after it in the HTML
+   class list) so its background actually wins the cascade. */
+.qd-btn.dc-h19-btn{
+  background:rgba(42,93,176,.12);color:var(--navy);border:1px solid rgba(42,93,176,.4);
+}
+.qd-btn.dc-h19-btn:hover{background:rgba(42,93,176,.22);}
 .wcb-wrap{position:relative;display:inline-flex;gap:4px;}
 .qd-btn.wcb-btn{padding:0 7px;font-size:10px;}
 .qd-btn.wcb-pending{background:var(--blue);}
@@ -692,6 +695,11 @@ body{-webkit-text-size-adjust:100%;}
   white-space:nowrap;
 }
 .fb-print-all-btn:hover{opacity:.88;}
+/* Bulk H19 — Leaving Today section header, next to Print All. Same
+   compact toolbar sizing, distinct light-blue "location" tint matching
+   the individual .dc-h19-btn so the two read as the same action family. */
+.fb-print-all-btn.dc-bulk-h19-btn{background:rgba(42,93,176,.12);color:var(--navy);border:1px solid rgba(42,93,176,.4);}
+.fb-print-all-btn.dc-bulk-h19-btn:hover{background:rgba(42,93,176,.22);}
 
 /* ── LEAVING TOMORROW COMPACT TOOLBAR ── */
 .fb-print-all-btn.lt-toolbar-btn{

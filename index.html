@@ -2208,9 +2208,13 @@ function renderDay() {
     if(!list.length) return '<div class="eday">No cars in this group</div>';
     return list.map(function(r){
       var isApprox=isApproxRecord(r);
+      // Same eligibility as before (only relocated — never shown for a
+      // DELIVERED record, already-H19, or a local pending-sync record).
+      var h19Eligible=r.status!=='DELIVERED'&&r.loc!=='HANGAR 19'&&!r.isOfflinePending;
+      var h19Btn=h19Eligible?'<button type="button" class="qd-btn dc-h19-btn" onclick="event.stopPropagation();quickMoveH19('+r.id+')" title="Move to Hangar 19">&#8594; H19</button>':'';
       var actionHtml='';
       if(showCheckin){
-        actionHtml='<div class="dc-qd"><div class="checkin-badge">CHECKED IN</div></div>';
+        actionHtml='<div class="dc-qd" onclick="event.stopPropagation()"><div class="checkin-badge">CHECKED IN</div>'+h19Btn+'</div>';
       } else if(showDeliver&&r.status==='DELIVERED'){
         actionHtml=
           '<div class="dc-qd" onclick="event.stopPropagation()">'+
@@ -2223,6 +2227,7 @@ function renderDay() {
             '<button class="qd-btn '+(btnCls||'')+'" onclick="quickDeliver('+r.id+',\'NORMAL\')">✓ Deliver</button>'+
             (showCustoms?'<button class="qd-btn customs" onclick="quickDeliver('+r.id+',\'CUSTOMS\')">Customs</button>':'')+
             '<button class="qd-btn lockbox" onclick="quickDeliver('+r.id+',\'LOCKBOX\')" style="background:rgba(201,168,76,0.15);border-color:rgba(201,168,76,0.5);color:var(--gold)">🔒 Lockbox</button>'+
+            h19Btn+
             (showFlightPrint?'<button class="qd-btn fbprint" title="Print flight tag" onclick="printFlightBagOne('+r.id+')">🖨</button>':'')+
             (showWelcomeBack?welcomeBackButtonHtml(r):'')+
           '</div>';
@@ -2254,9 +2259,6 @@ function renderDay() {
             flightHtml+
           '</div>'+
           '<div class="dc-meta"><div class="dc-tk">'+escapeHTML(r.ticket)+'</div>'+
-            (r.status!=='DELIVERED'&&r.loc!=='HANGAR 19'&&!r.isOfflinePending
-              ? '<button type="button" class="dc-h19-btn" onclick="event.stopPropagation();quickMoveH19('+r.id+')" title="Move to Hangar 19">&#8594; H19</button>'
-              : '')+
             '<div class="dc-l">'+(isArrivedSection&&(!r.loc||!String(r.loc).trim())?'<span class="dc-l-no-hangar">🔴 NO HANGAR</span>':escapeHTML(r.loc||''))+'</div></div>'+
         '</div>'+
         actionHtml+
@@ -2310,7 +2312,8 @@ function renderDay() {
     : ' style="background:var(--red);color:#fff;display:none;margin-left:4px" title="Open gratuity reminders" aria-label="Open gratuity reminders"';
   titleTodayEl.innerHTML='<span>🔔 Leaving Today <span class="tbadge" style="background:var(--acc);color:#000">'+ltPending+'</span>'+
     '<span class="tbadge" id="custReminderBadge"'+custBadgeAttrs+'>⏰ '+custReminderDue+'</span></span>'+
-    (lt.length?'<button class="fb-print-all-btn" onclick="event.stopPropagation();printFlightBagAll(\'today\')">🖨 Print All</button>':'');
+    (lt.length?'<button class="fb-print-all-btn" onclick="event.stopPropagation();printFlightBagAll(\'today\')">🖨 Print All</button>':'')+
+    (lt.length?'<button class="fb-print-all-btn dc-bulk-h19-btn" onclick="event.stopPropagation();bulkMoveLeavingTodayToH19()">&#8594; All H19</button>':'');
   var titleTomorrowEl=document.getElementById('titleTomorrow');
   titleTomorrowEl.style.display='flex';titleTomorrowEl.style.alignItems='center';titleTomorrowEl.style.justifyContent='space-between';
   titleTomorrowEl.innerHTML='<span>📆 Leaving Tomorrow <span class="tbadge" style="background:var(--pur);color:#fff">'+lm.length+'</span></span>'+
@@ -4515,18 +4518,30 @@ async function deleteRec(id){
 }
 
 // ── MOVE HANGAR ────────────────────────────────────────────────
+// Shared move core — the one place that actually persists a location
+// change. No confirm(), no showMsg(), no render(), no loading() — pure
+// guard-then-write, so both the individual and bulk callers below can
+// wrap it with their own UX without duplicating the audited logic
+// itself. Throws on any failure (offline-pending, Supabase rejection);
+// callers decide what "already at this hangar" means for their own
+// flow, so that check stays in the callers, not here.
+async function moveHangarCore(r, hangar, note){
+  if(r.isOfflinePending) throw new Error(OFFLINE_PENDING_SYNC_MSG);
+  var oldLoc = r.loc;
+  await sbUpdate(r.id, {loc:hangar});
+  r.loc = hangar;
+  logFieldChange(r,'loc',oldLoc,hangar);
+  vlhInsert({passenger_id:r.id,ticket:r.ticket,passenger_name:r.name,from_location:oldLoc,to_location:hangar,action:'MOVE',note:note||'Manual hangar change',created_by:_currentUserEmail});
+}
+
 async function moveHangar(id,hangar){
   var r=null;for(var i=0;i<data.length;i++){if(data[i].id===id){r=data[i];break;}}
   if(!r)return;
   if(r.isOfflinePending){ showMsg(OFFLINE_PENDING_SYNC_MSG, true); return; }
   if(r.loc===hangar){showMsg('Already in '+hangar,false);loading(false);return;}
-  var oldLoc=r.loc;
   loading(true);
   try{
-    await sbUpdate(r.id,{loc:hangar});
-    r.loc=hangar;
-    logFieldChange(r,'loc',oldLoc,hangar);
-    vlhInsert({passenger_id:r.id,ticket:r.ticket,passenger_name:r.name,from_location:oldLoc,to_location:hangar,action:'MOVE',note:'Manual hangar change',created_by:_currentUserEmail});
+    await moveHangarCore(r, hangar);
     showMsg('Moved to '+hangar, false);
     closeAll(); render();
     if(confirm('Hangar location changed.\n\nWould you like to print a new key tag?')) {
@@ -4538,12 +4553,12 @@ async function moveHangar(id,hangar){
 
 // ── QUICK H19 (Dashboard shortcut) ──────────────────────────────
 // Deliberately NOT a parallel implementation — this only adds a fast
-// entry point (a small "→ H19" button on the card + one lightweight
-// confirm) in front of the exact same moveHangar() used by the full
-// Move Hangar workflow. Every existing guarantee (only `loc` changes,
-// Supabase persistence, Activity Log, Vehicle Location History, the
-// offline-pending guard, the already-there no-op, error handling that
-// never shows a false success, the optional key-tag print prompt)
+// entry point (a "→ H19" button in the card's normal quick-action row +
+// one lightweight confirm) in front of the exact same moveHangar() used
+// by the full Move Hangar workflow. Every existing guarantee (only `loc`
+// changes, Supabase persistence, Activity Log, Vehicle Location History,
+// the offline-pending guard, the already-there no-op, error handling
+// that never shows a false success, the optional key-tag print prompt)
 // comes from moveHangar() itself and needs no duplication here.
 function quickMoveH19(id){
   var r=null;for(var i=0;i<data.length;i++){if(data[i].id===id){r=data[i];break;}}
@@ -4552,6 +4567,60 @@ function quickMoveH19(id){
   if(r.loc==='HANGAR 19'){ showMsg('Already in HANGAR 19', false); return; }
   if(!confirm('Move '+r.name+' to Hangar 19?')) return;
   moveHangar(id, 'HANGAR 19');
+}
+
+// ── BULK H19 — Leaving Today only ────────────────────────────────
+// Distinct from the generic checkbox-multi-select "Move Hangar" bulk
+// action (bulkMoveLoc(), which operates on whatever's manually selected,
+// to any hangar). This is a one-tap shortcut for the specific
+// operational case of "we already physically walked today's returning
+// cars to Hangar 19, now update AirValet" — scoped automatically to
+// today's Leaving Today list, using the exact same rule that builds it
+// (isToday(r.ret) && status!=='ARCHIVED', see renderDay()'s `lt`).
+// Reuses moveHangarCore() sequentially — never a per-vehicle print
+// prompt (that would mean N dialogs); one upfront confirm, one final
+// summary. Failures are kept (not swallowed): left at their original
+// location, error retained, reported in the summary count.
+function leavingTodayEligibleForBulkH19(){
+  return data.filter(function(r){
+    return isToday(r.ret) && r.status!=='ARCHIVED'
+      && r.status!=='DELIVERED' && r.loc!=='HANGAR 19' && !r.isOfflinePending;
+  });
+}
+var _lastBulkH19Failures = [];
+async function bulkMoveLeavingTodayToH19(){
+  if(typeof _offlineNet!=='undefined' && (!_offlineNet.deviceOnline || _offlineNet.supabaseReachable===false)){
+    showMsg('Internet required to move vehicles to Hangar 19.', true);
+    return;
+  }
+  var eligible = leavingTodayEligibleForBulkH19();
+  if(!eligible.length){
+    showMsg('No eligible Leaving Today vehicles to move.', false);
+    return;
+  }
+  var preview = eligible.slice(0,4).map(function(r){ return r.name+' ('+r.ticket+')'; }).join(', ');
+  if(eligible.length>4) preview += ', +'+(eligible.length-4)+' more';
+  if(!confirm('Move '+eligible.length+' Leaving Today vehicle'+(eligible.length===1?'':'s')+' to Hangar 19?\n\n'+preview)) return;
+
+  loading(true);
+  var succeeded=[], failed=[];
+  for(var i=0;i<eligible.length;i++){
+    var r=eligible[i];
+    try{
+      await moveHangarCore(r, 'HANGAR 19', 'Bulk Leaving Today → H19');
+      succeeded.push(r);
+    }catch(e){
+      failed.push({r:r, error:e.message});
+      console.error('Bulk H19 move failed for '+r.name+' ('+r.ticket+'):', e);
+    }
+  }
+  loading(false);
+  render();
+
+  var msg = succeeded.length+' vehicle'+(succeeded.length===1?'':'s')+' moved to Hangar 19';
+  if(failed.length) msg += ' — '+failed.length+' failed';
+  showMsg(msg, failed.length>0 && succeeded.length===0);
+  _lastBulkH19Failures = failed;
 }
 
 // ── CHANGE DATE ────────────────────────────────────────────────
