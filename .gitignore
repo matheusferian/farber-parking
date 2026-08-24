@@ -6,6 +6,10 @@
 # Backups (see CLAUDE.md backup policy — timestamped snapshots, never deployed)
 BKP/
 
+# Local dev-server config (launch.json points at a developer's own machine —
+# never part of the deployed app, never committed)
+.claude/
+
 # OS / editor cruft
 .DS_Store
 Thumbs.db

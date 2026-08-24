@@ -18,7 +18,16 @@
 // what causes install() to populate a fresh cache and activate() to drop
 // the previous one — see the versioned-cache/update-lifecycle notes in
 // PROJECT.md.
-var CACHE_VERSION = 'v1';
+//
+// v2 (2026-08-24): index.html/offline-db.js changed substantially
+// (Offline Mode Phase 2 — real offline New Entry, PENDING SYNC) and
+// index.html/styles.css changed again (TV Mode time format/Ascend In
+// Custody/Return Date Follow-Up/high-volume pagination, Dashboard Quick
+// H19). SHELL_FILES itself is unchanged — no new same-origin file was
+// introduced by either change (verified by grepping every local
+// src/href in index.html) — only the *content* of files already on this
+// list changed, which is exactly what bumping CACHE_VERSION exists for.
+var CACHE_VERSION = 'v2';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 // Resolved relative to this file's own location, so they land in the

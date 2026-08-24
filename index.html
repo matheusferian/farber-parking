@@ -70,6 +70,12 @@
     <button onclick="offlineDismissUpdateBanner()" style="background:transparent;border:1px solid rgba(255,255,255,.4);color:#fff;border-radius:8px;padding:5px 12px;font-size:11.5px;cursor:pointer;">Later</button>
   </span>
 </div>
+<!-- Offline Mode Phase 2 — always reflects real state, never a static
+     claim: OFFLINE MODE while emergency check-ins are being queued
+     locally, ONLINE — X CHECK-INS PENDING SERVER SYNC once back online
+     with unsynced records still on this device, hidden otherwise. See
+     updateOfflineModeBanner(). -->
+<div id="offlineModeBanner" style="display:none;align-items:center;gap:10px;color:#fff;padding:8px 16px;font-family:'DM Sans',sans-serif;font-size:12.5px;font-weight:600;"></div>
 <div class="tabs">
   <div class="tab on" data-t="all"><i class="fa-solid fa-users"></i><span>All Passengers</span><span class="tbadge" id="ball">0</span></div>
   <div class="tab" data-t="day"><i class="fa-solid fa-table-columns"></i><span>Dashboard</span><span class="tbadge red" id="bday">!</span></div>
@@ -811,15 +817,29 @@ https://buy.stripe.com/8x214mccK0uh9TjgIM6Vq00</div>
     </details>
   </div>
 
-  <!-- OFFLINE MODE DIAGNOSTICS — Phase 1 infrastructure only (see
-       PROJECT.md, Offline Mode). Offline Check-In is NOT enabled by
-       this panel — nothing here writes real passenger data, and
-       nothing in saveEntry() reads from IndexedDB. This exists purely
-       to verify the shell/cache/IndexedDB/device-identity/offline-auth
-       infrastructure ahead of Phase 2. -->
+  <!-- PENDING SYNC — Phase 2 real (non-diagnostic) offline check-in
+       queue. Read-only: no Delete, no fake Sync Now, no way to mark a
+       record SYNCED from here — that only happens in Phase 3, which does
+       not exist yet. See PROJECT.md, Offline Mode. -->
+  <div id="offlinePendingCard" class="epson-card" style="margin-top:16px;">
+    <div class="epson-card-title">🟠 Pending Sync (<span id="offlinePendingPanelCount">0</span>)</div>
+    <div class="epson-card-sub">Server synchronization is not enabled yet. These emergency check-ins are saved on this device only, exactly as entered, until a future Phase 3 uploads them — nothing here can be deleted, marked synced, or resolved from this screen.</div>
+    <div class="epson-history-wrap">
+      <table class="epson-history-table">
+        <thead><tr><th>Ticket</th><th>Name</th><th>Vehicle</th><th>Saved</th><th>Device</th></tr></thead>
+        <tbody id="offlinePendingPanelBody"><tr><td colspan="5" style="text-align:center;color:var(--mu);padding:10px;">No pending offline check-ins on this device.</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- OFFLINE MODE DIAGNOSTICS — infrastructure verification panel (see
+       PROJECT.md, Offline Mode). The Pending Sync panel above is the
+       real, non-diagnostic queue that saveEntry() writes to; the "Test
+       IndexedDB Records" table below is a separate synthetic sandbox
+       and never contains real passengers. -->
   <div id="offlineDiagCard" class="epson-card" style="margin-top:16px;">
-    <div class="epson-card-title">📡 Offline Mode Diagnostics (Phase 1 — infrastructure only)</div>
-    <div class="epson-card-sub">Offline Check-In is not available yet. This panel verifies the infrastructure a future phase will build on.</div>
+    <div class="epson-card-title">📡 Offline Mode Diagnostics</div>
+    <div class="epson-card-sub">Emergency Offline Check-In is available when this device is authorized and a device code is set (below). This panel verifies the underlying infrastructure.</div>
 
     <div class="epson-stat-grid">
       <div class="epson-stat"><div class="epson-stat-label">Service Worker</div><div class="epson-stat-value" id="offSwStatus">—</div></div>
@@ -1278,6 +1298,14 @@ async function sbInsert(obj) {
 }
 
 async function sbUpdate(id, obj) {
+  // Centralized guard: a pending (not-yet-synced) offline check-in has a
+  // negative local id (see offlineLocalIdFromSyncId in offline-db.js) and
+  // no real row on the server yet — sending it through PATCH would 404 at
+  // best or silently target nothing at worst. This catches nearly every
+  // mutation path in the app since almost all of them go through here;
+  // the two RPC-based paths that bypass sbUpdate() (changePassengerReturnDate,
+  // deletePassengerWithLog) carry the identical check themselves.
+  if (isOfflinePendingId(id)) throw offlinePendingBlockError();
   var res = await fetch(SUPABASE_URL + '/rest/v1/' + TABLE + '?id=eq.' + id, {
     method: 'PATCH',
     headers: sbHeaders(),
@@ -1291,6 +1319,7 @@ async function sbUpdate(id, obj) {
 }
 
 async function sbDelete(id) {
+  if (isOfflinePendingId(id)) throw offlinePendingBlockError();
   var res = await fetch(SUPABASE_URL + '/rest/v1/' + TABLE + '?id=eq.' + id, {
     method: 'DELETE',
     headers: sbHeaders()
@@ -1949,16 +1978,80 @@ function mapPassengerRow(r) {
     customs_gratuity_dismissed: r.customs_gratuity_dismissed||false
   };
 }
+
+// Shapes one offline_checkins IndexedDB record (see offlineBuildCheckinRecord
+// in offline-db.js) into the same row shape mapPassengerRow() produces, so
+// it can sit in `data` next to real server rows and be rendered, sorted,
+// and counted by every existing view without special-casing. Reuses
+// mapPassengerRow() itself (rather than duplicating the field list) so the
+// two shapes can never silently drift apart.
+function mapOfflinePendingRow(record){
+  var row = mapPassengerRow(Object.assign({}, record.payload, {id: record.localId}));
+  row.isOfflinePending = true;
+  row.offline_sync_id = record.offline_sync_id;
+  row.deviceId = record.deviceId;
+  row.deviceCode = record.deviceCode;
+  row.offlineCreatedAt = record.createdAt;
+  return row;
+}
+
+// Reads every LOCAL_PENDING offline_checkins record and returns them
+// mapped and ready to append to `data`. Never mutates IndexedDB, never
+// marks anything synced — pure read. Called after every successful
+// loadData() (including on reconnect) so pending check-ins stay visible
+// exactly as PENDING SYNC across a reload, per the Phase 2 requirement
+// that reconnection must NOT auto-upload/remove/mark-synced them.
+async function loadPendingOfflineRows(){
+  if(typeof offlineCheckinGetAll !== 'function') return [];
+  try{
+    var records = await offlineCheckinGetAll();
+    return records
+      .filter(function(rec){ return rec.syncState === 'LOCAL_PENDING'; })
+      .map(mapOfflinePendingRow);
+  }catch(e){
+    console.error('Could not read pending offline check-ins', e);
+    return [];
+  }
+}
+
 async function loadData() {
   loading(true);
   try {
     var rows = await sbGet();
-    data = rows.map(mapPassengerRow);
+    var pendingRows = await loadPendingOfflineRows();
+    data = rows.map(mapPassengerRow).concat(pendingRows);
+    // Snapshot reflects true server state only — never includes local
+    // pending rows (those live in offline_checkins and are re-merged on
+    // every load; the snapshot is just the ticket-math/cold-launch
+    // starting point). Only written after sbGet() actually succeeded.
+    if(typeof offlineSnapshotSave === 'function'){
+      offlineSnapshotSave(rows.map(mapPassengerRow)).catch(function(e){ console.error('Could not save offline snapshot', e); });
+    }
     render();
     updateSyncStatus();
+    if(typeof updateOfflinePendingPanel==='function') updateOfflinePendingPanel();
   } catch(e) {
     showMsg('Connection error: '+e.message, true);
     console.error(e);
+    // sbGet() failed — most likely offline. Fall back to the last
+    // successful snapshot (see offlineSnapshotSave above) plus any local
+    // pending check-ins, purely so ticket-number math and the dashboard
+    // have a starting point instead of an empty list. This NEVER writes
+    // the snapshot itself and never marks anything synced — read-only.
+    if(typeof offlineSnapshotLoad === 'function'){
+      try{
+        var snap = await offlineSnapshotLoad();
+        var pendingRows2 = await loadPendingOfflineRows();
+        if(snap && snap.data){
+          data = snap.data.concat(pendingRows2);
+          render();
+        } else if(pendingRows2.length){
+          data = pendingRows2;
+          render();
+        }
+      }catch(e2){ console.error('Could not load offline snapshot fallback', e2); }
+    }
+    if(typeof updateOfflinePendingPanel==='function') updateOfflinePendingPanel();
   }
   loading(false);
 }
@@ -2087,7 +2180,8 @@ function renderTable() {
         (rm?'<span class="tag t-tmrw">TMR</span>':'')+
         (ro&&r.status!=='DELIVERED'?'<span class="tag t-late">LATE</span>':'')+
         (isApproxRecord(r)?'<span class="tag" style="background:rgba(201,168,76,0.15);color:var(--gold)">~APPROX</span>':'')+
-        (isAscend(r)?'<span class="tag" style="background:rgba(99,179,237,0.15);color:#63b3ed">✈ ASCEND</span>':'')+'</td>'+
+        (isAscend(r)?'<span class="tag" style="background:rgba(99,179,237,0.15);color:#63b3ed">✈ ASCEND</span>':'')+
+        (r.isOfflinePending?'<span class="tag" style="background:rgba(232,160,48,.18);color:#e8a030;font-weight:800" title="Saved locally, not yet on the server">🟠 PENDING SYNC</span>':'')+'</td>'+
       '<td style="font-family:monospace;font-size:12px;color:var(--mu)">'+escapeHTML(fmtP(r.phone))+'</td>'+
       '<td style="font-family:monospace;font-size:12px;color:var(--gold)">'+escapeHTML(r.ticket)+'</td>'+
       '<td style="font-size:12px;color:var(--mu)">'+escapeHTML(r.car)+'</td>'+
@@ -2164,7 +2258,7 @@ function renderDay() {
       return '<div class="dcard '+cls+(isApprox?' approx-card':'')+(r.status==='DELIVERED'&&showDeliver?' delivered-today-card':'')+'" onclick="showDet('+r.id+')">'+
         '<div class="dc-top">'+
           '<div class="dc-body">'+
-            '<div class="dc-n">'+(r.status==='DELIVERED'&&showDeliver?'<span style="text-decoration:line-through;opacity:0.6">'+(isAscend(r)?'[A] ':'')+escapeHTML(r.name)+'</span>':(isAscend(r)?'[A] ':'')+escapeHTML(r.name))+(isApprox?' <span style="font-size:9px;background:rgba(201,168,76,0.2);color:var(--gold);border-radius:4px;padding:2px 5px;margin-left:4px">~APPROX</span>':'')+(isAscend(r)?'<span style="font-size:9px;background:rgba(99,179,237,0.18);color:#63b3ed;border-radius:4px;padding:2px 5px;margin-left:4px;font-family:\'DM Mono\',monospace">✈ ASCEND</span>':'')+(r.status==='DELIVERED'?tipStatusCompact(r):'')+'</div>'+
+            '<div class="dc-n">'+(r.status==='DELIVERED'&&showDeliver?'<span style="text-decoration:line-through;opacity:0.6">'+(isAscend(r)?'[A] ':'')+escapeHTML(r.name)+'</span>':(isAscend(r)?'[A] ':'')+escapeHTML(r.name))+(isApprox?' <span style="font-size:9px;background:rgba(201,168,76,0.2);color:var(--gold);border-radius:4px;padding:2px 5px;margin-left:4px">~APPROX</span>':'')+(isAscend(r)?'<span style="font-size:9px;background:rgba(99,179,237,0.18);color:#63b3ed;border-radius:4px;padding:2px 5px;margin-left:4px;font-family:\'DM Mono\',monospace">✈ ASCEND</span>':'')+(r.isOfflinePending?'<span style="font-size:9px;background:rgba(232,160,48,.22);color:#e8a030;border-radius:4px;padding:2px 5px;margin-left:4px;font-weight:800;font-family:\'DM Mono\',monospace" title="Saved locally, not yet on the server">🟠 PENDING SYNC</span>':'')+(r.status==='DELIVERED'?tipStatusCompact(r):'')+'</div>'+
             '<div class="dc-c">'+escapeHTML(r.car)+' · '+escapeHTML(fmtP(r.phone))+'</div>'+
             flightHtml+
           '</div>'+
@@ -2463,7 +2557,12 @@ async function doArchive(){
   var archivedBy=_pendingArchivedBy;
   if(!archivedBy) return;
   var archivedAt=new Date().toLocaleString('en-US',{month:'2-digit',day:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:true});
-  var recs=_archiveMode==='selected'?data.filter(function(r){return selected[r.id];}):_archive2025Recs;
+  var allRecs=_archiveMode==='selected'?data.filter(function(r){return selected[r.id];}):_archive2025Recs;
+  // Pending (not-yet-synced) offline records have no real server row to
+  // archive yet — skip them explicitly rather than letting sbUpdate()'s
+  // guard reject them silently into the same bucket as a real failure.
+  var pendingSkipped=allRecs.filter(function(r){return r.isOfflinePending;});
+  var recs=allRecs.filter(function(r){return !r.isOfflinePending;});
   closeArchiveModal();
   loading(true);
   var upd={status:'ARCHIVED',archived_by:archivedBy,archived_at:archivedAt};
@@ -2477,7 +2576,9 @@ async function doArchive(){
   }));
   localStorage.setItem('lastArchiveName',archivedBy);
   loading(false);
-  showMsg(ok.length+' record(s) archived by '+archivedBy,false);
+  var msg=ok.length+' record(s) archived by '+archivedBy;
+  if(pendingSkipped.length) msg+=' — '+pendingSkipped.length+' skipped (pending sync, '+OFFLINE_PENDING_SYNC_MSG.toLowerCase()+')';
+  showMsg(msg, pendingSkipped.length>0 && ok.length===0);
   clearSel(); render();
 }
 function closeArchiveModal(){_pendingArchivedBy='';document.getElementById('archiveOv').classList.remove('on');}
@@ -3369,6 +3470,7 @@ function welcomeBackButtonHtml(r){
 async function sendWelcomeBackSms(id){
   var r = data.find(function(x){ return x.id === id; });
   if (!r || isAscend(r)) return;
+  if (r.isOfflinePending) { showMsg(OFFLINE_PENDING_SYNC_MSG, true); return; }
   if (r.delivery_type==='CUSTOMS') return; // use the Customs communication workflow instead
   if (!r.phone) { showMsg('No phone number on file for ' + r.name, true); return; }
   var smsBody = buildWelcomeBackSms();
@@ -3405,6 +3507,7 @@ async function sendWelcomeBackSms(id){
 function undoWelcomeBackSms(id){
   var r = data.find(function(x){ return x.id === id; });
   if (!r || isAscend(r)) return;
+  if (r.isOfflinePending) { showMsg(OFFLINE_PENDING_SYNC_MSG, true); return; }
   if (!r.welcome_back_sent_at) return;
   if (!confirm('Clear the Welcome Back status for this passenger?')) return;
   var prevValue = r.welcome_back_sent_at;
@@ -3638,6 +3741,7 @@ function renderCustomsCommModal(r){
 async function sendCustomsWelcomeSms(id){
   var r=data.find(function(x){return x.id===id;});
   if(!r) return;
+  if(r.isOfflinePending){ showMsg(OFFLINE_PENDING_SYNC_MSG, true); return; }
   if(!r.phone){ showMsg('No phone number on file for '+r.name, true); return; }
   var smsBody=buildCustomsWelcomeSms(r);
   var sendOpts={
@@ -3671,6 +3775,7 @@ async function sendCustomsWelcomeSms(id){
 function undoCustomsWelcomeSms(id){
   var r=data.find(function(x){return x.id===id;});
   if(!r || !r.customs_welcome_sent) return;
+  if(r.isOfflinePending){ showMsg(OFFLINE_PENDING_SYNC_MSG, true); return; }
   if(!confirm('Clear the Welcome Back status for this passenger?')) return;
   var prev={sent:r.customs_welcome_sent,at:r.customs_welcome_sent_at};
   r.customs_welcome_sent=false; r.customs_welcome_sent_at=null;
@@ -3686,6 +3791,7 @@ function undoCustomsWelcomeSms(id){
 async function sendCustomsGratuitySms(id){
   var r=data.find(function(x){return x.id===id;});
   if(!r) return;
+  if(r.isOfflinePending){ showMsg(OFFLINE_PENDING_SYNC_MSG, true); return; }
   // Hardening pass (fixes R1/R2 — see docs/TWILIO_MIGRATION_AUDIT.md): this
   // check is the programmatic backstop for the WB-before-Gratuity rule. It
   // must run FIRST, before any other check, so this refuses the same way
@@ -3732,6 +3838,7 @@ async function sendCustomsGratuitySms(id){
 function undoCustomsGratuitySms(id){
   var r=data.find(function(x){return x.id===id;});
   if(!r || !r.customs_gratuity_sent) return;
+  if(r.isOfflinePending){ showMsg(OFFLINE_PENDING_SYNC_MSG, true); return; }
   if(!confirm('Clear the Gratuity status for this passenger? This restores the reminder if it is already due.')) return;
   var prev={sent:r.customs_gratuity_sent,at:r.customs_gratuity_sent_at,dismissed:r.customs_gratuity_dismissed};
   r.customs_gratuity_sent=false; r.customs_gratuity_sent_at=null; r.customs_gratuity_dismissed=false;
@@ -3747,6 +3854,7 @@ function undoCustomsGratuitySms(id){
 function dismissCustomsGratuityReminder(id){
   var r=data.find(function(x){return x.id===id;});
   if(!r) return;
+  if(r.isOfflinePending){ showMsg(OFFLINE_PENDING_SYNC_MSG, true); return; }
   var prev=r.customs_gratuity_dismissed;
   r.customs_gratuity_dismissed=true;
   renderDay(); updateCustomsReminderBadgeCount(); if(_customsCommOpenId===id) renderCustomsCommModal(r);
@@ -3884,43 +3992,13 @@ async function saveEntry(sendSms, printMode){
   btn.textContent='Saving...';btn.disabled=true;
   btnSms.textContent='Saving...';btnSms.disabled=true;
   if(btnPrint){btnPrint.textContent='Saving...';btnPrint.disabled=true;}
-  try{
-    var ts=new Date().toLocaleString('en-US');
-    var phoneFull=document.getElementById('fPhone').value.trim();
-    var carVal=document.getElementById('fCar').value.trim().toUpperCase();
-    var colorVal=(document.getElementById('fColor')||{value:''}).value.trim();
-    var obs=document.getElementById('fObs').value.trim().toUpperCase();
-    var finalStatus=document.getElementById('fStatus').value;
-    var estDate=document.getElementById('fEstDate').value;
-    var hasEstDate=finalStatus==='NO DATE'&&estDate;
-    var finalObs=obs+(hasEstDate?(obs?' | ':'')+'APPROX DATE':'');
-    var finalDate;
-    if(finalStatus==='NO DATE'){ finalDate=hasEstDate?d2us(estDate):''; }
-    else { finalDate=d2us(getReturnDate()); }
-    var locVal=document.getElementById('fLoc').value;
-    var notReturning=!!(document.getElementById('fNotReturning')||{}).checked;
 
-    var _newRows = await sbInsert({
-      ts: ts,
-      checkin_date: new Date().toISOString(),
-      name: name.toUpperCase(),
-      phone: phoneFull,
-      ticket: ticket,
-      ret: finalDate,
-      car: carVal,
-      color: colorVal || null,
-      loc: locVal,
-      status: finalStatus,
-      block: '',
-      obs: finalObs,
-      not_returning_with_makers_air: notReturning,
-      deldate: ''
-    });
-    var _newId = (_newRows && _newRows[0]) ? _newRows[0].id : null;
-    sbLog('CREATED', name.toUpperCase(), ticket, locVal, 'Passenger added to system', {passenger_id:_newId});
-    if (_newId) vlhInsert({passenger_id:_newId, ticket:ticket, passenger_name:name.toUpperCase(), from_location:'', to_location:locVal, action:'CHECK-IN', note:'Vehicle checked in at '+locVal, created_by:_currentUserEmail});
-    maybeAddVehicle(carVal);
-
+  function resetSaveButtons(){
+    btn.textContent='Save Only';btn.disabled=false;
+    btnSms.textContent='💬 Save + Text';btnSms.disabled=false;
+    if(btnPrint){btnPrint.textContent='🖨 Save + Print + Text';btnPrint.disabled=false;}
+  }
+  function resetFormFields(){
     closeAll();
     document.getElementById('fName').value='';
     document.getElementById('fPhone').value='';
@@ -3933,36 +4011,174 @@ async function saveEntry(sendSms, printMode){
     document.getElementById('fStatus').value='PENDING';
     document.querySelectorAll('.lb').forEach(function(b){b.classList.remove('on');});
     document.getElementById('freqInfo').classList.remove('on');
-    showMsg('✓ Saved!', false);
+  }
 
-    if(printMode==='both'){
-      var savedRec={ticket:ticket,name:name.toUpperCase(),phone:phoneFull,
+  var ts=new Date().toLocaleString('en-US');
+  var phoneFull=document.getElementById('fPhone').value.trim();
+  var carVal=document.getElementById('fCar').value.trim().toUpperCase();
+  var colorVal=(document.getElementById('fColor')||{value:''}).value.trim();
+  var obs=document.getElementById('fObs').value.trim().toUpperCase();
+  var finalStatus=document.getElementById('fStatus').value;
+  var estDate=document.getElementById('fEstDate').value;
+  var hasEstDate=finalStatus==='NO DATE'&&estDate;
+  var finalObs=obs+(hasEstDate?(obs?' | ':'')+'APPROX DATE':'');
+  var finalDate;
+  if(finalStatus==='NO DATE'){ finalDate=hasEstDate?d2us(estDate):''; }
+  else { finalDate=d2us(getReturnDate()); }
+  var locVal=document.getElementById('fLoc').value;
+  var notReturning=!!(document.getElementById('fNotReturning')||{}).checked;
+  var nameUpper=name.toUpperCase();
+
+  var payload = {
+    ts: ts,
+    checkin_date: new Date().toISOString(),
+    name: nameUpper,
+    phone: phoneFull,
+    ticket: ticket,
+    ret: finalDate,
+    car: carVal,
+    color: colorVal || null,
+    loc: locVal,
+    status: finalStatus,
+    block: '',
+    obs: finalObs,
+    not_returning_with_makers_air: notReturning,
+    deldate: ''
+  };
+
+  // Decided upfront from the connectivity indicator (never guessed) —
+  // deviceOnline is navigator.onLine, supabaseReachable comes only from
+  // offlineProbeSupabase()'s real request, see the Offline Mode section
+  // near the bottom of this file. supabaseReachable===null (not probed
+  // yet) is treated as "try online" — the network-level catch below is
+  // the real safety net if that optimism turns out to be wrong.
+  var knownOffline = (typeof _offlineNet !== 'undefined') && (!_offlineNet.deviceOnline || _offlineNet.supabaseReachable === false);
+
+  if(!knownOffline){
+    // ── ONLINE PATH — byte-for-byte the original saveEntry() behavior ──
+    try{
+      var _newRows = await sbInsert(payload);
+      var _newId = (_newRows && _newRows[0]) ? _newRows[0].id : null;
+      sbLog('CREATED', nameUpper, ticket, locVal, 'Passenger added to system', {passenger_id:_newId});
+      if (_newId) vlhInsert({passenger_id:_newId, ticket:ticket, passenger_name:nameUpper, from_location:'', to_location:locVal, action:'CHECK-IN', note:'Vehicle checked in at '+locVal, created_by:_currentUserEmail});
+      maybeAddVehicle(carVal);
+
+      resetFormFields();
+      showMsg('✓ Saved!', false);
+
+      if(printMode==='both'){
+        var savedRec={ticket:ticket,name:nameUpper,phone:phoneFull,
+                      ret:finalDate,car:carVal,color:colorVal,loc:locVal,
+                      not_returning_with_makers_air:notReturning};
+        if(!isAscend(savedRec)){await printCustomerTicket(savedRec);}
+        await printKeyTicket(savedRec);
+        await printDashboardTicket(savedRec);
+      }
+
+      if(sendSms && phoneFull){
+        var welcomeRec={ticket:ticket,ret:finalDate,not_returning_with_makers_air:notReturning,loc:locVal};
+        var smsBody=buildWelcomeSms(welcomeRec);
+        await sendPassengerSms({
+          passengerId:_newId, passengerName:nameUpper, phone:phoneFull, ticket:ticket,
+          vehicle:formatVehicleLine({car:carVal,color:colorVal}), brand:isAscend(welcomeRec)?'Ascend':'Makers Air',
+          templateKey:'WELCOME', messageType:welcomeSmsMessageType(welcomeRec),
+          body:smsBody, metadata:{trigger:'Check-in — Save + Text / Save + Print + Text'}
+        });
+      }
+      await loadData();
+      resetSaveButtons();
+      return;
+    }catch(e){
+      if(!(e instanceof TypeError)){
+        // A real server-side rejection (validation, RLS, 4xx/5xx — sbInsert()
+        // throws a plain Error for those, never TypeError) — surface it
+        // exactly like before. Never fall through to the offline queue for
+        // an error that has nothing to do with connectivity.
+        showMsg('❌ Error: '+e.message, true);
+        console.error(e);
+        resetSaveButtons();
+        return;
+      }
+      // fetch() itself threw TypeError — a genuine network-level failure
+      // (the connectivity indicator hadn't yet caught up with reality).
+      // Fall through to the offline path below instead of reporting a
+      // false failure and losing this check-in.
+      console.warn('saveEntry(): online save failed at the network level, falling back to the offline queue.', e);
+    }
+  }
+
+  // ── OFFLINE PATH — emergency queue ────────────────────────────────
+  // Mandatory order: (1) confirm this device is authorized to queue
+  // offline check-ins at all, (2) write to IndexedDB, (3) only if that
+  // write actually succeeds, merge into `data`/render/clear the form and
+  // report success. A failure at step (2) must show CHECK-IN NOT SAVED
+  // and leave the form exactly as the attendant left it — never a false
+  // success. Ticket/printing/SMS never happen before the IndexedDB write
+  // is confirmed.
+  var authStatus = (typeof getOfflineAuthStatus==='function') ? getOfflineAuthStatus() : {valid:false};
+  if(!authStatus.valid){
+    showMsg('OFFLINE ACCESS NOT AVAILABLE — CONNECT TO INTERNET AND SIGN IN', true);
+    resetSaveButtons();
+    return;
+  }
+  var deviceCodeForSave = (typeof getOfflineDeviceCode==='function') ? getOfflineDeviceCode() : '';
+  if(!deviceCodeForSave){
+    showMsg('OFFLINE ACCESS NOT AVAILABLE — DEVICE CODE NOT CONFIGURED (see Debug tab)', true);
+    resetSaveButtons();
+    return;
+  }
+
+  var record = offlineBuildCheckinRecord(payload);
+  try{
+    await offlineCheckinPut(record);
+  }catch(idbErr){
+    // The one hard rule of this whole feature: IndexedDB rejecting the
+    // write is never reported as a save. Nothing is cleared, nothing is
+    // merged into `data` — the attendant's typed entry stays on screen.
+    console.error('Offline check-in FAILED to save to IndexedDB', idbErr);
+    showMsg('❌ CHECK-IN NOT SAVED — '+idbErr.message, true);
+    resetSaveButtons();
+    return;
+  }
+
+  // IndexedDB confirmed the write — from here on this check-in IS saved,
+  // even if a step below (render, printing) has a problem of its own.
+  try{
+    data.push(mapOfflinePendingRow(record));
+    resetFormFields();
+    render();
+    var savedMsg='🟠 OFFLINE MODE — Saved locally as PENDING SYNC (Ticket '+ticket+').';
+    if(sendSms && phoneFull) savedMsg+=' SMS NOT COMPLETED — OFFLINE.';
+    showMsg(savedMsg, false);
+    if(typeof offlineDiagRefresh==='function') offlineDiagRefresh();
+    if(typeof updateOfflinePendingPanel==='function') updateOfflinePendingPanel();
+  }catch(uiErr){
+    // The record is safely in IndexedDB regardless of this — it will
+    // reappear correctly on the next loadData()/reload via
+    // loadPendingOfflineRows(). This is a display-update bug, not a lost
+    // check-in, so it must never say CHECK-IN NOT SAVED.
+    console.error('Offline check-in saved to IndexedDB, but updating the on-screen list failed', uiErr);
+    showMsg('⚠️ Saved to device (Ticket '+ticket+'), but the on-screen list did not update — reload to see it.', true);
+  }
+
+  if(printMode==='both'){
+    try{
+      var savedRecOff={ticket:ticket,name:nameUpper,phone:phoneFull,
                     ret:finalDate,car:carVal,color:colorVal,loc:locVal,
                     not_returning_with_makers_air:notReturning};
-      if(!isAscend(savedRec)){await printCustomerTicket(savedRec);}
-      await printKeyTicket(savedRec);
-      await printDashboardTicket(savedRec);
+      if(!isAscend(savedRecOff)){await printCustomerTicket(savedRecOff);}
+      await printKeyTicket(savedRecOff);
+      await printDashboardTicket(savedRecOff);
+    }catch(printErr){
+      // Printing failure must never roll back or un-save the passenger —
+      // the IndexedDB record above already succeeded and stays exactly
+      // as PENDING SYNC.
+      console.error('Offline check-in: printing failed (passenger stays saved)', printErr);
+      showMsg('⚠️ Saved, but printing failed: '+printErr.message, true);
     }
-
-    if(sendSms && phoneFull){
-      var welcomeRec={ticket:ticket,ret:finalDate,not_returning_with_makers_air:notReturning,loc:locVal};
-      var smsBody=buildWelcomeSms(welcomeRec);
-      await sendPassengerSms({
-        passengerId:_newId, passengerName:name.toUpperCase(), phone:phoneFull, ticket:ticket,
-        vehicle:formatVehicleLine({car:carVal,color:colorVal}), brand:isAscend(welcomeRec)?'Ascend':'Makers Air',
-        templateKey:'WELCOME', messageType:welcomeSmsMessageType(welcomeRec),
-        body:smsBody, metadata:{trigger:'Check-in — Save + Text / Save + Print + Text'}
-      });
-    }
-    await loadData();
-  }catch(e){
-    showMsg('❌ Error: '+e.message, true);
-    console.error(e);
-  }finally{
-    btn.textContent='Save Only';btn.disabled=false;
-    btnSms.textContent='💬 Save + Text';btnSms.disabled=false;
-    if(btnPrint){btnPrint.textContent='🖨 Save + Print + Text';btnPrint.disabled=false;}
   }
+
+  resetSaveButtons();
 }
 
 // ── DETAIL PANEL ───────────────────────────────────────────────
@@ -4075,6 +4291,7 @@ function openTipModal(id, deliveryType){
   deliveryType = deliveryType || 'NORMAL';
   var r=null; for(var i=0;i<data.length;i++){if(data[i].id===id){r=data[i];break;}}
   if(!r) return;
+  if(r.isOfflinePending){ showMsg(OFFLINE_PENDING_SYNC_MSG, true); return; }
   var ov=document.getElementById('tipOv');
   ov.setAttribute('data-id', id);
   ov.setAttribute('data-dtype', deliveryType);
@@ -4094,6 +4311,7 @@ async function deliverWithTip(id, deliveryType, tipReceived){
   }
   var r=null; for(var i=0;i<data.length;i++){if(data[i].id===id){r=data[i];break;}}
   if(!r) return false;
+  if(r.isOfflinePending){ showMsg(OFFLINE_PENDING_SYNC_MSG, true); return false; }
   var isLateDeliver=isLate(r.ret);
   var isCustoms=deliveryType==='CUSTOMS';
   var prevLoc=r.loc||'';
@@ -4203,6 +4421,7 @@ function quickDeliver(id, deliveryType){
 async function markDel(id){
   var r=null;for(var i=0;i<data.length;i++){if(data[i].id===id){r=data[i];break;}}
   if(!r)return;
+  if(r.isOfflinePending){ showMsg(OFFLINE_PENDING_SYNC_MSG, true); return; }
   var prevLoc=r.loc||'';
   loading(true);
   try{
@@ -4222,6 +4441,7 @@ async function markDel(id){
 async function undoDeliverToday(id){
   var r=null;for(var i=0;i<data.length;i++){if(data[i].id===id){r=data[i];break;}}
   if(!r)return;
+  if(r.isOfflinePending){ showMsg(OFFLINE_PENDING_SYNC_MSG, true); return; }
   if(!confirm('Restore this car to PENDING? This will remove today\'s delivery timestamp.\n\n'+r.name+' — Ticket '+r.ticket))return;
   var restoredLoc=r.previous_delivery_location||r.loc||'';
   loading(true);
@@ -4282,6 +4502,7 @@ async function earlyReturn(id){
 async function deleteRec(id){
   var r=null;for(var i=0;i<data.length;i++){if(data[i].id===id){r=data[i];break;}}
   if(!r)return;
+  if(r.isOfflinePending){ showMsg(OFFLINE_PENDING_SYNC_MSG, true); return; }
   if(!confirm('DELETE '+r.name+' ('+r.ticket+')? This cannot be undone!'))return;
   loading(true);
   try{
@@ -4302,6 +4523,7 @@ async function deleteRec(id){
 async function moveHangar(id,hangar){
   var r=null;for(var i=0;i<data.length;i++){if(data[i].id===id){r=data[i];break;}}
   if(!r)return;
+  if(r.isOfflinePending){ showMsg(OFFLINE_PENDING_SYNC_MSG, true); return; }
   if(r.loc===hangar){showMsg('Already in '+hangar,false);loading(false);return;}
   var oldLoc=r.loc;
   loading(true);
@@ -4325,6 +4547,7 @@ async function changeDate(id){
   if(!input||!input.value){alert('Please select a date first.');return;}
   var r=null;for(var i=0;i<data.length;i++){if(data[i].id===id){r=data[i];break;}}
   if(!r)return;
+  if(r.isOfflinePending){ showMsg(OFFLINE_PENDING_SYNC_MSG, true); return; }
   var parts=input.value.split('-');
   var newDate=parseInt(parts[1],10)+'/'+parseInt(parts[2],10)+'/'+parts[0];
   loading(true);
@@ -4351,6 +4574,7 @@ async function changeArrDate(id) {
   }
   var r=null; for(var i=0;i<data.length;i++){if(data[i].id===id){r=data[i];break;}}
   if (!r) return;
+  if(r.isOfflinePending){ showMsg(OFFLINE_PENDING_SYNC_MSG, true); return; }
   var newTs = mo+'/'+d+'/'+y;
   loading(true);
   try {
@@ -4425,6 +4649,13 @@ async function saveEdits(rid){
   if(Object.keys(_editChanges).length===0) return;
   var r=null;for(var i=0;i<data.length;i++){if(data[i].id===rid){r=data[i];break;}}
   if(!r) return;
+  if(r.isOfflinePending){
+    _editChanges={};
+    var btnPend=document.getElementById('saveEditsBtn');
+    if(btnPend) btnPend.classList.remove('visible');
+    showMsg(OFFLINE_PENDING_SYNC_MSG, true);
+    return;
+  }
   var prevLoc=r.loc;
 
   // Manual return-date changes are handled first, atomically, through the
@@ -4772,6 +5003,9 @@ function validateReturnDateChangeReason(text){
   return {ok:true, value:trimmed};
 }
 async function changePassengerReturnDate(passengerId,newDate,reason,reopen){
+  // This RPC call bypasses sbUpdate() entirely, so it needs the identical
+  // pending-record guard sbUpdate() carries — see the comment there.
+  if (isOfflinePendingId(passengerId)) throw offlinePendingBlockError();
   var res=await fetch(SUPABASE_URL+'/rest/v1/rpc/change_passenger_return_date_with_reason',{
     method:'POST',
     headers: Object.assign({}, sbHeaders(), {'Prefer':'return=representation'}),
@@ -4796,6 +5030,7 @@ async function changePassengerReturnDate(passengerId,newDate,reason,reopen){
 // sbLog()/sbDelete() calls, no possibility of a false or contradictory
 // log if the delete fails partway through.
 async function deletePassengerWithLog(passengerId){
+  if (isOfflinePendingId(passengerId)) throw offlinePendingBlockError();
   var res=await fetch(SUPABASE_URL+'/rest/v1/rpc/delete_passenger_with_log',{
     method:'POST',
     headers: Object.assign({}, sbHeaders(), {'Prefer':'return=representation'}),
@@ -8835,12 +9070,13 @@ function tvCopyUrl(){
 }
 
 // ══════════════════════════════════════════════════════════════════════
-// ── OFFLINE MODE — PHASE 1 (infrastructure only) ────────────────────
+// ── OFFLINE MODE ──────────────────────────────────────────────────────
 // Service worker registration + update lifecycle, connectivity
-// detection (device network vs. actual Supabase reachability), and the
-// Debug-tab diagnostics panel. Nothing below writes real passenger
-// data or touches saveEntry() / any other production write path — see
-// PROJECT.md, Offline Mode, for the full design and phased plan.
+// detection (device network vs. actual Supabase reachability), the
+// Debug-tab diagnostics panel, and (from Phase 2 on) the real
+// OFFLINE MODE / PENDING SYNC banner + Pending Sync panel that reflect
+// saveEntry()'s offline queue. See PROJECT.md, Offline Mode, for the
+// full design and phased plan.
 // ══════════════════════════════════════════════════════════════════════
 
 var _offlineSw = {registration:null, status:'missing', updateAvailable:false, reloading:false};
@@ -8916,6 +9152,50 @@ function offlineUpdateNetIndicator(){
     el.textContent = '🟢 ONLINE';
     el.style.background = 'rgba(34,197,94,.14)'; el.style.color = '#8CF0B8';
   }
+  updateOfflineModeBanner();
+}
+
+// ── OFFLINE MODE / PENDING SYNC banner (Phase 2) ─────────────────────
+// Single source of truth for the header banner. Pending count comes
+// from `data` itself (already merged with local pending rows by
+// loadData()/saveEntry() — see mapOfflinePendingRow), never a separate
+// re-read, so the banner can never drift from what's actually rendered.
+function offlinePendingRecordsInData(){
+  return (typeof data!=='undefined' ? data : []).filter(function(r){ return r && r.isOfflinePending; });
+}
+function isKnownOfflineForCheckin(){
+  return (typeof _offlineNet !== 'undefined') && (!_offlineNet.deviceOnline || _offlineNet.supabaseReachable === false);
+}
+function updateOfflineModeBanner(){
+  var el = document.getElementById('offlineModeBanner');
+  if(!el) return;
+  var pendingCount = offlinePendingRecordsInData().length;
+
+  if(isKnownOfflineForCheckin()){
+    var authStatus = (typeof getOfflineAuthStatus==='function') ? getOfflineAuthStatus() : {valid:false};
+    var deviceCode = (typeof getOfflineDeviceCode==='function') ? getOfflineDeviceCode() : '';
+    if(!authStatus.valid || !deviceCode){
+      el.style.display='flex';
+      el.style.background='#5a1a1a';
+      el.textContent='🔴 OFFLINE ACCESS NOT AVAILABLE — CONNECT TO INTERNET AND SIGN IN';
+      return;
+    }
+    el.style.display='flex';
+    el.style.background='#7a4a12';
+    el.textContent='🟠 OFFLINE MODE — New check-ins are saved locally as PENDING SYNC.'+(pendingCount?(' '+pendingCount+' on this device.'):'');
+    return;
+  }
+  if(pendingCount>0){
+    el.style.display='flex';
+    el.style.background='#1a3a2a';
+    el.textContent='🟢 ONLINE — '+pendingCount+' CHECK-INS PENDING SERVER SYNC';
+    return;
+  }
+  el.style.display='none';
+}
+function updateOfflinePendingPanel(){
+  updateOfflineModeBanner();
+  offlineDiagRenderPendingPanel();
 }
 function offlineProbeSupabase(force){
   var now = Date.now();
@@ -8927,6 +9207,7 @@ function offlineProbeSupabase(force){
   // Lightweight, read-only reachability probe against the real REST
   // endpoint. Never used as a data source — loadData()/sbGet() remain
   // the only source of truth for actual passenger data.
+  var wasReachable = _offlineNet.supabaseReachable;
   return fetch(SUPABASE_URL+'/rest/v1/'+TABLE+'?select=id&limit=1', {headers:sbHeaders(), cache:'no-store'})
     .then(function(res){
       _offlineNet.supabaseReachable = res.ok || res.status===401; // a 401 still proves the server itself answered
@@ -8941,6 +9222,16 @@ function offlineProbeSupabase(force){
       _offlineNet.lastCheckedAt = Date.now();
       offlineUpdateNetIndicator();
       offlineDiagRefresh();
+      // Reconnection: Supabase just became reachable again after NOT
+      // being reachable (or never having been probed successfully yet).
+      // Reload live server data — but loadData() merges pending offline
+      // rows back in afterward, so this only ever refreshes what's
+      // already synced; it never touches offline_checkins, never
+      // auto-uploads, and never changes a pending record's PENDING SYNC
+      // state. That upload step is Phase 3, not this.
+      if(_offlineNet.supabaseReachable===true && wasReachable!==true && typeof loadData==='function'){
+        loadData();
+      }
     });
 }
 window.addEventListener('online', function(){
@@ -8996,6 +9287,8 @@ function offlineDiagRefresh(){
   if(stateEl) stateEl.textContent = !auth.present ? 'Missing' : (auth.valid ? 'Valid' : 'Expired');
 
   offlineDiagRenderRecords();
+  offlineDiagRenderPendingPanel();
+  updateOfflineModeBanner();
 }
 function offlineDiagRenderRecords(){
   var body=document.getElementById('offlineDiagRecordsBody');
@@ -9010,10 +9303,35 @@ function offlineDiagRenderRecords(){
 function offlineDiagWriteTestRecord(){
   offlineCheckinPut(offlineBuildDebugTestRecord()).then(function(){ offlineDiagRefresh(); }).catch(function(e){ alert('IndexedDB write failed: '+e.message); });
 }
+// Deletes ONLY synthetic diagnostic records (ticket:'TEST', written by
+// offlineBuildDebugTestRecord() above) — a real pending offline check-in
+// (isOfflinePending:true) must never be reachable from this button. This
+// is a diagnostics sandbox, not the Pending Sync panel.
 function offlineDiagClearTestRecords(){
   offlineCheckinGetAll().then(function(records){
-    return Promise.all(records.map(function(r){ return offlineCheckinDelete(r.offline_sync_id); }));
+    var testRecords = records.filter(function(r){ return !r.isOfflinePending; });
+    return Promise.all(testRecords.map(function(r){ return offlineCheckinDelete(r.offline_sync_id); }));
   }).then(function(){ offlineDiagRefresh(); }).catch(function(e){ alert('Clear failed: '+e.message); });
+}
+function offlineDiagRenderPendingPanel(){
+  var body = document.getElementById('offlinePendingPanelBody');
+  var countEl = document.getElementById('offlinePendingPanelCount');
+  if(!body) return;
+  var pending = offlinePendingRecordsInData();
+  if(countEl) countEl.textContent = pending.length;
+  if(!pending.length){
+    body.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--mu);padding:10px;">No pending offline check-ins on this device.</td></tr>';
+    return;
+  }
+  body.innerHTML = pending.map(function(r){
+    return '<tr>'+
+      '<td>'+escapeHTML(r.ticket||'')+'</td>'+
+      '<td>'+escapeHTML(r.name||'')+'</td>'+
+      '<td>'+escapeHTML(formatVehicleLine(r))+'</td>'+
+      '<td>'+escapeHTML(offlineFmtTime(r.offlineCreatedAt))+'</td>'+
+      '<td>'+escapeHTML(r.deviceCode||'—')+'</td>'+
+    '</tr>';
+  }).join('');
 }
 function offlineDiagSetDeviceCode(){
   var input=document.getElementById('offDeviceCodeInput');
@@ -9031,6 +9349,7 @@ function offlineDiagSetDeviceCode(){
 offlineRegisterServiceWorker();
 offlineUpdateNetIndicator();
 offlineProbeSupabase(true);
+updateOfflineModeBanner();
 
 </script>
 </body>
