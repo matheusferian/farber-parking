@@ -3258,6 +3258,11 @@ function sendReturnDateConfirmationSms(id){
 }
 
 // ── WELCOME BACK SMS (Makers Air only) ───────────────────────────
+// Single source of truth for the reminder threshold — Dashboard's
+// initial render, Dashboard's 60s live urgency refresh, and TV Mode's
+// read-only reminder all read this constant so they can never drift
+// apart. Changed from 20 to 30 minutes on 2026-08-24 (see PROJECT.md).
+var WELCOME_BACK_REMINDER_MINUTES = 30;
 function getWelcomeBackEta(r){
   var t=getDepartureTime(r);
   if(!t||!isValidDepTime(t)) return null;
@@ -3286,7 +3291,7 @@ function welcomeBackButtonHtml(r){
       '</span>';
   }
   var eta=getWelcomeBackEta(r);
-  var urgent=!!eta&&(Date.now()>=(eta.getTime()-20*60000));
+  var urgent=!!eta&&(Date.now()>=(eta.getTime()-WELCOME_BACK_REMINDER_MINUTES*60000));
   return '<span class="wcb-wrap'+(urgent?' urgent':'')+'"'+(eta?' data-wcb-eta="'+eta.toISOString()+'"':'')+' data-wcb-sent="0">'+
       '<button type="button" class="qd-btn wcb-btn wcb-pending" onclick="event.stopPropagation();sendWelcomeBackSms('+r.id+')">Welcome Back</button>'+
       '<span class="wcb-badge">SEND NOW</span>'+
@@ -3350,7 +3355,7 @@ function refreshWelcomeBackUrgency(){
   for(var i=0;i<wraps.length;i++){
     var el=wraps[i];
     var eta=new Date(el.getAttribute('data-wcb-eta')).getTime();
-    el.classList.toggle('urgent', !isNaN(eta)&&now>=(eta-20*60000));
+    el.classList.toggle('urgent', !isNaN(eta)&&now>=(eta-WELCOME_BACK_REMINDER_MINUTES*60000));
   }
 }
 if(!window._wcbReminderInterval){
@@ -8119,6 +8124,13 @@ function updateTvClock(){
     _tv.dateKey = key;
     renderTvDashboard(); // re-resolve Today/Tomorrow immediately, then reconcile with the server
     refreshTvData();
+  } else if(now.getSeconds()===0){
+    // Once-a-minute re-render against already-loaded data (no network
+    // call) so the Welcome Back reminder's amber/red state transitions
+    // on its own, at the same cadence as the Dashboard's own
+    // refreshWelcomeBackUrgency() — reuses this existing 1s tick
+    // instead of adding a second timer.
+    renderTvDashboard();
   }
 }
 
@@ -8333,19 +8345,30 @@ function buildTvViewModel(){
   });
 
   // Customs / Ascend tracking — existing helpers only, no new business
-  // rules. NEEDS HANDLING: active Ascend records not yet delivered
-  // (isAscend()). AT CUSTOMS: vehicles actually delivered via Customs
-  // (isCustomsDelivered()), scoped to today's deliveries the same way
-  // lockboxToday above is scoped, so this stays a live-shift view rather
-  // than growing forever. A record can only ever match one of the two
+  // rules. Scoped to today/tomorrow by the passenger's RETURN DATE
+  // (isToday(r.ret)/isTmrw(r.ret)) — the same field and helpers that
+  // already drive Leaving Today/Tomorrow everywhere else in the app.
+  // Deliberately NOT scoped by deldate (delivery timestamp): that would
+  // be a second, parallel date system, and a Customs delivery's return
+  // date already equals its delivery day in every normal and Early
+  // Return case. Each entry is tagged 'today'/'tomorrow' for the badge.
+  // NEEDS HANDLING: active Ascend records not yet delivered (isAscend()).
+  // AT CUSTOMS: vehicles actually delivered via Customs
+  // (isCustomsDelivered()) — Ascend and regular Makers Air alike, never
+  // filtered by isAscend(). A record can only ever match one of the two
   // groups — "not yet delivered" vs. "delivered via Customs" are
   // mutually exclusive on `status` — so nothing is duplicated between them.
-  var ascendNeedsHandling = active.filter(function(r){
-    return (typeof isAscend==='function' && isAscend(r)) && r.status!=='DELIVERED';
-  });
-  var atCustoms = active.filter(function(r){
-    return (typeof isCustomsDelivered==='function' && isCustomsDelivered(r)) && isToday(r.deldate);
-  });
+  function tvTagDay(list, day){ return list.map(function(r){ return {r:r, day:day}; }); }
+  var ascendNeedsHandling = tvTagDay(active.filter(function(r){
+    return (typeof isAscend==='function' && isAscend(r)) && r.status!=='DELIVERED' && isToday(r.ret);
+  }), 'today').concat(tvTagDay(active.filter(function(r){
+    return (typeof isAscend==='function' && isAscend(r)) && r.status!=='DELIVERED' && isTmrw(r.ret);
+  }), 'tomorrow'));
+  var atCustoms = tvTagDay(active.filter(function(r){
+    return (typeof isCustomsDelivered==='function' && isCustomsDelivered(r)) && isToday(r.ret);
+  }), 'today').concat(tvTagDay(active.filter(function(r){
+    return (typeof isCustomsDelivered==='function' && isCustomsDelivered(r)) && isTmrw(r.ret);
+  }), 'tomorrow'));
 
   var missingTimeTomorrow = leavingTomorrow.filter(function(r){ return !getDepartureTime(r); });
   var missingLocationActive = active.filter(function(r){
@@ -8461,6 +8484,30 @@ function tvRow(r, opts){
   '</div>';
 }
 
+// Read-only mirror of the Dashboard's Hangar 19 Welcome Back reminder.
+// Reuses getWelcomeBackEta()/isAscend()/WELCOME_BACK_REMINDER_MINUTES
+// exactly as-is — same eligibility, same threshold, no second
+// interpretation of departure time. TV Mode never sends anything; this
+// only decides which badge (if any) to show on a Leaving Today row.
+function tvWelcomeBackState(r){
+  if(isAscend(r)) return null;
+  if(r.delivery_type==='CUSTOMS') return null;
+  if(r.welcome_back_sent_at) return 'sent';
+  var eta = getWelcomeBackEta(r);
+  if(!eta) return null; // missing/invalid departure time — never guess
+  var now = Date.now();
+  if(now >= eta.getTime()) return 'overdue';
+  if(now >= eta.getTime() - WELCOME_BACK_REMINDER_MINUTES*60000) return 'due';
+  return null;
+}
+function tvWelcomeBackBadge(r){
+  var state = tvWelcomeBackState(r);
+  if(state==='sent') return '<span class="tv-badge tv-badge-delivered">&#10003; WELCOME BACK SENT</span>';
+  if(state==='overdue') return '<span class="tv-badge tv-badge-critical">&#9888; WELCOME BACK OVERDUE</span>';
+  if(state==='due') return '<span class="tv-badge tv-badge-warning">SEND WELCOME BACK</span>';
+  return '';
+}
+
 // ── MAIN RENDER ──────────────────────────────────────────────────────
 // Debounced via requestAnimationFrame coalescing: multiple refresh
 // sources (realtime debounce, poll, watchdog, clock rollover) can call
@@ -8521,7 +8568,12 @@ function tvRenderPageToday(vm){
         (vm.leavingTodayRemaining.length
           ? vm.leavingTodayRemaining.map(function(r){
               var t = getDepartureTime(r);
-              return tvRow(r,{time: t?tvFmt12(t):'TIME NOT SET', timeUnset:!t, critical:isLate(r.ret)});
+              var wcbState = tvWelcomeBackState(r);
+              return tvRow(r,{
+                time: t?tvFmt12(t):'TIME NOT SET', timeUnset:!t,
+                critical: isLate(r.ret) || wcbState==='overdue',
+                nameBadges: tvWelcomeBackBadge(r)
+              });
             }).join('')
           : '<div class="tv-empty">All vehicles delivered.</div>') +
       '</div>'+
@@ -8586,20 +8638,25 @@ function tvRenderPageOps(vm){
   var gratuityDueIds = {};
   vm.customsDue.forEach(function(r){ gratuityDueIds[r.id]=true; });
 
+  function tvDayTagBadge(day){ return '<span class="tv-badge tv-badge-daytag">'+(day==='today'?'TODAY':'TOMORROW')+'</span>'; }
+
   var needsHtml = vm.ascendNeedsHandling.length
-    ? vm.ascendNeedsHandling.map(function(r){
-        return tvRow(r,{nameBadges:'<span class="tv-badge tv-badge-ascend">&#9992; ASCEND</span>'});
+    ? vm.ascendNeedsHandling.map(function(item){
+        var badges = '<span class="tv-badge tv-badge-ascend">&#9992; ASCEND</span> '+tvDayTagBadge(item.day);
+        return tvRow(item.r,{nameBadges:badges});
       }).join('')
-    : '<div class="tv-empty">No Ascend vehicles awaiting handling.</div>';
+    : '<div class="tv-empty">No Ascend vehicles awaiting handling today or tomorrow.</div>';
 
   var atCustomsHtml = vm.atCustoms.length
-    ? vm.atCustoms.map(function(r){
+    ? vm.atCustoms.map(function(item){
+        var r = item.r;
         var badges = '<span class="tv-badge tv-badge-atcustoms">&#10003; AT CUSTOMS</span>';
         if(typeof isAscend==='function' && isAscend(r)) badges = '<span class="tv-badge tv-badge-ascend">&#9992; ASCEND</span> '+badges;
         if(gratuityDueIds[r.id]) badges += ' <span class="tv-badge tv-badge-gratuity">GRATUITY DUE</span>';
+        badges += ' '+tvDayTagBadge(item.day);
         return tvRow(r,{completed:true, showLocationAlert:false, nameBadges:badges});
       }).join('')
-    : '<div class="tv-empty">No vehicles at Customs right now.</div>';
+    : '<div class="tv-empty">No vehicles at Customs today or tomorrow.</div>';
 
   var hangarHtml = HANGARS.map(function(h){
     return '<div class="tv-hangar-card"><div class="tv-hangar-num">'+(vm.hangarCounts[h]||0)+'</div><div class="tv-hangar-lbl">'+escapeHTML(h)+'</div></div>';

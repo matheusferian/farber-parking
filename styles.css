@@ -1084,6 +1084,7 @@ body.tv-stale .tv-stale-banner{display:block;}
 .tv-badge-ascend{background:var(--tv-ascend-bg);color:var(--tv-ascend);border:1px solid var(--tv-ascend-border);}
 .tv-badge-atcustoms{background:var(--tv-ok-bg);color:var(--tv-ok);border:1px solid rgba(27,143,99,.3);font-weight:700;}
 .tv-badge-gratuity{background:var(--tv-warning-bg);color:var(--tv-warning);border:1px solid rgba(184,121,10,.3);}
+.tv-badge-daytag{background:var(--tv-border);color:var(--tv-text);border:1px solid var(--tv-border);font-weight:700;}
 .tv-card-notes{font-size:11.5px;color:var(--tv-mu);margin-top:7px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .tv-card.tv-critical{border-left-color:var(--tv-critical);}
 
