@@ -1206,21 +1206,12 @@ https://buy.stripe.com/8x214mccK0uh9TjgIM6Vq00</div>
 
   <div class="tv-kpi-row" id="tvKpiRow"></div>
 
+  <!-- Page count is dynamic (1..N per Today/Tomorrow/Operations group,
+       driven by volume) — see tvReconcilePageDom()/tvBuildTodayPages()/
+       tvBuildTomorrowPages()/tvBuildOpsPages(). No static .tv-page
+       elements here; the first render creates whatever the current data
+       actually needs, down to a single quiet-day page each. -->
   <div class="tv-pages" id="tvPages">
-    <div class="tv-page tv-page-active" id="tvPage0" data-page="0">
-      <div class="tv-page-body" id="tvPageTodayBody" style="flex-direction:row;gap:22px;"></div>
-    </div>
-    <div class="tv-page" id="tvPage1" data-page="1">
-      <div class="tv-page-title">
-        <span>&#128198; Leaving Tomorrow</span>
-        <span class="tv-count-pill" id="tvTomorrowCount">0</span>
-        <span class="tv-prep-badge"><span class="tv-dot"></span>PREP FOR TOMORROW</span>
-      </div>
-      <div class="tv-page-body" id="tvPageTomorrowBody"></div>
-    </div>
-    <div class="tv-page" id="tvPage2" data-page="2">
-      <div class="tv-page-body" id="tvPageOpsBody" style="flex-direction:row;gap:20px;"></div>
-    </div>
     <div class="tv-page-dots tv-hidden" id="tvPageDots"></div>
   </div>
 
@@ -2262,7 +2253,11 @@ function renderDay() {
             '<div class="dc-c">'+escapeHTML(r.car)+' · '+escapeHTML(fmtP(r.phone))+'</div>'+
             flightHtml+
           '</div>'+
-          '<div class="dc-meta"><div class="dc-tk">'+escapeHTML(r.ticket)+'</div><div class="dc-l">'+(isArrivedSection&&(!r.loc||!String(r.loc).trim())?'<span class="dc-l-no-hangar">🔴 NO HANGAR</span>':escapeHTML(r.loc||''))+'</div></div>'+
+          '<div class="dc-meta"><div class="dc-tk">'+escapeHTML(r.ticket)+'</div>'+
+            (r.status!=='DELIVERED'&&r.loc!=='HANGAR 19'&&!r.isOfflinePending
+              ? '<button type="button" class="dc-h19-btn" onclick="event.stopPropagation();quickMoveH19('+r.id+')" title="Move to Hangar 19">&#8594; H19</button>'
+              : '')+
+            '<div class="dc-l">'+(isArrivedSection&&(!r.loc||!String(r.loc).trim())?'<span class="dc-l-no-hangar">🔴 NO HANGAR</span>':escapeHTML(r.loc||''))+'</div></div>'+
         '</div>'+
         actionHtml+
       '</div>';
@@ -4539,6 +4534,24 @@ async function moveHangar(id,hangar){
     }
   }catch(e){showMsg('Error: '+e.message,true);}
   finally{loading(false);}
+}
+
+// ── QUICK H19 (Dashboard shortcut) ──────────────────────────────
+// Deliberately NOT a parallel implementation — this only adds a fast
+// entry point (a small "→ H19" button on the card + one lightweight
+// confirm) in front of the exact same moveHangar() used by the full
+// Move Hangar workflow. Every existing guarantee (only `loc` changes,
+// Supabase persistence, Activity Log, Vehicle Location History, the
+// offline-pending guard, the already-there no-op, error handling that
+// never shows a false success, the optional key-tag print prompt)
+// comes from moveHangar() itself and needs no duplication here.
+function quickMoveH19(id){
+  var r=null;for(var i=0;i<data.length;i++){if(data[i].id===id){r=data[i];break;}}
+  if(!r) return;
+  if(r.isOfflinePending){ showMsg(OFFLINE_PENDING_SYNC_MSG, true); return; }
+  if(r.loc==='HANGAR 19'){ showMsg('Already in HANGAR 19', false); return; }
+  if(!confirm('Move '+r.name+' to Hangar 19?')) return;
+  moveHangar(id, 'HANGAR 19');
 }
 
 // ── CHANGE DATE ────────────────────────────────────────────────
@@ -8352,7 +8365,8 @@ var _tv = {
   reconnectAttempts:0,
   dateKey:'',
   currentPage:0,
-  pageCount:3,
+  pageCount:1,
+  pageKinds:[],   // parallel array — pageKinds[i] = 'today'|'tomorrow'|'ops', drives rotation dwell time
   rotationPaused:false,
   rotationTimer:null,
   clockTimer:null,
@@ -8375,9 +8389,40 @@ var TV_STALE_OFFLINE_MS     = 180000;  // show STALE DATA / OFFLINE past this ag
 var TV_DEBOUNCE_MS          = 800;     // coalesce bursts of realtime events
 var TV_CURSOR_HIDE_MS       = 4000;
 var TV_CONTROLS_HIDE_MS     = 3500;
-var TV_DENSITY_THRESHOLD    = 14;      // total cards before switching to compact density
 var TV_RECONNECT_BASE_MS    = 2000;
 var TV_RECONNECT_MAX_MS     = 30000;
+
+// ── ADAPTIVE DENSITY / PAGINATION ────────────────────────────────────
+// Replaces the old single global TV_DENSITY_THRESHOLD: density is now
+// computed PER SECTION (each Today column, the Tomorrow card group, each
+// Ops list) from that section's own row count, and any section that
+// still can't fit its rows at the 'high' tier is paginated rather than
+// left in a scrollable-but-inaccessible overflow (TV Mode has no
+// interaction, so overflow-y:auto content below the fold was previously
+// invisible to a passive viewer). Row/card caps are grounded in real
+// pixel measurements taken against this exact layout at 1920x1080
+// (see PROJECT.md, TV Mode — High-Volume Density) — not arbitrary — and
+// are re-verified live on every render by tvVerifyNoOverflow(), which
+// logs a console.warn (visible in browser devtools, not on-screen) if a
+// page still doesn't fit after pagination, so a future layout change
+// that breaks the estimate is caught rather than silently accepted.
+var TV_TIER_NORMAL_MAX  = 12;
+var TV_TIER_COMPACT_MAX = 24;
+var TV_ROW_CAP  = {normal:8,  compact:9,  high:12}; // rows per page — Today/Ops list sections
+var TV_CARD_CAP = {normal:7,  compact:10, high:11}; // cards per page — Leaving Tomorrow grid
+function tvTierForCount(n){
+  if(n<=TV_TIER_NORMAL_MAX) return 'normal';
+  if(n<=TV_TIER_COMPACT_MAX) return 'compact';
+  return 'high';
+}
+// Splits a list into fixed-size pages. Always returns at least one
+// (possibly empty) page, so callers can always index page[0] safely.
+function tvPaginate(list, cap){
+  if(!list.length) return [[]];
+  var pages = [];
+  for(var i=0;i<list.length;i+=cap){ pages.push(list.slice(i,i+cap)); }
+  return pages;
+}
 
 // ── BOOTSTRAP ────────────────────────────────────────────────────────
 function initTvMode(){
@@ -8593,6 +8638,41 @@ function tvGetTimeBucket(timeStr){
 }
 var TV_BUCKET_ORDER = ['Early Morning','Morning','Midday','Afternoon','Evening','After Hours','TIME NOT SET'];
 
+// ── ASCEND IN CUSTODY sort — TODAY, TOMORROW, future dated, NO DATE last ──
+function tvAscendSortRank(r){
+  if(!hasRealReturnDate(r.ret)) return 3;
+  if(isToday(r.ret)) return 0;
+  if(isTmrw(r.ret)) return 1;
+  return 2;
+}
+// Compact "AUG 27"-style return-date badge — reuses pd()/isToday()/isTmrw()
+// (utils.js) rather than fmtD(), which renders a full "Wed, Aug 27, 2026"
+// too long for a TV badge. Never hides a missing date.
+function tvReturnDateLabel(r){
+  if(!hasRealReturnDate(r.ret)) return {text:'NO RETURN DATE', level:'warning'};
+  if(isToday(r.ret)) return {text:'TODAY', level:'daytag'};
+  if(isTmrw(r.ret)) return {text:'TOMORROW', level:'daytag'};
+  var d = pd(r.ret);
+  return {text: d ? d.toLocaleDateString('en-US',{month:'short',day:'numeric'}).toUpperCase() : 'NO RETURN DATE', level:'daytag'};
+}
+
+// ── RETURN DATE FOLLOW-UP sort — NO DATE, approx overdue, approx today,
+// approx tomorrow, future approx (last) ──────────────────────────────
+function tvFollowUpRank(r){
+  if(!hasRealReturnDate(r.ret)) return 0;
+  if(isLate2(r.ret)) return 1;
+  if(isToday(r.ret)) return 2;
+  if(isTmrw(r.ret)) return 3;
+  return 4;
+}
+function tvFollowUpChip(r){
+  if(!hasRealReturnDate(r.ret)) return {text:'NO DATE — FOLLOW UP', level:'warning'};
+  if(isLate2(r.ret)) return {text:'APPROX OVERDUE', level:'critical'};
+  var d = pd(r.ret);
+  var label = d ? d.toLocaleDateString('en-US',{month:'short',day:'numeric'}).toUpperCase() : '';
+  return {text:'APPROX '+label+' — CONFIRM', level:'warning'};
+}
+
 // ── CHECK-IN DATE HELPERS ───────────────────────────────────────────
 // `r.checkin_date` is already mapPassengerRow()'s resolved value
 // (checkin_date || ts — same fallback the Dashboard and Operations Report
@@ -8656,30 +8736,44 @@ function buildTvViewModel(){
   });
 
   // Customs / Ascend tracking — existing helpers only, no new business
-  // rules. Scoped to today/tomorrow by the passenger's RETURN DATE
-  // (isToday(r.ret)/isTmrw(r.ret)) — the same field and helpers that
-  // already drive Leaving Today/Tomorrow everywhere else in the app.
-  // Deliberately NOT scoped by deldate (delivery timestamp): that would
-  // be a second, parallel date system, and a Customs delivery's return
-  // date already equals its delivery day in every normal and Early
-  // Return case. Each entry is tagged 'today'/'tomorrow' for the badge.
-  // NEEDS HANDLING: active Ascend records not yet delivered (isAscend()).
-  // AT CUSTOMS: vehicles actually delivered via Customs
-  // (isCustomsDelivered()) — Ascend and regular Makers Air alike, never
-  // filtered by isAscend(). A record can only ever match one of the two
-  // groups — "not yet delivered" vs. "delivered via Customs" are
-  // mutually exclusive on `status` — so nothing is duplicated between them.
+  // rules. AT CUSTOMS keeps its original today/tomorrow return-date scope
+  // and isCustomsDelivered() logic completely unchanged (Ascend and
+  // regular Makers Air alike, never filtered by isAscend()) — audited on
+  // 2026-08-24 and found no inconsistency worth touching per the approved
+  // scope. ASCEND IN CUSTODY (formerly "Needs Handling") is no longer
+  // scoped to today/tomorrow: it shows every active (not DELIVERED, not
+  // ARCHIVED) Ascend vehicle regardless of how far out its return date
+  // is, sorted by urgency (see tvAscendSortRank). Because AT CUSTOMS
+  // requires status==='DELIVERED' and ASCEND IN CUSTODY explicitly
+  // excludes it, the two groups remain mutually exclusive on `status` —
+  // a delivered Ascend vehicle can only ever appear in AT CUSTOMS.
   function tvTagDay(list, day){ return list.map(function(r){ return {r:r, day:day}; }); }
-  var ascendNeedsHandling = tvTagDay(active.filter(function(r){
-    return (typeof isAscend==='function' && isAscend(r)) && r.status!=='DELIVERED' && isToday(r.ret);
-  }), 'today').concat(tvTagDay(active.filter(function(r){
-    return (typeof isAscend==='function' && isAscend(r)) && r.status!=='DELIVERED' && isTmrw(r.ret);
-  }), 'tomorrow'));
+  var ascendActive = active.filter(function(r){
+    return (typeof isAscend==='function' && isAscend(r)) && r.status!=='DELIVERED';
+  }).sort(function(a,b){ return tvAscendSortRank(a)-tvAscendSortRank(b); });
   var atCustoms = tvTagDay(active.filter(function(r){
     return (typeof isCustomsDelivered==='function' && isCustomsDelivered(r)) && isToday(r.ret);
   }), 'today').concat(tvTagDay(active.filter(function(r){
     return (typeof isCustomsDelivered==='function' && isCustomsDelivered(r)) && isTmrw(r.ret);
   }), 'tomorrow'));
+
+  // Return Date Follow-Up — active (not DELIVERED, not ARCHIVED) vehicles
+  // whose return date is genuinely uncertain: status==='NO DATE' (covers
+  // both the pure no-date case and the estimated-date case, since
+  // saveEntry() sets status='NO DATE' for both) OR isApproxRecord(r) is
+  // true (defensive: obs can carry an APPROX marker independent of
+  // status via manual edits — the existing helper is trusted as-is, not
+  // reinterpreted). Sending a confirmation SMS never removes a record
+  // from this list — sendReturnDateConfirmationSms() persists no flag
+  // (audited: no return_confirmation_sent_at column exists), so there is
+  // nothing here to key an exit condition on even if we wanted one.
+  var followUp = active.filter(function(r){
+    return r.status!=='DELIVERED' && (r.status==='NO DATE' || (typeof isApproxRecord==='function' && isApproxRecord(r)));
+  }).sort(function(a,b){
+    var ra=tvFollowUpRank(a), rb=tvFollowUpRank(b);
+    if(ra!==rb) return ra-rb;
+    return tvCheckinTimestamp(a.checkin_date)-tvCheckinTimestamp(b.checkin_date); // oldest check-in first
+  });
 
   var missingTimeTomorrow = leavingTomorrow.filter(function(r){ return !getDepartureTime(r); });
   var missingLocationActive = active.filter(function(r){
@@ -8701,15 +8795,10 @@ function buildTvViewModel(){
   var nextDeparture = leavingTodayRemaining.filter(function(r){ return getDepartureTime(r); })[0] || null;
   var afterHoursTomorrowCount = leavingTomorrow.filter(function(r){ return tvGetTimeBucket(getDepartureTime(r))==='After Hours'; }).length;
 
-  var groupedTomorrow = {};
-  TV_BUCKET_ORDER.forEach(function(b){ groupedTomorrow[b]=[]; });
-  leavingTomorrow.forEach(function(r){ groupedTomorrow[tvGetTimeBucket(getDepartureTime(r))].push(r); });
-
   var totalInCustody = active.filter(function(r){ return r.status!=='DELIVERED'; }).length;
 
   return {
     leavingTomorrow: leavingTomorrow,
-    groupedTomorrow: groupedTomorrow,
     leavingTodayRemaining: leavingTodayRemaining,
     leavingTodayDelivered: leavingTodayDelivered,
     leavingTodayOverdue: leavingTodayOverdue,
@@ -8717,8 +8806,9 @@ function buildTvViewModel(){
     noDateCount: noDateCount,
     customsDue: customsDue,
     lockboxToday: lockboxToday,
-    ascendNeedsHandling: ascendNeedsHandling,
+    ascendActive: ascendActive,
     atCustoms: atCustoms,
+    followUp: followUp,
     missingTimeTomorrow: missingTimeTomorrow,
     missingLocationActive: missingLocationActive,
     hangarCounts: hangarCounts,
@@ -8746,10 +8836,21 @@ function tvFlightLine(r){
   if(!flight && !time) return '';
   return '<div class="tv-card-meta">&#9992; '+escapeHTML([flight,time].filter(Boolean).join(' · '))+'</div>';
 }
+// {text, level} → a <span class="tv-badge tv-badge-<level>">. Shared by
+// the Return Date and Follow-Up chips so their color semantics stay
+// centralized: 'warning' (amber) is the default attention state, only
+// 'critical' (red) is genuinely overdue, 'daytag' is the neutral
+// TODAY/TOMORROW/date style already used elsewhere in Operations.
+function tvChipHtml(chip){
+  return '<span class="tv-badge tv-badge-'+chip.level+'">'+escapeHTML(chip.text)+'</span>';
+}
 function tvCard(r){
   var time=getDepartureTime(r);
+  // Exact stored 24-hour HH:MM, never converted to 12-hour — the
+  // operational format used everywhere else in AirValet (New Entry,
+  // Dashboard's departure-time field, Daily Closing).
   var timeHtml = time
-    ? '<div class="tv-card-time">'+escapeHTML(tvFmt12(time))+'</div>'
+    ? '<div class="tv-card-time">'+escapeHTML(time)+'</div>'
     : '<div class="tv-card-time tv-time-unset">TIME NOT SET</div>';
   var critical = !time; // missing time on a Leaving-Tomorrow card is a critical alert
   var metaParts = [r.car, r.color, (r.loc||'No location')].filter(Boolean).map(function(x){ return escapeHTML(x); });
@@ -8762,15 +8863,10 @@ function tvCard(r){
     (r.obs ? '<div class="tv-card-notes">'+escapeHTML(r.obs)+'</div>' : '')+
   '</div>';
 }
-function tvFmt12(t){
-  var p=String(t).split(':'), h=parseInt(p[0],10), m=p[1]||'00';
-  if(isNaN(h)) return t;
-  var ap=h>=12?'PM':'AM', h12=h%12||12;
-  return h12+':'+m+' '+ap;
-}
 // Shared identification row for Leaving Today / Checked In Today /
-// Customs & Ascend — name, vehicle+color, hangar (or a NO LOCATION
-// alert), ticket, and an optional leading time column. One builder
+// Customs & Ascend / Return Date Follow-Up — name, vehicle+color, hangar
+// (or a NO LOCATION alert), ticket, an optional leading time column, and
+// an optional flight-number line (Leaving Today only). One builder
 // instead of near-duplicate ones per panel.
 function tvRow(r, opts){
   opts = opts||{};
@@ -8786,11 +8882,14 @@ function tvRow(r, opts){
   metaParts.push(locHtml);
   metaParts.push('#'+escapeHTML(r.ticket||''));
   var critical = !!opts.critical || (showLocAlert && noLoc);
+  // Flight is a real value only — never invented when return_flight is empty.
+  var flightHtml = opts.flight ? '<div class="tv-row-flight">&#9992; '+escapeHTML(opts.flight)+'</div>' : '';
   return '<div class="tv-row'+(critical?' tv-critical':'')+(opts.completed?' tv-row-completed':'')+'">'+
     timeHtml+
     '<div class="tv-row-main">'+
       '<div class="tv-row-name">'+escapeHTML(r.name||'')+(opts.nameBadges?' '+opts.nameBadges:'')+'</div>'+
       '<div class="tv-row-meta">'+metaParts.join(' &middot; ')+'</div>'+
+      flightHtml+
     '</div>'+
   '</div>';
 }
@@ -8832,16 +8931,80 @@ function renderTvDashboard(){
     tvDoRender();
   });
 }
+
+// Builds the flat, ordered list of page descriptors for this render —
+// e.g. [Today 1/2, Today 2/2, Tomorrow 1/1, Ops 1/1] on a busy day, or
+// just [Today 1/1, Tomorrow 1/1, Ops 1/1] on a quiet one. Each
+// descriptor knows how to render its own body content; nothing here
+// touches the DOM directly (see tvReconcilePageDom).
 function tvDoRender(){
   if(!document.body.classList.contains('tv-active')) return;
   var vm = buildTvViewModel();
-  var densityClass = vm.totalCardCount > TV_DENSITY_THRESHOLD ? 'tv-density-compact' : '';
-  document.getElementById('tvPages').className = 'tv-pages ' + densityClass;
-
+  var pages = [].concat(tvBuildTodayPages(vm), tvBuildTomorrowPages(vm), tvBuildOpsPages(vm));
+  tvReconcilePageDom(pages);
+  if(_tv.currentPage >= _tv.pageCount) _tv.currentPage = 0;
+  // Newly created .tv-page elements start with no active class (see
+  // tvReconcilePageDom) — reassert which one is visible every render,
+  // since page identity/count can change with data volume and the next
+  // scheduled rotateTvPages() tick may be many seconds away. Without
+  // this, the very first render after boot (pages didn't exist yet when
+  // initTvMode()'s initial rotateTvPages() call ran) would leave the
+  // screen blank until that timer fires.
+  tvShowPage(_tv.currentPage);
+  pages.forEach(function(pg, i){
+    var bodyEl = document.getElementById('tvPageBody'+i);
+    if(bodyEl) pg.render(bodyEl);
+  });
   tvRenderKpis(vm);
-  tvRenderPageToday(vm);
-  tvRenderPageTomorrow(vm);
-  tvRenderPageOps(vm);
+  tvVerifyNoOverflow();
+}
+
+// Creates/removes `.tv-page` wrappers so the DOM always has exactly
+// `pages.length` of them (ids tvPage0..N-1, each with one tvPageBodyN
+// child) — existing rotation code (tvShowPage/rotateTvPages) already
+// loops generically over `_tv.pageCount` and looks pages up by id, so it
+// needs no changes to support a page count that now varies with volume
+// instead of always being 3. #tvPageDots stays the last child (it's
+// position:absolute against #tvPages, per styles.css).
+function tvReconcilePageDom(pages){
+  var container = document.getElementById('tvPages');
+  var dots = document.getElementById('tvPageDots');
+  if(!container) return;
+  var existing = container.querySelectorAll('.tv-page').length;
+  for(var i=existing; i<pages.length; i++){
+    var pageEl = document.createElement('div');
+    pageEl.className = 'tv-page';
+    pageEl.id = 'tvPage'+i;
+    pageEl.setAttribute('data-page', i);
+    var bodyEl = document.createElement('div');
+    bodyEl.className = 'tv-page-body';
+    bodyEl.id = 'tvPageBody'+i;
+    pageEl.appendChild(bodyEl);
+    container.insertBefore(pageEl, dots);
+  }
+  for(var j=pages.length; j<existing; j++){
+    var stale = document.getElementById('tvPage'+j);
+    if(stale && stale.parentNode) stale.parentNode.removeChild(stale);
+  }
+  _tv.pageCount = pages.length;
+  _tv.pageKinds = pages.map(function(pg){ return pg.kind; });
+}
+
+// Safety net, not the primary defense: TV_ROW_CAP/TV_CARD_CAP are
+// grounded in real measurements (see the constants above), so this
+// should never fire — if it does, the console.warn tells a developer
+// exactly which page/section and by how much, rather than the content
+// silently vanishing below the fold the way the old overflow-y:auto
+// behavior did. Only meaningfully checks the currently-visible page
+// (a display:none page reports 0/0 for scrollHeight/clientHeight) —
+// tvShowPage() also calls this, so it naturally re-checks every page as
+// rotation cycles through them, not just the one visible at render time.
+function tvVerifyNoOverflow(){
+  document.querySelectorAll('.tv-page.tv-page-active .tv-list, .tv-page.tv-page-active .tv-card-grid').forEach(function(el){
+    if(el.scrollHeight > el.clientHeight + 2){
+      console.warn('[TV Mode] Section overflow on '+(el.closest('.tv-page')||{}).id+': '+(el.scrollHeight-el.clientHeight)+'px hidden despite pagination. Consider lowering TV_ROW_CAP/TV_CARD_CAP for this tier.', el);
+    }
+  });
 }
 
 function tvRenderKpis(vm){
@@ -8858,78 +9021,143 @@ function tvRenderKpis(vm){
   var checkedInSub = checkedInDelivered
     ? (vm.checkedInToday.length-checkedInDelivered)+' in custody · '+checkedInDelivered+' delivered'
     : vm.checkedInToday.length+' in custody';
-  var nextDepSub = vm.nextDeparture ? 'Next departure '+tvFmt12(getDepartureTime(vm.nextDeparture)) : (vm.leavingTodayRemaining.length ? 'No times set' : 'All clear');
+  // Raw stored HH:MM — never converted to 12-hour, matching the
+  // operational format used everywhere else in AirValet.
+  var nextDepSub = vm.nextDeparture ? 'Next departure '+getDepartureTime(vm.nextDeparture) : (vm.leavingTodayRemaining.length ? 'No times set' : 'All clear');
   var tomorrowSub = vm.afterHoursTomorrowCount>0 ? vm.afterHoursTomorrowCount+' after-hours' : (vm.missingTimeTomorrow.length?vm.missingTimeTomorrow.length+' missing time':'');
+  // Return Follow-Up replaces the old Customs/Special KPI slot per the
+  // approved plan — Total In Custody stays, Customs gratuity-due count
+  // is preserved as this tile's sub-label rather than dropped.
+  var followUpSub = vm.customsDue.length
+    ? vm.customsDue.length+' Customs follow-up due'
+    : (vm.followUp.length ? 'Needs date confirmation' : 'All confirmed');
   el.innerHTML =
     kpi('Checked In Today', vm.checkedInToday.length, checkedInSub, 'ok') +
     kpi('Leaving Today', vm.leavingTodayRemaining.length, 'Remaining · '+nextDepSub, vm.leavingTodayOverdue.length?'critical':'') +
     kpi('Leaving Tomorrow', vm.leavingTomorrow.length, tomorrowSub, vm.missingTimeTomorrow.length?'warning':'') +
     kpi('Missing Locations', vm.missingLocationActive.length, vm.missingLocationActive.length?'Needs hangar assignment':'All assigned', vm.missingLocationActive.length?'critical':'ok') +
-    kpi('Customs / Special', vm.customsDue.length, vm.customsDue.length?vm.customsDue.length+' follow-up due':'All clear', vm.customsDue.length?'warning':'ok') +
+    kpi('Return Follow-Up', vm.followUp.length, followUpSub, vm.followUp.length?'warning':'ok') +
     kpi('Total In Custody', vm.totalInCustody, 'Vehicles currently parked', '');
 }
 
-function tvRenderPageToday(vm){
-  var el = document.getElementById('tvPageTodayBody');
-  if(!el) return;
-  el.innerHTML =
-    '<div class="tv-today-col">'+
-      '<div class="tv-page-title" style="font-size:16px;margin-bottom:8px;">&#128276; Leaving Today <span class="tv-count-pill">'+vm.leavingTodayRemaining.length+'</span></div>'+
-      '<div class="tv-list">'+
-        (vm.leavingTodayRemaining.length
-          ? vm.leavingTodayRemaining.map(function(r){
-              var t = getDepartureTime(r);
-              var wcbState = tvWelcomeBackState(r);
-              return tvRow(r,{
-                time: t?tvFmt12(t):'TIME NOT SET', timeUnset:!t,
-                critical: isLate(r.ret) || wcbState==='overdue',
-                nameBadges: tvWelcomeBackBadge(r)
-              });
-            }).join('')
-          : '<div class="tv-empty">All vehicles delivered.</div>') +
-      '</div>'+
-      (vm.leavingTodayDelivered.length ? '<div class="tv-delivered-summary">&#10003; '+vm.leavingTodayDelivered.length+' delivered today</div>' : '')+
-    '</div>'+
-    '<div class="tv-today-col">'+
-      '<div class="tv-page-title" style="font-size:16px;margin-bottom:8px;">&#128663; Checked In Today <span class="tv-count-pill">'+vm.checkedInToday.length+'</span></div>'+
-      '<div class="tv-list">'+
-        (vm.checkedInToday.length
-          ? vm.checkedInToday.map(function(r){
-              var d = r.checkin_date ? new Date(r.checkin_date) : null;
-              var t = (d && !isNaN(d.getTime())) ? d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}) : '—';
-              var badges = r.status==='DELIVERED' ? '<span class="tv-badge tv-badge-delivered">&#10003; DELIVERED</span>' : '';
-              return tvRow(r,{time:t, nameBadges:badges});
-            }).join('')
-          : '<div class="tv-empty">No check-ins yet today.</div>') +
-      '</div>'+
-    '</div>';
+// ── TODAY page group — 1..N sub-pages, each column paginated
+// independently (a busy Leaving Today with a quiet Checked In Today no
+// longer forces both columns onto the same number of pages incorrectly —
+// the shorter column's later sub-pages simply render fewer/no rows). ──
+function tvBuildTodayPages(vm){
+  var leavingTier = tvTierForCount(vm.leavingTodayRemaining.length);
+  var checkedTier = tvTierForCount(vm.checkedInToday.length);
+  var leavingPages = tvPaginate(vm.leavingTodayRemaining, TV_ROW_CAP[leavingTier]);
+  var checkedPages = tvPaginate(vm.checkedInToday, TV_ROW_CAP[checkedTier]);
+  var pageCount = Math.max(leavingPages.length, checkedPages.length);
+  var pages = [];
+  var _loop = function(p){
+    var leavingSlice = leavingPages[p] || [];
+    var checkedSlice = checkedPages[p] || [];
+    pages.push({
+      kind:'today', sub:p, of:pageCount,
+      render:function(bodyEl){
+        bodyEl.style.flexDirection='row'; bodyEl.style.gap='22px';
+        var contHtml = pageCount>1 ? ' <span class="tv-page-continuation">PAGE '+(p+1)+'/'+pageCount+'</span>' : '';
+        bodyEl.innerHTML =
+          '<div class="tv-today-col">'+
+            '<div class="tv-page-title" style="font-size:16px;margin-bottom:8px;">&#128276; Leaving Today <span class="tv-count-pill">'+vm.leavingTodayRemaining.length+'</span>'+contHtml+'</div>'+
+            '<div class="tv-list tv-density-'+leavingTier+'">'+
+              (leavingSlice.length
+                ? leavingSlice.map(function(r){
+                    var t = getDepartureTime(r);
+                    var wcbState = tvWelcomeBackState(r);
+                    return tvRow(r,{
+                      time: t?t:'TIME NOT SET', timeUnset:!t,
+                      critical: isLate(r.ret) || wcbState==='overdue',
+                      nameBadges: tvWelcomeBackBadge(r),
+                      flight: (r.return_flight||'').trim()
+                    });
+                  }).join('')
+                : (p===0 ? '<div class="tv-empty">All vehicles delivered.</div>' : '')) +
+            '</div>'+
+            (p===pageCount-1 && vm.leavingTodayDelivered.length ? '<div class="tv-delivered-summary">&#10003; '+vm.leavingTodayDelivered.length+' delivered today</div>' : '')+
+          '</div>'+
+          '<div class="tv-today-col">'+
+            '<div class="tv-page-title" style="font-size:16px;margin-bottom:8px;">&#128663; Checked In Today <span class="tv-count-pill">'+vm.checkedInToday.length+'</span>'+contHtml+'</div>'+
+            '<div class="tv-list tv-density-'+checkedTier+'">'+
+              (checkedSlice.length
+                ? checkedSlice.map(function(r){
+                    var d = r.checkin_date ? new Date(r.checkin_date) : null;
+                    var t = (d && !isNaN(d.getTime())) ? d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}) : '—';
+                    var badges = r.status==='DELIVERED' ? '<span class="tv-badge tv-badge-delivered">&#10003; DELIVERED</span>' : '';
+                    return tvRow(r,{time:t, nameBadges:badges});
+                  }).join('')
+                : (p===0 ? '<div class="tv-empty">No check-ins yet today.</div>' : '')) +
+            '</div>'+
+          '</div>';
+      }
+    });
+  };
+  for(var p=0;p<pageCount;p++) _loop(p);
+  return pages;
 }
 
-function tvRenderPageTomorrow(vm){
-  var el = document.getElementById('tvPageTomorrowBody');
-  var countEl = document.getElementById('tvTomorrowCount');
-  if(countEl) countEl.textContent = vm.leavingTomorrow.length;
-  if(!el) return;
-  if(!vm.leavingTomorrow.length){ el.innerHTML='<div class="tv-empty">No vehicles scheduled to leave tomorrow.</div>'; return; }
-  var html='';
-  TV_BUCKET_ORDER.forEach(function(bucket){
-    var list = vm.groupedTomorrow[bucket];
-    if(!list || !list.length) return;
-    html += '<div class="tv-group-hdr">'+escapeHTML(bucket)+' ('+list.length+')</div>';
-    html += '<div class="tv-card-grid">'+list.map(function(r){ return tvCard(r); }).join('')+'</div>';
-  });
-  el.innerHTML = html;
+// ── TOMORROW page group — flattened, already time-sorted list sliced
+// into pages at the group's density-tier card cap; each page re-groups
+// only its own slice by time bucket, so a bucket that straddles two
+// pages just shows its header again on the later page (honest, not a
+// silent split). Wide-column card grid at compact/high tiers (see
+// styles.css) replaces the old narrow auto-fill columns that were
+// measured truncating normal-length names under volume. ──
+function tvBuildTomorrowPages(vm){
+  var tier = tvTierForCount(vm.leavingTomorrow.length);
+  var slicePages = tvPaginate(vm.leavingTomorrow, TV_CARD_CAP[tier]);
+  var pageCount = slicePages.length;
+  var pages = [];
+  var _loop = function(p, slice){
+    pages.push({
+      kind:'tomorrow', sub:p, of:pageCount,
+      render:function(bodyEl){
+        bodyEl.className = 'tv-page-body tv-density-'+tier;
+        var titleHtml =
+          '<div class="tv-page-title">'+
+            '<span>&#128198; Leaving Tomorrow</span>'+
+            '<span class="tv-count-pill">'+vm.leavingTomorrow.length+'</span>'+
+            (pageCount>1?'<span class="tv-page-continuation">TOMORROW '+(p+1)+'/'+pageCount+'</span>':'')+
+            '<span class="tv-prep-badge"><span class="tv-dot"></span>PREP FOR TOMORROW</span>'+
+          '</div>';
+        if(!slice.length){ bodyEl.innerHTML = titleHtml+'<div class="tv-empty">No vehicles scheduled to leave tomorrow.</div>'; return; }
+        // ONE grid per page, not one per time bucket — bucket headers are
+        // full-width grid items interspersed among the cards (slice is
+        // already time-sorted, so same-bucket cards are always
+        // contiguous). N independent per-bucket grids each auto-sizing
+        // within the page's flex column was measured splitting the
+        // available height unevenly, overflowing several small buckets
+        // even though the page as a whole had room — a single shared
+        // grid lets the browser distribute space across all of this
+        // page's cards at once, which is what TV_CARD_CAP is sized for.
+        var html = titleHtml + '<div class="tv-card-grid">';
+        var lastBucket = null;
+        slice.forEach(function(r){
+          var b = tvGetTimeBucket(getDepartureTime(r));
+          if(b !== lastBucket){
+            html += '<div class="tv-group-hdr" style="grid-column:1/-1;">'+escapeHTML(b)+'</div>';
+            lastBucket = b;
+          }
+          html += tvCard(r);
+        });
+        html += '</div>';
+        bodyEl.innerHTML = html;
+      }
+    });
+  };
+  for(var p=0;p<pageCount;p++) _loop(p, slicePages[p]);
+  return pages;
 }
 
-function tvRenderPageOps(vm){
-  var el = document.getElementById('tvPageOpsBody');
-  if(!el) return;
-
-  // Special Handling & Alerts — independent alert types only. Customs
-  // gratuity-due is intentionally NOT duplicated here: every record
-  // eligible for it is already isCustomsDelivered()===true (see
-  // isCustomsCommEligible()), so it is shown once, in the Customs /
-  // Ascend "AT CUSTOMS" group below, via its own GRATUITY DUE badge.
+// ── OPS page group — Special Handling & Alerts / Ascend In Custody +
+// At Customs (combined, one column, two sub-headers — order preserved
+// across page slices so a continuation page never shows At Customs rows
+// before Ascend In Custody rows that belong on an earlier page) /
+// Return Date Follow-Up / Active Vehicles by Location (fixed-size,
+// page-1 only — it doesn't grow with volume, no reason to repeat it). ──
+function tvBuildOpsPages(vm){
   var alerts = []
     .concat(vm.missingTimeTomorrow.map(function(r){ return {r:r, txt:'Leaving tomorrow — TIME NOT SET', lvl:'critical'}; }))
     .concat(vm.leavingTodayOverdue.map(function(r){ return {r:r, txt:'Overdue — was expected '+fmtD(r.ret), lvl:'critical'}; }))
@@ -8937,67 +9165,113 @@ function tvRenderPageOps(vm){
   var seen={};
   alerts = alerts.filter(function(a){ if(seen[a.r.id]) return false; seen[a.r.id]=true; return true; });
 
-  var alertsHtml = alerts.length
-    ? alerts.map(function(a){
-        return '<div class="tv-list-row'+(a.lvl==='critical'?' tv-overdue':'')+'">'+
-          '<div class="tv-list-name">'+escapeHTML(a.r.name||'')+'</div>'+
-          '<div class="tv-list-meta"><span class="tv-badge tv-badge-'+a.lvl+'">'+escapeHTML(a.txt.toUpperCase())+'</span></div>'+
-        '</div>';
-      }).join('')
-    : '<div class="tv-empty">No special-handling alerts right now.</div>';
-
   var gratuityDueIds = {};
   vm.customsDue.forEach(function(r){ gratuityDueIds[r.id]=true; });
 
+  var ascendCustomsCombined = vm.ascendActive.map(function(r){ return {type:'ascend', r:r}; })
+    .concat(vm.atCustoms.map(function(item){ return {type:'atcustoms', r:item.r, day:item.day}; }));
+
+  var alertsTier = tvTierForCount(alerts.length);
+  var acTier = tvTierForCount(ascendCustomsCombined.length);
+  var fuTier = tvTierForCount(vm.followUp.length);
+
+  var alertsPages = tvPaginate(alerts, TV_ROW_CAP[alertsTier]);
+  var acPages = tvPaginate(ascendCustomsCombined, TV_ROW_CAP[acTier]);
+  var fuPages = tvPaginate(vm.followUp, TV_ROW_CAP[fuTier]);
+  var pageCount = Math.max(alertsPages.length, acPages.length, fuPages.length, 1);
+
   function tvDayTagBadge(day){ return '<span class="tv-badge tv-badge-daytag">'+(day==='today'?'TODAY':'TOMORROW')+'</span>'; }
-
-  var needsHtml = vm.ascendNeedsHandling.length
-    ? vm.ascendNeedsHandling.map(function(item){
-        var badges = '<span class="tv-badge tv-badge-ascend">&#9992; ASCEND</span> '+tvDayTagBadge(item.day);
-        return tvRow(item.r,{nameBadges:badges});
-      }).join('')
-    : '<div class="tv-empty">No Ascend vehicles awaiting handling today or tomorrow.</div>';
-
-  var atCustomsHtml = vm.atCustoms.length
-    ? vm.atCustoms.map(function(item){
-        var r = item.r;
+  function alertsColHtml(slice){
+    if(!alerts.length) return '<div class="tv-empty">No special-handling alerts right now.</div>';
+    return slice.map(function(a){
+      return '<div class="tv-list-row'+(a.lvl==='critical'?' tv-overdue':'')+'">'+
+        '<div class="tv-list-name">'+escapeHTML(a.r.name||'')+'</div>'+
+        '<div class="tv-list-meta"><span class="tv-badge tv-badge-'+a.lvl+'">'+escapeHTML(a.txt.toUpperCase())+'</span></div>'+
+      '</div>';
+    }).join('');
+  }
+  function ascendCustomsColHtml(slice){
+    if(!ascendCustomsCombined.length) return '<div class="tv-empty">No Ascend vehicles in custody, none at Customs.</div>';
+    var ascendSlice = slice.filter(function(x){ return x.type==='ascend'; });
+    var custSlice = slice.filter(function(x){ return x.type==='atcustoms'; });
+    var html = '';
+    if(ascendSlice.length){
+      html += '<div class="tv-subgroup-hdr">Ascend In Custody <span class="tv-subgroup-count">'+vm.ascendActive.length+'</span></div>';
+      html += ascendSlice.map(function(x){
+        var chip = tvReturnDateLabel(x.r);
+        var badges = '<span class="tv-badge tv-badge-ascend">&#9992; ASCEND</span> RETURN: '+tvChipHtml(chip);
+        return tvRow(x.r,{nameBadges:badges});
+      }).join('');
+    }
+    if(custSlice.length){
+      html += '<div class="tv-subgroup-hdr">At Customs <span class="tv-subgroup-count">'+vm.atCustoms.length+'</span></div>';
+      html += custSlice.map(function(x){
+        var r=x.r;
         var badges = '<span class="tv-badge tv-badge-atcustoms">&#10003; AT CUSTOMS</span>';
         if(typeof isAscend==='function' && isAscend(r)) badges = '<span class="tv-badge tv-badge-ascend">&#9992; ASCEND</span> '+badges;
         if(gratuityDueIds[r.id]) badges += ' <span class="tv-badge tv-badge-gratuity">GRATUITY DUE</span>';
-        badges += ' '+tvDayTagBadge(item.day);
+        badges += ' '+tvDayTagBadge(x.day);
         return tvRow(r,{completed:true, showLocationAlert:false, nameBadges:badges});
-      }).join('')
-    : '<div class="tv-empty">No vehicles at Customs today or tomorrow.</div>';
+      }).join('');
+    }
+    return html;
+  }
+  function followUpColHtml(slice){
+    if(!vm.followUp.length) return '<div class="tv-empty">No return-date follow-up needed.</div>';
+    return slice.map(function(r){
+      var chip = tvFollowUpChip(r);
+      return tvRow(r,{nameBadges:tvChipHtml(chip)});
+    }).join('');
+  }
 
-  var hangarHtml = HANGARS.map(function(h){
-    return '<div class="tv-hangar-card"><div class="tv-hangar-num">'+(vm.hangarCounts[h]||0)+'</div><div class="tv-hangar-lbl">'+escapeHTML(h)+'</div></div>';
-  }).join('');
-
-  el.innerHTML =
-    '<div class="tv-ops-col tv-ops-col-alerts">'+
-      '<div class="tv-page-title" style="font-size:16px;margin-bottom:8px;">&#9888; Special Handling &amp; Alerts <span class="tv-count-pill">'+alerts.length+'</span></div>'+
-      '<div class="tv-list">'+alertsHtml+'</div>'+
-    '</div>'+
-    '<div class="tv-ops-col tv-ops-col-customs">'+
-      '<div class="tv-page-title" style="font-size:16px;margin-bottom:8px;">&#9992; Customs / Ascend <span class="tv-count-pill">'+(vm.ascendNeedsHandling.length+vm.atCustoms.length)+'</span></div>'+
-      '<div class="tv-list">'+
-        '<div class="tv-subgroup-hdr">Needs Handling <span class="tv-subgroup-count">'+vm.ascendNeedsHandling.length+'</span></div>'+
-        needsHtml+
-        '<div class="tv-subgroup-hdr">At Customs <span class="tv-subgroup-count">'+vm.atCustoms.length+'</span></div>'+
-        atCustomsHtml+
-      '</div>'+
-    '</div>'+
-    '<div class="tv-ops-col tv-ops-col-hangars">'+
-      '<div class="tv-page-title" style="font-size:16px;margin-bottom:8px;">&#127968; Active Vehicles by Location</div>'+
-      '<div class="tv-hangar-grid">'+hangarHtml+'</div>'+
-    '</div>';
+  var pages = [];
+  var _loop = function(p){
+    var alertsSlice = alertsPages[p] || [];
+    var acSlice = acPages[p] || [];
+    var fuSlice = fuPages[p] || [];
+    pages.push({
+      kind:'ops', sub:p, of:pageCount,
+      render:function(bodyEl){
+        bodyEl.style.flexDirection='row'; bodyEl.style.gap='20px';
+        var contHtml = pageCount>1 ? ' <span class="tv-page-continuation">OPERATIONS '+(p+1)+'/'+pageCount+'</span>' : '';
+        var showHangar = (p===0);
+        var hangarHtml = showHangar ? HANGARS.map(function(h){
+          return '<div class="tv-hangar-card"><div class="tv-hangar-num">'+(vm.hangarCounts[h]||0)+'</div><div class="tv-hangar-lbl">'+escapeHTML(h)+'</div></div>';
+        }).join('') : '';
+        bodyEl.innerHTML =
+          '<div class="tv-ops-col tv-ops-col-alerts">'+
+            '<div class="tv-page-title" style="font-size:16px;margin-bottom:8px;">&#9888; Special Handling &amp; Alerts <span class="tv-count-pill">'+alerts.length+'</span>'+contHtml+'</div>'+
+            '<div class="tv-list tv-density-'+alertsTier+'">'+alertsColHtml(alertsSlice)+'</div>'+
+          '</div>'+
+          '<div class="tv-ops-col tv-ops-col-customs">'+
+            '<div class="tv-page-title" style="font-size:16px;margin-bottom:8px;">&#9992; Customs / Ascend <span class="tv-count-pill">'+(vm.ascendActive.length+vm.atCustoms.length)+'</span></div>'+
+            '<div class="tv-list tv-density-'+acTier+'">'+ascendCustomsColHtml(acSlice)+'</div>'+
+          '</div>'+
+          '<div class="tv-ops-col tv-ops-col-followup">'+
+            '<div class="tv-page-title" style="font-size:16px;margin-bottom:8px;">&#9888; Return Date Follow-Up <span class="tv-count-pill">'+vm.followUp.length+'</span></div>'+
+            '<div class="tv-list tv-density-'+fuTier+'">'+followUpColHtml(fuSlice)+'</div>'+
+          '</div>'+
+          (showHangar ? '<div class="tv-ops-col tv-ops-col-hangars">'+
+            '<div class="tv-page-title" style="font-size:16px;margin-bottom:8px;">&#127968; Active Vehicles by Location</div>'+
+            '<div class="tv-hangar-grid">'+hangarHtml+'</div>'+
+          '</div>' : '');
+      }
+    });
+  };
+  for(var p=0;p<pageCount;p++) _loop(p);
+  return pages;
 }
 
 // ── PAGE ROTATION ────────────────────────────────────────────────────
 function rotateTvPages(){
   if(_tv.rotationTimer) clearTimeout(_tv.rotationTimer);
   tvShowPage(_tv.currentPage);
-  var dwell = _tv.currentPage===0 ? TV_ROTATE_PAGE1_MS : TV_ROTATE_MS;
+  // Today keeps the longest/highest-priority dwell even when it spans
+  // multiple continuation pages (Today 1/2, Today 2/2 both get the long
+  // dwell) — matches the original single-page intent, just applied by
+  // page *kind* instead of assuming Today is always index 0.
+  var kind = (_tv.pageKinds && _tv.pageKinds[_tv.currentPage]) || 'today';
+  var dwell = kind==='today' ? TV_ROTATE_PAGE1_MS : TV_ROTATE_MS;
   _tv.rotationTimer = setTimeout(function(){
     if(!_tv.rotationPaused) _tv.currentPage = (_tv.currentPage+1) % _tv.pageCount;
     rotateTvPages();
@@ -9016,6 +9290,10 @@ function tvShowPage(idx){
       dots.innerHTML += '<div class="tv-page-dot'+(j===idx?' tv-page-dot-active':'')+'"></div>';
     }
   }
+  // Re-checks whichever page just became visible — over one full
+  // rotation cycle this naturally verifies every page, not just the one
+  // active when tvDoRender() last ran.
+  tvVerifyNoOverflow();
 }
 function tvToggleRotationPause(){
   _tv.rotationPaused = !_tv.rotationPaused;

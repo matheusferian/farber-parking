@@ -316,6 +316,16 @@ input[type=checkbox]{width:17px;height:17px;accent-color:var(--gold);cursor:poin
 .dc-meta{display:flex;flex-direction:column;align-items:flex-end;justify-content:center;padding:11px 12px 11px 4px;gap:2px;flex-shrink:0;}
 .dc-tk{font-family:'DM Mono',monospace;font-size:12px;color:var(--gold2);font-weight:600;}
 .dc-l{font-size:10px;color:var(--mu);}
+/* Quick H19 — deliberately tiny (this is an iPad interface and a
+   secondary shortcut, not the card's primary action); only rendered for
+   an active, non-DELIVERED, non-pending-sync record not already at
+   Hangar 19 — see mkCards() and quickMoveH19(). */
+.dc-h19-btn{
+  background:rgba(42,93,176,.1);color:var(--navy);border:1px solid rgba(42,93,176,.3);
+  border-radius:6px;padding:2px 7px;font-family:'DM Mono',monospace;font-weight:700;font-size:9.5px;
+  letter-spacing:.2px;cursor:pointer;white-space:nowrap;
+}
+.dc-h19-btn:hover{background:rgba(42,93,176,.18);}
 .dc-qd{
   display:flex;
   flex-direction:row;
@@ -1051,20 +1061,32 @@ body.tv-stale .tv-stale-banner{display:block;}
   display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px;
   overflow-y:auto;min-height:0;padding-bottom:4px;
 }
-.tv-density-compact .tv-card-grid{grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px;}
+/* Compact tier widened from the original 260px minimum: measured at
+   1920x1080 with 22 Leaving-Tomorrow cards on one page, 260px columns
+   truncated 18 of 24 names — including short ones like "MARIA SANTOS".
+   Pagination (TV_CARD_CAP) now caps how many cards ever land on one
+   page, so columns can afford to stay wider instead of compensating by
+   narrowing. The 'high' tier below is for whatever still doesn't fit
+   even after pagination — smaller text, not narrower names. */
+.tv-density-compact .tv-card-grid{grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:11px;}
+.tv-density-high .tv-card-grid{grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:9px;}
 .tv-card{
   position:relative;background:var(--tv-panel2);border:1px solid var(--tv-border);border-radius:12px;
   padding:14px 18px;min-width:0;border-left:4px solid var(--tv-accent);
 }
-.tv-density-compact .tv-card{padding:10px 14px;border-radius:10px;}
+.tv-density-compact .tv-card{padding:11px 15px;border-radius:10px;}
+.tv-density-high .tv-card{padding:8px 12px;border-radius:9px;}
 .tv-card-name{font-family:'Syne',sans-serif;font-weight:800;font-size:17px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--tv-text);}
-.tv-density-compact .tv-card-name{font-size:14.5px;}
+.tv-density-compact .tv-card-name{font-size:15px;}
+.tv-density-high .tv-card-name{font-size:13.5px;}
 .tv-card-time{font-family:'DM Mono',monospace;font-weight:800;font-size:20px;color:var(--tv-accent);}
-.tv-density-compact .tv-card-time{font-size:15px;}
+.tv-density-compact .tv-card-time{font-size:16px;}
+.tv-density-high .tv-card-time{font-size:14px;}
 .tv-card-time.tv-time-unset{color:var(--tv-critical);font-size:13px;letter-spacing:.5px;}
 .tv-card-row{display:flex;justify-content:space-between;align-items:center;gap:8px;}
 .tv-card-meta{font-size:13px;color:var(--tv-mu);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;margin-top:7px;}
-.tv-density-compact .tv-card-meta{font-size:11.5px;}
+.tv-density-compact .tv-card-meta{font-size:12px;}
+.tv-density-high .tv-card-meta{font-size:10.5px;}
 .tv-card-badges{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px;}
 .tv-badge{
   font-family:'DM Mono',monospace;font-size:10px;font-weight:700;letter-spacing:.4px;
@@ -1124,6 +1146,28 @@ body.tv-stale .tv-stale-banner{display:block;}
 .tv-row-meta b{color:var(--tv-text);font-weight:600;}
 .tv-density-compact .tv-row{padding:7px 12px;}
 .tv-density-compact .tv-row-name,.tv-density-compact .tv-row-time{font-size:12px;}
+.tv-density-high .tv-row{padding:6px 10px;gap:10px;}
+.tv-density-high .tv-row-name,.tv-density-high .tv-row-time{font-size:11px;}
+.tv-density-high .tv-row-time,.tv-density-high .tv-row-time.tv-time-unset{width:60px;}
+.tv-density-high .tv-row-meta{font-size:10px;}
+.tv-density-high .tv-list{gap:5px;}
+.tv-density-compact .tv-list{gap:6px;}
+
+/* Flight-number line on Leaving Today rows only (opts.flight in tvRow())
+   — one small extra text line, never a second name/time row, so rows
+   don't grow tall just because a flight number is present. */
+.tv-row-flight{font-size:11px;color:var(--tv-mu);margin-top:1px;}
+.tv-density-compact .tv-row-flight{font-size:10px;}
+.tv-density-high .tv-row-flight{font-size:9.5px;}
+
+/* Per-section "TODAY 2/2" / "TOMORROW 2/2" / "OPERATIONS 2/2" indicator
+   — only rendered when that section actually spans more than one page
+   (tvBuildTodayPages/tvBuildTomorrowPages/tvBuildOpsPages), so a quiet
+   day never shows a continuation badge at all. */
+.tv-page-continuation{
+  font-family:'DM Mono',monospace;font-size:11px;font-weight:700;letter-spacing:.3px;
+  background:rgba(42,93,176,.14);color:var(--tv-accent);border-radius:20px;padding:3px 10px;
+}
 
 /* Completed = visibly done at a glance, but never illegible — only the
    name gets a light strike, vehicle/ticket/hangar stay fully readable. */
@@ -1148,11 +1192,16 @@ body.tv-stale .tv-stale-banner{display:block;}
    (see #tvPageTodayBody / #tvPageOpsBody in the markup). */
 .tv-today-col{flex:1;display:flex;flex-direction:column;min-height:0;}
 
-/* ── OPERATIONS page: three columns ── */
+/* ── OPERATIONS page: 4 columns on the first sub-page (Alerts / Ascend +
+   Customs / Return Follow-Up / Hangar Summary), 3 on any continuation
+   sub-page (Hangar Summary is fixed-size and only ever shown once —
+   see tvBuildOpsPages, showHangar). Ratios rebalanced from the original
+   3-column .85/1.2/.85 split to make room for the new Follow-Up column. */
 .tv-ops-col{display:flex;flex-direction:column;min-height:0;}
 .tv-ops-col-alerts{flex:.85;}
-.tv-ops-col-customs{flex:1.2;}
-.tv-ops-col-hangars{flex:.85;}
+.tv-ops-col-customs{flex:1.1;}
+.tv-ops-col-followup{flex:1;}
+.tv-ops-col-hangars{flex:.7;}
 
 /* ── HANGAR SUMMARY ── */
 .tv-hangar-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;align-content:start;}
