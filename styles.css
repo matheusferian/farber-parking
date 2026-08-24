@@ -1,3 +1,5 @@
+/* AirValet — Developed by Matt Solutions. Built exclusively for Makers Air. © 2026 */
+
 /* ── ROOT PALETTE (from Makers Air logo) ── */
 :root{
   --navy:#1B3B6F;
@@ -141,6 +143,8 @@ header img{display:none!important;}
 .bbtn.loc.on{opacity:1;pointer-events:auto;background:rgba(201,172,84,.14);border-color:var(--gold);}
 .bbtn.dlt{background:rgba(204,51,51,.06);color:var(--red);border-color:rgba(204,51,51,.15);}
 .bbtn.dlt.on{opacity:1;pointer-events:auto;background:rgba(204,51,51,.11);border-color:var(--red);}
+.bbtn.arc{background:rgba(107,114,128,0.07);color:#4B5563;border-color:rgba(107,114,128,0.2);}
+.bbtn.arc.on{opacity:1;pointer-events:auto;background:rgba(107,114,128,0.12);border-color:#6B7280;}
 
 /* ── TABLE ── */
 .tw{padding:0 20px 100px;overflow-x:auto;}
@@ -158,6 +162,7 @@ input[type=checkbox]{width:17px;height:17px;accent-color:var(--gold);cursor:poin
 .bp{background:rgba(201,172,84,.15);color:#8A6A00;}
 .bd{background:rgba(26,158,106,.13);color:#0B6B48;}
 .bn{background:rgba(91,127,189,.13);color:#2E4F80;}
+.ba{background:rgba(107,114,128,0.13);color:#4B5563;}
 
 /* ── DATE TAGS ── */
 .tag{font-size:9px;border-radius:4px;padding:2px 6px;font-family:'DM Mono',monospace;margin-left:4px;font-weight:600;}
@@ -199,6 +204,10 @@ input[type=checkbox]{width:17px;height:17px;accent-color:var(--gold);cursor:poin
 .ov.on .modal{transform:translateY(0);}
 .modal h2{font-family:'Syne',sans-serif;font-size:18px;font-weight:800;color:var(--navy);margin-bottom:4px;}
 .msub{font-size:11px;color:var(--mu);margin-bottom:18px;}
+@media (min-width:768px){
+  .ov{align-items:center;}
+  .modal{border-radius:16px;max-height:88vh;margin:16px auto;}
+}
 
 /* ── FORM ── */
 .fr{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;}
@@ -292,7 +301,7 @@ input[type=checkbox]{width:17px;height:17px;accent-color:var(--gold);cursor:poin
 .dcards{display:flex;flex-direction:column;gap:8px;margin-bottom:24px;}
 .dcard{
   background:var(--s);border:1px solid var(--b);
-  border-radius:12px;display:flex;align-items:stretch;
+  border-radius:12px;display:flex;flex-direction:column;
   cursor:pointer;overflow:hidden;transition:all .15s;
 }
 .dcard:hover{border-color:var(--navy);box-shadow:0 4px 16px rgba(27,59,111,0.1);}
@@ -300,36 +309,56 @@ input[type=checkbox]{width:17px;height:17px;accent-color:var(--gold);cursor:poin
 .dcard.cm{border-left:3px solid var(--pur);}
 .dcard.ca{border-left:3px solid var(--ok);}
 .dcard.cr{border-left:3px solid var(--red);}
-.dc-body{flex:1;padding:13px 14px;min-width:0;}
+.dc-top{display:flex;flex-direction:row;align-items:stretch;}
+.dc-body{flex:1;padding:11px 14px;min-width:0;}
 .dc-n{font-weight:700;font-size:14px;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--navy);}
 .dc-c{font-size:11px;color:var(--mu);}
-.dc-meta{display:flex;flex-direction:column;align-items:flex-end;justify-content:center;padding:13px 10px 13px 4px;gap:2px;flex-shrink:0;}
+.dc-meta{display:flex;flex-direction:column;align-items:flex-end;justify-content:center;padding:11px 12px 11px 4px;gap:2px;flex-shrink:0;}
 .dc-tk{font-family:'DM Mono',monospace;font-size:12px;color:var(--gold2);font-weight:600;}
 .dc-l{font-size:10px;color:var(--mu);}
 .dc-qd{
-  padding:0 10px;
   display:flex;
-  flex-direction:column;
-  justify-content:center;
-  gap:6px;
-  min-width:110px;
+  flex-direction:row;
+  flex-wrap:wrap;
+  align-items:center;
+  justify-content:flex-end;
+  gap:5px;
+  padding:7px 10px;
+  border-top:1px solid var(--b);
 }
 .qd-btn{
-  background:var(--ok);color:#fff;border:none;border-radius:7px;
-  padding:8px 10px;font-family:'Syne',sans-serif;font-weight:800;font-size:11px;
+  background:var(--ok);color:#fff;border:none;border-radius:8px;
+  padding:0 10px;font-family:'Syne',sans-serif;font-weight:800;font-size:12px;
   cursor:pointer;white-space:nowrap;transition:opacity .15s;
-  min-width:92px;height:36px;
+  height:32px;
 }
 .qd-btn:hover{opacity:.88;}
 .qd-btn.late{background:var(--red);}
 .qd-btn.nodate{background:var(--pur);}
 .qd-btn.customs{background:var(--navy);border:1px solid var(--gold);}
+.wcb-wrap{position:relative;display:inline-flex;gap:4px;}
+.qd-btn.wcb-btn{padding:0 7px;font-size:10px;}
+.qd-btn.wcb-pending{background:var(--blue);}
+.qd-btn.wcb-sent{background:var(--ok);}
+.qd-btn.wcb-undo{background:rgba(255,255,255,.06);color:var(--mu);}
+.wcb-badge{
+  display:none;position:absolute;top:-7px;right:-5px;
+  background:var(--red);color:#fff;font-size:8px;font-weight:800;
+  padding:1px 4px;border-radius:6px;letter-spacing:.3px;
+  font-family:'DM Mono',monospace;white-space:nowrap;pointer-events:none;
+}
+.wcb-wrap.urgent .wcb-badge{display:block;}
+.wcb-wrap.urgent .qd-btn.wcb-btn{animation:wcbPulse 1.5s ease-in-out infinite;}
+@keyframes wcbPulse{
+  0%,100%{box-shadow:0 0 0 0 rgba(42,93,176,.5);}
+  50%{box-shadow:0 0 0 6px rgba(42,93,176,0);}
+}
 .checkin-badge{
   background:rgba(26,158,106,.10);
   color:var(--ok);
   border:1px solid rgba(26,158,106,.25);
   border-radius:8px;
-  padding:8px 12px;
+  padding:6px 12px;
   font-size:10px;
   font-family:'DM Mono',monospace;
   font-weight:700;
@@ -337,14 +366,89 @@ input[type=checkbox]{width:17px;height:17px;accent-color:var(--gold);cursor:poin
   text-transform:uppercase;
   white-space:nowrap;
 }
+.ob{display:inline-flex;align-items:center;justify-content:center;padding:10px 16px;border-radius:10px;border:1px solid var(--b);background:var(--s2);color:var(--mu);font-family:'Syne',sans-serif;font-weight:700;font-size:13px;cursor:pointer;transition:all .15s;user-select:none;}
+.ob.on{background:rgba(26,61,124,0.18);border-color:var(--navy);color:var(--tx);}
+.ob.ob-ascend{border-color:rgba(99,179,237,0.4);color:#63b3ed;}
+.ob.ob-ascend.on{background:rgba(99,179,237,0.15);border-color:#63b3ed;color:#63b3ed;}
+.dcard.delivered-today-card{opacity:0.65;}
+.dcard.delivered-today-card:hover{opacity:0.85;}
 @media (max-width:600px){
-  .dcard{align-items:center;}
-  .dc-body{padding:10px 10px;}
-  .dc-meta{padding:10px 6px;}
-  .dc-qd{padding-right:8px;min-width:98px;}
-  .qd-btn{min-width:82px;font-size:10px;padding:7px 8px;height:32px;}
-  .checkin-badge{font-size:9px;padding:7px 10px;}
+  .dc-body{padding:9px 10px;}
+  .dc-meta{padding:9px 10px 9px 4px;}
+  .dc-qd{padding:6px 8px;gap:4px;}
+  .qd-btn{font-size:11px;padding:0 8px;height:30px;}
+  .qd-btn.wcb-btn{font-size:9px;padding:0 6px;}
+  .checkin-badge{font-size:9px;padding:5px 10px;}
 }
+/* ── CUSTOMS COMMUNICATION START ── */
+.cst-card-badge{
+  display:flex;flex-wrap:wrap;align-items:center;gap:4px;
+  background:rgba(27,59,111,.08);border:1px solid rgba(27,59,111,.25);
+  border-radius:8px;padding:6px 10px;cursor:pointer;
+  font-size:10px;font-family:'DM Mono',monospace;font-weight:700;
+  letter-spacing:.3px;color:var(--tx);
+  margin-right:4px; /* extra room before the adjacent Undo button, on top of .dc-qd's own gap */
+}
+.cst-card-badge:hover{background:rgba(27,59,111,.14);}
+.cst-cb-tag{color:var(--navy);font-weight:800;}
+.cst-cb-sep{color:var(--mu);opacity:.5;}
+.cst-cb-eta{color:var(--mu);}
+.cst-cb-wb,.cst-cb-tip{white-space:nowrap;}
+@media (max-width:600px){.cst-card-badge{font-size:9px;padding:5px 8px;gap:3px;}}
+/* Scoped size bump for the Undo-delivery button next to the Customs/delivered
+   badge — deliberately not touching the shared .qd-btn rule used by
+   Deliver/Customs/Lockbox/Print elsewhere on the same card. */
+.dc-undo-deliver-btn{min-height:40px;padding:0 10px;}
+
+.cst-meta{font-family:'Syne',sans-serif;font-size:14px;font-weight:800;color:var(--navy);margin-bottom:2px;}
+.cst-eta{font-size:12px;color:var(--mu);margin-bottom:16px;font-family:'DM Mono',monospace;}
+.cst-section{background:var(--s2);border:1.5px solid var(--b);border-radius:12px;padding:12px 14px;margin-bottom:10px;}
+.cst-section.done{border-color:rgba(26,158,106,.35);background:rgba(26,158,106,.06);}
+.cst-sec-top{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;}
+.cst-sec-lbl{font-family:'Syne',sans-serif;font-weight:800;font-size:13px;color:var(--tx);}
+.cst-sec-status.ok{font-size:11px;font-weight:700;color:var(--ok);}
+.cst-sec-sub{font-size:10.5px;color:var(--mu);margin-top:6px;}
+.cst-send-btn{width:100%;background:var(--navy);color:#fff;border:1px solid var(--gold);border-radius:9px;padding:11px;font-family:'Syne',sans-serif;font-weight:800;font-size:13px;cursor:pointer;}
+.cst-send-btn:hover{background:var(--navy2);}
+.cst-send-btn:disabled{background:var(--s2);color:var(--mu);border-color:var(--b);cursor:not-allowed;opacity:.7;}
+.cst-send-btn:disabled:hover{background:var(--s2);}
+.cst-undo-btn{width:100%;background:rgba(255,255,255,.06);border:1px solid var(--b);color:var(--mu);border-radius:9px;padding:8px;font-size:12px;cursor:pointer;}
+.cst-undo-btn:hover{border-color:var(--red);color:var(--red);}
+.cst-summary-list{list-style:none;padding:0;margin:0 0 4px;}
+.cst-summary-list li{font-size:12.5px;color:var(--tx);padding:7px 10px;background:var(--s2);border-radius:8px;margin-bottom:6px;}
+.cst-summary-more{font-size:11px;color:var(--mu);font-weight:700;margin-bottom:8px;}
+.mact.cst-nav-row{flex-wrap:wrap;}
+.mact.cst-nav-row button{min-width:0;}
+.mact.cst-nav-row button:disabled{opacity:.4;cursor:default;}
+/* ── CUSTOMS COMMUNICATION END ── */
+
+/* ── MOCK TWILIO SIMULATION (Fase 2) ── */
+.mock-sms-badge{background:rgba(201,168,76,.12);border:1px solid rgba(201,168,76,.4);color:var(--gold2);border-radius:8px;padding:8px 10px;font-size:11px;font-weight:700;margin-bottom:12px;}
+.mock-sms-row{display:flex;justify-content:space-between;gap:10px;font-size:12px;padding:5px 0;border-bottom:1px solid var(--s2);}
+.mock-sms-lbl{color:var(--mu);font-weight:700;white-space:nowrap;}
+.mock-sms-val{color:var(--tx);text-align:right;word-break:break-word;}
+.mock-sms-msgbox{background:var(--s2);border:1.5px solid var(--b);border-radius:10px;padding:10px 12px;font-size:12.5px;color:var(--tx);white-space:pre-wrap;margin:10px 0;max-height:160px;overflow-y:auto;}
+.mock-sms-status{font-size:11px;font-weight:800;border-radius:6px;padding:3px 8px;font-family:'DM Mono',monospace;}
+.mock-sms-status-ok{background:rgba(26,158,106,.12);color:var(--ok);}
+.mock-sms-status-bad{background:rgba(204,51,51,.12);color:var(--red);}
+.mock-sms-status-pending{background:rgba(201,168,76,.15);color:var(--gold2);}
+.mock-sms-error{background:rgba(204,51,51,.08);border:1px solid rgba(204,51,51,.3);color:var(--red);border-radius:8px;padding:8px 10px;font-size:11.5px;margin-top:8px;}
+.mock-sms-outcome-wrap{margin-top:12px;}
+.mock-sms-select{width:100%;background:var(--s2);border:1.5px solid var(--b);border-radius:8px;padding:9px 10px;color:var(--tx);font-size:13px;font-family:'DM Mono',monospace;margin-top:6px;}
+/* ── MOCK TWILIO SIMULATION END ── */
+
+/* ── SMS DEMO GALLERY (Debug tab, static examples only) ── */
+.sms-demo-thread{display:flex;flex-direction:column;gap:8px;max-width:360px;}
+.sms-demo-bubble{border-radius:14px;padding:8px 12px;font-size:12.5px;line-height:1.4;max-width:82%;position:relative;}
+.sms-demo-bubble.out{align-self:flex-end;background:var(--navy);color:#fff;border-bottom-right-radius:4px;}
+.sms-demo-bubble.in{align-self:flex-start;background:var(--s2);color:var(--tx);border:1px solid var(--b);border-bottom-left-radius:4px;}
+.sms-demo-meta{font-size:9.5px;margin-top:4px;opacity:.75;display:flex;gap:6px;align-items:center;font-family:'DM Mono',monospace;}
+.sms-demo-bubble.out .sms-demo-meta{color:rgba(255,255,255,.75);justify-content:flex-end;}
+.sms-demo-bubble.in .sms-demo-meta{color:var(--mu);}
+.sms-demo-card{background:var(--s2);border:1.5px solid var(--b);border-radius:12px;padding:14px;margin-bottom:14px;}
+.sms-demo-card-title{font-family:'Syne',sans-serif;font-weight:800;font-size:12px;color:var(--mu);margin-bottom:10px;text-transform:uppercase;letter-spacing:.4px;}
+/* ── SMS DEMO GALLERY END ── */
+
 .eday{text-align:center;padding:18px;color:var(--mu);font-size:12px;background:var(--s);border-radius:10px;border:1px dashed var(--b);}
 
 /* ── TASKS ── */
@@ -408,12 +512,18 @@ input[type=checkbox]{width:17px;height:17px;accent-color:var(--gold);cursor:poin
 #loginOv{position:fixed;inset:0;background:linear-gradient(135deg,#0a0f1e,#1B3B6F);z-index:9999;display:flex;align-items:center;justify-content:center;}
 #loginBox{background:var(--s);border:1px solid var(--b);border-top:4px solid var(--gold);border-radius:16px;padding:32px 28px;width:100%;max-width:360px;box-shadow:0 20px 60px rgba(0,0,0,0.4);}
 .login-logo{font-family:'Syne',sans-serif;font-size:20px;font-weight:800;color:var(--navy);margin-bottom:4px;}
+.login-tagline{font-size:12px;color:var(--mu);font-family:'DM Sans',sans-serif;margin-bottom:10px;}
 .login-sub{font-size:11px;color:var(--mu);font-family:'DM Mono',monospace;letter-spacing:1px;margin-bottom:24px;}
 .login-inp{width:100%;box-sizing:border-box;background:var(--s2);border:1.5px solid var(--b);border-radius:10px;padding:12px 14px;font-size:14px;color:var(--tx);font-family:'DM Sans',sans-serif;outline:none;margin-bottom:10px;display:block;}
 .login-inp:focus{border-color:var(--gold);}
 #loginBtn{width:100%;background:var(--navy);color:#fff;border:none;border-radius:10px;padding:13px;font-family:'Syne',sans-serif;font-weight:800;font-size:14px;cursor:pointer;margin-top:4px;letter-spacing:0.5px;}
 #loginBtn:hover{background:var(--navy2);}
 #loginBtn:disabled{opacity:0.6;cursor:default;}
+.login-dev{font-size:10px;color:var(--mu);font-family:'DM Sans',sans-serif;text-align:center;margin-top:14px;opacity:0.7;}
+
+/* ── GLOBAL FOOTER ── */
+#appFooter{text-align:center;font-size:10.5px;color:var(--mu);font-family:'DM Sans',sans-serif;opacity:0.65;padding:14px 10px 18px;}
+@media(max-width:600px){#appFooter{padding-bottom:100px;}}
 
 /* ── MOBILE OPTIMIZATIONS ── */
 *{-webkit-tap-highlight-color:transparent;}
@@ -483,25 +593,28 @@ body{-webkit-text-size-adjust:100%;}
   .brand-name{font-size:16px;}
   .ref-btn{font-size:11px;padding:7px 8px;}
 }
-/* ── Return Flight inline input ── */
+/* ── Return Flight + Departure Time inline inputs ── */
 .return-flight-wrap{
   margin-top:5px;
   display:flex;
   align-items:center;
+  gap:5px;
+  flex-wrap:nowrap;
 }
 .return-flight-input{
-  width:105px;
-  max-width:105px;
+  width:82px;
+  max-width:82px;
   background:rgba(27,59,111,.06);
   border:1px solid rgba(27,59,111,.22);
   color:var(--navy);
-  border-radius:7px;
-  padding:5px 7px;
-  font-size:11px;
+  border-radius:6px;
+  padding:3px 6px;
+  font-size:10px;
   font-family:'DM Mono',monospace;
   font-weight:700;
   outline:none;
   text-transform:uppercase;
+  height:26px;
 }
 .return-flight-input:focus{
   background:#fff;
@@ -513,14 +626,87 @@ body{-webkit-text-size-adjust:100%;}
 }
 @media(max-width:600px){
   .return-flight-input{
-    width:92px;
-    max-width:92px;
+    width:72px;
+    max-width:72px;
     font-size:10px;
-    padding:5px 6px;
   }
 }
+/* ── Departure Time inline input ── */
+.departure-time-input{
+  width:80px;
+  max-width:80px;
+  background:rgba(27,59,111,.06);
+  border:1px solid rgba(27,59,111,.22);
+  color:var(--navy);
+  border-radius:6px;
+  padding:3px 6px;
+  font-size:10px;
+  font-family:'DM Mono',monospace;
+  font-weight:700;
+  outline:none;
+  height:26px;
+}
+.departure-time-input:focus{
+  background:#fff;
+  border-color:var(--gold);
+}
+.departure-time-input.dep-time-invalid{
+  border-color:#c0392b;
+  background:rgba(192,57,43,.07);
+  color:#c0392b;
+}
+@media(max-width:600px){
+  .departure-time-input{
+    width:70px;
+    max-width:70px;
+  }
+}
+/* ── Flight Departure Tag print buttons ── */
+.qd-btn.fbprint{
+  background:var(--navy);
+  border:1px solid var(--gold);
+  padding:0 9px;
+  font-size:15px;
+  min-width:unset;
+}
+.fb-print-all-btn{
+  background:var(--navy);
+  color:#fff;
+  border:1px solid var(--gold);
+  border-radius:8px;
+  padding:5px 10px;
+  font-family:'Syne',sans-serif;
+  font-weight:700;
+  font-size:11px;
+  cursor:pointer;
+  white-space:nowrap;
+}
+.fb-print-all-btn:hover{opacity:.88;}
 
-/* ── CUSTOMER RATING BADGE ── */
+/* ── LEAVING TOMORROW COMPACT TOOLBAR ── */
+.fb-print-all-btn.lt-toolbar-btn{
+  height:30px;
+  padding:0 10px;
+  font-size:11px;
+  border-radius:8px;
+  font-weight:700;
+  display:inline-flex;
+  align-items:center;
+  gap:4px;
+  white-space:nowrap;
+}
+.fb-print-all-btn.lt-toolbar-btn-icon{
+  width:30px;
+  height:30px;
+  padding:0;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  font-size:14px;
+  border-radius:8px;
+}
+
+/* ── STATUS BADGE (shared: delivery-type + tip status) ── */
 .cr-badge{
   display:inline-block;
   font-size:10px;
@@ -532,11 +718,490 @@ body{-webkit-text-size-adjust:100%;}
   vertical-align:middle;
   letter-spacing:0.4px;
 }
-.cr-great{background:rgba(26,158,106,0.18);color:#1A9E6A;border:1px solid rgba(26,158,106,0.35);}
 .cr-normal{background:rgba(100,120,180,0.15);color:#8aa0cc;border:1px solid rgba(100,120,180,0.3);}
-.cr-difficult{background:rgba(204,51,51,0.15);color:#CC3333;border:1px solid rgba(204,51,51,0.3);}
 
-/* ── RATING MODAL BUTTON SELECTED STATE ── */
-.rating-opt.selected[data-rating="GREAT"]{background:rgba(26,158,106,0.25);border-color:var(--ok);}
-.rating-opt.selected[data-rating="NORMAL"]{background:rgba(100,120,180,0.25);border-color:#8aa0cc;}
-.rating-opt.selected[data-rating="DIFFICULT"]{background:rgba(204,51,51,0.25);border-color:var(--red);}
+/* ── TIP STATUS BADGE (passenger detail panel, full text) ── */
+.cr-tip-yes{background:rgba(26,158,106,0.18);color:#1A9E6A;border:1px solid rgba(26,158,106,0.35);}
+.cr-tip-no{background:rgba(100,120,180,0.15);color:#8aa0cc;border:1px solid rgba(100,120,180,0.3);}
+.cr-tip-none{background:rgba(107,114,128,0.15);color:#6B7280;border:1px solid rgba(107,114,128,0.3);}
+
+/* ── TIP STATUS CHIP (dashboard delivered card, compact icon-only) ── */
+.tip-chip{
+  display:inline-block;
+  font-size:11px;
+  font-family:'DM Mono',monospace;
+  font-weight:700;
+  padding:1px 5px;
+  border-radius:6px;
+  margin-left:6px;
+  vertical-align:middle;
+}
+.tip-chip-yes{background:rgba(26,158,106,0.18);color:#1A9E6A;border:1px solid rgba(26,158,106,0.35);}
+.tip-chip-no{background:rgba(100,120,180,0.15);color:#8aa0cc;border:1px solid rgba(100,120,180,0.3);}
+.tip-chip-none{background:rgba(107,114,128,0.15);color:#6B7280;border:1px solid rgba(107,114,128,0.3);}
+
+/* ── TIP CONFIRMATION MODAL BUTTONS (large iPhone/iPad tap targets) ── */
+.tip-opt{
+  display:flex;align-items:center;justify-content:center;gap:10px;
+  width:100%;min-height:52px;padding:14px 18px;
+  border-radius:12px;cursor:pointer;
+  font-family:'Syne',sans-serif;font-size:16px;font-weight:800;
+  transition:all .15s;
+}
+.tip-yes{background:rgba(26,158,106,0.1);border:2px solid rgba(26,158,106,0.3);color:var(--ok);}
+.tip-yes:active{background:rgba(26,158,106,0.22);}
+.tip-no{background:rgba(180,40,40,0.1);border:2px solid rgba(180,40,40,0.3);color:var(--red);}
+.tip-no:active{background:rgba(180,40,40,0.22);}
+.tip-opt:disabled{opacity:0.5;cursor:not-allowed;}
+
+/* ── DISCARD CONFIRMATION ── */
+#discardOv{z-index:400;}
+.btn-danger{background:var(--red);}
+.btn-danger:hover{background:#a82828;}
+
+/* ── MISSING HANGAR ALERT ── */
+@keyframes hangarMissingPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: .45; transform: scale(.98); }
+}
+.hangar-missing-alert {
+  display: inline-flex; align-items: center; justify-content: center;
+  margin-left: 8px; padding: 4px 10px; border-radius: 999px;
+  background: rgba(204,51,51,0.12); border: 1px solid rgba(204,51,51,0.35);
+  color: #CC3333; font-family: 'DM Mono', monospace;
+  font-size: 11px; font-weight: 800;
+  animation: hangarMissingPulse 1.1s ease-in-out infinite;
+  white-space: nowrap;
+}
+.dc-l-no-hangar {
+  color: #CC3333; font-size: 10px;
+  font-family: 'DM Mono', monospace; font-weight: 700;
+}
+@media (max-width: 768px) {
+  #titleArrived {
+    display: flex; flex-wrap: wrap; align-items: center;
+    gap: 6px 8px; line-height: 1.25;
+  }
+  .hangar-missing-alert { margin-left: 0; font-size: 10px; padding: 4px 8px; }
+}
+
+/* EPSON DIAGNOSTICS START */
+.epson-card {
+  background: var(--s); border: 1px solid var(--b); border-radius: 14px;
+  padding: 18px 20px; margin-bottom: 20px;
+  box-shadow: 0 2px 10px rgba(27,59,111,.06);
+}
+.epson-card-title {
+  font-family: 'Syne', sans-serif; font-size: 16px; font-weight: 800;
+  color: var(--navy); margin-bottom: 2px;
+}
+.epson-card-sub { font-size: 11px; color: var(--mu); margin-bottom: 16px; }
+
+.epson-stat-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 10px; margin-bottom: 16px;
+}
+.epson-stat {
+  background: var(--bg); border: 1px solid var(--b); border-radius: 10px;
+  padding: 8px 12px;
+}
+.epson-stat-label {
+  font-size: 10px; color: var(--mu); text-transform: uppercase;
+  letter-spacing: .4px; margin-bottom: 2px;
+}
+.epson-stat-value {
+  font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 700; color: var(--tx);
+}
+.epson-stat-value.online  { color: var(--ok); }
+.epson-stat-value.offline { color: var(--red); }
+
+.epson-btn-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 18px; }
+.epson-btn {
+  flex: 1 1 160px; border-radius: 10px; padding: 12px 18px;
+  font-family: 'Syne', sans-serif; font-weight: 700; font-size: 13px;
+  cursor: pointer; border: 1px solid var(--gold); transition: transform .15s;
+}
+.epson-btn:hover { transform: translateY(-1px); }
+.epson-btn-navy { background: linear-gradient(135deg, var(--navy), var(--blue)); color: #fff; }
+.epson-btn-gold { background: linear-gradient(135deg, var(--gold2), var(--gold)); color: var(--navy); }
+.epson-btn-outline { background: var(--s); color: var(--navy); border: 1.5px solid var(--navy); }
+.epson-btn-outline:hover { background: rgba(27,59,111,.06); }
+
+.epson-history-title {
+  font-family: 'Syne', sans-serif; font-size: 12px; font-weight: 800;
+  color: var(--mu); margin-bottom: 8px; text-transform: uppercase; letter-spacing: .4px;
+}
+.epson-history-wrap { overflow-x: auto; }
+.epson-history-table { width: 100%; min-width: 0; border-collapse: collapse; font-size: 11px; }
+.epson-history-table th, .epson-history-table td {
+  padding: 6px 8px; border-bottom: 1px solid var(--b); text-align: left; white-space: nowrap;
+}
+.epson-history-table th {
+  color: var(--mu); font-weight: 700; font-size: 10px; text-transform: uppercase;
+}
+
+@media (max-width: 480px) {
+  .epson-card { padding: 14px 14px; }
+  .epson-btn { flex: 1 1 100%; }
+}
+/* EPSON DIAGNOSTICS END */
+
+/* ── DAILY CLOSING START ── */
+.dc-wrap{max-width:640px;margin:0 auto;}
+.dc-card{background:var(--s);border:1px solid var(--b);border-radius:14px;padding:16px;margin-bottom:14px;}
+.dc-sec-title{font-family:'Syne',sans-serif;font-size:13px;font-weight:800;color:var(--navy);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;display:flex;align-items:center;gap:8px;}
+.dc-sec-title .dc-recalc{font-family:'DM Sans',sans-serif;font-size:11px;font-weight:500;text-transform:none;letter-spacing:0;color:var(--gold2);cursor:pointer;margin-left:auto;}
+.dc-sec-title .dc-recalc:hover{color:var(--gold);}
+.dc-grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.dc-grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;}
+@media (max-width:520px){.dc-grid3{grid-template-columns:1fr 1fr;}}
+.dc-readonly{background:var(--s2);border:1.5px solid var(--b);border-radius:10px;padding:10px 12px;font-size:14px;font-weight:700;color:var(--navy);font-family:'DM Mono',monospace;min-height:38px;display:flex;align-items:center;}
+.dc-readonly.empty{color:var(--mu);font-weight:400;font-style:italic;font-family:'DM Sans',sans-serif;font-size:12.5px;}
+.dc-money-wrap{position:relative;}
+.dc-money-wrap .dc-money-sign{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--mu);font-size:13px;pointer-events:none;}
+.dc-money-wrap input{padding-left:24px !important;}
+.dc-row-card{background:var(--s2);border:1px solid var(--b);border-radius:10px;padding:12px;margin-bottom:8px;position:relative;}
+.dc-row-grid{display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:8px;align-items:end;}
+@media (max-width:560px){.dc-row-grid{grid-template-columns:1fr;}}
+.dc-pickup-grid{display:grid;grid-template-columns:1fr 1.4fr auto;gap:8px;align-items:end;}
+@media (max-width:480px){.dc-pickup-grid{grid-template-columns:1fr;}}
+.dc-row-remove{background:rgba(204,51,51,.08);border:1px solid rgba(204,51,51,.3);color:var(--red);border-radius:8px;padding:9px 12px;font-size:12px;cursor:pointer;white-space:nowrap;}
+.dc-row-remove:hover{background:rgba(204,51,51,.15);}
+.dc-add-btn{background:rgba(201,172,84,.1);border:1.5px dashed var(--gold);color:#7A5A00;border-radius:10px;padding:10px;font-size:12.5px;font-weight:700;text-align:center;cursor:pointer;width:100%;margin-top:4px;}
+.dc-add-btn:hover{background:rgba(201,172,84,.18);}
+.dc-checklist-item{display:flex;align-items:flex-start;gap:10px;padding:11px 12px;background:var(--s2);border:1.5px solid var(--b);border-radius:10px;margin-bottom:8px;cursor:pointer;}
+.dc-checklist-item input{width:18px;height:18px;flex-shrink:0;margin-top:1px;accent-color:var(--navy);}
+.dc-checklist-item span{font-size:12.5px;color:var(--tx);line-height:1.4;}
+.dc-checklist-item.checked{border-color:var(--ok);background:rgba(26,158,106,.08);}
+.dc-status-banner{border-radius:12px;padding:12px 14px;margin-bottom:14px;font-size:12.5px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.dc-status-banner.draft{background:rgba(201,172,84,.12);border:1px solid rgba(201,172,84,.35);color:#7A5A00;}
+.dc-status-banner.finalized{background:rgba(26,158,106,.1);border:1px solid rgba(26,158,106,.35);color:#0e6b46;}
+.dc-status-banner .dc-badge{font-family:'Syne',sans-serif;font-weight:800;font-size:11px;letter-spacing:.5px;padding:3px 9px;border-radius:6px;}
+.dc-status-banner.draft .dc-badge{background:var(--gold);color:#4a3900;}
+.dc-status-banner.finalized .dc-badge{background:var(--ok);color:#fff;}
+.dc-save-row{display:flex;gap:10px;flex-wrap:wrap;}
+.dc-save-row button{flex:1;min-width:140px;}
+.dc-export-row{display:flex;gap:10px;flex-wrap:wrap;}
+.dc-export-row button{flex:1;min-width:120px;}
+.dc-history-item{background:var(--s2);border:1px solid var(--b);border-radius:10px;padding:11px 13px;margin-bottom:8px;}
+.dc-history-top{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px;}
+.dc-history-date{font-family:'Syne',sans-serif;font-weight:800;font-size:13px;color:var(--navy);}
+.dc-history-badge{font-size:9.5px;font-weight:800;padding:2px 7px;border-radius:5px;text-transform:uppercase;letter-spacing:.4px;}
+.dc-history-badge.draft{background:rgba(201,172,84,.2);color:#7A5A00;}
+.dc-history-badge.finalized{background:rgba(26,158,106,.15);color:#0e6b46;}
+.dc-history-meta{font-size:11px;color:var(--mu);margin-bottom:8px;display:flex;flex-wrap:wrap;gap:10px;}
+.dc-history-actions{display:flex;gap:8px;flex-wrap:wrap;}
+.dc-history-actions button{background:var(--s);border:1px solid var(--b);color:var(--mu);border-radius:7px;padding:6px 11px;font-size:11px;cursor:pointer;}
+.dc-history-actions button:hover{border-color:var(--navy);color:var(--navy);}
+.dc-empty{text-align:center;color:var(--mu);font-size:12.5px;padding:20px;}
+.dc-textarea{background:var(--s2);border:1.5px solid var(--b);border-radius:10px;padding:10px 12px;color:var(--tx);font-size:13px;outline:none;width:100%;min-height:70px;font-family:'DM Sans',sans-serif;resize:vertical;}
+.dc-textarea:focus{border-color:var(--gold);}
+.dc-locked input,.dc-locked textarea,.dc-locked button.dc-add-btn,.dc-locked .dc-row-remove{opacity:.55;pointer-events:none;}
+.dcx-preview-wrap{position:relative;overflow:hidden;}
+/* ── DAILY CLOSING END ── */
+
+/* ══════════════════════════════════════════════════════════════════════
+   TV MODE — light 24/7 operations-board theme (redesigned 2026-08-24,
+   see PROJECT.md Changelog). Fully namespaced under #tvMode so it never
+   affects the normal light admin theme. Deliberately low-fatigue for a
+   display that stays on ~24h/day: soft blue-gray ground (never pure
+   white), restrained semantic color, no glow/gradients beyond the header
+   band, minimal animation (only the functional reconnect-dot pulse and
+   the page-rotation fade survive from the previous dark theme).
+   ══════════════════════════════════════════════════════════════════════ */
+:root{
+  --tv-bg:#E8EEF7;
+  --tv-panel:#F3F6FB;
+  --tv-panel2:#FFFFFF;
+  --tv-border:#CBD8EC;
+  --tv-text:#132244;
+  --tv-mu:#5C6E8C;
+  --tv-navy:#1B3B6F;
+  --tv-accent:#2A5DB0;
+  --tv-gold:#A8893A;
+  --tv-critical:#C0392E;
+  --tv-critical-bg:#FBE7E5;
+  --tv-warning:#B8790A;
+  --tv-warning-bg:#FBEEDA;
+  --tv-ok:#1B8F63;
+  --tv-ok-bg:#E3F3EC;
+  --tv-ascend:#1D6FA5;
+  --tv-ascend-bg:rgba(99,179,237,.16);
+  --tv-ascend-border:rgba(99,179,237,.45);
+}
+
+/* Hide every normal-mode top-level element when TV Mode is active — a
+   single catch-all so no modal/overlay needs to be enumerated by hand. */
+body.tv-active > *:not(#loginOv):not(#tvMode){display:none !important;}
+body.tv-cursor-hidden, body.tv-cursor-hidden *{cursor:none !important;}
+
+#tvMode{
+  display:none;
+  position:fixed;inset:0;z-index:500;
+  background:var(--tv-bg);
+  color:var(--tv-text);
+  font-family:'DM Sans',sans-serif;
+  overflow:hidden;
+  flex-direction:column;
+}
+body.tv-active #tvMode{display:flex;}
+
+/* ── HEADER ── */
+.tv-header{
+  position:relative;z-index:1;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:18px 32px;
+  background:linear-gradient(120deg,var(--tv-navy),var(--tv-accent));
+  color:#fff;
+  flex-shrink:0;
+}
+.tv-brand{display:flex;flex-direction:column;gap:3px;}
+.tv-brand-top{display:flex;align-items:center;gap:14px;}
+.tv-brand-name{font-family:'Syne',sans-serif;font-weight:800;font-size:22px;letter-spacing:.5px;color:#fff;}
+.tv-brand-name .tv-gold-ic{color:var(--tv-gold);}
+.tv-brand-sub{font-family:'DM Mono',monospace;font-size:11px;letter-spacing:1px;color:rgba(255,255,255,.72);}
+.tv-live-pill{
+  font-family:'DM Mono',monospace;font-size:11px;font-weight:700;letter-spacing:1px;
+  color:#fff;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.35);
+  border-radius:20px;padding:4px 12px;
+}
+.tv-header-right{display:flex;align-items:center;gap:26px;}
+.tv-datetime{text-align:right;}
+.tv-date{font-size:13px;color:rgba(255,255,255,.75);font-family:'DM Mono',monospace;}
+.tv-clock{font-family:'Syne',sans-serif;font-weight:800;font-size:26px;letter-spacing:1px;font-variant-numeric:tabular-nums;color:#fff;}
+.tv-conn-wrap{display:flex;flex-direction:column;align-items:flex-end;gap:3px;}
+.tv-conn-label{font-family:'DM Mono',monospace;font-size:11px;font-weight:700;letter-spacing:1px;display:flex;align-items:center;}
+.tv-conn-dot{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:7px;flex-shrink:0;}
+.tv-conn-live .tv-conn-dot{background:#3FD98A;box-shadow:0 0 0 3px rgba(63,217,138,.25);}
+.tv-conn-reconnecting .tv-conn-dot{background:#FFD166;animation:tv-dot-pulse 1s ease-in-out infinite;}
+.tv-conn-offline .tv-conn-dot{background:#FF8A80;}
+.tv-conn-live{color:#8CF0B8;}
+.tv-conn-reconnecting{color:#FFE1A8;}
+.tv-conn-offline{color:#FFB4AD;}
+.tv-last-update{font-size:10.5px;color:rgba(255,255,255,.62);font-family:'DM Mono',monospace;}
+@keyframes tv-dot-pulse{0%,100%{transform:scale(1);opacity:1;}50%{transform:scale(1.7);opacity:.35;}}
+
+/* ── STALE BANNER ── */
+.tv-stale-banner{
+  display:none;position:relative;z-index:1;flex-shrink:0;
+  background:var(--tv-critical-bg);border-bottom:1px solid rgba(192,57,46,.35);
+  color:var(--tv-critical);text-align:center;padding:8px 12px;font-weight:700;font-size:13px;
+  letter-spacing:.4px;font-family:'DM Mono',monospace;
+}
+body.tv-stale .tv-stale-banner{display:block;}
+
+/* ── KPI ROW ── */
+.tv-kpi-row{
+  position:relative;z-index:1;flex-shrink:0;
+  display:grid;grid-template-columns:repeat(6,1fr);gap:14px;
+  padding:18px 32px;
+}
+.tv-kpi{
+  background:var(--tv-panel2);border:1px solid var(--tv-border);border-radius:12px;
+  padding:14px 18px;display:flex;flex-direction:column;gap:3px;min-width:0;
+}
+.tv-kpi-num{font-family:'Syne',sans-serif;font-weight:800;font-size:34px;line-height:1;font-variant-numeric:tabular-nums;color:var(--tv-accent);}
+.tv-kpi-lbl{font-size:11.5px;color:var(--tv-text);text-transform:uppercase;letter-spacing:.8px;font-weight:700;}
+.tv-kpi-sub{font-size:11.5px;color:var(--tv-mu);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.tv-kpi.tv-lvl-critical .tv-kpi-num{color:var(--tv-critical);}
+.tv-kpi.tv-lvl-warning .tv-kpi-num{color:var(--tv-warning);}
+.tv-kpi.tv-lvl-ok .tv-kpi-num{color:var(--tv-ok);}
+.tv-kpi.tv-lvl-accent .tv-kpi-num{color:var(--tv-accent);}
+
+/* ── PAGES ── */
+.tv-pages{position:relative;z-index:1;flex:1;min-height:0;padding:0 32px 22px;}
+.tv-page{
+  position:absolute;inset:0 32px 22px;display:none;flex-direction:column;min-height:0;
+  animation:tv-page-in .5s ease both;
+}
+.tv-page.tv-page-active{display:flex;}
+@keyframes tv-page-in{from{opacity:0;}to{opacity:1;}}
+.tv-page-body{flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column;gap:14px;}
+.tv-page-title{
+  display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-shrink:0;
+  font-family:'Syne',sans-serif;font-weight:800;font-size:19px;letter-spacing:.3px;
+  color:var(--tv-navy);
+}
+.tv-page-title .tv-count-pill{
+  font-family:'DM Mono',monospace;font-size:12px;font-weight:700;
+  background:rgba(42,93,176,.1);color:var(--tv-accent);border-radius:20px;padding:3px 11px;
+}
+.tv-prep-badge{
+  display:inline-flex;align-items:center;gap:7px;font-family:'DM Mono',monospace;font-size:11px;
+  font-weight:700;letter-spacing:1px;color:var(--tv-accent);
+  background:rgba(42,93,176,.1);border:1px solid rgba(42,93,176,.3);border-radius:20px;padding:4px 12px;
+}
+.tv-prep-badge .tv-dot{width:7px;height:7px;border-radius:50%;background:var(--tv-accent);}
+
+/* ── PAGE DOTS ── */
+.tv-page-dots{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);display:flex;gap:7px;z-index:2;}
+.tv-page-dots.tv-hidden{display:none;}
+.tv-page-dot{width:7px;height:7px;border-radius:50%;background:rgba(19,34,68,.16);transition:background .3s,transform .3s;}
+.tv-page-dot.tv-page-dot-active{background:var(--tv-accent);transform:scale(1.4);}
+
+/* ── GROUP HEADERS (Early Morning / Morning / …) ── */
+.tv-group-hdr{
+  font-family:'DM Mono',monospace;font-size:11px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;
+  color:var(--tv-mu);padding:8px 2px 6px;flex-shrink:0;
+}
+.tv-group-hdr:first-child{padding-top:0;}
+
+/* ── CARD GRID (adaptive density) — Leaving Tomorrow ── */
+.tv-card-grid{
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px;
+  overflow-y:auto;min-height:0;padding-bottom:4px;
+}
+.tv-density-compact .tv-card-grid{grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px;}
+.tv-card{
+  position:relative;background:var(--tv-panel2);border:1px solid var(--tv-border);border-radius:12px;
+  padding:14px 18px;min-width:0;border-left:4px solid var(--tv-accent);
+}
+.tv-density-compact .tv-card{padding:10px 14px;border-radius:10px;}
+.tv-card-name{font-family:'Syne',sans-serif;font-weight:800;font-size:17px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--tv-text);}
+.tv-density-compact .tv-card-name{font-size:14.5px;}
+.tv-card-time{font-family:'DM Mono',monospace;font-weight:800;font-size:20px;color:var(--tv-accent);}
+.tv-density-compact .tv-card-time{font-size:15px;}
+.tv-card-time.tv-time-unset{color:var(--tv-critical);font-size:13px;letter-spacing:.5px;}
+.tv-card-row{display:flex;justify-content:space-between;align-items:center;gap:8px;}
+.tv-card-meta{font-size:13px;color:var(--tv-mu);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;margin-top:7px;}
+.tv-density-compact .tv-card-meta{font-size:11.5px;}
+.tv-card-badges{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px;}
+.tv-badge{
+  font-family:'DM Mono',monospace;font-size:10px;font-weight:700;letter-spacing:.4px;
+  border-radius:5px;padding:3px 8px;white-space:nowrap;
+}
+.tv-badge-customs{background:rgba(42,93,176,.1);color:var(--tv-accent);border:1px solid rgba(42,93,176,.3);}
+.tv-badge-lockbox{background:rgba(168,137,58,.14);color:var(--tv-gold);border:1px solid rgba(168,137,58,.35);}
+.tv-badge-notreturning{background:var(--tv-critical-bg);color:var(--tv-critical);border:1px solid rgba(192,57,46,.3);}
+.tv-badge-critical{background:var(--tv-critical-bg);color:var(--tv-critical);border:1px solid rgba(192,57,46,.35);}
+.tv-badge-warning{background:var(--tv-warning-bg);color:var(--tv-warning);border:1px solid rgba(184,121,10,.3);}
+.tv-badge-ok{background:var(--tv-ok-bg);color:var(--tv-ok);border:1px solid rgba(27,143,99,.3);}
+.tv-badge-delivered{background:var(--tv-ok-bg);color:var(--tv-ok);border:1px solid rgba(27,143,99,.3);}
+.tv-badge-nolocation{background:var(--tv-critical-bg);color:var(--tv-critical);border:1px solid rgba(192,57,46,.35);font-weight:700;}
+/* Ascend brand marker — reuses the exact sky-blue (#63b3ed family) already
+   used for the "✈ ASCEND" tag elsewhere in the app (styles.css .ob-ascend,
+   the dashboard card badge), darkened for AA contrast on a light card. */
+.tv-badge-ascend{background:var(--tv-ascend-bg);color:var(--tv-ascend);border:1px solid var(--tv-ascend-border);}
+.tv-badge-atcustoms{background:var(--tv-ok-bg);color:var(--tv-ok);border:1px solid rgba(27,143,99,.3);font-weight:700;}
+.tv-badge-gratuity{background:var(--tv-warning-bg);color:var(--tv-warning);border:1px solid rgba(184,121,10,.3);}
+.tv-card-notes{font-size:11.5px;color:var(--tv-mu);margin-top:7px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.tv-card.tv-critical{border-left-color:var(--tv-critical);}
+
+/* ── COMPACT LIST (Special Handling & Alerts) ── */
+.tv-list{display:flex;flex-direction:column;gap:8px;overflow-y:auto;min-height:0;}
+.tv-list-row{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  background:var(--tv-panel2);border:1px solid var(--tv-border);border-radius:10px;padding:10px 14px;
+}
+.tv-list-row.tv-overdue{border-color:rgba(192,57,46,.4);}
+.tv-list-name{font-weight:700;font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--tv-text);}
+.tv-list-meta{font-size:12px;color:var(--tv-mu);white-space:nowrap;}
+.tv-delivered-summary{
+  font-size:12px;color:var(--tv-mu);text-align:center;padding:8px;
+  border-top:1px dashed var(--tv-border);margin-top:4px;flex-shrink:0;
+}
+
+/* ── RICH ROWS — Leaving Today / Checked In Today / Customs & Ascend ──
+   Time-prefixed identification rows: name, vehicle+color, hangar, ticket,
+   with room for status badges. Distinct from .tv-list-row (which is just
+   name+meta, used for plain alerts) because these need a fixed-width time
+   column and a badge-bearing name line. */
+.tv-row{
+  display:flex;align-items:center;gap:14px;
+  background:var(--tv-panel2);border:1px solid var(--tv-border);border-radius:10px;padding:10px 14px;
+  border-left:4px solid transparent;
+}
+.tv-row.tv-critical{border-left-color:var(--tv-critical);}
+.tv-row-time{
+  font-family:'DM Mono',monospace;font-weight:700;font-size:14px;color:var(--tv-accent);
+  width:76px;flex-shrink:0;font-variant-numeric:tabular-nums;
+}
+.tv-row-time.tv-time-unset{color:var(--tv-critical);font-size:10.5px;letter-spacing:.3px;width:76px;}
+.tv-row-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;}
+.tv-row-name{font-weight:700;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:flex;align-items:center;gap:8px;color:var(--tv-text);}
+.tv-row-meta{font-size:12px;color:var(--tv-mu);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.tv-row-meta b{color:var(--tv-text);font-weight:600;}
+.tv-density-compact .tv-row{padding:7px 12px;}
+.tv-density-compact .tv-row-name,.tv-density-compact .tv-row-time{font-size:12px;}
+
+/* Completed = visibly done at a glance, but never illegible — only the
+   name gets a light strike, vehicle/ticket/hangar stay fully readable. */
+.tv-row-completed{background:#EEF2F8;border-color:var(--tv-border);}
+.tv-row-completed .tv-row-name{
+  color:var(--tv-mu);font-weight:600;
+  text-decoration:line-through;text-decoration-color:#A9B7CC;text-decoration-thickness:1.5px;
+}
+
+/* Needs Handling / At Customs sub-labels inside the Customs & Ascend panel */
+.tv-subgroup-hdr{
+  display:flex;align-items:center;gap:8px;
+  font-family:'DM Mono',monospace;font-size:10.5px;font-weight:700;letter-spacing:1.1px;text-transform:uppercase;
+  color:var(--tv-mu);padding:8px 2px 6px;flex-shrink:0;
+}
+.tv-subgroup-hdr:first-child{padding-top:0;}
+.tv-subgroup-hdr .tv-subgroup-count{background:var(--tv-border);color:var(--tv-text);border-radius:20px;padding:1px 9px;font-size:10px;}
+
+/* ── TODAY page: two columns (Leaving Today / Checked In Today) ──
+   The row gap/flex-direction come from the existing inline-style-on-body
+   pattern this file already uses for dynamically rendered page bodies
+   (see #tvPageTodayBody / #tvPageOpsBody in the markup). */
+.tv-today-col{flex:1;display:flex;flex-direction:column;min-height:0;}
+
+/* ── OPERATIONS page: three columns ── */
+.tv-ops-col{display:flex;flex-direction:column;min-height:0;}
+.tv-ops-col-alerts{flex:.85;}
+.tv-ops-col-customs{flex:1.2;}
+.tv-ops-col-hangars{flex:.85;}
+
+/* ── HANGAR SUMMARY ── */
+.tv-hangar-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;align-content:start;}
+.tv-hangar-card{background:var(--tv-panel2);border:1px solid var(--tv-border);border-radius:12px;padding:14px;text-align:center;}
+.tv-hangar-num{font-family:'Syne',sans-serif;font-weight:800;font-size:28px;color:var(--tv-accent);}
+.tv-hangar-lbl{font-size:10.5px;color:var(--tv-mu);text-transform:uppercase;letter-spacing:.6px;margin-top:3px;}
+
+/* ── EMPTY STATE ── */
+.tv-empty{color:var(--tv-mu);font-size:13px;text-align:center;padding:26px;}
+
+/* ── FULLSCREEN BUTTON ── */
+.tv-fs-btn{
+  position:fixed;bottom:20px;right:20px;z-index:600;
+  background:var(--tv-panel2);border:1px solid var(--tv-border);color:var(--tv-accent);
+  font-family:'Syne',sans-serif;font-weight:700;font-size:13px;border-radius:10px;padding:10px 16px;
+  cursor:pointer;box-shadow:0 2px 10px rgba(19,34,68,.12);
+}
+.tv-fs-btn.tv-hidden{display:none;}
+
+/* ── CORNER CONTROL PANEL (auto-hide) ── */
+.tv-controls{
+  position:fixed;top:0;right:0;z-index:650;padding:16px;
+  display:flex;gap:8px;opacity:0;pointer-events:none;transition:opacity .25s ease;
+  background:linear-gradient(180deg, rgba(19,34,68,.55), transparent);
+  border-bottom-left-radius:16px;
+}
+.tv-controls.tv-controls-visible{opacity:1;pointer-events:auto;}
+.tv-controls button{
+  background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.3);color:#fff;
+  font-family:'DM Sans',sans-serif;font-size:12px;font-weight:600;border-radius:8px;padding:8px 12px;cursor:pointer;
+}
+.tv-controls button:hover{background:rgba(255,255,255,.28);}
+
+/* ── SESSION EXPIRED ── */
+.tv-session-expired{
+  position:absolute;inset:0;z-index:700;display:none;
+  flex-direction:column;align-items:center;justify-content:center;gap:10px;
+  background:rgba(232,238,247,.97);text-align:center;padding:40px;
+}
+.tv-session-expired.tv-visible{display:flex;}
+.tv-session-expired h2{font-family:'Syne',sans-serif;font-size:24px;font-weight:800;color:var(--tv-critical);}
+.tv-session-expired p{color:var(--tv-mu);font-size:14px;max-width:420px;}
+
+@media (max-width:1400px){
+  .tv-kpi-row{grid-template-columns:repeat(3,1fr);}
+}
+@media (min-width:2500px){
+  .tv-kpi-num{font-size:44px;}
+  .tv-clock{font-size:36px;}
+  .tv-page-title{font-size:25px;}
+  .tv-card-name,.tv-row-name{font-size:19px;}
+}
+/* ── TV MODE END ── */

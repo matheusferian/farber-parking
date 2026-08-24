@@ -1,3 +1,5 @@
+// AirValet — Developed by Matt Solutions. Built exclusively for Makers Air. © 2026
+
 // ── XSS HELPER ─────────────────────────────────────────────────
 function escapeHTML(s) {
   if (s == null) return '';
@@ -79,6 +81,34 @@ function tsToDateInput(ts) {
   if (!d||isNaN(d.getTime())) d=new Date(ts);
   if (!d||isNaN(d.getTime())) return '';
   return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+
+// ── PHONE NORMALIZATION (E.164) ──────────────────────────────────
+// Added for the Twilio migration groundwork (Fase 1 — see
+// docs/TWILIO_MIGRATION_AUDIT.md). Pure/local-only: does not call any
+// network API and is not used by the native sms: flow (which keeps using
+// its own raw digit-stripping, unchanged, to avoid any behavior change).
+// Never guesses a country code for an ambiguous international number —
+// returns invalid instead of inventing one.
+function normalizePhoneE164(raw) {
+  var original = raw == null ? '' : String(raw);
+  var trimmed = original.trim();
+  if (!trimmed) return { original: original, e164: '', valid: false, reason: 'Phone number is empty' };
+  var hasPlus = trimmed.charAt(0) === '+';
+  var digits = trimmed.replace(/[^\d]/g, '');
+  if (hasPlus) {
+    if (digits.length < 8 || digits.length > 15) {
+      return { original: original, e164: '', valid: false, reason: 'International number must have 8–15 digits after +' };
+    }
+    return { original: original, e164: '+' + digits, valid: true, reason: '' };
+  }
+  if (digits.length === 10) {
+    return { original: original, e164: '+1' + digits, valid: true, reason: '' };
+  }
+  if (digits.length === 11 && digits.charAt(0) === '1') {
+    return { original: original, e164: '+' + digits, valid: true, reason: '' };
+  }
+  return { original: original, e164: '', valid: false, reason: 'Not a recognizable 10-digit US number, and no leading + for an international number' };
 }
 
 // ── STRING HELPERS ─────────────────────────────────────────────

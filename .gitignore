@@ -1,0 +1,19 @@
+# Secrets / environment
+.env
+.env.*
+!.env.example
+
+# Backups (see CLAUDE.md backup policy — timestamped snapshots, never deployed)
+BKP/
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.vscode/
+.idea/
+
+# Temporary / scratch artifacts
+*.tmp
+*.log

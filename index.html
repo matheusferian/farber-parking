@@ -45,6 +45,7 @@
     <div class="hdr-date" id="hdrDate"></div>
     <div id="syncStatus" style="display:none;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:500;color:rgba(255,255,255,0.85);white-space:nowrap;">🟢 <span id="syncTime">—</span></div>
     <button class="ref-btn" onclick="loadData()">&#8635; Refresh</button>
+    <button class="ref-btn" style="background:linear-gradient(135deg,#1a3d7c,#2a5db0);border-color:var(--gold)" onclick="window.open(location.pathname+'?mode=tv','_blank')">📺 Open TV Mode</button>
     <button class="ref-btn" id="logoutBtn" onclick="doLogout()" style="display:none">Sign Out</button>
   </div>
 </header>
@@ -519,6 +520,33 @@
     <div id="customsReminderDetailBody"></div>
   </div>
 </div>
+<!-- MOCK TWILIO SIMULATION MODAL (Fase 2) — only opens when
+     SMS_PROVIDER === 'mock_twilio'. Never sends anything, never calls the
+     network. See docs/TWILIO_MIGRATION_AUDIT.md. -->
+<div class="ov" id="mockSmsOv" onclick="if(event.target===this)closeMockSmsModal()">
+  <div class="modal" style="max-width:440px">
+    <h2>🧪 Simulate Twilio Send</h2>
+    <div id="mockSmsBody"></div>
+    <div class="mact">
+      <button class="btnc" id="mockSmsCancelBtn" onclick="closeMockSmsModal()">Cancel</button>
+      <button class="btnp" id="mockSmsSendBtn" onclick="mockSmsSimulateSend()">Simulate Send</button>
+    </div>
+  </div>
+</div>
+<!-- FREE-FORM COMPOSE MODAL (Fase Hardening) — mock_twilio only. The
+     generic TEXT button opens this to let the attendant type a body before
+     handing off to the simulation modal above. Never auto-generates text. -->
+<div class="ov" id="freeformComposeOv" onclick="if(event.target===this)closeFreeformCompose()">
+  <div class="modal" style="max-width:400px">
+    <h2>💬 Free-form Message</h2>
+    <div id="freeformComposeMeta"></div>
+    <textarea id="freeformComposeText" rows="5" placeholder="Type the message to simulate sending..." style="width:100%;background:var(--s2);border:1.5px solid var(--b);border-radius:10px;padding:10px 12px;color:var(--tx);font-size:13px;font-family:'DM Sans',sans-serif;margin-top:10px;resize:vertical;"></textarea>
+    <div class="mact">
+      <button class="btnc" id="freeformCancelBtn" onclick="closeFreeformCompose()">Cancel</button>
+      <button class="btnp" id="freeformContinueBtn" onclick="continueFreeformCompose()">Continue</button>
+    </div>
+  </div>
+</div>
 <!-- LEAVING TOMORROW SHARE-IMAGE FALLBACK -->
 <div class="ov" id="ltShareFallbackOv" onclick="if(event.target===this)closeLeavingTomorrowShareFallback()">
   <div class="modal" style="max-width:340px;text-align:center">
@@ -677,6 +705,89 @@
   <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--b);">
     <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:800;color:var(--mu);margin-bottom:8px;">🗄 Data Management</div>
     <button onclick="openArchiveModal('2025')" style="background:rgba(107,114,128,0.08);border:1px solid rgba(107,114,128,0.25);color:#4B5563;border-radius:8px;padding:10px 16px;font-family:'Syne',sans-serif;font-weight:700;font-size:12px;cursor:pointer;">📦 Archive All Pending Records From 2025</button>
+  </div>
+
+  <!-- SMS PROVIDER — DEVELOPMENT / TESTING ONLY (Fase 1+2). Default is
+       always 'native' on page load; switching here only affects the
+       current browser tab/session and resets on reload. See
+       docs/TWILIO_MIGRATION_AUDIT.md. -->
+  <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--b);">
+    <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:800;color:var(--mu);margin-bottom:8px;">🧪 SMS Provider (Development / Testing)</div>
+    <div style="font-size:11px;color:var(--mu);margin-bottom:10px;">Default is always <code>native</code> on page load. This selector only changes the setting for this browser tab, for testing — it is not persisted and resets on reload.</div>
+    <select id="smsProviderSelect" onchange="setSmsProviderFromDebug(this.value)" style="background:var(--s2);border:1.5px solid var(--b);border-radius:8px;padding:8px 10px;color:var(--tx);font-size:13px;font-family:'DM Mono',monospace;margin-bottom:14px;">
+      <option value="native" selected>native (current sms: behavior)</option>
+      <option value="mock_twilio">mock_twilio (local simulation)</option>
+      <option value="twilio">twilio (not configured — throws)</option>
+    </select>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+      <div style="font-family:'Syne',sans-serif;font-size:12px;font-weight:800;color:var(--mu);">Mock SMS History (this browser only)</div>
+      <button onclick="clearMockSmsHistory()" style="background:rgba(204,51,51,0.08);border:1px solid rgba(204,51,51,0.3);color:var(--red);border-radius:8px;padding:6px 12px;font-family:'Syne',sans-serif;font-weight:700;font-size:11px;cursor:pointer;">🗑 Clear Mock Data</button>
+    </div>
+    <div class="epson-history-wrap">
+      <table class="epson-history-table">
+        <thead><tr><th>Time</th><th>Passenger</th><th>Template</th><th>Phone</th><th>Status</th><th>Mock SID</th></tr></thead>
+        <tbody id="mockSmsHistoryBody"><tr><td colspan="6" style="text-align:center;color:var(--mu);padding:10px;">No mock sends yet</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- SMS DEMO GALLERY (hardening pass) — 100% STATIC markup. No function
+       here calls sendPassengerSms, fetch, sbUpdate, or reads/writes `data`.
+       This exists purely to preview what a future Messages/Inbox tab could
+       look like (Fase 6/7, not approved) — it is not wired to anything. -->
+  <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--b);">
+    <details>
+      <summary style="cursor:pointer;font-family:'Syne',sans-serif;font-size:13px;font-weight:800;color:var(--mu);">🖼 SMS Demo Gallery (static examples — not connected to any data)</summary>
+      <div style="margin-top:12px;">
+
+        <div class="sms-demo-card">
+          <div class="sms-demo-card-title">Send modal (draft state preview)</div>
+          <div class="mock-sms-badge">🧪 SIMULATION — no real message is sent, no Twilio account is used</div>
+          <div class="cst-meta">JOHN SMITH <span style="color:var(--mu);font-weight:400">(passenger #123)</span></div>
+          <div class="cst-eta">Ticket: 0804-1 · TESLA MODEL 3 · Makers Air</div>
+          <div class="mock-sms-row"><span class="mock-sms-lbl">Template</span><span class="mock-sms-val">CUSTOMS_GRATUITY</span></div>
+          <div class="mock-sms-msgbox">Thank you for choosing Makers Air Valet.
+
+We truly appreciate your business.
+
+If we exceeded your expectations, here is our discretionary valet team gratuity link:
+
+https://buy.stripe.com/8x214mccK0uh9TjgIM6Vq00</div>
+          <div class="mock-sms-row"><span class="mock-sms-lbl">Status</span><span class="mock-sms-status mock-sms-status-pending">Draft</span></div>
+        </div>
+
+        <div class="sms-demo-card">
+          <div class="sms-demo-card-title">Individual message states</div>
+          <div class="sms-demo-thread">
+            <div class="sms-demo-bubble out">Welcome to Makers Air Valet! Your vehicle has been successfully checked in. Ticket #: 0804-1
+              <div class="sms-demo-meta"><span class="mock-sms-status mock-sms-status-pending">Queued</span> 9:02 AM</div>
+            </div>
+            <div class="sms-demo-bubble out">Your vehicle is ready at Customs. The key is located on the driver's-side tire.
+              <div class="sms-demo-meta"><span class="mock-sms-status mock-sms-status-ok">Delivered</span> 4:15 PM</div>
+            </div>
+            <div class="sms-demo-bubble out">Thank you for choosing Makers Air Valet. We truly appreciate your business...
+              <div class="sms-demo-meta"><span class="mock-sms-status mock-sms-status-bad">Failed — 30003 Unreachable handset</span> 4:16 PM</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="sms-demo-card">
+          <div class="sms-demo-card-title">Inbound + free-form reply — full conversation example</div>
+          <div class="sms-demo-thread">
+            <div class="sms-demo-bubble out">Welcome to Ascend Valet! Your vehicle has been successfully checked in. Ticket #: A-0804-1
+              <div class="sms-demo-meta"><span class="mock-sms-status mock-sms-status-ok">Delivered</span> 9:02 AM</div>
+            </div>
+            <div class="sms-demo-bubble in">Can I push my return to Thursday instead?
+              <div class="sms-demo-meta">Inbound · 11:40 AM</div>
+            </div>
+            <div class="sms-demo-bubble out">Sure — I've updated your file to Thursday. See you then!
+              <div class="sms-demo-meta"><span class="mock-sms-status mock-sms-status-ok">Delivered</span> FREEFORM · 11:42 AM</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </details>
   </div>
 </div>
 
@@ -981,6 +1092,67 @@
 
 <footer id="appFooter">AirValet v1.0 &middot; Developed by Matt Solutions &middot; Built exclusively for Makers Air &copy; 2026</footer>
 
+<!-- ══ TV MODE ══ read-only operations dashboard, see isTvMode()/initTvMode() ══ -->
+<div id="tvMode">
+  <div class="tv-header">
+    <div class="tv-brand">
+      <div class="tv-brand-top">
+        <div class="tv-brand-name"><span class="tv-gold-ic">&#9992;</span> AirValet</div>
+        <div class="tv-live-pill">LIVE OPERATIONS</div>
+      </div>
+      <div class="tv-brand-sub">MAKERS AIR &middot; VALET OPERATIONS BOARD</div>
+    </div>
+    <div class="tv-header-right">
+      <div class="tv-datetime">
+        <div class="tv-date" id="tvDate">&mdash;</div>
+        <div class="tv-clock" id="tvClock">&mdash;</div>
+      </div>
+      <div class="tv-conn-wrap">
+        <div class="tv-conn-label tv-conn-reconnecting" id="tvConnLabel"><span class="tv-conn-dot"></span><span id="tvConnText">CONNECTING</span></div>
+        <div class="tv-last-update" id="tvLastUpdate">&mdash;</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="tv-stale-banner" id="tvStaleBanner">&#9888; STALE DATA — last update <span id="tvStaleElapsed">&mdash;</span> ago</div>
+
+  <div class="tv-kpi-row" id="tvKpiRow"></div>
+
+  <div class="tv-pages" id="tvPages">
+    <div class="tv-page tv-page-active" id="tvPage0" data-page="0">
+      <div class="tv-page-body" id="tvPageTodayBody" style="flex-direction:row;gap:22px;"></div>
+    </div>
+    <div class="tv-page" id="tvPage1" data-page="1">
+      <div class="tv-page-title">
+        <span>&#128198; Leaving Tomorrow</span>
+        <span class="tv-count-pill" id="tvTomorrowCount">0</span>
+        <span class="tv-prep-badge"><span class="tv-dot"></span>PREP FOR TOMORROW</span>
+      </div>
+      <div class="tv-page-body" id="tvPageTomorrowBody"></div>
+    </div>
+    <div class="tv-page" id="tvPage2" data-page="2">
+      <div class="tv-page-body" id="tvPageOpsBody" style="flex-direction:row;gap:20px;"></div>
+    </div>
+    <div class="tv-page-dots tv-hidden" id="tvPageDots"></div>
+  </div>
+
+  <button class="tv-fs-btn" id="tvFsBtn" onclick="tvEnterFullscreen()">&#9974; Enter Full Screen</button>
+
+  <div class="tv-controls" id="tvControls">
+    <button onclick="tvEnterFullscreen()">Full Screen</button>
+    <button onclick="refreshTvData()">Refresh Now</button>
+    <button id="tvPauseBtn" onclick="tvToggleRotationPause()">Pause Rotation</button>
+    <button onclick="tvGoToNextPage()">Next Page</button>
+    <button onclick="tvCopyUrl()">Copy TV URL</button>
+    <button onclick="destroyTvMode(true)">Exit TV Mode</button>
+  </div>
+
+  <div class="tv-session-expired" id="tvSessionExpired">
+    <h2>&#128274; Session Expired</h2>
+    <p>Reconnecting automatically, or sign in again on this MacBook to resume TV Mode.</p>
+  </div>
+</div>
+
 <script src="utils.js"></script>
 <script>
 // ── SUPABASE CONFIG ────────────────────────────────────────────
@@ -990,6 +1162,13 @@ var TABLE = 'passengers';
 var _authToken = null;
 var _currentUserEmail = '';
 var _supaClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// ── SMS PROVIDER CONFIG (Fase 1 — see docs/TWILIO_MIGRATION_AUDIT.md) ──
+// Allowed values: 'native' (current sms: behavior, unchanged) |
+// 'mock_twilio' (local simulation, never sends anything) | 'twilio'
+// (reserved — not configured, see sendPassengerSms()). Default MUST stay
+// 'native' — only change this from the Debug tab for testing, never here.
+var SMS_PROVIDER = 'native';
 
 function sbHeaders() {
   return {
@@ -1668,31 +1847,45 @@ function updateSyncStatus() {
   el.style.display = 'block';
 }
 
+// Single source of truth for turning a raw Supabase row into the shape the
+// rest of the app expects — used by loadData() and TV Mode's
+// refreshTvData() so both stay identical with no duplicated field list.
+// Includes customs_welcome_sent/_at, customs_gratuity_sent/_at, and
+// customs_gratuity_dismissed — previously missing here, which silently
+// made getCustomsDueRecords()/the Customs gratuity-reminder badge always
+// see these as undefined (never true). Found during the TV Mode audit;
+// fixed here since TV Mode's Customs KPI card depends on the same helper.
+function mapPassengerRow(r) {
+  return {
+    id: r.id, ri: r.id,
+    ts: r.ts||'', name: r.name||'', phone: r.phone||'',
+    ticket: r.ticket||'', ret: r.ret||'', car: r.car||'', color: r.color||'',
+    loc: r.loc||'', status: r.status||'PENDING',
+    block: r.block||'', obs: r.obs||'', deldate: r.deldate||'',
+    delivery_type: r.delivery_type||'',
+    checkin_date: r.checkin_date||r.ts||'',
+    checkout_date: r.checkout_date||r.deldate||'',
+    return_flight: r.return_flight||'',
+    departure_time: r.departure_time||'',
+    customer_rating: r.customer_rating||'',
+    tip_received: r.tip_received===undefined ? null : r.tip_received,
+    not_returning_with_makers_air: r.not_returning_with_makers_air||false,
+    archived_by: r.archived_by||'',
+    archived_at: r.archived_at||'',
+    previous_delivery_location: r.previous_delivery_location||'',
+    welcome_back_sent_at: r.welcome_back_sent_at||'',
+    customs_welcome_sent: r.customs_welcome_sent||false,
+    customs_welcome_sent_at: r.customs_welcome_sent_at||'',
+    customs_gratuity_sent: r.customs_gratuity_sent||false,
+    customs_gratuity_sent_at: r.customs_gratuity_sent_at||'',
+    customs_gratuity_dismissed: r.customs_gratuity_dismissed||false
+  };
+}
 async function loadData() {
   loading(true);
   try {
     var rows = await sbGet();
-    data = rows.map(function(r) {
-      return {
-        id: r.id, ri: r.id,
-        ts: r.ts||'', name: r.name||'', phone: r.phone||'',
-        ticket: r.ticket||'', ret: r.ret||'', car: r.car||'', color: r.color||'',
-        loc: r.loc||'', status: r.status||'PENDING',
-        block: r.block||'', obs: r.obs||'', deldate: r.deldate||'',
-        delivery_type: r.delivery_type||'',
-        checkin_date: r.checkin_date||r.ts||'',
-        checkout_date: r.checkout_date||r.deldate||'',
-        return_flight: r.return_flight||'',
-        departure_time: r.departure_time||'',
-        customer_rating: r.customer_rating||'',
-        tip_received: r.tip_received===undefined ? null : r.tip_received,
-        not_returning_with_makers_air: r.not_returning_with_makers_air||false,
-        archived_by: r.archived_by||'',
-        archived_at: r.archived_at||'',
-        previous_delivery_location: r.previous_delivery_location||'',
-        welcome_back_sent_at: r.welcome_back_sent_at||''
-      };
-    });
+    data = rows.map(mapPassengerRow);
     render();
     updateSyncStatus();
   } catch(e) {
@@ -2684,6 +2877,333 @@ async function selectTip(tipReceived){
   }
 }
 
+// ═══════════════════════════════════════════════════════════════
+// ── SMS PROVIDER ABSTRACTION (Fase 1 + Fase 2) ────────────────
+// Single entry point for every outbound SMS in the app. Every build*Sms()
+// function below is UNCHANGED from before this migration — this layer
+// only centralizes how the message gets delivered, never what it says.
+// Approved scope: Fase 1 (this abstraction) + Fase 2 (mock_twilio
+// simulation). No Twilio account, no Edge Functions, no migrations, no
+// real sends exist anywhere in this file. See
+// docs/TWILIO_MIGRATION_AUDIT.md for the full audit and
+// docs/TWILIO_MIGRATION_PHASE1-2_IMPLEMENTATION.md for what changed.
+// ═══════════════════════════════════════════════════════════════
+
+// Message-type keys used across every SMS flow. Centralizes the KEY, not
+// the copy — callers pass the key that matches which build*Sms() branch
+// they used, purely for logging/mock display.
+var SMS_MESSAGE_TYPES = {
+  WELCOME_CONFIRMED: 'WELCOME_CONFIRMED',
+  WELCOME_NO_DATE: 'WELCOME_NO_DATE',
+  WELCOME_NOT_RETURNING: 'WELCOME_NOT_RETURNING',
+  RETURN_CONFIRMATION: 'RETURN_CONFIRMATION',
+  TASK_CONFIRMATION: 'TASK_CONFIRMATION',
+  HANGAR19_WELCOME_BACK: 'HANGAR19_WELCOME_BACK',
+  CUSTOMS_WELCOME_MAKERS: 'CUSTOMS_WELCOME_MAKERS',
+  CUSTOMS_WELCOME_ASCEND: 'CUSTOMS_WELCOME_ASCEND',
+  CUSTOMS_GRATUITY: 'CUSTOMS_GRATUITY',
+  TIP_YES: 'TIP_YES',
+  TIP_NO: 'TIP_NO',
+  GENERIC: 'GENERIC',
+  FREEFORM: 'FREEFORM'
+};
+
+// ── CENTRAL SEND ENTRY POINT ─────────────────────────────────────
+// options: { passengerId, passengerName, phone, ticket, vehicle, brand,
+//            templateKey, messageType, body, metadata:{trigger} }
+// Resolves to { ok, status, sid, provider, error? }.
+// 'native' mirrors the exact pre-Fase-1 behavior byte for byte: same
+// digit-stripped phone, same window.open('sms:...&body=...','_self') call,
+// no network request, resolves immediately with ok:true so every existing
+// caller keeps writing its own sent-flags exactly as it did before.
+// ── CENTRALIZED PHONE VALIDATION (hardening pass) ────────────────
+// Runs for every provider, before anything opens. Uses normalizePhoneE164
+// purely to VALIDATE and, for mock/display purposes, to show the E.164
+// form — it does not overwrite the passenger's stored r.phone anywhere,
+// and native's actual sms: URL keeps using its own historical raw-digit
+// stripping below (unchanged from Fase 1), so the live composer hand-off
+// is not altered for numbers that already pass validation.
+function validatePhoneForSend(phone) {
+  var info = normalizePhoneE164(phone);
+  return { valid: info.valid, reason: info.reason, e164: info.e164, original: info.original };
+}
+
+async function sendPassengerSms(options) {
+  options = options || {};
+  var phoneCheck = validatePhoneForSend(options.phone);
+  if (!phoneCheck.valid) {
+    var who = options.passengerName ? (' for ' + options.passengerName) : '';
+    showMsg('Could not send SMS' + who + ' — invalid phone number (' + (phoneCheck.reason || 'unrecognized format') + ').', true);
+    return { ok: false, status: 'invalid_phone', sid: null, provider: SMS_PROVIDER, error: { code: 'INVALID_PHONE', message: phoneCheck.reason || 'Invalid phone number' } };
+  }
+  if (SMS_PROVIDER === 'native') {
+    var cleanPhone = String(options.phone || '').replace(/\D/g, '');
+    window.open('sms:' + cleanPhone + '&body=' + encodeURIComponent(options.body || ''), '_self');
+    return { ok: true, status: 'composer_opened', sid: null, provider: 'native' };
+  }
+  if (SMS_PROVIDER === 'mock_twilio') {
+    return openMockSmsModal(options);
+  }
+  if (SMS_PROVIDER === 'twilio') {
+    // Placeholder only — intentionally not implemented. No Account SID,
+    // Auth Token, API Key, Messaging Service SID, Twilio number, Edge
+    // Function URL, or Twilio API call exists anywhere in this codebase.
+    throw new Error('Real Twilio provider is not configured.');
+  }
+  throw new Error('Unknown SMS_PROVIDER: ' + SMS_PROVIDER);
+}
+
+// ── MOCK TWILIO SIMULATION (Fase 2) ──────────────────────────────
+// Opens a modal, never sends anything, never calls the network. Resolves
+// only when the attendant clicks Cancel (ok:false, status:'cancelled') or
+// Simulate Send (outcome chosen from the dropdown). Only a simulated
+// success ever resolves with ok:true — callers use that to decide whether
+// to write their sent-flags, matching rule #7/#8/#9 from the approved scope.
+var _mockSmsPending = null;
+var _mockSmsSimulating = false;
+var MOCK_SMS_STORAGE_KEY = 'airvalet_mock_sms_messages';
+var _mockSmsHistory = [];
+var MOCK_SMS_OUTCOME_LABELS = {
+  success: '✅ Success (delivered)',
+  invalid_phone: '🚫 Invalid phone',
+  network_failure: '📡 Network failure',
+  rejected: '⛔ Rejected by carrier',
+  undelivered: '📵 Undelivered (unreachable)'
+};
+
+function openMockSmsModal(options) {
+  return new Promise(function (resolve) {
+    var phoneInfo = normalizePhoneE164(options.phone);
+    _mockSmsPending = { options: options, phoneInfo: phoneInfo, resolve: resolve, chosenOutcomeLabel: '' };
+    renderMockSmsModal('draft', null, null);
+    setMockSmsButtonsDisabled(false);
+    document.getElementById('mockSmsOv').classList.add('on');
+  });
+}
+
+function closeMockSmsModal() {
+  if (_mockSmsSimulating) return; // ignore Cancel/outside-click mid-simulation
+  document.getElementById('mockSmsOv').classList.remove('on');
+  if (_mockSmsPending) {
+    var pending = _mockSmsPending;
+    _mockSmsPending = null;
+    recordMockSmsHistory(pending.options, pending.phoneInfo, null, { ok: false, status: 'cancelled', sid: null, provider: 'mock_twilio' }, 'Cancelled');
+    pending.resolve({ ok: false, status: 'cancelled', sid: null, provider: 'mock_twilio' });
+  }
+}
+
+function setMockSmsButtonsDisabled(disabled) {
+  ['mockSmsCancelBtn', 'mockSmsSendBtn'].forEach(function (id) {
+    var el = document.getElementById(id);
+    if (el) el.disabled = disabled;
+  });
+}
+
+function mockSmsDelay(ms) {
+  return new Promise(function (resolve) { setTimeout(resolve, ms); });
+}
+
+function mockSmsStatusLabel(status) {
+  var map = { draft: 'Draft', queued: 'Queued', sent: 'Sent', delivered: 'Delivered', undelivered: 'Undelivered', failed: 'Failed', cancelled: 'Cancelled' };
+  return map[status] || status;
+}
+
+function renderMockSmsModal(status, sid, error) {
+  if (!_mockSmsPending) return;
+  var o = _mockSmsPending.options;
+  var pi = _mockSmsPending.phoneInfo;
+  var interactive = status === 'draft';
+  var statusCls = status === 'delivered' ? 'ok' : (status === 'failed' || status === 'undelivered') ? 'bad' : 'pending';
+  var errHtml = error ? '<div class="mock-sms-error">⚠ ' + escapeHTML(error.code) + ' — ' + escapeHTML(error.message) + '</div>' : '';
+  var outcomeHtml = interactive
+    ? '<div class="mock-sms-outcome-wrap"><label class="mock-sms-lbl" for="mockSmsOutcome">Simulate outcome</label>' +
+      '<select id="mockSmsOutcome" class="mock-sms-select">' +
+      '<option value="success">' + MOCK_SMS_OUTCOME_LABELS.success + '</option>' +
+      '<option value="invalid_phone">' + MOCK_SMS_OUTCOME_LABELS.invalid_phone + '</option>' +
+      '<option value="network_failure">' + MOCK_SMS_OUTCOME_LABELS.network_failure + '</option>' +
+      '<option value="rejected">' + MOCK_SMS_OUTCOME_LABELS.rejected + '</option>' +
+      '<option value="undelivered">' + MOCK_SMS_OUTCOME_LABELS.undelivered + '</option>' +
+      '</select></div>'
+    : '<div class="mock-sms-row"><span class="mock-sms-lbl">Simulated outcome</span><span class="mock-sms-val">' + escapeHTML(_mockSmsPending.chosenOutcomeLabel || '—') + '</span></div>';
+
+  document.getElementById('mockSmsBody').innerHTML =
+    '<div class="mock-sms-badge">🧪 SIMULATION — no real message is sent, no Twilio account is used</div>' +
+    '<div class="cst-meta">' + escapeHTML(o.passengerName || '—') + ' <span style="color:var(--mu);font-weight:400">(passenger #' + escapeHTML(o.passengerId != null ? String(o.passengerId) : '—') + ')</span></div>' +
+    '<div class="cst-eta">Ticket: ' + escapeHTML(o.ticket || '—') + (o.vehicle ? ' · ' + escapeHTML(o.vehicle) : '') + ' · ' + escapeHTML(o.brand || '—') + '</div>' +
+    '<div class="mock-sms-row"><span class="mock-sms-lbl">Template</span><span class="mock-sms-val">' + escapeHTML(o.templateKey || '—') + '</span></div>' +
+    '<div class="mock-sms-row"><span class="mock-sms-lbl">Message type</span><span class="mock-sms-val">' + escapeHTML(o.messageType || '—') + '</span></div>' +
+    '<div class="mock-sms-row"><span class="mock-sms-lbl">Trigger</span><span class="mock-sms-val">' + escapeHTML((o.metadata && o.metadata.trigger) || '—') + '</span></div>' +
+    '<div class="mock-sms-row"><span class="mock-sms-lbl">Phone (original)</span><span class="mock-sms-val">' + escapeHTML(pi.original || '—') + '</span></div>' +
+    '<div class="mock-sms-row"><span class="mock-sms-lbl">Phone (E.164)</span><span class="mock-sms-val">' + (pi.valid ? escapeHTML(pi.e164) : '<span style="color:var(--red)">invalid — ' + escapeHTML(pi.reason) + '</span>') + '</span></div>' +
+    '<div class="mock-sms-msgbox">' + escapeHTML(o.body || '') + '</div>' +
+    '<div class="mock-sms-row"><span class="mock-sms-lbl">Status</span><span class="mock-sms-status mock-sms-status-' + statusCls + '">' + mockSmsStatusLabel(status) + '</span></div>' +
+    (sid ? '<div class="mock-sms-row"><span class="mock-sms-lbl">Mock SID</span><span class="mock-sms-val" style="font-family:\'DM Mono\',monospace">' + escapeHTML(sid) + '</span></div>' : '') +
+    '<div class="mock-sms-row"><span class="mock-sms-lbl">Timestamp</span><span class="mock-sms-val">' + escapeHTML(new Date().toLocaleString('en-US')) + '</span></div>' +
+    errHtml + outcomeHtml;
+}
+
+async function mockSmsSimulateSend() {
+  if (!_mockSmsPending || _mockSmsSimulating) return;
+  var outcomeSel = document.getElementById('mockSmsOutcome');
+  var outcome = outcomeSel ? outcomeSel.value : 'success';
+  _mockSmsPending.chosenOutcomeLabel = MOCK_SMS_OUTCOME_LABELS[outcome] || outcome;
+  _mockSmsSimulating = true;
+  setMockSmsButtonsDisabled(true);
+
+  var pending = _mockSmsPending;
+  var sid = 'MOCK-SM-' + Date.now() + '-' + Math.random().toString(36).slice(2, 10);
+  renderMockSmsModal('queued', sid, null);
+  await mockSmsDelay(450);
+
+  var result;
+  if (outcome === 'invalid_phone') {
+    result = { ok: false, status: 'failed', sid: sid, provider: 'mock_twilio', error: { code: '21211', message: 'Invalid phone number (simulated)' } };
+  } else if (outcome === 'network_failure') {
+    result = { ok: false, status: 'failed', sid: sid, provider: 'mock_twilio', error: { code: '20500', message: 'Network error contacting provider (simulated)' } };
+  } else if (outcome === 'rejected') {
+    result = { ok: false, status: 'failed', sid: sid, provider: 'mock_twilio', error: { code: '30007', message: 'Message filtered / rejected by carrier (simulated)' } };
+  } else if (outcome === 'undelivered') {
+    renderMockSmsModal('sent', sid, null);
+    await mockSmsDelay(450);
+    result = { ok: false, status: 'undelivered', sid: sid, provider: 'mock_twilio', error: { code: '30003', message: 'Unreachable handset (simulated)' } };
+  } else {
+    renderMockSmsModal('sent', sid, null);
+    await mockSmsDelay(450);
+    result = { ok: true, status: 'delivered', sid: sid, provider: 'mock_twilio' };
+  }
+
+  renderMockSmsModal(result.status, sid, result.error || null);
+  recordMockSmsHistory(pending.options, pending.phoneInfo, sid, result, pending.chosenOutcomeLabel);
+
+  _mockSmsPending = null;
+  _mockSmsSimulating = false;
+  setMockSmsButtonsDisabled(false);
+  pending.resolve(result);
+
+  setTimeout(function () {
+    var ov = document.getElementById('mockSmsOv');
+    if (ov) ov.classList.remove('on');
+  }, 1100);
+}
+
+// ── MOCK HISTORY (session memory + temporary localStorage key) ───
+// Never confused with real operational data — separate key, separate
+// panel, only visible in the Debug tab, only populated when
+// SMS_PROVIDER === 'mock_twilio'.
+function loadMockSmsHistory() {
+  try {
+    var raw = localStorage.getItem(MOCK_SMS_STORAGE_KEY);
+    _mockSmsHistory = raw ? JSON.parse(raw) : [];
+  } catch (e) { _mockSmsHistory = []; }
+}
+function saveMockSmsHistory() {
+  try { localStorage.setItem(MOCK_SMS_STORAGE_KEY, JSON.stringify(_mockSmsHistory)); } catch (e) {}
+}
+function recordMockSmsHistory(options, phoneInfo, sid, result, outcomeLabel) {
+  _mockSmsHistory.unshift({
+    id: sid || ('MOCK-' + Date.now()),
+    passengerId: options.passengerId,
+    passengerName: options.passengerName,
+    ticket: options.ticket,
+    brand: options.brand,
+    templateKey: options.templateKey,
+    messageType: options.messageType,
+    body: options.body,
+    phoneOriginal: phoneInfo.original,
+    phoneE164: phoneInfo.e164,
+    phoneValid: phoneInfo.valid,
+    outcome: outcomeLabel || '—',
+    status: result.status,
+    ok: result.ok,
+    error: result.error || null,
+    createdAt: new Date().toISOString()
+  });
+  if (_mockSmsHistory.length > 200) _mockSmsHistory.length = 200;
+  saveMockSmsHistory();
+  renderMockSmsHistoryPanel();
+}
+function clearMockSmsHistory() {
+  if (!confirm('Clear all mock SMS simulation history? This only affects local test data in this browser — no passenger records are touched.')) return;
+  _mockSmsHistory = [];
+  try { localStorage.removeItem(MOCK_SMS_STORAGE_KEY); } catch (e) {}
+  renderMockSmsHistoryPanel();
+}
+function setSmsProviderFromDebug(value) {
+  SMS_PROVIDER = value;
+  showMsg('SMS_PROVIDER set to "' + value + '" (this session only — reload resets to native)', false);
+}
+function renderMockSmsHistoryPanel() {
+  var body = document.getElementById('mockSmsHistoryBody');
+  if (!body) return;
+  if (!_mockSmsHistory.length) {
+    body.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--mu);padding:10px;">No mock sends yet</td></tr>';
+    return;
+  }
+  body.innerHTML = _mockSmsHistory.map(function (m) {
+    var statusCls = m.status === 'delivered' ? 'ok' : (m.status === 'failed' || m.status === 'undelivered') ? 'bad' : 'pending';
+    return '<tr>' +
+      '<td>' + escapeHTML(new Date(m.createdAt).toLocaleTimeString('en-US')) + '</td>' +
+      '<td>' + escapeHTML(m.passengerName || '—') + '</td>' +
+      '<td>' + escapeHTML(m.templateKey || '—') + '</td>' +
+      '<td>' + escapeHTML(m.phoneE164 || m.phoneOriginal || '—') + '</td>' +
+      '<td><span class="mock-sms-status mock-sms-status-' + statusCls + '">' + mockSmsStatusLabel(m.status) + '</span></td>' +
+      '<td style="font-family:\'DM Mono\',monospace;font-size:10px">' + escapeHTML(m.id) + '</td>' +
+      '</tr>';
+  }).join('');
+}
+
+// ── FREE-FORM / GENERIC TEXT (hardening pass) ────────────────────
+// Replaces the old plain `<a href="sms:...">` generic TEXT link. Under
+// 'native' this still just opens Messages with an empty body — identical
+// end result to before, no text is invented. Under 'mock_twilio' it opens
+// a compose step first (the attendant must type something and click
+// Continue) before handing off to the existing simulation modal, tagged
+// message_type FREEFORM. 'twilio' falls through to sendPassengerSms,
+// which throws the same safe placeholder error as every other template.
+var _freeformPendingRecord = null;
+function sendGenericTextSms(id){
+  var r=data.find(function(x){return x.id===id;});
+  if(!r || !r.phone) return;
+  if(SMS_PROVIDER==='mock_twilio'){
+    openFreeformComposeModal(r);
+    return;
+  }
+  sendPassengerSms({
+    passengerId:r.id, passengerName:r.name, phone:r.phone, ticket:r.ticket,
+    vehicle:formatVehicleLine(r), brand:isAscend(r)?'Ascend':'Makers Air',
+    templateKey:'GENERIC', messageType:SMS_MESSAGE_TYPES.FREEFORM,
+    body:'', metadata:{trigger:'Detail panel — generic Text button'}
+  });
+}
+function openFreeformComposeModal(r){
+  _freeformPendingRecord=r;
+  document.getElementById('freeformComposeMeta').innerHTML=
+    '<div class="cst-meta">'+escapeHTML(r.name||'—')+'</div>'+
+    '<div class="cst-eta">Ticket: '+escapeHTML(r.ticket||'—')+' · '+escapeHTML(isAscend(r)?'Ascend':'Makers Air')+'</div>'+
+    '<div style="font-size:11px;color:var(--mu);margin-top:6px">This is never auto-generated — type exactly what should be sent, then Continue to review and simulate.</div>';
+  var ta=document.getElementById('freeformComposeText');
+  ta.value='';
+  document.getElementById('freeformComposeOv').classList.add('on');
+  setTimeout(function(){ ta.focus(); }, 50);
+}
+function closeFreeformCompose(){
+  document.getElementById('freeformComposeOv').classList.remove('on');
+  _freeformPendingRecord=null;
+}
+async function continueFreeformCompose(){
+  if(!_freeformPendingRecord) return;
+  var r=_freeformPendingRecord;
+  var body=document.getElementById('freeformComposeText').value;
+  document.getElementById('freeformComposeOv').classList.remove('on');
+  _freeformPendingRecord=null;
+  await sendPassengerSms({
+    passengerId:r.id, passengerName:r.name, phone:r.phone, ticket:r.ticket,
+    vehicle:formatVehicleLine(r), brand:isAscend(r)?'Ascend':'Makers Air',
+    templateKey:'GENERIC', messageType:SMS_MESSAGE_TYPES.FREEFORM,
+    body:body, metadata:{trigger:'Detail panel — generic Text button (freeform compose)'}
+  });
+}
+
 // ── WELCOME SMS ────────────────────────────────────────────────
 function buildWelcomeSms(r) {
   var brand = isAscend(r) ? 'Ascend Valet' : 'Makers Air Valet';
@@ -2703,11 +3223,38 @@ function buildWelcomeSms(r) {
   return body;
 }
 
+function welcomeSmsMessageType(r){
+  if(!r.ret) return SMS_MESSAGE_TYPES.WELCOME_NO_DATE;
+  if(r.not_returning_with_makers_air) return SMS_MESSAGE_TYPES.WELCOME_NOT_RETURNING;
+  return SMS_MESSAGE_TYPES.WELCOME_CONFIRMED;
+}
 function sendWelcomeSms(id) {
   var r = data.find(function(x){ return x.id === id; });
   if (!r || !r.phone) return;
-  var cleanPhone = r.phone.replace(/\D/g, '');
-  window.open('sms:' + cleanPhone + '&body=' + encodeURIComponent(buildWelcomeSms(r)), '_self');
+  sendPassengerSms({
+    passengerId: r.id, passengerName: r.name, phone: r.phone, ticket: r.ticket,
+    vehicle: formatVehicleLine(r), brand: isAscend(r)?'Ascend':'Makers Air',
+    templateKey: 'WELCOME', messageType: welcomeSmsMessageType(r),
+    body: buildWelcomeSms(r), metadata: {trigger:'Detail panel — Welcome button'}
+  });
+}
+
+// ── RETURN DATE CONFIRMATION SMS (approximate-date panel) ────────
+// Extracted from an inline sms: href in the detail panel (Fase 1 — see
+// docs/TWILIO_MIGRATION_AUDIT.md item #18). Text is byte-identical to what
+// was previously assembled inline.
+function buildReturnDateConfirmationSms(r){
+  return 'Hi '+r.name+', this is Makers Air Valet. We have your '+r.car+' parked with us. Can you confirm your return date? Thank you!';
+}
+function sendReturnDateConfirmationSms(id){
+  var r=data.find(function(x){return x.id===id;});
+  if(!r || !r.phone) return;
+  sendPassengerSms({
+    passengerId:r.id, passengerName:r.name, phone:r.phone, ticket:r.ticket,
+    vehicle:formatVehicleLine(r), brand:isAscend(r)?'Ascend':'Makers Air',
+    templateKey:'RETURN_CONFIRMATION', messageType:SMS_MESSAGE_TYPES.RETURN_CONFIRMATION,
+    body:buildReturnDateConfirmationSms(r), metadata:{trigger:'Detail panel — approximate-date confirmation'}
+  });
 }
 
 // ── WELCOME BACK SMS (Makers Air only) ───────────────────────────
@@ -2746,27 +3293,34 @@ function welcomeBackButtonHtml(r){
     '</span>';
 }
 
-function sendWelcomeBackSms(id){
+async function sendWelcomeBackSms(id){
   var r = data.find(function(x){ return x.id === id; });
   if (!r || isAscend(r)) return;
   if (r.delivery_type==='CUSTOMS') return; // use the Customs communication workflow instead
   if (!r.phone) { showMsg('No phone number on file for ' + r.name, true); return; }
-  var cleanPhone = r.phone.replace(/\D/g, '');
   var smsBody = buildWelcomeBackSms();
+  var sendOpts = {
+    passengerId: r.id, passengerName: r.name, phone: r.phone, ticket: r.ticket,
+    vehicle: formatVehicleLine(r), brand: 'Makers Air',
+    templateKey: 'HANGAR19_WELCOME_BACK', messageType: SMS_MESSAGE_TYPES.HANGAR19_WELCOME_BACK,
+    body: smsBody, metadata: {trigger:'Dashboard — Welcome Back button'}
+  };
 
   if (r.welcome_back_sent_at) {
     var sentD = new Date(r.welcome_back_sent_at);
     var timeStr = isNaN(sentD.getTime()) ? r.welcome_back_sent_at : sentD.toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit'});
     if (!confirm('The Welcome Back message was already prepared at ' + timeStr + '. Open it again?')) return;
-    window.open('sms:' + cleanPhone + '&body=' + encodeURIComponent(smsBody), '_self');
+    await sendPassengerSms(sendOpts);
     return;
   }
+
+  var result = await sendPassengerSms(sendOpts);
+  if (!result.ok) return; // cancelled or simulated failure — flags/timestamps untouched
 
   var nowIso = new Date().toISOString();
   var prevValue = r.welcome_back_sent_at;
   r.welcome_back_sent_at = nowIso;
   renderDay();
-  window.open('sms:' + cleanPhone + '&body=' + encodeURIComponent(smsBody), '_self');
 
   sbUpdate(r.id, {welcome_back_sent_at: nowIso}).catch(function(e){
     r.welcome_back_sent_at = prevValue;
@@ -2983,17 +3537,23 @@ function renderCustomsCommModal(r){
     ? '<div class="cst-section done"><div class="cst-sec-top"><span class="cst-sec-lbl">📩 Welcome Back</span><span class="cst-sec-status ok">✓ Sent '+escapeHTML(fmtSentTimestamp(r.customs_welcome_sent_at))+'</span></div><button class="cst-undo-btn" onclick="undoCustomsWelcomeSms('+r.id+')">Undo Welcome Back</button></div>'
     : '<div class="cst-section"><div class="cst-sec-top"><span class="cst-sec-lbl">📩 Welcome Back</span></div><button class="cst-send-btn" onclick="sendCustomsWelcomeSms('+r.id+')">Send Welcome Back</button></div>';
 
+  // Hardening pass (see docs/TWILIO_MIGRATION_AUDIT.md risk R1): the WB gate
+  // is now the FIRST thing checked, both here (disables/relabels the button)
+  // and inside sendCustomsGratuitySms itself (refuses even if called
+  // directly). Do not reorder these checks without re-reading R1.
+  var wbNotSentYet = r.customs_welcome_sent!==true;
   var gratSub;
   if(r.customs_gratuity_sent){ gratSub=''; }
+  else if(wbNotSentYet){ gratSub='<div class="cst-sec-sub" style="color:var(--red)">⚠ Send the Customs Welcome Back message first.</div>'; }
   else if(!etaDate){ gratSub='<div class="cst-sec-sub">No ETA on file — send manually when ready</div>'; }
-  else if(!r.customs_welcome_sent){ gratSub='<div class="cst-sec-sub">Reminder will be scheduled after Welcome Back is sent</div>'; }
   else {
     var reminderDt=getCustomsGratuityReminderTime(r);
     gratSub='<div class="cst-sec-sub">Reminder set for '+escapeHTML(reminderDt?fmtTime12FromDate(reminderDt):'—')+'</div>';
   }
+  var gratBtnAttrs=(!r.customs_gratuity_sent && wbNotSentYet) ? ' disabled title="Send the Customs Welcome Back message first."' : '';
   var gratHtml=r.customs_gratuity_sent
     ? '<div class="cst-section done"><div class="cst-sec-top"><span class="cst-sec-lbl">💳 Gratuity</span><span class="cst-sec-status ok">✓ Sent '+escapeHTML(fmtSentTimestamp(r.customs_gratuity_sent_at))+'</span></div><button class="cst-undo-btn" onclick="undoCustomsGratuitySms('+r.id+')">Undo Gratuity</button></div>'
-    : '<div class="cst-section"><div class="cst-sec-top"><span class="cst-sec-lbl">💳 Gratuity</span></div><button class="cst-send-btn" onclick="sendCustomsGratuitySms('+r.id+')">Send Gratuity</button>'+gratSub+'</div>';
+    : '<div class="cst-section"><div class="cst-sec-top"><span class="cst-sec-lbl">💳 Gratuity</span></div><button class="cst-send-btn"'+gratBtnAttrs+' onclick="sendCustomsGratuitySms('+r.id+')">Send Gratuity</button>'+gratSub+'</div>';
 
   document.getElementById('customsCommBody').innerHTML=
     '<div class="cst-meta">'+escapeHTML(r.name)+' · '+escapeHTML(r.ticket)+'</div>'+
@@ -3002,24 +3562,32 @@ function renderCustomsCommModal(r){
 }
 
 // ── Send / Undo — Welcome Back ────────────────────────────────
-function sendCustomsWelcomeSms(id){
+async function sendCustomsWelcomeSms(id){
   var r=data.find(function(x){return x.id===id;});
   if(!r) return;
   if(!r.phone){ showMsg('No phone number on file for '+r.name, true); return; }
-  var cleanPhone=r.phone.replace(/\D/g,'');
   var smsBody=buildCustomsWelcomeSms(r);
+  var sendOpts={
+    passengerId:r.id, passengerName:r.name, phone:r.phone, ticket:r.ticket,
+    vehicle:formatVehicleLine(r), brand:isAscend(r)?'Ascend':'Makers Air',
+    templateKey:isAscend(r)?'CUSTOMS_WELCOME_ASCEND':'CUSTOMS_WELCOME_MAKERS',
+    messageType:isAscend(r)?SMS_MESSAGE_TYPES.CUSTOMS_WELCOME_ASCEND:SMS_MESSAGE_TYPES.CUSTOMS_WELCOME_MAKERS,
+    body:smsBody, metadata:{trigger:'Customs Communication modal — Send Welcome Back'}
+  };
 
   if(r.customs_welcome_sent){
     if(!confirm('The Welcome Back message was already sent at '+fmtSentTimestamp(r.customs_welcome_sent_at)+'. Open it again?')) return;
-    window.open('sms:'+cleanPhone+'&body='+encodeURIComponent(smsBody),'_self');
+    await sendPassengerSms(sendOpts);
     return;
   }
+
+  var result=await sendPassengerSms(sendOpts);
+  if(!result.ok) return; // cancelled or simulated failure — flags/timestamps untouched
 
   var nowIso=new Date().toISOString();
   var prev={sent:r.customs_welcome_sent,at:r.customs_welcome_sent_at};
   r.customs_welcome_sent=true; r.customs_welcome_sent_at=nowIso;
   renderDay(); updateCustomsReminderBadgeCount(); if(_customsCommOpenId===id) renderCustomsCommModal(r);
-  window.open('sms:'+cleanPhone+'&body='+encodeURIComponent(smsBody),'_self');
 
   sbUpdate(r.id,{customs_welcome_sent:true, customs_welcome_sent_at:nowIso}).catch(function(e){
     r.customs_welcome_sent=prev.sent; r.customs_welcome_sent_at=prev.at;
@@ -3042,18 +3610,36 @@ function undoCustomsWelcomeSms(id){
 }
 
 // ── Send / Undo — Gratuity ─────────────────────────────────────
-function sendCustomsGratuitySms(id){
+async function sendCustomsGratuitySms(id){
   var r=data.find(function(x){return x.id===id;});
   if(!r) return;
+  // Hardening pass (fixes R1/R2 — see docs/TWILIO_MIGRATION_AUDIT.md): this
+  // check is the programmatic backstop for the WB-before-Gratuity rule. It
+  // must run FIRST, before any other check, so this refuses the same way
+  // whether called from the (now-disabled) button, another code path, or
+  // directly from the console — never trust that the caller already
+  // enforced this. Do not remove or move this below the phone check.
+  if(r.customs_welcome_sent!==true){
+    showMsg('Send the Customs Welcome Back message first.', true);
+    return;
+  }
   if(!r.phone){ showMsg('No phone number on file for '+r.name, true); return; }
-  var cleanPhone=r.phone.replace(/\D/g,'');
   var smsBody=buildCustomsGratuitySms(r);
+  var sendOpts={
+    passengerId:r.id, passengerName:r.name, phone:r.phone, ticket:r.ticket,
+    vehicle:formatVehicleLine(r), brand:isAscend(r)?'Ascend':'Makers Air',
+    templateKey:'CUSTOMS_GRATUITY', messageType:SMS_MESSAGE_TYPES.CUSTOMS_GRATUITY,
+    body:smsBody, metadata:{trigger:'Customs Communication modal — Send Gratuity'}
+  };
 
   if(r.customs_gratuity_sent){
     if(!confirm('The Gratuity message was already sent at '+fmtSentTimestamp(r.customs_gratuity_sent_at)+'. Open it again?')) return;
-    window.open('sms:'+cleanPhone+'&body='+encodeURIComponent(smsBody),'_self');
+    await sendPassengerSms(sendOpts);
     return;
   }
+
+  var result=await sendPassengerSms(sendOpts);
+  if(!result.ok) return; // cancelled or simulated failure — flags/timestamps untouched
 
   var nowIso=new Date().toISOString();
   var prev={sent:r.customs_gratuity_sent,at:r.customs_gratuity_sent_at,dismissed:r.customs_gratuity_dismissed};
@@ -3061,7 +3647,6 @@ function sendCustomsGratuitySms(id){
   renderDay(); updateCustomsReminderBadgeCount();
   if(_customsCommOpenId===id) renderCustomsCommModal(r);
   if(document.getElementById('customsReminderDetailOv').classList.contains('on')) renderCustomsReminderDetail();
-  window.open('sms:'+cleanPhone+'&body='+encodeURIComponent(smsBody),'_self');
 
   sbUpdate(r.id,{customs_gratuity_sent:true, customs_gratuity_sent_at:nowIso}).catch(function(e){
     r.customs_gratuity_sent=prev.sent; r.customs_gratuity_sent_at=prev.at;
@@ -3287,9 +3872,14 @@ async function saveEntry(sendSms, printMode){
     }
 
     if(sendSms && phoneFull){
-      var cleanPhone=phoneFull.replace(/\D/g,'');
-      var smsBody=buildWelcomeSms({ticket:ticket,ret:finalDate,not_returning_with_makers_air:notReturning,loc:locVal});
-      window.open('sms:'+cleanPhone+'&body='+encodeURIComponent(smsBody),'_self');
+      var welcomeRec={ticket:ticket,ret:finalDate,not_returning_with_makers_air:notReturning,loc:locVal};
+      var smsBody=buildWelcomeSms(welcomeRec);
+      await sendPassengerSms({
+        passengerId:_newId, passengerName:name.toUpperCase(), phone:phoneFull, ticket:ticket,
+        vehicle:formatVehicleLine({car:carVal,color:colorVal}), brand:isAscend(welcomeRec)?'Ascend':'Makers Air',
+        templateKey:'WELCOME', messageType:welcomeSmsMessageType(welcomeRec),
+        body:smsBody, metadata:{trigger:'Check-in — Save + Text / Save + Print + Text'}
+      });
     }
     await loadData();
   }catch(e){
@@ -3320,7 +3910,7 @@ function showDet(id){
     '<div class="dname">'+escapeHTML(r.name)+'</div>'+
     '<div class="dphone" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'+escapeHTML(fmtP(r.phone))+
       (r.phone?'<a href="tel:'+r.phone.replace(/\D/g,'')+'" style="background:var(--ok);color:#000;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;text-decoration:none;font-family:Syne,sans-serif;">📞 CALL</a>':'')+
-      (r.phone?'<a href="sms:'+r.phone.replace(/\D/g,'')+'" style="background:var(--pur);color:#fff;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;text-decoration:none;font-family:Syne,sans-serif;">💬 TEXT</a>':'')+
+      (r.phone?'<button type="button" onclick="sendGenericTextSms('+r.id+')" style="background:var(--pur);color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;cursor:pointer;font-family:Syne,sans-serif;">💬 TEXT</button>':'')+
       (r.phone?'<button onclick="sendWelcomeSms('+r.id+')" style="background:linear-gradient(135deg,#1a5c3a,#1a9e6a);color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;font-family:Syne,sans-serif;cursor:pointer;">💬 Welcome</button>':'')+
       '<button onclick="printCustomerCopyForRecord(data.find(function(x){return x.id==='+r.id+'}))" style="background:var(--navy);color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;font-family:Syne,sans-serif;cursor:pointer;">🧾 Customer Copy</button>'+
       '<button onclick="printKeyTicket(data.find(function(x){return x.id==='+r.id+'}))" style="background:var(--navy);color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;font-family:Syne,sans-serif;cursor:pointer;">🔑 Key Copy</button>'+
@@ -3360,7 +3950,7 @@ function showDet(id){
     (isApproxRecord(r)&&r.status!=='DELIVERED'?
       '<div style="background:rgba(201,168,76,0.1);border:1px solid rgba(201,168,76,0.4);border-radius:10px;padding:12px 14px;margin-bottom:12px">'+
         '<div style="font-size:11px;color:var(--gold);font-weight:700;margin-bottom:6px">📅 APPROXIMATE DATE — Confirm Return</div>'+
-        (r.phone?'<a href="sms:'+r.phone.replace(/\D/g,'')+'&body=Hi '+encodeURIComponent(r.name)+', this is Makers Air Valet. We have your '+encodeURIComponent(r.car)+' parked with us. Can you confirm your return date? Thank you!" style="background:var(--pur);color:#fff;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:700;text-decoration:none;display:inline-block">💬 Send Confirmation Text</a>':'')+
+        (r.phone?'<button type="button" onclick="sendReturnDateConfirmationSms('+r.id+')" style="background:var(--pur);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer;display:inline-block">💬 Send Confirmation Text</button>':'')+
       '</div>':'')+
     '<div class="htitle" style="margin-top:4px">Move Hangar</div>'+
     '<div class="hgrid">'+hangH+'</div>'+
@@ -3499,7 +4089,13 @@ function openTipSms(id, tipReceived){
     showMsg('Vehicle delivered, but no valid phone number on file — could not open the tip SMS for '+(r.name||'this passenger')+'.', true);
     return;
   }
-  window.open('sms:'+digits+'&body='+encodeURIComponent(buildTipSms(r,tipReceived)), '_self');
+  sendPassengerSms({
+    passengerId:r.id, passengerName:r.name, phone:r.phone, ticket:r.ticket,
+    vehicle:formatVehicleLine(r), brand:isAscend(r)?'Ascend':'Makers Air',
+    templateKey:tipReceived?'TIP_YES':'TIP_NO',
+    messageType:tipReceived?SMS_MESSAGE_TYPES.TIP_YES:SMS_MESSAGE_TYPES.TIP_NO,
+    body:buildTipSms(r,tipReceived), metadata:{trigger:'Post-delivery tip SMS (Normal/Lockbox only)'}
+  });
 }
 
 function deliveryMethodHtml(type){
@@ -4288,12 +4884,18 @@ async function doLogout() {
   // onAuthStateChange fires SIGNED_OUT → showLogin()
 }
 
+var _tvStarted = false;
 _supaClient.auth.onAuthStateChange(function(event, session) {
   if(event === 'SIGNED_IN') {
     _authToken = session.access_token;
     _currentUserEmail = (session.user && session.user.email) || '';
     showApp();
-    loadData();
+    if(isTvMode()){
+      if(!_tvStarted){ _tvStarted = true; initTvMode(); }
+      else { tvHideSessionExpired(); refreshTvData(); }
+    } else {
+      loadData();
+    }
   } else if(event === 'TOKEN_REFRESHED' && session) {
     _authToken = session.access_token;
     _currentUserEmail = (session.user && session.user.email) || _currentUserEmail;
@@ -4301,6 +4903,7 @@ _supaClient.auth.onAuthStateChange(function(event, session) {
     _authToken = null;
     _currentUserEmail = '';
     showLogin();
+    if(isTvMode()) tvShowSessionExpired();
   }
 });
 
@@ -5572,8 +6175,6 @@ function renderTasks() {
   approxList.forEach(function(r) {
     var ts = taskStatus[r.id] || 'pending';
     var isSent = ts === 'sent', isDone = ts === 'done';
-    var smsMsg = 'Hi! This is Makers Air Valet. We are reaching out to confirm your return date so we can update our records. Please let us know when you plan to return. Thank you!';
-    var smsLink = r.phone ? 'sms:' + r.phone.replace(/\D/g,'') + '&body=' + encodeURIComponent(smsMsg) : '';
     html += '<div class="task-card ' + (isDone ? 'sent' : 'pending') + '" id="task-'+r.id+'">'+
       '<div class="task-header"><div style="width:100%">'+
         '<div class="task-name">' + escapeHTML(r.name) +
@@ -5592,7 +6193,7 @@ function renderTasks() {
           '</div>' : '') +
       '</div></div>'+
       '<div class="task-actions">'+
-        (r.phone&&!isDone ? '<a href="'+smsLink+'" class="task-btn text" onclick="markTaskSent('+r.id+')">&#128172; Send Text</a>' : '') +
+        (r.phone&&!isDone ? '<button type="button" class="task-btn text" onclick="sendTaskConfirmationSms('+r.id+')">&#128172; Send Text</button>' : '') +
         (!isDone ? '<button class="task-btn" onclick="showDet('+r.id+')">&#128065; View</button>' : '') +
         (isDone ? '<button class="task-btn" onclick="undoTask('+r.id+')">&#8634; Undo</button>' : '') +
       '</div>'+
@@ -5601,6 +6202,22 @@ function renderTasks() {
   container.innerHTML = html;
 }
 
+// Extracted from an inline sms: href (Fase 1 — docs/TWILIO_MIGRATION_AUDIT.md
+// item #22). Text is byte-identical to what was previously assembled inline.
+function buildTaskConfirmationSms(){
+  return 'Hi! This is Makers Air Valet. We are reaching out to confirm your return date so we can update our records. Please let us know when you plan to return. Thank you!';
+}
+async function sendTaskConfirmationSms(id){
+  var r=data.find(function(x){return x.id===id;});
+  if(!r || !r.phone) return;
+  var result=await sendPassengerSms({
+    passengerId:r.id, passengerName:r.name, phone:r.phone, ticket:r.ticket,
+    vehicle:formatVehicleLine(r), brand:isAscend(r)?'Ascend':'Makers Air',
+    templateKey:'TASK_CONFIRMATION', messageType:SMS_MESSAGE_TYPES.TASK_CONFIRMATION,
+    body:buildTaskConfirmationSms(), metadata:{trigger:'Tasks tab — Send Text'}
+  });
+  if(result.ok) markTaskSent(id); // taskStatus stays in-memory only, same pre-existing limitation
+}
 function markTaskSent(id) { taskStatus[id]='sent'; setTimeout(function(){renderTasks();},500); }
 function markTaskDone(id) { taskStatus[id]='done'; renderTasks(); }
 function undoTask(id) { delete taskStatus[id]; renderTasks(); }
@@ -5796,6 +6413,8 @@ function resetContactsExportDate() {
 // Initialize status on load
 document.addEventListener('DOMContentLoaded', function() {
   updateContactsExportStatus();
+  loadMockSmsHistory();
+  renderMockSmsHistoryPanel();
 });
 
 // ═══════════════════════════════════════════════════════════════
@@ -7393,6 +8012,694 @@ async function dcSavePdf(){
   }
 }
 // ── DAILY CLOSING END ─────────────────────────────────────────
+
+// ══════════════════════════════════════════════════════════════
+// ── TV MODE ──────────────────────────────────────────────────
+// Dedicated read-only operations dashboard for an HDMI-connected TV.
+// Separated cleanly from the normal AirValet UI: its own state object
+// (_tv), its own render pipeline, its own CSS namespace (#tvMode/.tv-*).
+// Reuses existing helpers — pd/fmtD/fmtP/escapeHTML/sd/getToday (utils.js),
+// isToday/isTmrw/isLate/isArrToday, getDepartureTime/sortByDepartureTime,
+// isAscend, isCustomsDelivered/getCustomsDueRecords, deliveryMethodHtml,
+// isApproxRecord, HANGARS, mapPassengerRow, sbGet/sbHeaders/_supaClient —
+// no duplicated business rules. Never mutates `data` with writes; TV Mode
+// performs no create/edit/delete/delivery actions at all.
+// ══════════════════════════════════════════════════════════════
+
+function isTvMode(){
+  return /(^|[?&])mode=tv(&|$)/.test(location.search) || location.hash === '#tv';
+}
+
+var _tv = {
+  connectionState:'connecting',   // 'connecting' | 'live' | 'reconnecting' | 'offline'
+  lastSuccessAt:null,
+  reconnectAttempts:0,
+  dateKey:'',
+  currentPage:0,
+  pageCount:3,
+  rotationPaused:false,
+  rotationTimer:null,
+  clockTimer:null,
+  watchdogTimer:null,
+  reconcileTimer:null,
+  cursorTimer:null,
+  controlsHideTimer:null,
+  realtimeChannel:null,
+  realtimeDebounceTimer:null,
+  refreshInFlight:false,
+  listenersBound:false
+};
+
+var TV_ROTATE_MS            = 12000;   // Tomorrow & Operations dwell time
+var TV_ROTATE_PAGE1_MS      = 15000;   // Today (page index 0) — longest dwell, highest priority
+var TV_RECONCILE_MS         = 60000;   // full reconciliation / fallback poll interval
+var TV_WATCHDOG_MS          = 15000;   // watchdog check cadence
+var TV_STALE_RECONCILE_MS   = 90000;   // trigger an extra reconciliation attempt past this age
+var TV_STALE_OFFLINE_MS     = 180000;  // show STALE DATA / OFFLINE past this age
+var TV_DEBOUNCE_MS          = 800;     // coalesce bursts of realtime events
+var TV_CURSOR_HIDE_MS       = 4000;
+var TV_CONTROLS_HIDE_MS     = 3500;
+var TV_DENSITY_THRESHOLD    = 14;      // total cards before switching to compact density
+var TV_RECONNECT_BASE_MS    = 2000;
+var TV_RECONNECT_MAX_MS     = 30000;
+
+// ── BOOTSTRAP ────────────────────────────────────────────────────────
+function initTvMode(){
+  document.body.classList.add('tv-active');
+  _tv.dateKey = tvLocalDateKey(new Date());
+  setTvConnectionState('connecting');
+  updateTvClock();
+  if(!_tv.clockTimer) _tv.clockTimer = setInterval(updateTvClock, 1000);
+  if(!_tv.watchdogTimer) _tv.watchdogTimer = setInterval(tvWatchdogTick, TV_WATCHDOG_MS);
+  if(!_tv.reconcileTimer) _tv.reconcileTimer = setInterval(function(){ refreshTvData(); }, TV_RECONCILE_MS);
+  tvBindLifecycleListeners();
+  tvBindCursorAndControls();
+  tvUpdateFullscreenButton();
+  rotateTvPages(); // starts the rotation scheduler
+  refreshTvData();
+  subscribeTvRealtime();
+}
+
+// Full teardown — clears every interval/listener/subscription this mode
+// created. Called before navigating away from TV Mode and on beforeunload
+// as a safety net, so nothing leaks if the tab is reused.
+function destroyTvMode(navigateAway){
+  [_tv.clockTimer,_tv.watchdogTimer,_tv.reconcileTimer,_tv.rotationTimer,_tv.cursorTimer,_tv.controlsHideTimer]
+    .forEach(function(t){ if(t) clearInterval(t); });
+  if(_tv.realtimeDebounceTimer) clearTimeout(_tv.realtimeDebounceTimer);
+  _tv.clockTimer=_tv.watchdogTimer=_tv.reconcileTimer=_tv.rotationTimer=_tv.cursorTimer=_tv.controlsHideTimer=null;
+  if(_tv.realtimeChannel){
+    try{ _supaClient.removeChannel(_tv.realtimeChannel); }catch(e){ console.warn('TV realtime cleanup error:', e); }
+    _tv.realtimeChannel=null;
+  }
+  document.body.classList.remove('tv-active','tv-cursor-hidden','tv-stale');
+  if(navigateAway) location.href = location.pathname;
+}
+window.addEventListener('beforeunload', function(){ if(isTvMode()) destroyTvMode(false); });
+
+// ── CLOCK / DATE ROLLOVER ───────────────────────────────────────────
+// Updates the on-screen clock every second purely from the local Date
+// object — never queries Supabase. Detects a local-date change (midnight,
+// or the Mac's clock/timezone being adjusted) and, when it happens,
+// triggers a full reconciliation so Today/Tomorrow groupings recompute
+// against the app's existing local-date helpers (pd/isToday/isTmrw) —
+// no separate midnight-rollover logic is needed since those helpers
+// already read `new Date()` fresh on every call.
+function tvLocalDateKey(d){
+  return d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate();
+}
+function updateTvClock(){
+  var now = new Date();
+  var dateEl = document.getElementById('tvDate');
+  var clockEl = document.getElementById('tvClock');
+  if(dateEl) dateEl.textContent = now.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
+  if(clockEl) clockEl.textContent = now.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',second:'2-digit'});
+  var key = tvLocalDateKey(now);
+  if(key !== _tv.dateKey){
+    _tv.dateKey = key;
+    renderTvDashboard(); // re-resolve Today/Tomorrow immediately, then reconcile with the server
+    refreshTvData();
+  }
+}
+
+// ── CONNECTION STATE ─────────────────────────────────────────────────
+function setTvConnectionState(state){
+  _tv.connectionState = state;
+  var label = document.getElementById('tvConnLabel');
+  var text = document.getElementById('tvConnText');
+  if(!label || !text) return;
+  label.classList.remove('tv-conn-live','tv-conn-reconnecting','tv-conn-offline');
+  if(state==='live'){ label.classList.add('tv-conn-live'); text.textContent='LIVE'; }
+  else if(state==='offline'){ label.classList.add('tv-conn-offline'); text.textContent='OFFLINE'; }
+  else { label.classList.add('tv-conn-reconnecting'); text.textContent = state==='connecting' ? 'CONNECTING' : 'RECONNECTING'; }
+}
+function tvUpdateLastUpdateLabel(){
+  var el = document.getElementById('tvLastUpdate');
+  if(!el) return;
+  if(!_tv.lastSuccessAt){ el.textContent='Waiting for first update…'; return; }
+  var secs = Math.round((Date.now()-_tv.lastSuccessAt)/1000);
+  el.textContent = 'Updated ' + (secs<5 ? 'just now' : secs+'s ago');
+}
+
+// ── WATCHDOG ─────────────────────────────────────────────────────────
+// Tracks the time of the last successful refresh. If it's been too long,
+// force an extra reconciliation attempt; if still unsuccessful past a
+// second threshold, surface STALE DATA with the elapsed time rather than
+// silently showing old data with no explanation.
+function tvWatchdogTick(){
+  tvUpdateLastUpdateLabel();
+  if(!_tv.lastSuccessAt) return;
+  var age = Date.now() - _tv.lastSuccessAt;
+  if(age > TV_STALE_OFFLINE_MS){
+    document.body.classList.add('tv-stale');
+    setTvConnectionState('offline');
+    var elapsedEl = document.getElementById('tvStaleElapsed');
+    if(elapsedEl) elapsedEl.textContent = Math.round(age/60000)+' min';
+  } else if(age > TV_STALE_RECONCILE_MS){
+    document.body.classList.remove('tv-stale');
+    refreshTvData();
+  } else {
+    document.body.classList.remove('tv-stale');
+  }
+}
+
+// ── DATA REFRESH ─────────────────────────────────────────────────────
+// Self-contained: does its own fetch + mapping (mapPassengerRow(), shared
+// with loadData()) + render. Never throws uncaught, never blanks the
+// screen — on failure the last good `data` stays exactly as it was and
+// only the connection indicator changes.
+async function refreshTvData(){
+  if(_tv.refreshInFlight) return; // prevent overlapping fetches from the poll/watchdog/realtime firing together
+  _tv.refreshInFlight = true;
+  try{
+    var rows = await sbGet();
+    data = rows.map(mapPassengerRow);
+    _tv.lastSuccessAt = Date.now();
+    _tv.reconnectAttempts = 0;
+    document.body.classList.remove('tv-stale');
+    setTvConnectionState('live');
+    tvHideSessionExpired();
+    renderTvDashboard();
+  } catch(e){
+    console.error('refreshTvData error:', e);
+    if(String(e && e.message).indexOf('401')!==-1 || String(e && e.message).toLowerCase().indexOf('jwt')!==-1){
+      tvShowSessionExpired();
+    } else if(_tv.connectionState==='live'){
+      setTvConnectionState('reconnecting');
+    }
+  } finally {
+    _tv.refreshInFlight = false;
+    tvUpdateLastUpdateLabel();
+  }
+}
+
+function tvShowSessionExpired(){
+  var el = document.getElementById('tvSessionExpired');
+  if(el) el.classList.add('tv-visible');
+}
+function tvHideSessionExpired(){
+  var el = document.getElementById('tvSessionExpired');
+  if(el) el.classList.remove('tv-visible');
+}
+
+// ── REALTIME ──────────────────────────────────────────────────────────
+// Best-effort enhancement layered on top of the reconciliation poll above
+// (which alone already satisfies "no manual refresh ever needed", just
+// with up to ~60s latency). If the `passengers` table has not been added
+// to a Supabase Realtime publication, this channel simply never fires —
+// the reconciliation poll and watchdog still keep the board correct.
+function subscribeTvRealtime(){
+  if(_tv.realtimeChannel) return; // never create a duplicate subscription
+  try{
+    _tv.realtimeChannel = _supaClient
+      .channel('tv-mode-passengers')
+      .on('postgres_changes', {event:'*', schema:'public', table:'passengers'}, function(){
+        if(_tv.realtimeDebounceTimer) clearTimeout(_tv.realtimeDebounceTimer);
+        _tv.realtimeDebounceTimer = setTimeout(function(){ refreshTvData(); }, TV_DEBOUNCE_MS);
+      })
+      .subscribe(function(status){
+        if(status==='SUBSCRIBED'){
+          _tv.reconnectAttempts = 0;
+          if(_tv.lastSuccessAt) setTvConnectionState('live');
+        } else if(status==='CHANNEL_ERROR' || status==='TIMED_OUT' || status==='CLOSED'){
+          setTvConnectionState('reconnecting');
+          tvScheduleRealtimeReconnect();
+        }
+      });
+  } catch(e){
+    console.warn('TV realtime unavailable, relying on polling:', e);
+  }
+}
+function tvScheduleRealtimeReconnect(){
+  _tv.reconnectAttempts++;
+  var delay = Math.min(TV_RECONNECT_BASE_MS * Math.pow(2, _tv.reconnectAttempts-1), TV_RECONNECT_MAX_MS);
+  setTimeout(function(){
+    if(_tv.realtimeChannel){
+      try{ _supaClient.removeChannel(_tv.realtimeChannel); }catch(e){}
+      _tv.realtimeChannel = null;
+    }
+    subscribeTvRealtime();
+  }, delay);
+}
+
+// ── LIFECYCLE LISTENERS (visibility / online / offline) ────────────────
+function tvBindLifecycleListeners(){
+  if(_tv.listenersBound) return;
+  _tv.listenersBound = true;
+  document.addEventListener('visibilitychange', function(){
+    if(document.visibilityState==='visible') refreshTvData();
+  });
+  window.addEventListener('online', function(){ refreshTvData(); subscribeTvRealtime(); });
+  window.addEventListener('offline', function(){ setTvConnectionState('offline'); });
+}
+
+// ── VIEW MODEL ───────────────────────────────────────────────────────
+// Pure function: reads the shared `data` array, returns every derived
+// group TV Mode needs. Skips malformed rows (no id/name) defensively so
+// one bad record can never break the whole dashboard.
+function tvGetTimeBucket(timeStr){
+  if(!timeStr) return 'TIME NOT SET';
+  var h = parseInt(String(timeStr).split(':')[0],10);
+  if(isNaN(h)) return 'TIME NOT SET';
+  if(h>=21 || h<5) return 'After Hours';
+  if(h<7) return 'Early Morning';
+  if(h<11) return 'Morning';
+  if(h<14) return 'Midday';
+  if(h<18) return 'Afternoon';
+  return 'Evening';
+}
+var TV_BUCKET_ORDER = ['Early Morning','Morning','Midday','Afternoon','Evening','After Hours','TIME NOT SET'];
+
+// ── CHECK-IN DATE HELPERS ───────────────────────────────────────────
+// `r.checkin_date` is already mapPassengerRow()'s resolved value
+// (checkin_date || ts — same fallback the Dashboard and Operations Report
+// use), so legacy pre-checkin_date records keep working. ISO timestamps
+// are parsed with `new Date()` so the browser resolves the real
+// UTC→local conversion, then compared via the existing local-day helpers
+// (sd/getToday) — safer than string-splitting for a check-in that lands
+// near a local-day boundary. Non-ISO legacy strings fall back to the
+// existing isArrToday() parser, which already handles them.
+function tvParseCheckinDate(val){
+  if(!val) return null;
+  var s = String(val).trim();
+  if(!/^\d{4}-\d{2}-\d{2}/.test(s)) return null;
+  var d = new Date(s);
+  return isNaN(d.getTime()) ? null : d;
+}
+function tvIsCheckedInToday(val){
+  var iso = tvParseCheckinDate(val);
+  if(iso) return sd(iso, getToday());
+  return isArrToday(val);
+}
+function tvCheckinTimestamp(val){
+  var iso = tvParseCheckinDate(val);
+  if(iso) return iso.getTime();
+  var d = new Date(val);
+  return isNaN(d.getTime()) ? 0 : d.getTime();
+}
+
+function buildTvViewModel(){
+  var rows = ((typeof data!=='undefined' && data) ? data : []).filter(function(r){
+    return r && r.id!=null && String(r.name||'').trim(); // malformed-record guard
+  });
+  var active = rows.filter(function(r){ return r.status!=='ARCHIVED'; });
+
+  // Leaving Tomorrow — exact qualification rule reused from renderDay():
+  // isTmrw(r.ret) && status!=='DELIVERED' && status!=='ARCHIVED'.
+  var leavingTomorrow = sortByDepartureTime(rows.filter(function(r){
+    return isTmrw(r.ret) && r.status!=='DELIVERED' && r.status!=='ARCHIVED';
+  }));
+
+  var leavingTodayAll = sortByDepartureTime(rows.filter(function(r){
+    return isToday(r.ret) && r.status!=='ARCHIVED';
+  }));
+  var leavingTodayRemaining = leavingTodayAll.filter(function(r){ return r.status!=='DELIVERED'; });
+  var leavingTodayDelivered = leavingTodayAll.filter(function(r){ return r.status==='DELIVERED'; });
+  var leavingTodayOverdue = leavingTodayRemaining.filter(function(r){ return isLate(r.ret); });
+
+  // Checked In Today — the passenger's actual check-in timestamp, not
+  // Return Date. checkin_date is the primary source; tvIsCheckedInToday()
+  // resolves ISO timestamps against the local calendar day. Sorted by
+  // actual check-in time, most recent first.
+  var checkedInToday = rows
+    .filter(function(r){ return r.status!=='ARCHIVED' && tvIsCheckedInToday(r.checkin_date); })
+    .sort(function(a,b){ return tvCheckinTimestamp(b.checkin_date)-tvCheckinTimestamp(a.checkin_date); });
+
+  var noDateCount = active.filter(function(r){ return r.status==='NO DATE'; }).length;
+
+  var customsDue = (typeof getCustomsDueRecords==='function') ? getCustomsDueRecords() : [];
+  var lockboxToday = active.filter(function(r){
+    return r.status==='DELIVERED' && r.delivery_type==='LOCKBOX' && isToday(r.deldate);
+  });
+
+  // Customs / Ascend tracking — existing helpers only, no new business
+  // rules. NEEDS HANDLING: active Ascend records not yet delivered
+  // (isAscend()). AT CUSTOMS: vehicles actually delivered via Customs
+  // (isCustomsDelivered()), scoped to today's deliveries the same way
+  // lockboxToday above is scoped, so this stays a live-shift view rather
+  // than growing forever. A record can only ever match one of the two
+  // groups — "not yet delivered" vs. "delivered via Customs" are
+  // mutually exclusive on `status` — so nothing is duplicated between them.
+  var ascendNeedsHandling = active.filter(function(r){
+    return (typeof isAscend==='function' && isAscend(r)) && r.status!=='DELIVERED';
+  });
+  var atCustoms = active.filter(function(r){
+    return (typeof isCustomsDelivered==='function' && isCustomsDelivered(r)) && isToday(r.deldate);
+  });
+
+  var missingTimeTomorrow = leavingTomorrow.filter(function(r){ return !getDepartureTime(r); });
+  var missingLocationActive = active.filter(function(r){
+    return r.status!=='DELIVERED' && (!r.loc || !String(r.loc).trim());
+  });
+
+  // Active current-location summary — NOT the Operations Report's
+  // historical-hangar fallback (previous_delivery_location, etc.): TV
+  // Mode intentionally uses raw current `loc` for active (non-delivered)
+  // vehicles only, since that's genuinely where the vehicle is right now.
+  var hangarCounts = {};
+  HANGARS.forEach(function(h){ hangarCounts[h]=0; });
+  active.forEach(function(r){
+    if(r.status==='DELIVERED') return;
+    if(!isValidOperationalHangar(r.loc)) return;
+    hangarCounts[normalizeHangarValue(r.loc)]++;
+  });
+
+  var nextDeparture = leavingTodayRemaining.filter(function(r){ return getDepartureTime(r); })[0] || null;
+  var afterHoursTomorrowCount = leavingTomorrow.filter(function(r){ return tvGetTimeBucket(getDepartureTime(r))==='After Hours'; }).length;
+
+  var groupedTomorrow = {};
+  TV_BUCKET_ORDER.forEach(function(b){ groupedTomorrow[b]=[]; });
+  leavingTomorrow.forEach(function(r){ groupedTomorrow[tvGetTimeBucket(getDepartureTime(r))].push(r); });
+
+  var totalInCustody = active.filter(function(r){ return r.status!=='DELIVERED'; }).length;
+
+  return {
+    leavingTomorrow: leavingTomorrow,
+    groupedTomorrow: groupedTomorrow,
+    leavingTodayRemaining: leavingTodayRemaining,
+    leavingTodayDelivered: leavingTodayDelivered,
+    leavingTodayOverdue: leavingTodayOverdue,
+    checkedInToday: checkedInToday,
+    noDateCount: noDateCount,
+    customsDue: customsDue,
+    lockboxToday: lockboxToday,
+    ascendNeedsHandling: ascendNeedsHandling,
+    atCustoms: atCustoms,
+    missingTimeTomorrow: missingTimeTomorrow,
+    missingLocationActive: missingLocationActive,
+    hangarCounts: hangarCounts,
+    nextDeparture: nextDeparture,
+    afterHoursTomorrowCount: afterHoursTomorrowCount,
+    totalInCustody: totalInCustody,
+    totalCardCount: leavingTomorrow.length + leavingTodayRemaining.length + checkedInToday.length
+  };
+}
+
+// ── RENDER HELPERS ───────────────────────────────────────────────────
+// Only badges knowable BEFORE delivery: Ascend (ticket-prefix rule,
+// isAscend()) and Not Returning (a check-in-time checkbox). CUSTOMS/
+// LOCKBOX are deliberately never shown here — delivery_type is only set
+// at delivery time, so a pending record can never legitimately carry one.
+function tvBadges(r){
+  var out='';
+  if(typeof isAscend==='function' && isAscend(r)) out+='<span class="tv-badge tv-badge-ascend">&#9992; ASCEND</span>';
+  if(r.not_returning_with_makers_air) out+='<span class="tv-badge tv-badge-notreturning">NOT RETURNING</span>';
+  return out;
+}
+function tvFlightLine(r){
+  var flight=(r.return_flight||'').trim();
+  var time=getDepartureTime(r);
+  if(!flight && !time) return '';
+  return '<div class="tv-card-meta">&#9992; '+escapeHTML([flight,time].filter(Boolean).join(' · '))+'</div>';
+}
+function tvCard(r){
+  var time=getDepartureTime(r);
+  var timeHtml = time
+    ? '<div class="tv-card-time">'+escapeHTML(tvFmt12(time))+'</div>'
+    : '<div class="tv-card-time tv-time-unset">TIME NOT SET</div>';
+  var critical = !time; // missing time on a Leaving-Tomorrow card is a critical alert
+  var metaParts = [r.car, r.color, (r.loc||'No location')].filter(Boolean).map(function(x){ return escapeHTML(x); });
+  metaParts.push('#'+escapeHTML(r.ticket||''));
+  return '<div class="tv-card'+(critical?' tv-critical':'')+'">'+
+    '<div class="tv-card-row"><div class="tv-card-name">'+escapeHTML(r.name||'')+'</div>'+timeHtml+'</div>'+
+    '<div class="tv-card-meta">'+metaParts.join(' &middot; ')+'</div>'+
+    tvFlightLine(r)+
+    (tvBadges(r) ? '<div class="tv-card-badges">'+tvBadges(r)+'</div>' : '')+
+    (r.obs ? '<div class="tv-card-notes">'+escapeHTML(r.obs)+'</div>' : '')+
+  '</div>';
+}
+function tvFmt12(t){
+  var p=String(t).split(':'), h=parseInt(p[0],10), m=p[1]||'00';
+  if(isNaN(h)) return t;
+  var ap=h>=12?'PM':'AM', h12=h%12||12;
+  return h12+':'+m+' '+ap;
+}
+// Shared identification row for Leaving Today / Checked In Today /
+// Customs & Ascend — name, vehicle+color, hangar (or a NO LOCATION
+// alert), ticket, and an optional leading time column. One builder
+// instead of near-duplicate ones per panel.
+function tvRow(r, opts){
+  opts = opts||{};
+  var timeHtml = opts.time!=null
+    ? '<div class="tv-row-time'+(opts.timeUnset?' tv-time-unset':'')+'">'+escapeHTML(opts.time)+'</div>'
+    : '';
+  var showLocAlert = opts.showLocationAlert!==false;
+  var noLoc = !r.loc || !String(r.loc).trim();
+  var locHtml = (showLocAlert && noLoc) ? '<span class="tv-badge tv-badge-nolocation">NO LOCATION</span>' : escapeHTML(r.loc||'—');
+  var metaParts = [];
+  if(r.car) metaParts.push('<b>'+escapeHTML(r.car)+'</b>');
+  if(r.color) metaParts.push(escapeHTML(r.color));
+  metaParts.push(locHtml);
+  metaParts.push('#'+escapeHTML(r.ticket||''));
+  var critical = !!opts.critical || (showLocAlert && noLoc);
+  return '<div class="tv-row'+(critical?' tv-critical':'')+(opts.completed?' tv-row-completed':'')+'">'+
+    timeHtml+
+    '<div class="tv-row-main">'+
+      '<div class="tv-row-name">'+escapeHTML(r.name||'')+(opts.nameBadges?' '+opts.nameBadges:'')+'</div>'+
+      '<div class="tv-row-meta">'+metaParts.join(' &middot; ')+'</div>'+
+    '</div>'+
+  '</div>';
+}
+
+// ── MAIN RENDER ──────────────────────────────────────────────────────
+// Debounced via requestAnimationFrame coalescing: multiple refresh
+// sources (realtime debounce, poll, watchdog, clock rollover) can call
+// this in quick succession, but only one DOM rebuild happens per frame.
+var _tvRenderQueued = false;
+function renderTvDashboard(){
+  if(_tvRenderQueued) return;
+  _tvRenderQueued = true;
+  requestAnimationFrame(function(){
+    _tvRenderQueued = false;
+    tvDoRender();
+  });
+}
+function tvDoRender(){
+  if(!document.body.classList.contains('tv-active')) return;
+  var vm = buildTvViewModel();
+  var densityClass = vm.totalCardCount > TV_DENSITY_THRESHOLD ? 'tv-density-compact' : '';
+  document.getElementById('tvPages').className = 'tv-pages ' + densityClass;
+
+  tvRenderKpis(vm);
+  tvRenderPageToday(vm);
+  tvRenderPageTomorrow(vm);
+  tvRenderPageOps(vm);
+}
+
+function tvRenderKpis(vm){
+  var el = document.getElementById('tvKpiRow');
+  if(!el) return;
+  function kpi(label, num, sub, level){
+    return '<div class="tv-kpi'+(level?' tv-lvl-'+level:'')+'">'+
+      '<div class="tv-kpi-num">'+num+'</div>'+
+      '<div class="tv-kpi-lbl">'+escapeHTML(label)+'</div>'+
+      (sub?'<div class="tv-kpi-sub">'+escapeHTML(sub)+'</div>':'')+
+    '</div>';
+  }
+  var checkedInDelivered = vm.checkedInToday.filter(function(r){ return r.status==='DELIVERED'; }).length;
+  var checkedInSub = checkedInDelivered
+    ? (vm.checkedInToday.length-checkedInDelivered)+' in custody · '+checkedInDelivered+' delivered'
+    : vm.checkedInToday.length+' in custody';
+  var nextDepSub = vm.nextDeparture ? 'Next departure '+tvFmt12(getDepartureTime(vm.nextDeparture)) : (vm.leavingTodayRemaining.length ? 'No times set' : 'All clear');
+  var tomorrowSub = vm.afterHoursTomorrowCount>0 ? vm.afterHoursTomorrowCount+' after-hours' : (vm.missingTimeTomorrow.length?vm.missingTimeTomorrow.length+' missing time':'');
+  el.innerHTML =
+    kpi('Checked In Today', vm.checkedInToday.length, checkedInSub, 'ok') +
+    kpi('Leaving Today', vm.leavingTodayRemaining.length, 'Remaining · '+nextDepSub, vm.leavingTodayOverdue.length?'critical':'') +
+    kpi('Leaving Tomorrow', vm.leavingTomorrow.length, tomorrowSub, vm.missingTimeTomorrow.length?'warning':'') +
+    kpi('Missing Locations', vm.missingLocationActive.length, vm.missingLocationActive.length?'Needs hangar assignment':'All assigned', vm.missingLocationActive.length?'critical':'ok') +
+    kpi('Customs / Special', vm.customsDue.length, vm.customsDue.length?vm.customsDue.length+' follow-up due':'All clear', vm.customsDue.length?'warning':'ok') +
+    kpi('Total In Custody', vm.totalInCustody, 'Vehicles currently parked', '');
+}
+
+function tvRenderPageToday(vm){
+  var el = document.getElementById('tvPageTodayBody');
+  if(!el) return;
+  el.innerHTML =
+    '<div class="tv-today-col">'+
+      '<div class="tv-page-title" style="font-size:16px;margin-bottom:8px;">&#128276; Leaving Today <span class="tv-count-pill">'+vm.leavingTodayRemaining.length+'</span></div>'+
+      '<div class="tv-list">'+
+        (vm.leavingTodayRemaining.length
+          ? vm.leavingTodayRemaining.map(function(r){
+              var t = getDepartureTime(r);
+              return tvRow(r,{time: t?tvFmt12(t):'TIME NOT SET', timeUnset:!t, critical:isLate(r.ret)});
+            }).join('')
+          : '<div class="tv-empty">All vehicles delivered.</div>') +
+      '</div>'+
+      (vm.leavingTodayDelivered.length ? '<div class="tv-delivered-summary">&#10003; '+vm.leavingTodayDelivered.length+' delivered today</div>' : '')+
+    '</div>'+
+    '<div class="tv-today-col">'+
+      '<div class="tv-page-title" style="font-size:16px;margin-bottom:8px;">&#128663; Checked In Today <span class="tv-count-pill">'+vm.checkedInToday.length+'</span></div>'+
+      '<div class="tv-list">'+
+        (vm.checkedInToday.length
+          ? vm.checkedInToday.map(function(r){
+              var d = r.checkin_date ? new Date(r.checkin_date) : null;
+              var t = (d && !isNaN(d.getTime())) ? d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}) : '—';
+              var badges = r.status==='DELIVERED' ? '<span class="tv-badge tv-badge-delivered">&#10003; DELIVERED</span>' : '';
+              return tvRow(r,{time:t, nameBadges:badges});
+            }).join('')
+          : '<div class="tv-empty">No check-ins yet today.</div>') +
+      '</div>'+
+    '</div>';
+}
+
+function tvRenderPageTomorrow(vm){
+  var el = document.getElementById('tvPageTomorrowBody');
+  var countEl = document.getElementById('tvTomorrowCount');
+  if(countEl) countEl.textContent = vm.leavingTomorrow.length;
+  if(!el) return;
+  if(!vm.leavingTomorrow.length){ el.innerHTML='<div class="tv-empty">No vehicles scheduled to leave tomorrow.</div>'; return; }
+  var html='';
+  TV_BUCKET_ORDER.forEach(function(bucket){
+    var list = vm.groupedTomorrow[bucket];
+    if(!list || !list.length) return;
+    html += '<div class="tv-group-hdr">'+escapeHTML(bucket)+' ('+list.length+')</div>';
+    html += '<div class="tv-card-grid">'+list.map(function(r){ return tvCard(r); }).join('')+'</div>';
+  });
+  el.innerHTML = html;
+}
+
+function tvRenderPageOps(vm){
+  var el = document.getElementById('tvPageOpsBody');
+  if(!el) return;
+
+  // Special Handling & Alerts — independent alert types only. Customs
+  // gratuity-due is intentionally NOT duplicated here: every record
+  // eligible for it is already isCustomsDelivered()===true (see
+  // isCustomsCommEligible()), so it is shown once, in the Customs /
+  // Ascend "AT CUSTOMS" group below, via its own GRATUITY DUE badge.
+  var alerts = []
+    .concat(vm.missingTimeTomorrow.map(function(r){ return {r:r, txt:'Leaving tomorrow — TIME NOT SET', lvl:'critical'}; }))
+    .concat(vm.leavingTodayOverdue.map(function(r){ return {r:r, txt:'Overdue — was expected '+fmtD(r.ret), lvl:'critical'}; }))
+    .concat(vm.missingLocationActive.map(function(r){ return {r:r, txt:'Missing location', lvl:'warning'}; }));
+  var seen={};
+  alerts = alerts.filter(function(a){ if(seen[a.r.id]) return false; seen[a.r.id]=true; return true; });
+
+  var alertsHtml = alerts.length
+    ? alerts.map(function(a){
+        return '<div class="tv-list-row'+(a.lvl==='critical'?' tv-overdue':'')+'">'+
+          '<div class="tv-list-name">'+escapeHTML(a.r.name||'')+'</div>'+
+          '<div class="tv-list-meta"><span class="tv-badge tv-badge-'+a.lvl+'">'+escapeHTML(a.txt.toUpperCase())+'</span></div>'+
+        '</div>';
+      }).join('')
+    : '<div class="tv-empty">No special-handling alerts right now.</div>';
+
+  var gratuityDueIds = {};
+  vm.customsDue.forEach(function(r){ gratuityDueIds[r.id]=true; });
+
+  var needsHtml = vm.ascendNeedsHandling.length
+    ? vm.ascendNeedsHandling.map(function(r){
+        return tvRow(r,{nameBadges:'<span class="tv-badge tv-badge-ascend">&#9992; ASCEND</span>'});
+      }).join('')
+    : '<div class="tv-empty">No Ascend vehicles awaiting handling.</div>';
+
+  var atCustomsHtml = vm.atCustoms.length
+    ? vm.atCustoms.map(function(r){
+        var badges = '<span class="tv-badge tv-badge-atcustoms">&#10003; AT CUSTOMS</span>';
+        if(typeof isAscend==='function' && isAscend(r)) badges = '<span class="tv-badge tv-badge-ascend">&#9992; ASCEND</span> '+badges;
+        if(gratuityDueIds[r.id]) badges += ' <span class="tv-badge tv-badge-gratuity">GRATUITY DUE</span>';
+        return tvRow(r,{completed:true, showLocationAlert:false, nameBadges:badges});
+      }).join('')
+    : '<div class="tv-empty">No vehicles at Customs right now.</div>';
+
+  var hangarHtml = HANGARS.map(function(h){
+    return '<div class="tv-hangar-card"><div class="tv-hangar-num">'+(vm.hangarCounts[h]||0)+'</div><div class="tv-hangar-lbl">'+escapeHTML(h)+'</div></div>';
+  }).join('');
+
+  el.innerHTML =
+    '<div class="tv-ops-col tv-ops-col-alerts">'+
+      '<div class="tv-page-title" style="font-size:16px;margin-bottom:8px;">&#9888; Special Handling &amp; Alerts <span class="tv-count-pill">'+alerts.length+'</span></div>'+
+      '<div class="tv-list">'+alertsHtml+'</div>'+
+    '</div>'+
+    '<div class="tv-ops-col tv-ops-col-customs">'+
+      '<div class="tv-page-title" style="font-size:16px;margin-bottom:8px;">&#9992; Customs / Ascend <span class="tv-count-pill">'+(vm.ascendNeedsHandling.length+vm.atCustoms.length)+'</span></div>'+
+      '<div class="tv-list">'+
+        '<div class="tv-subgroup-hdr">Needs Handling <span class="tv-subgroup-count">'+vm.ascendNeedsHandling.length+'</span></div>'+
+        needsHtml+
+        '<div class="tv-subgroup-hdr">At Customs <span class="tv-subgroup-count">'+vm.atCustoms.length+'</span></div>'+
+        atCustomsHtml+
+      '</div>'+
+    '</div>'+
+    '<div class="tv-ops-col tv-ops-col-hangars">'+
+      '<div class="tv-page-title" style="font-size:16px;margin-bottom:8px;">&#127968; Active Vehicles by Location</div>'+
+      '<div class="tv-hangar-grid">'+hangarHtml+'</div>'+
+    '</div>';
+}
+
+// ── PAGE ROTATION ────────────────────────────────────────────────────
+function rotateTvPages(){
+  if(_tv.rotationTimer) clearTimeout(_tv.rotationTimer);
+  tvShowPage(_tv.currentPage);
+  var dwell = _tv.currentPage===0 ? TV_ROTATE_PAGE1_MS : TV_ROTATE_MS;
+  _tv.rotationTimer = setTimeout(function(){
+    if(!_tv.rotationPaused) _tv.currentPage = (_tv.currentPage+1) % _tv.pageCount;
+    rotateTvPages();
+  }, dwell);
+}
+function tvShowPage(idx){
+  for(var i=0;i<_tv.pageCount;i++){
+    var p = document.getElementById('tvPage'+i);
+    if(p) p.classList.toggle('tv-page-active', i===idx);
+  }
+  var dots = document.getElementById('tvPageDots');
+  if(dots){
+    dots.classList.remove('tv-hidden');
+    dots.innerHTML = '';
+    for(var j=0;j<_tv.pageCount;j++){
+      dots.innerHTML += '<div class="tv-page-dot'+(j===idx?' tv-page-dot-active':'')+'"></div>';
+    }
+  }
+}
+function tvToggleRotationPause(){
+  _tv.rotationPaused = !_tv.rotationPaused;
+  var btn = document.getElementById('tvPauseBtn');
+  if(btn) btn.textContent = _tv.rotationPaused ? 'Resume Rotation' : 'Pause Rotation';
+}
+function tvGoToNextPage(){
+  _tv.currentPage = (_tv.currentPage+1) % _tv.pageCount;
+  rotateTvPages();
+}
+
+// ── FULLSCREEN ───────────────────────────────────────────────────────
+function tvEnterFullscreen(){
+  var el = document.documentElement;
+  var req = el.requestFullscreen || el.webkitRequestFullscreen;
+  if(req) req.call(el).catch(function(e){ console.warn('Fullscreen request failed:', e); });
+}
+function tvUpdateFullscreenButton(){
+  var btn = document.getElementById('tvFsBtn');
+  if(!btn) return;
+  var active = !!(document.fullscreenElement || document.webkitFullscreenElement);
+  btn.classList.toggle('tv-hidden', active);
+}
+document.addEventListener('fullscreenchange', tvUpdateFullscreenButton);
+document.addEventListener('webkitfullscreenchange', tvUpdateFullscreenButton);
+
+// ── CURSOR AUTO-HIDE + CORNER CONTROL PANEL ─────────────────────────
+function tvBindCursorAndControls(){
+  document.addEventListener('mousemove', function(e){
+    document.body.classList.remove('tv-cursor-hidden');
+    if(_tv.cursorTimer) clearTimeout(_tv.cursorTimer);
+    _tv.cursorTimer = setTimeout(function(){
+      if(document.body.classList.contains('tv-active')) document.body.classList.add('tv-cursor-hidden');
+    }, TV_CURSOR_HIDE_MS);
+
+    var controls = document.getElementById('tvControls');
+    if(controls){
+      var nearCorner = e.clientX > window.innerWidth-260 && e.clientY < 140;
+      if(nearCorner){
+        controls.classList.add('tv-controls-visible');
+        if(_tv.controlsHideTimer) clearTimeout(_tv.controlsHideTimer);
+        _tv.controlsHideTimer = setTimeout(function(){ controls.classList.remove('tv-controls-visible'); }, TV_CONTROLS_HIDE_MS);
+      }
+    }
+  });
+}
+function tvCopyUrl(){
+  var url = location.origin + location.pathname + '?mode=tv';
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(url).catch(function(){});
+  }
+}
 
 </script>
 </body>
