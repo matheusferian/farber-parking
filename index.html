@@ -12,9 +12,17 @@
 <link rel="manifest" href="data:application/json,{&quot;name&quot;:&quot;AirValet&quot;,&quot;short_name&quot;:&quot;AirValet&quot;,&quot;display&quot;:&quot;standalone&quot;,&quot;background_color&quot;:&quot;%230a0f1e&quot;,&quot;theme_color&quot;:&quot;%231a3d7c&quot;}">
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<!-- Vendored (Offline Mode Phase 1) — was cdn.jsdelivr.net/npm/@supabase/supabase-js@2,
+     a FLOATING major-version tag. Frozen at the exact version it resolved to on
+     2026-08-24: 2.112.4. Unmodified vendor copy — see PROJECT.md, Offline Mode,
+     for source/hash. Do not silently upgrade this file. -->
+<script src="vendor/supabase.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
+<!-- Offline Mode Phase 1 — infrastructure only, does not touch saveEntry() or
+     any other production write path yet. See PROJECT.md, Offline Mode. -->
+<script src="offline-auth.js"></script>
+<script src="offline-db.js"></script>
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -43,12 +51,25 @@
   </div>
   <div class="hdr-r">
     <div class="hdr-date" id="hdrDate"></div>
+    <!-- Device-network indicator only — Phase 1. Not a claim that
+         Supabase is reachable (see offNetStatus vs offSupabaseStatus
+         in the Debug tab); just the browser-level online/offline signal. -->
+    <div id="netStatusIndicator" style="font-family:'DM Mono',monospace;font-size:11px;font-weight:700;letter-spacing:.4px;white-space:nowrap;padding:4px 10px;border-radius:20px;">—</div>
     <div id="syncStatus" style="display:none;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:500;color:rgba(255,255,255,0.85);white-space:nowrap;">🟢 <span id="syncTime">—</span></div>
     <button class="ref-btn" onclick="loadData()">&#8635; Refresh</button>
     <button class="ref-btn" style="background:linear-gradient(135deg,#1a3d7c,#2a5db0);border-color:var(--gold)" onclick="window.open(location.pathname+'?mode=tv','_blank')">📺 Open TV Mode</button>
     <button class="ref-btn" id="logoutBtn" onclick="doLogout()" style="display:none">Sign Out</button>
   </div>
 </header>
+<!-- Offline Mode Phase 1 — service-worker update banner. Never shown
+     automatically-reloading; requires an explicit tap. See PROJECT.md. -->
+<div id="offlineUpdateBanner" style="display:none;align-items:center;justify-content:space-between;gap:12px;background:#1a3d7c;color:#fff;padding:8px 16px;font-family:'DM Sans',sans-serif;font-size:12.5px;">
+  <span>🔄 A new version of AirValet is available.</span>
+  <span style="display:flex;gap:8px;">
+    <button onclick="offlineApplyUpdate()" style="background:var(--gold);color:#1a3d7c;border:none;border-radius:8px;padding:5px 12px;font-weight:700;font-size:11.5px;cursor:pointer;">Reload Now</button>
+    <button onclick="offlineDismissUpdateBanner()" style="background:transparent;border:1px solid rgba(255,255,255,.4);color:#fff;border-radius:8px;padding:5px 12px;font-size:11.5px;cursor:pointer;">Later</button>
+  </span>
+</div>
 <div class="tabs">
   <div class="tab on" data-t="all"><i class="fa-solid fa-users"></i><span>All Passengers</span><span class="tbadge" id="ball">0</span></div>
   <div class="tab" data-t="day"><i class="fa-solid fa-table-columns"></i><span>Dashboard</span><span class="tbadge red" id="bday">!</span></div>
@@ -788,6 +809,53 @@ https://buy.stripe.com/8x214mccK0uh9TjgIM6Vq00</div>
 
       </div>
     </details>
+  </div>
+
+  <!-- OFFLINE MODE DIAGNOSTICS — Phase 1 infrastructure only (see
+       PROJECT.md, Offline Mode). Offline Check-In is NOT enabled by
+       this panel — nothing here writes real passenger data, and
+       nothing in saveEntry() reads from IndexedDB. This exists purely
+       to verify the shell/cache/IndexedDB/device-identity/offline-auth
+       infrastructure ahead of Phase 2. -->
+  <div id="offlineDiagCard" class="epson-card" style="margin-top:16px;">
+    <div class="epson-card-title">📡 Offline Mode Diagnostics (Phase 1 — infrastructure only)</div>
+    <div class="epson-card-sub">Offline Check-In is not available yet. This panel verifies the infrastructure a future phase will build on.</div>
+
+    <div class="epson-stat-grid">
+      <div class="epson-stat"><div class="epson-stat-label">Service Worker</div><div class="epson-stat-value" id="offSwStatus">—</div></div>
+      <div class="epson-stat"><div class="epson-stat-label">Shell Cache</div><div class="epson-stat-value" id="offCacheVersion">—</div></div>
+      <div class="epson-stat"><div class="epson-stat-label">IndexedDB</div><div class="epson-stat-value" id="offIdbStatus">—</div></div>
+      <div class="epson-stat"><div class="epson-stat-label">Device Network</div><div class="epson-stat-value" id="offNetStatus">—</div></div>
+      <div class="epson-stat"><div class="epson-stat-label">Supabase</div><div class="epson-stat-value" id="offSupabaseStatus">—</div></div>
+      <div class="epson-stat"><div class="epson-stat-label">Update Available</div><div class="epson-stat-value" id="offUpdateStatus">No</div></div>
+      <div class="epson-stat"><div class="epson-stat-label">Device ID</div><div class="epson-stat-value" id="offDeviceId" style="font-size:10px;">—</div></div>
+      <div class="epson-stat"><div class="epson-stat-label">Device Code</div><div class="epson-stat-value" id="offDeviceCode">—</div></div>
+      <div class="epson-stat"><div class="epson-stat-label">Last Online Auth</div><div class="epson-stat-value" id="offLastAuth">—</div></div>
+      <div class="epson-stat"><div class="epson-stat-label">Offline Auth Valid Until</div><div class="epson-stat-value" id="offAuthUntil">—</div></div>
+      <div class="epson-stat"><div class="epson-stat-label">Offline Auth</div><div class="epson-stat-value" id="offAuthState">—</div></div>
+    </div>
+
+    <div class="epson-btn-row" style="margin-top:12px;">
+      <button onclick="offlineDiagRefresh()" class="epson-btn epson-btn-navy">🔄 Refresh Diagnostics</button>
+      <button onclick="offlineDiagWriteTestRecord()" class="epson-btn epson-btn-gold">🧪 Write Test IndexedDB Record</button>
+      <button onclick="offlineDiagClearTestRecords()" class="epson-btn epson-btn-outline">🗑 Clear Test Records</button>
+    </div>
+
+    <div style="margin-top:14px;">
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
+        <input type="text" id="offDeviceCodeInput" placeholder="e.g. M1" maxlength="4" style="background:var(--s2);border:1.5px solid var(--b);border-radius:8px;padding:8px 10px;color:var(--tx);font-size:13px;font-family:'DM Mono',monospace;text-transform:uppercase;width:100px;">
+        <button onclick="offlineDiagSetDeviceCode()" class="epson-btn epson-btn-navy" style="margin:0;">Set Device Code</button>
+      </div>
+      <div class="epson-card-sub" style="margin:0 0 10px;">Manually assigned for Phase 1 testing only. Two iPads must never be given the same code — not yet enforced automatically (requires the Phase 3 server-side device registry; see PROJECT.md).</div>
+    </div>
+
+    <div class="epson-history-title">Test IndexedDB Records (diagnostics only — never real passengers)</div>
+    <div class="epson-history-wrap">
+      <table class="epson-history-table">
+        <thead><tr><th>offline_sync_id</th><th>Created</th><th>State</th><th>Device</th></tr></thead>
+        <tbody id="offlineDiagRecordsBody"><tr><td colspan="4" style="text-align:center;color:var(--mu);padding:10px;">No test records</td></tr></tbody>
+      </table>
+    </div>
   </div>
 </div>
 
@@ -4894,6 +4962,7 @@ _supaClient.auth.onAuthStateChange(function(event, session) {
   if(event === 'SIGNED_IN') {
     _authToken = session.access_token;
     _currentUserEmail = (session.user && session.user.email) || '';
+    if(typeof recordOfflineAuthSuccess==='function') recordOfflineAuthSuccess(_currentUserEmail);
     showApp();
     if(isTvMode()){
       if(!_tvStarted){ _tvStarted = true; initTvMode(); }
@@ -4904,7 +4973,14 @@ _supaClient.auth.onAuthStateChange(function(event, session) {
   } else if(event === 'TOKEN_REFRESHED' && session) {
     _authToken = session.access_token;
     _currentUserEmail = (session.user && session.user.email) || _currentUserEmail;
+    // A successful refresh re-confirms this device is still validly
+    // authenticated online — extends the offline-authorization window
+    // the same as a fresh sign-in (see offline-auth.js).
+    if(typeof recordOfflineAuthSuccess==='function') recordOfflineAuthSuccess(_currentUserEmail);
   } else if(event === 'SIGNED_OUT') {
+    // Deliberately does NOT touch the offline-authorization marker —
+    // logout neither refreshes nor clears it; it expires only on its
+    // own schedule. See offline-auth.js header comment.
     _authToken = null;
     _currentUserEmail = '';
     showLogin();
@@ -8757,6 +8833,204 @@ function tvCopyUrl(){
     navigator.clipboard.writeText(url).catch(function(){});
   }
 }
+
+// ══════════════════════════════════════════════════════════════════════
+// ── OFFLINE MODE — PHASE 1 (infrastructure only) ────────────────────
+// Service worker registration + update lifecycle, connectivity
+// detection (device network vs. actual Supabase reachability), and the
+// Debug-tab diagnostics panel. Nothing below writes real passenger
+// data or touches saveEntry() / any other production write path — see
+// PROJECT.md, Offline Mode, for the full design and phased plan.
+// ══════════════════════════════════════════════════════════════════════
+
+var _offlineSw = {registration:null, status:'missing', updateAvailable:false, reloading:false};
+var _offlineNet = {deviceOnline:navigator.onLine, supabaseReachable:null, checking:false, lastCheckedAt:0};
+var OFFLINE_SUPABASE_PROBE_MIN_INTERVAL_MS = 15000; // rate-limit — never poll aggressively
+
+function offlineRegisterServiceWorker(){
+  if(!('serviceWorker' in navigator)){
+    _offlineSw.status = 'unsupported';
+    return;
+  }
+  navigator.serviceWorker.register('./service-worker.js').then(function(reg){
+    _offlineSw.registration = reg;
+    _offlineSw.status = reg.active ? 'active' : 'installing';
+    reg.addEventListener('updatefound', function(){
+      var installing = reg.installing;
+      if(!installing) return;
+      installing.addEventListener('statechange', function(){
+        if(installing.state==='installed'){
+          _offlineSw.status = 'active';
+          if(navigator.serviceWorker.controller){
+            // A previous worker already controlled this page, so this
+            // is a genuine update, not the first-ever install — surface
+            // it, but never auto-activate mid-session.
+            _offlineSw.updateAvailable = true;
+            offlineShowUpdateBanner();
+          }
+          offlineDiagRefresh();
+        }
+      });
+    });
+  }).catch(function(e){
+    _offlineSw.status = 'error';
+    _offlineSw.error = e && e.message;
+    console.warn('Offline Mode: service worker registration failed (app remains fully usable online):', e);
+  }).finally(function(){ offlineDiagRefresh(); });
+
+  navigator.serviceWorker.addEventListener('controllerchange', function(){
+    if(_offlineSw.reloading) return; // avoid a reload loop if this fires more than once
+    _offlineSw.reloading = true;
+    location.reload();
+  });
+}
+function offlineShowUpdateBanner(){
+  var el = document.getElementById('offlineUpdateBanner');
+  if(el) el.style.display = 'flex';
+}
+function offlineApplyUpdate(){
+  if(_offlineSw.registration && _offlineSw.registration.waiting){
+    _offlineSw.registration.waiting.postMessage({type:'SKIP_WAITING'});
+  }
+}
+function offlineDismissUpdateBanner(){
+  var el = document.getElementById('offlineUpdateBanner');
+  if(el) el.style.display = 'none';
+}
+
+// ── Connectivity: device network vs. actual Supabase reachability ───
+// navigator.onLine only proves a network interface is up — it is never
+// treated as proof Supabase itself is reachable (Wi-Fi with no working
+// WAN uplink still reports online=true). offlineProbeSupabase() is the
+// only thing allowed to set supabaseReachable, via a real request.
+function offlineUpdateNetIndicator(){
+  var el = document.getElementById('netStatusIndicator');
+  if(!el) return;
+  if(!_offlineNet.deviceOnline){
+    el.textContent = '🔴 OFFLINE';
+    el.style.background = 'rgba(204,51,51,.16)'; el.style.color = '#ffb3b4';
+  } else if(_offlineNet.supabaseReachable === false){
+    el.textContent = '🟡 NETWORK — NO SERVER';
+    el.style.background = 'rgba(245,166,35,.16)'; el.style.color = '#f5c877';
+  } else {
+    el.textContent = '🟢 ONLINE';
+    el.style.background = 'rgba(34,197,94,.14)'; el.style.color = '#8CF0B8';
+  }
+}
+function offlineProbeSupabase(force){
+  var now = Date.now();
+  if(!force && (_offlineNet.checking || (now-_offlineNet.lastCheckedAt) < OFFLINE_SUPABASE_PROBE_MIN_INTERVAL_MS)){
+    return Promise.resolve(_offlineNet.supabaseReachable);
+  }
+  _offlineNet.checking = true;
+  offlineDiagRefresh();
+  // Lightweight, read-only reachability probe against the real REST
+  // endpoint. Never used as a data source — loadData()/sbGet() remain
+  // the only source of truth for actual passenger data.
+  return fetch(SUPABASE_URL+'/rest/v1/'+TABLE+'?select=id&limit=1', {headers:sbHeaders(), cache:'no-store'})
+    .then(function(res){
+      _offlineNet.supabaseReachable = res.ok || res.status===401; // a 401 still proves the server itself answered
+      return _offlineNet.supabaseReachable;
+    })
+    .catch(function(){
+      _offlineNet.supabaseReachable = false;
+      return false;
+    })
+    .finally(function(){
+      _offlineNet.checking = false;
+      _offlineNet.lastCheckedAt = Date.now();
+      offlineUpdateNetIndicator();
+      offlineDiagRefresh();
+    });
+}
+window.addEventListener('online', function(){
+  _offlineNet.deviceOnline = true;
+  offlineUpdateNetIndicator();
+  offlineProbeSupabase(true);
+});
+window.addEventListener('offline', function(){
+  _offlineNet.deviceOnline = false;
+  _offlineNet.supabaseReachable = null;
+  offlineUpdateNetIndicator();
+  offlineDiagRefresh();
+});
+document.addEventListener('visibilitychange', function(){
+  if(document.visibilityState==='visible') offlineProbeSupabase(false);
+});
+
+// ── Debug-tab diagnostics ────────────────────────────────────────────
+function offlineFmtTime(iso){
+  if(!iso) return '—';
+  var d=new Date(iso);
+  return isNaN(d.getTime()) ? '—' : d.toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
+}
+function offlineDiagRefresh(){
+  var swEl=document.getElementById('offSwStatus');
+  if(swEl) swEl.textContent = {active:'Active',installing:'Installing',error:'Error',unsupported:'Unsupported',missing:'Missing'}[_offlineSw.status] || 'Missing';
+  var cacheEl=document.getElementById('offCacheVersion');
+  if(cacheEl) cacheEl.textContent = _offlineSw.registration ? 'airvalet-shell-v1' : '—';
+
+  var idbEl=document.getElementById('offIdbStatus');
+  if(idbEl){
+    openOfflineDb().then(function(){ idbEl.textContent='Ready'; }).catch(function(e){ idbEl.textContent='Error: '+(e&&e.message); });
+  }
+
+  var netEl=document.getElementById('offNetStatus');
+  if(netEl) netEl.textContent = _offlineNet.deviceOnline ? 'Online' : 'Offline';
+  var sbEl=document.getElementById('offSupabaseStatus');
+  if(sbEl) sbEl.textContent = _offlineNet.checking ? 'Checking…' : (_offlineNet.supabaseReachable===true ? 'Reachable' : (_offlineNet.supabaseReachable===false ? 'Unreachable' : '—'));
+  var updEl=document.getElementById('offUpdateStatus');
+  if(updEl) updEl.textContent = _offlineSw.updateAvailable ? 'Yes' : 'No';
+
+  var devIdEl=document.getElementById('offDeviceId');
+  if(devIdEl) devIdEl.textContent = getOfflineDeviceId();
+  var devCodeEl=document.getElementById('offDeviceCode');
+  if(devCodeEl) devCodeEl.textContent = getOfflineDeviceCode() || 'Not configured';
+
+  var auth=getOfflineAuthStatus();
+  var lastAuthEl=document.getElementById('offLastAuth');
+  if(lastAuthEl) lastAuthEl.textContent = auth.marker ? offlineFmtTime(auth.marker.lastAuthenticatedAt) : '—';
+  var untilEl=document.getElementById('offAuthUntil');
+  if(untilEl) untilEl.textContent = auth.marker ? offlineFmtTime(auth.marker.expiresAt) : '—';
+  var stateEl=document.getElementById('offAuthState');
+  if(stateEl) stateEl.textContent = !auth.present ? 'Missing' : (auth.valid ? 'Valid' : 'Expired');
+
+  offlineDiagRenderRecords();
+}
+function offlineDiagRenderRecords(){
+  var body=document.getElementById('offlineDiagRecordsBody');
+  if(!body) return;
+  offlineCheckinGetAll().then(function(records){
+    if(!records.length){ body.innerHTML='<tr><td colspan="4" style="text-align:center;color:var(--mu);padding:10px;">No test records</td></tr>'; return; }
+    body.innerHTML = records.map(function(r){
+      return '<tr><td style="font-size:10px;">'+escapeHTML(r.offline_sync_id)+'</td><td>'+escapeHTML(offlineFmtTime(r.createdAt))+'</td><td>'+escapeHTML(r.syncState)+'</td><td>'+escapeHTML(r.deviceId||'')+'</td></tr>';
+    }).join('');
+  }).catch(function(){});
+}
+function offlineDiagWriteTestRecord(){
+  offlineCheckinPut(offlineBuildDebugTestRecord()).then(function(){ offlineDiagRefresh(); }).catch(function(e){ alert('IndexedDB write failed: '+e.message); });
+}
+function offlineDiagClearTestRecords(){
+  offlineCheckinGetAll().then(function(records){
+    return Promise.all(records.map(function(r){ return offlineCheckinDelete(r.offline_sync_id); }));
+  }).then(function(){ offlineDiagRefresh(); }).catch(function(e){ alert('Clear failed: '+e.message); });
+}
+function offlineDiagSetDeviceCode(){
+  var input=document.getElementById('offDeviceCodeInput');
+  if(!input) return;
+  try{
+    setOfflineDeviceCode(input.value);
+    input.value='';
+    offlineDiagRefresh();
+  }catch(e){
+    alert(e.message);
+  }
+}
+
+// ── Boot ──────────────────────────────────────────────────────────────
+offlineRegisterServiceWorker();
+offlineUpdateNetIndicator();
+offlineProbeSupabase(true);
 
 </script>
 </body>
