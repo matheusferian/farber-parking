@@ -74,7 +74,34 @@
 // tvRenderKpis(vm) before the page-building calls, so the real available
 // page-body height Operations measures against is always current. Same
 // SHELL_FILES, same reasoning as v2-v5.
-var CACHE_VERSION = 'v6';
+//
+// v7 (2026-08-25, NOT YET DEPLOYED — prepared pending approval):
+// index.html/styles.css changed again — real physical-32"-TV testing
+// found Leaving Today/Checked In Today/Leaving Tomorrow still showing
+// scrollbars in production despite the v5/v6 Operations fixes, because
+// those two page groups still relied on static TV_ROW_CAP/TV_CARD_CAP
+// guessing rather than the real-DOM measurement already built for
+// Operations. This release generalizes that measurement into a genuine
+// adaptive fit engine (tvFitTier()/tvFindCapacityAtTier()) used by
+// Today AND Tomorrow: render the real candidate content offscreen,
+// measure its natural height at 5 bounded density tiers (normal ->
+// compact -> high -> xcompact -> min, name/time held at an 11px floor
+// throughout), pick the first that fits, and only paginate if even the
+// densest tier doesn't — never guessing a cap and hoping. Also fixes
+// two confirmed CSS bugs found during the same physical-TV audit:
+// .tv-card-grid still had overflow-y:auto (missed when .tv-list was
+// fixed for v5), and a pre-existing @media(max-width:1400px) rule
+// forced the KPI row to 3 columns (2 grid rows) at exactly the width
+// range a real TV reports, which was the dominant cause of the KPI row
+// eating ~114px of every page's available height — removed, plus
+// .tv-kpi-lbl gained white-space:nowrap (it never had it, unlike
+// .tv-kpi-sub, so long labels could wrap and inflate the row further).
+// Added: a debounced resize/fullscreenchange reflow (previously TV Mode
+// never re-rendered on either), and a TV Mode diagnostics panel in
+// Debug (real viewport/DPI/fullscreen/fit-tier/overflow status — never
+// shown on the TV display itself). See PROJECT.md, TV Mode — Adaptive
+// Fit Engine. Same SHELL_FILES, same reasoning as v2-v6.
+var CACHE_VERSION = 'v7';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 // Resolved relative to this file's own location, so they land in the

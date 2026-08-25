@@ -1027,7 +1027,14 @@ body.tv-stale .tv-stale-banner{display:block;}
   padding:14px 18px;display:flex;flex-direction:column;gap:3px;min-width:0;
 }
 .tv-kpi-num{font-family:'Syne',sans-serif;font-weight:800;font-size:34px;line-height:1;font-variant-numeric:tabular-nums;color:var(--tv-accent);}
-.tv-kpi-lbl{font-size:11.5px;color:var(--tv-text);text-transform:uppercase;letter-spacing:.8px;font-weight:700;}
+/* white-space:nowrap (2026-08-25) — .tv-kpi-sub already had this, .tv-kpi-lbl
+   never did, so a label like "MISSING LOCATIONS" could wrap to 2 lines at
+   constrained tile widths and nearly double the whole KPI row's height
+   (measured 136px -> 250px at 1366px), eating directly into every TV page's
+   available space below it. Labels are a small fixed set of known strings,
+   so ellipsis is a defensive fallback, not the primary fix — nowrap alone
+   is what guarantees the row never grows. */
+.tv-kpi-lbl{font-size:11.5px;color:var(--tv-text);text-transform:uppercase;letter-spacing:.8px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .tv-kpi-sub{font-size:11.5px;color:var(--tv-mu);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .tv-kpi.tv-lvl-critical .tv-kpi-num{color:var(--tv-critical);}
 .tv-kpi.tv-lvl-warning .tv-kpi-num{color:var(--tv-warning);}
@@ -1071,11 +1078,20 @@ body.tv-stale .tv-stale-banner{display:block;}
   color:var(--tv-mu);padding:8px 2px 6px;flex-shrink:0;
 }
 .tv-group-hdr:first-child{padding-top:0;}
+.tv-density-xcompact .tv-group-hdr{padding:5px 2px 4px;font-size:10px;}
+.tv-density-min .tv-group-hdr{padding:3px 2px 3px;font-size:9.5px;}
 
-/* ── CARD GRID (adaptive density) — Leaving Tomorrow ── */
+/* ── CARD GRID (adaptive density) — Leaving Tomorrow ──
+   overflow:hidden, not auto (2026-08-25) — missed in the earlier .tv-list
+   pass; this is the exact container the real physical-TV scrollbar was
+   traced to. Same reasoning as .tv-list: TV Mode has no mouse/remote, so
+   an interactive scroll container is never acceptable here. The real
+   defense is the fit-tier + measure/shrink/paginate engine (tvFitPage()),
+   not this fallback — hidden only guards against that engine ever being
+   wrong in the future, and tvVerifyNoOverflow() still warns if it fires. */
 .tv-card-grid{
   display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px;
-  overflow-y:auto;min-height:0;padding-bottom:4px;
+  overflow:hidden;min-height:0;padding-bottom:4px;
 }
 /* Compact tier widened from the original 260px minimum: measured at
    1920x1080 with 22 Leaving-Tomorrow cards on one page, 260px columns
@@ -1086,24 +1102,42 @@ body.tv-stale .tv-stale-banner{display:block;}
    even after pagination — smaller text, not narrower names. */
 .tv-density-compact .tv-card-grid{grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:11px;}
 .tv-density-high .tv-card-grid{grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:9px;}
+/* xcompact/min (2026-08-25): narrower minmax than compact/high — cards
+   are small enough at these tiers that a 360px minimum wastes width
+   that could hold another column, which is exactly the "use width
+   before height" principle the adaptive engine is built around. */
+.tv-density-xcompact .tv-card-grid{grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:8px;}
+.tv-density-min .tv-card-grid{grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:6px;}
 .tv-card{
   position:relative;background:var(--tv-panel2);border:1px solid var(--tv-border);border-radius:12px;
   padding:14px 18px;min-width:0;border-left:4px solid var(--tv-accent);
 }
 .tv-density-compact .tv-card{padding:11px 15px;border-radius:10px;}
 .tv-density-high .tv-card{padding:8px 12px;border-radius:9px;}
+.tv-density-xcompact .tv-card{padding:6px 10px;border-radius:8px;}
+.tv-density-min .tv-card{padding:4px 8px;border-radius:7px;}
 .tv-card-name{font-family:'Syne',sans-serif;font-weight:800;font-size:17px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--tv-text);}
 .tv-density-compact .tv-card-name{font-size:15px;}
 .tv-density-high .tv-card-name{font-size:13.5px;}
+.tv-density-xcompact .tv-card-name{font-size:12px;}
+.tv-density-min .tv-card-name{font-size:11px;}
 .tv-card-time{font-family:'DM Mono',monospace;font-weight:800;font-size:20px;color:var(--tv-accent);}
 .tv-density-compact .tv-card-time{font-size:16px;}
 .tv-density-high .tv-card-time{font-size:14px;}
+.tv-density-xcompact .tv-card-time{font-size:12px;}
+.tv-density-min .tv-card-time{font-size:11px;}
 .tv-card-time.tv-time-unset{color:var(--tv-critical);font-size:13px;letter-spacing:.5px;}
+.tv-density-xcompact .tv-card-time.tv-time-unset{font-size:10.5px;}
+.tv-density-min .tv-card-time.tv-time-unset{font-size:10px;}
 .tv-card-row{display:flex;justify-content:space-between;align-items:center;gap:8px;}
 .tv-card-meta{font-size:13px;color:var(--tv-mu);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;margin-top:7px;}
 .tv-density-compact .tv-card-meta{font-size:12px;}
 .tv-density-high .tv-card-meta{font-size:10.5px;}
+.tv-density-xcompact .tv-card-meta{font-size:9.5px;margin-top:5px;}
+.tv-density-min .tv-card-meta{font-size:9px;margin-top:4px;}
 .tv-card-badges{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px;}
+.tv-density-xcompact .tv-card-badges{gap:4px;margin-top:5px;}
+.tv-density-min .tv-card-badges{gap:3px;margin-top:4px;}
 .tv-badge{
   font-family:'DM Mono',monospace;font-size:10px;font-weight:700;letter-spacing:.4px;
   border-radius:5px;padding:3px 8px;white-space:nowrap;
@@ -1176,6 +1210,22 @@ body.tv-stale .tv-stale-banner{display:block;}
 .tv-density-high .tv-row-meta{font-size:10px;}
 .tv-density-high .tv-list{gap:5px;}
 .tv-density-compact .tv-list{gap:6px;}
+/* ── FIT TIERS 3-4 (2026-08-25) — extra-compact / minimum-readable, the
+   two extra rungs the adaptive fit engine (tvFitTier()) steps into only
+   when normal/compact/high still don't fit the real measured page. Name
+   and time hold at 11px in both — the agreed readability floor — every
+   further reduction after that comes from padding/gaps/secondary text/
+   badges, per the approved shrink priority order. */
+.tv-density-xcompact .tv-row{padding:4px 8px;gap:8px;}
+.tv-density-xcompact .tv-row-name,.tv-density-xcompact .tv-row-time{font-size:11px;}
+.tv-density-xcompact .tv-row-time,.tv-density-xcompact .tv-row-time.tv-time-unset{width:54px;}
+.tv-density-xcompact .tv-row-meta{font-size:9px;}
+.tv-density-xcompact .tv-list{gap:4px;}
+.tv-density-min .tv-row{padding:3px 6px;gap:6px;}
+.tv-density-min .tv-row-name,.tv-density-min .tv-row-time{font-size:11px;}
+.tv-density-min .tv-row-time,.tv-density-min .tv-row-time.tv-time-unset{width:50px;}
+.tv-density-min .tv-row-meta{font-size:9px;}
+.tv-density-min .tv-list{gap:3px;}
 
 /* Flight-number line on Leaving Today rows only (opts.flight in tvRow())
    — one small extra text line, never a second name/time row, so rows
@@ -1183,6 +1233,8 @@ body.tv-stale .tv-stale-banner{display:block;}
 .tv-row-flight{font-size:11px;color:var(--tv-mu);margin-top:1px;}
 .tv-density-compact .tv-row-flight{font-size:10px;}
 .tv-density-high .tv-row-flight{font-size:9.5px;}
+.tv-density-xcompact .tv-row-flight{font-size:9px;}
+.tv-density-min .tv-row-flight{font-size:8.5px;}
 
 /* Dedicated operational-status badge row (opts.statusBadges in tvRow())
    — H19 move reminder + Welcome Back, deliberately separate from the
@@ -1193,6 +1245,14 @@ body.tv-stale .tv-stale-banner{display:block;}
 .tv-row-status-badges{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:3px;}
 .tv-density-compact .tv-row-status-badges{gap:5px;margin-top:2px;}
 .tv-density-high .tv-row-status-badges{gap:4px;margin-top:2px;}
+.tv-density-xcompact .tv-row-status-badges{gap:3px;margin-top:1px;}
+.tv-density-min .tv-row-status-badges{gap:2px;margin-top:1px;}
+/* Badge text/padding per tier — floor is 8px (tv-density-min), never
+   reduced further; badges shrink before name/time ever would. */
+.tv-density-compact .tv-badge{font-size:9.5px;padding:2.5px 7px;}
+.tv-density-high .tv-badge{font-size:9px;padding:2px 6px;}
+.tv-density-xcompact .tv-badge{font-size:8.5px;padding:2px 5px;}
+.tv-density-min .tv-badge{font-size:8px;padding:1.5px 4px;}
 
 /* H19 move reminder — Leaving Today/Tomorrow only (tvNeedsH19Move()),
    read-only, never a move button. Gentle pulse via opacity oscillating
@@ -1314,9 +1374,17 @@ body.tv-stale .tv-stale-banner{display:block;}
 .tv-session-expired h2{font-family:'Syne',sans-serif;font-size:24px;font-weight:800;color:var(--tv-critical);}
 .tv-session-expired p{color:var(--tv-mu);font-size:14px;max-width:420px;}
 
-@media (max-width:1400px){
-  .tv-kpi-row{grid-template-columns:repeat(3,1fr);}
-}
+/* The old max-width:1400px -> 3-column KPI override is removed
+   (2026-08-25) — it was the actual dominant cause of the KPI row
+   inflating from ~136px to ~250px at TV-realistic constrained widths
+   (1280-1400px), forcing 6 tiles into 2 grid rows instead of 1 at
+   exactly the range a real TV is likely to report, eating directly into
+   every page's available height below it. TV Mode's realistic width
+   floor is a genuine display (never a phone), so 6 columns staying
+   6 columns and tiles simply getting narrower — backed by
+   white-space:nowrap + ellipsis on .tv-kpi-lbl/.tv-kpi-sub (see above)
+   — keeps the row short and stable instead of wrapping to extra rows.
+   See PROJECT.md, TV Mode — Adaptive Fit Engine. */
 @media (min-width:2500px){
   .tv-kpi-num{font-size:44px;}
   .tv-clock{font-size:36px;}

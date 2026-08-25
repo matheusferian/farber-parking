@@ -877,6 +877,40 @@ https://buy.stripe.com/8x214mccK0uh9TjgIM6Vq00</div>
       </table>
     </div>
   </div>
+
+  <!-- TV Mode diagnostics (2026-08-25) — shows the REAL rendered
+       geometry from the most recent TV Mode render in this browser tab
+       (window size/DPI are always live; page/fit-tier fields hold their
+       last value from _tv state, which survives switching back to this
+       normal Dashboard view since destroyTvMode() only stops timers, it
+       doesn't clear _tv's page/fit-tier fields or remove the .tv-page
+       DOM). Deliberately not shown on the TV display itself — this is
+       the only place it lives, per explicit instruction not to clutter
+       the passive TV screen with diagnostics text. -->
+  <div id="tvDiagCard" class="epson-card" style="margin-top:16px;">
+    <div class="epson-card-title">📺 TV Mode Diagnostics</div>
+    <div class="epson-card-sub">Real measured values from the most recent TV Mode render in this browser tab — open <a href="?mode=tv" target="_blank" rel="noopener">TV Mode</a>, let it render, then come back here and refresh.</div>
+
+    <div class="epson-stat-grid">
+      <div class="epson-stat"><div class="epson-stat-label">window.innerWidth</div><div class="epson-stat-value" id="tvDiagInnerW">—</div></div>
+      <div class="epson-stat"><div class="epson-stat-label">window.innerHeight</div><div class="epson-stat-value" id="tvDiagInnerH">—</div></div>
+      <div class="epson-stat"><div class="epson-stat-label">devicePixelRatio</div><div class="epson-stat-value" id="tvDiagDpr">—</div></div>
+      <div class="epson-stat"><div class="epson-stat-label">Fullscreen</div><div class="epson-stat-value" id="tvDiagFullscreen">—</div></div>
+      <div class="epson-stat"><div class="epson-stat-label">Current TV Page</div><div class="epson-stat-value" id="tvDiagCurrentPage">—</div></div>
+      <div class="epson-stat"><div class="epson-stat-label">Total Pages</div><div class="epson-stat-value" id="tvDiagPageCount">—</div></div>
+      <div class="epson-stat"><div class="epson-stat-label">Active Fit Tier</div><div class="epson-stat-value" id="tvDiagFitTier">—</div></div>
+      <div class="epson-stat"><div class="epson-stat-label">All Page Fit Tiers</div><div class="epson-stat-value" id="tvDiagAllTiers" style="font-size:10px;">—</div></div>
+      <div class="epson-stat"><div class="epson-stat-label">Page clientWidth × H</div><div class="epson-stat-value" id="tvDiagClientDims">—</div></div>
+      <div class="epson-stat"><div class="epson-stat-label">Page scrollWidth × H</div><div class="epson-stat-value" id="tvDiagScrollDims">—</div></div>
+      <div class="epson-stat"><div class="epson-stat-label">Overflow Status</div><div class="epson-stat-value" id="tvDiagOverflow">—</div></div>
+      <div class="epson-stat"><div class="epson-stat-label">KPI Row Height</div><div class="epson-stat-value" id="tvDiagKpiHeight">—</div></div>
+      <div class="epson-stat"><div class="epson-stat-label">Page-Body Height</div><div class="epson-stat-value" id="tvDiagBodyHeight">—</div></div>
+    </div>
+
+    <div class="epson-btn-row" style="margin-top:12px;">
+      <button onclick="tvDiagRefresh()" class="epson-btn epson-btn-navy">🔄 Refresh Diagnostics</button>
+    </div>
+  </div>
 </div>
 
 <!-- DAILY CLOSING PANE -->
@@ -8454,6 +8488,8 @@ var _tv = {
   currentPage:0,
   pageCount:1,
   pageKinds:[],   // parallel array — pageKinds[i] = 'today'|'tomorrow'|'ops', drives rotation dwell time
+  pageFitTiers:[], // parallel array — pageFitTiers[i] = the fit tier tvBuildTodayPages/tvBuildTomorrowPages/tvBuildOpsPages chose for that page (diagnostics only)
+  lastFitCheck:null, // last tvVerifyNoOverflow() result (diagnostics only)
   rotationPaused:false,
   rotationTimer:null,
   clockTimer:null,
@@ -8461,11 +8497,14 @@ var _tv = {
   reconcileTimer:null,
   cursorTimer:null,
   controlsHideTimer:null,
+  resizeDebounceTimer:null,
   realtimeChannel:null,
   realtimeDebounceTimer:null,
   refreshInFlight:false,
-  listenersBound:false
+  listenersBound:false,
+  viewportListenersBound:false
 };
+var TV_RESIZE_DEBOUNCE_MS = 350;
 
 var TV_ROTATE_MS            = 12000;   // Tomorrow & Operations dwell time
 var TV_ROTATE_PAGE1_MS      = 15000;   // Today (page index 0) — longest dwell, highest priority
@@ -8534,10 +8573,40 @@ function initTvMode(){
   if(!_tv.reconcileTimer) _tv.reconcileTimer = setInterval(function(){ refreshTvData(); }, TV_RECONCILE_MS);
   tvBindLifecycleListeners();
   tvBindCursorAndControls();
+  tvBindViewportListeners();
   tvUpdateFullscreenButton();
   rotateTvPages(); // starts the rotation scheduler
   refreshTvData();
   subscribeTvRealtime();
+}
+
+// Debounced reflow on real viewport change (2026-08-25) — a fixed
+// tier/page count computed once at load never re-adapts if the TV's
+// actual rendered size changes afterward (entering fullscreen, a window
+// resize, in principle an orientation/DPI change), which previously
+// meant those cases stayed on a startup-time fit tier that might no
+// longer be the real available size. Debounced so a drag-resize or the
+// handful of resize events some browsers fire around a fullscreen
+// transition don't trigger a render burst — only the settled final size
+// triggers one tvDoRender(), which naturally recomputes fit tiers,
+// pagination, and KPI sizing from scratch and preserves the current page
+// index where it's still valid (existing tvDoRender() behavior).
+// Bound only while TV Mode is active, torn down in destroyTvMode() —
+// never fires for the normal Dashboard.
+function tvHandleViewportChange(){
+  if(!document.body.classList.contains('tv-active')) return;
+  if(_tv.resizeDebounceTimer) clearTimeout(_tv.resizeDebounceTimer);
+  _tv.resizeDebounceTimer = setTimeout(function(){
+    _tv.resizeDebounceTimer = null;
+    if(document.body.classList.contains('tv-active')) tvDoRender();
+  }, TV_RESIZE_DEBOUNCE_MS);
+}
+function tvBindViewportListeners(){
+  if(_tv.viewportListenersBound) return;
+  _tv.viewportListenersBound = true;
+  window.addEventListener('resize', tvHandleViewportChange);
+  document.addEventListener('fullscreenchange', tvHandleViewportChange);
+  document.addEventListener('webkitfullscreenchange', tvHandleViewportChange);
 }
 
 // Full teardown — clears every interval/listener/subscription this mode
@@ -8547,7 +8616,14 @@ function destroyTvMode(navigateAway){
   [_tv.clockTimer,_tv.watchdogTimer,_tv.reconcileTimer,_tv.rotationTimer,_tv.cursorTimer,_tv.controlsHideTimer]
     .forEach(function(t){ if(t) clearInterval(t); });
   if(_tv.realtimeDebounceTimer) clearTimeout(_tv.realtimeDebounceTimer);
-  _tv.clockTimer=_tv.watchdogTimer=_tv.reconcileTimer=_tv.rotationTimer=_tv.cursorTimer=_tv.controlsHideTimer=null;
+  if(_tv.resizeDebounceTimer) clearTimeout(_tv.resizeDebounceTimer);
+  _tv.clockTimer=_tv.watchdogTimer=_tv.reconcileTimer=_tv.rotationTimer=_tv.cursorTimer=_tv.controlsHideTimer=_tv.resizeDebounceTimer=null;
+  if(_tv.viewportListenersBound){
+    window.removeEventListener('resize', tvHandleViewportChange);
+    document.removeEventListener('fullscreenchange', tvHandleViewportChange);
+    document.removeEventListener('webkitfullscreenchange', tvHandleViewportChange);
+    _tv.viewportListenersBound = false;
+  }
   if(_tv.realtimeChannel){
     try{ _supaClient.removeChannel(_tv.realtimeChannel); }catch(e){ console.warn('TV realtime cleanup error:', e); }
     _tv.realtimeChannel=null;
@@ -9128,23 +9204,77 @@ function tvReconcilePageDom(pages){
   }
   _tv.pageCount = pages.length;
   _tv.pageKinds = pages.map(function(pg){ return pg.kind; });
+  _tv.pageFitTiers = pages.map(function(pg){ return pg.fitTier || null; }); // for TV diagnostics only
 }
 
-// Safety net, not the primary defense: TV_ROW_CAP/TV_CARD_CAP are
-// grounded in real measurements (see the constants above), so this
-// should never fire — if it does, the console.warn tells a developer
-// exactly which page/section and by how much, rather than the content
-// silently vanishing below the fold the way the old overflow-y:auto
-// behavior did. Only meaningfully checks the currently-visible page
-// (a display:none page reports 0/0 for scrollHeight/clientHeight) —
-// tvShowPage() also calls this, so it naturally re-checks every page as
-// rotation cycles through them, not just the one visible at render time.
+// Only meaningfully checks the currently-visible page (a display:none
+// page reports 0/0 for scrollHeight/clientHeight) — tvShowPage() also
+// calls this, so it naturally re-checks every page as rotation cycles
+// through them, not just the one visible at render time.
+// Safety net, not the primary defense — the adaptive fit engine
+// (tvFitTier()/tvFindCapacityAtTier()) is what's supposed to guarantee
+// this never fires. Checks the full contract requested for TV pages:
+// list/grid scrollHeight<=clientHeight AND scrollWidth<=clientWidth, and
+// every row/card's own edges stay inside the page-body's real bounds.
+// console.warn only (dev-tools, never on-screen) — a passive display has
+// no one to show an error banner to. Stores the last result on
+// _tv.lastFitCheck for the TV diagnostics panel to read.
+// Diagnostics snapshot persisted to localStorage (2026-08-25) — exiting
+// TV Mode through its own "Exit TV Mode" control calls
+// destroyTvMode(true), which navigates away (location.href = ...) and
+// therefore wipes the whole JS context, _tv included. Without this, the
+// Debug tab's TV diagnostics panel could only ever show live
+// window/DPI values and nothing page-specific, since by the time anyone
+// actually reaches Debug after leaving TV Mode the in-memory state is
+// already gone. localStorage survives that navigation, so tvDiagRefresh()
+// falls back to this snapshot whenever live _tv state looks like a
+// freshly-booted page that was never in TV Mode this session.
+var TV_DIAG_SNAPSHOT_KEY = 'airvalet_tv_diag_snapshot';
+function tvPersistDiagSnapshot(fitCheck){
+  try{
+    localStorage.setItem(TV_DIAG_SNAPSHOT_KEY, JSON.stringify({
+      savedAt: Date.now(),
+      innerWidth: window.innerWidth, innerHeight: window.innerHeight, dpr: window.devicePixelRatio,
+      currentPage: _tv.currentPage, pageCount: _tv.pageCount, pageFitTiers: _tv.pageFitTiers,
+      fitCheck: fitCheck
+    }));
+  }catch(e){ /* localStorage unavailable/full — diagnostics are best-effort, never block rendering */ }
+}
 function tvVerifyNoOverflow(){
-  document.querySelectorAll('.tv-page.tv-page-active .tv-list, .tv-page.tv-page-active .tv-card-grid').forEach(function(el){
+  var page = document.querySelector('.tv-page.tv-page-active');
+  var result = {ok:true, issues:[]};
+  if(!page){ _tv.lastFitCheck = result; tvPersistDiagSnapshot(result); return; }
+  var body = page.querySelector('.tv-page-body');
+  var bodyRect = body ? body.getBoundingClientRect() : null;
+  page.querySelectorAll('.tv-list, .tv-card-grid').forEach(function(el){
     if(el.scrollHeight > el.clientHeight + 2){
-      console.warn('[TV Mode] Section overflow on '+(el.closest('.tv-page')||{}).id+': '+(el.scrollHeight-el.clientHeight)+'px hidden despite pagination. Consider lowering TV_ROW_CAP/TV_CARD_CAP for this tier.', el);
+      var msg = '[TV Mode] Section vertical overflow on '+page.id+': '+(el.scrollHeight-el.clientHeight)+'px hidden.';
+      console.warn(msg, el);
+      result.ok = false; result.issues.push(msg);
+    }
+    if(el.scrollWidth > el.clientWidth + 2){
+      var msgW = '[TV Mode] Section horizontal overflow on '+page.id+': '+(el.scrollWidth-el.clientWidth)+'px hidden.';
+      console.warn(msgW, el);
+      result.ok = false; result.issues.push(msgW);
     }
   });
+  if(bodyRect){
+    page.querySelectorAll('.tv-row, .tv-card').forEach(function(el){
+      var r = el.getBoundingClientRect();
+      if(r.bottom > bodyRect.bottom + 2){
+        var msgB = '[TV Mode] Row/card bottom edge past page-body bottom on '+page.id+' by '+Math.round(r.bottom-bodyRect.bottom)+'px.';
+        console.warn(msgB, el);
+        result.ok = false; result.issues.push(msgB);
+      }
+      if(r.right > bodyRect.right + 2){
+        var msgR = '[TV Mode] Row/card right edge past page-body right on '+page.id+' by '+Math.round(r.right-bodyRect.right)+'px.';
+        console.warn(msgR, el);
+        result.ok = false; result.issues.push(msgR);
+      }
+    });
+  }
+  _tv.lastFitCheck = result;
+  tvPersistDiagSnapshot(result);
 }
 
 function tvRenderKpis(vm){
@@ -9180,63 +9310,155 @@ function tvRenderKpis(vm){
     kpi('Total In Custody', vm.totalInCustody, 'Vehicles currently parked', '');
 }
 
-// ── TODAY page group — 1..N sub-pages, each column paginated
-// independently (a busy Leaving Today with a quiet Checked In Today no
-// longer forces both columns onto the same number of pages incorrectly —
-// the shorter column's later sub-pages simply render fewer/no rows). ──
+// ── ADAPTIVE FIT ENGINE (2026-08-25) — MEASURE -> SHRINK -> RE-MEASURE
+// -> PAGINATE ONLY IF NECESSARY. Replaces static TV_ROW_CAP/TV_CARD_CAP
+// guessing for Today/Tomorrow (Operations already used real measurement
+// — see tvMeasureColumnCapacity() below — this generalizes the same
+// approach). Renders the REAL candidate content (not a generic sample
+// row) offscreen at the real target width with no height constraint, so
+// scrollHeight is the true natural content height; steps through 5
+// bounded density tiers looking for one where that height fits the real
+// available space; only when even the densest tier doesn't fit does it
+// fall back to finding, via one bounded binary search, how many records
+// actually fit at that tier and paginate the remainder. Every step is a
+// single offscreen probe render+measure+clear — never a loop over the
+// visible page, never more than 5 tier attempts + ~log2(N) capacity
+// lookups, so this can never spin or thrash. See PROJECT.md, TV Mode —
+// Adaptive Fit Engine for the full rationale. ──
+var TV_FIT_TIERS = ['normal','compact','high','xcompact','min'];
+// Real headroom, not just clearing zero by a pixel (same principle as
+// TV_OPS_SAFETY_MARGIN_PX) — an offscreen probe measurement and the
+// final real-DOM render can differ by a few px (sub-pixel layout
+// rounding, font metrics), measured directly at ~7px in practice, so
+// "fits" requires clearing the real available height with margin, not
+// just being numerically <=.
+var TV_FIT_SAFETY_MARGIN_PX = 16;
+function tvMeasureNaturalHeight(className, innerHtml, widthPx){
+  var probe = document.getElementById('tvMeasureProbe');
+  if(!probe || widthPx<=0) return null;
+  probe.innerHTML = '<div class="'+className+'" style="width:'+widthPx+'px;">'+innerHtml+'</div>';
+  var el = probe.firstElementChild;
+  var h = el ? el.scrollHeight : null;
+  probe.innerHTML = '';
+  return h;
+}
+// classForTier(tierName) -> the class string to test at that tier;
+// html is the FULL real candidate content (same html at every tier —
+// only the density class changes row/card size, not the markup).
+function tvFitTier(classForTier, html, widthPx, availHeightPx){
+  var safeAvailH = availHeightPx - TV_FIT_SAFETY_MARGIN_PX;
+  for(var i=0;i<TV_FIT_TIERS.length;i++){
+    var tier = TV_FIT_TIERS[i];
+    var h = tvMeasureNaturalHeight(classForTier(tier), html, widthPx);
+    if(h!=null && h<=safeAvailH) return {tierIndex:i, tier:tier, fits:true};
+  }
+  return {tierIndex:TV_FIT_TIERS.length-1, tier:'min', fits:false};
+}
+// Bounded binary search (ceil(log2(count)) probe measurements, never a
+// loop over count itself) for the largest N whose real rendered height
+// still fits — used only once tvFitTier() reports the densest tier
+// still doesn't fit everything, to find exactly how many belong on this
+// page before the remainder becomes a continuation page.
+function tvFindCapacityAtTier(className, widthPx, availHeightPx, count, buildSliceHtml){
+  var safeAvailH = availHeightPx - TV_FIT_SAFETY_MARGIN_PX;
+  var lo=0, hi=count;
+  while(lo<hi){
+    var mid = Math.ceil((lo+hi)/2);
+    var h = tvMeasureNaturalHeight(className, buildSliceHtml(mid), widthPx);
+    if(h!=null && h<=safeAvailH) lo=mid; else hi=mid-1;
+  }
+  return Math.max(1, lo);
+}
+
+function tvTodayRowHtml(r, kind){
+  if(kind==='leaving'){
+    var t = getDepartureTime(r);
+    var wcbState = tvWelcomeBackState(r);
+    // Both operational badges share one dedicated row (opts.statusBadges)
+    // below the meta/flight lines — never inline with the name, so
+    // neither badge (nor both firing at once) can shrink the passenger
+    // name's available width.
+    var badgeParts = [];
+    if(tvNeedsH19Move(r)) badgeParts.push(tvMoveH19Badge('today'));
+    var wcbBadge = tvWelcomeBackBadge(r);
+    if(wcbBadge) badgeParts.push(wcbBadge);
+    return tvRow(r,{
+      time: t?t:'TIME NOT SET', timeUnset:!t,
+      critical: isLate(r.ret) || wcbState==='overdue',
+      statusBadges: badgeParts.join(' '),
+      flight: (r.return_flight||'').trim()
+    });
+  }
+  var d = r.checkin_date ? new Date(r.checkin_date) : null;
+  var t2 = (d && !isNaN(d.getTime())) ? d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}) : '—';
+  var badges = r.status==='DELIVERED' ? '<span class="tv-badge tv-badge-delivered">&#10003; DELIVERED</span>' : '';
+  return tvRow(r,{time:t2, nameBadges:badges});
+}
+
+// ── TODAY page group — Leaving Today and Checked In Today are fit
+// INDEPENDENTLY (different volume on each side should never force
+// identical density — a busy Leaving Today with a quiet Checked In
+// Today lets Checked In Today stay at a larger, easier-to-read tier).
+// 1..N sub-pages only when the densest tier still can't fit one side's
+// full population. ──
 function tvBuildTodayPages(vm){
-  var leavingTier = tvTierForCount(vm.leavingTodayRemaining.length);
-  var checkedTier = tvTierForCount(vm.checkedInToday.length);
-  var leavingPages = tvPaginate(vm.leavingTodayRemaining, TV_ROW_CAP[leavingTier]);
-  var checkedPages = tvPaginate(vm.checkedInToday, TV_ROW_CAP[checkedTier]);
+  var pageBodyBox = tvRealPageBodyBox();
+  var colWidth = (pageBodyBox.width - 22) / 2; // 22px gap between the two .tv-today-col
+
+  var leavingTitleHtml = '<div class="tv-page-title" style="font-size:16px;margin-bottom:8px;">&#128276; Leaving Today <span class="tv-count-pill">'+vm.leavingTodayRemaining.length+'</span></div>';
+  var checkedTitleHtml = '<div class="tv-page-title" style="font-size:16px;margin-bottom:8px;">&#128663; Checked In Today <span class="tv-count-pill">'+vm.checkedInToday.length+'</span></div>';
+  var deliveredSummaryHtml = vm.leavingTodayDelivered.length ? '<div class="tv-delivered-summary">&#10003; '+vm.leavingTodayDelivered.length+' delivered today</div>' : '';
+  var deliveredSummaryHeight = deliveredSummaryHtml ? tvMeasureElementOuterHeight(deliveredSummaryHtml) : 0;
+
+  var leavingAvailH = pageBodyBox.height - tvMeasureElementOuterHeight(leavingTitleHtml) - deliveredSummaryHeight;
+  var checkedAvailH = pageBodyBox.height - tvMeasureElementOuterHeight(checkedTitleHtml);
+
+  var leavingHtmlFull = vm.leavingTodayRemaining.map(function(r){ return tvTodayRowHtml(r,'leaving'); }).join('');
+  var checkedHtmlFull = vm.checkedInToday.map(function(r){ return tvTodayRowHtml(r,'checked'); }).join('');
+  var listClassForTier = function(t){ return 'tv-list tv-density-'+t; };
+
+  var leavingFit = vm.leavingTodayRemaining.length ? tvFitTier(listClassForTier, leavingHtmlFull, colWidth, leavingAvailH) : {tier:'normal', fits:true};
+  var checkedFit = vm.checkedInToday.length ? tvFitTier(listClassForTier, checkedHtmlFull, colWidth, checkedAvailH) : {tier:'normal', fits:true};
+
+  var leavingCap = vm.leavingTodayRemaining.length, checkedCap = vm.checkedInToday.length;
+  if(!leavingFit.fits){
+    leavingCap = tvFindCapacityAtTier('tv-list tv-density-min', colWidth, leavingAvailH, vm.leavingTodayRemaining.length, function(n){
+      return vm.leavingTodayRemaining.slice(0,n).map(function(r){ return tvTodayRowHtml(r,'leaving'); }).join('');
+    });
+  }
+  if(!checkedFit.fits){
+    checkedCap = tvFindCapacityAtTier('tv-list tv-density-min', colWidth, checkedAvailH, vm.checkedInToday.length, function(n){
+      return vm.checkedInToday.slice(0,n).map(function(r){ return tvTodayRowHtml(r,'checked'); }).join('');
+    });
+  }
+
+  var leavingPages = tvPaginate(vm.leavingTodayRemaining, leavingCap);
+  var checkedPages = tvPaginate(vm.checkedInToday, checkedCap);
   var pageCount = Math.max(leavingPages.length, checkedPages.length);
   var pages = [];
   var _loop = function(p){
     var leavingSlice = leavingPages[p] || [];
     var checkedSlice = checkedPages[p] || [];
     pages.push({
-      kind:'today', sub:p, of:pageCount,
+      kind:'today', sub:p, of:pageCount, fitTier: leavingFit.tier+'/'+checkedFit.tier,
       render:function(bodyEl){
         bodyEl.style.flexDirection='row'; bodyEl.style.gap='22px';
         var contHtml = pageCount>1 ? ' <span class="tv-page-continuation">PAGE '+(p+1)+'/'+pageCount+'</span>' : '';
         bodyEl.innerHTML =
           '<div class="tv-today-col">'+
             '<div class="tv-page-title" style="font-size:16px;margin-bottom:8px;">&#128276; Leaving Today <span class="tv-count-pill">'+vm.leavingTodayRemaining.length+'</span>'+contHtml+'</div>'+
-            '<div class="tv-list tv-density-'+leavingTier+'">'+
+            '<div class="tv-list tv-density-'+leavingFit.tier+'">'+
               (leavingSlice.length
-                ? leavingSlice.map(function(r){
-                    var t = getDepartureTime(r);
-                    var wcbState = tvWelcomeBackState(r);
-                    // Both operational badges share one dedicated row
-                    // (opts.statusBadges) below the meta/flight lines —
-                    // never inline with the name, so neither badge (nor
-                    // both firing at once) can shrink the passenger
-                    // name's available width.
-                    var badgeParts = [];
-                    if(tvNeedsH19Move(r)) badgeParts.push(tvMoveH19Badge('today'));
-                    var wcbBadge = tvWelcomeBackBadge(r);
-                    if(wcbBadge) badgeParts.push(wcbBadge);
-                    return tvRow(r,{
-                      time: t?t:'TIME NOT SET', timeUnset:!t,
-                      critical: isLate(r.ret) || wcbState==='overdue',
-                      statusBadges: badgeParts.join(' '),
-                      flight: (r.return_flight||'').trim()
-                    });
-                  }).join('')
+                ? leavingSlice.map(function(r){ return tvTodayRowHtml(r,'leaving'); }).join('')
                 : (p===0 ? '<div class="tv-empty">All vehicles delivered.</div>' : '')) +
             '</div>'+
-            (p===pageCount-1 && vm.leavingTodayDelivered.length ? '<div class="tv-delivered-summary">&#10003; '+vm.leavingTodayDelivered.length+' delivered today</div>' : '')+
+            (p===pageCount-1 ? deliveredSummaryHtml : '')+
           '</div>'+
           '<div class="tv-today-col">'+
             '<div class="tv-page-title" style="font-size:16px;margin-bottom:8px;">&#128663; Checked In Today <span class="tv-count-pill">'+vm.checkedInToday.length+'</span>'+contHtml+'</div>'+
-            '<div class="tv-list tv-density-'+checkedTier+'">'+
+            '<div class="tv-list tv-density-'+checkedFit.tier+'">'+
               (checkedSlice.length
-                ? checkedSlice.map(function(r){
-                    var d = r.checkin_date ? new Date(r.checkin_date) : null;
-                    var t = (d && !isNaN(d.getTime())) ? d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}) : '—';
-                    var badges = r.status==='DELIVERED' ? '<span class="tv-badge tv-badge-delivered">&#10003; DELIVERED</span>' : '';
-                    return tvRow(r,{time:t, nameBadges:badges});
-                  }).join('')
+                ? checkedSlice.map(function(r){ return tvTodayRowHtml(r,'checked'); }).join('')
                 : (p===0 ? '<div class="tv-empty">No check-ins yet today.</div>' : '')) +
             '</div>'+
           '</div>';
@@ -9247,52 +9469,78 @@ function tvBuildTodayPages(vm){
   return pages;
 }
 
-// ── TOMORROW page group — flattened, already time-sorted list sliced
-// into pages at the group's density-tier card cap; each page re-groups
-// only its own slice by time bucket, so a bucket that straddles two
-// pages just shows its header again on the later page (honest, not a
-// silent split). Wide-column card grid at compact/high tiers (see
-// styles.css) replaces the old narrow auto-fill columns that were
-// measured truncating normal-length names under volume. ──
+// ── TOMORROW page group — one shared card grid (bucket headers as
+// full-width grid items interspersed among the cards, same honest
+// straddle-a-page behavior as before), fit densities measured for real
+// rather than assumed — narrower minmax at the two new dense tiers lets
+// more columns fit per row instead of wasting width, which is what was
+// actually making a handful of cards taller than necessary before. ──
 function tvBuildTomorrowPages(vm){
-  var tier = tvTierForCount(vm.leavingTomorrow.length);
-  var slicePages = tvPaginate(vm.leavingTomorrow, TV_CARD_CAP[tier]);
+  var pageBodyBox = tvRealPageBodyBox();
+  function titleHtmlFor(pageCount, p){
+    return '<div class="tv-page-title">'+
+      '<span>&#128198; Leaving Tomorrow</span>'+
+      '<span class="tv-count-pill">'+vm.leavingTomorrow.length+'</span>'+
+      (pageCount>1?'<span class="tv-page-continuation">TOMORROW '+(p+1)+'/'+pageCount+'</span>':'')+
+      '<span class="tv-prep-badge"><span class="tv-dot"></span>PREP FOR TOMORROW</span>'+
+    '</div>';
+  }
+  if(!vm.leavingTomorrow.length){
+    return [{kind:'tomorrow', sub:0, of:1, fitTier:'normal', render:function(bodyEl){
+      bodyEl.className = 'tv-page-body tv-density-normal';
+      bodyEl.style.flexDirection = ''; bodyEl.style.gap = ''; // clear any row-direction inline style a prior Today/Ops render left on this bodyEl index
+      bodyEl.innerHTML = titleHtmlFor(1,0)+'<div class="tv-empty">No vehicles scheduled to leave tomorrow.</div>';
+    }}];
+  }
+  var titleHeight = tvMeasureElementOuterHeight(titleHtmlFor(1,0));
+  var availH = pageBodyBox.height - titleHeight;
+
+  function cardsHtmlFor(list){
+    var html = '';
+    var lastBucket = null;
+    list.forEach(function(r){
+      var b = tvGetTimeBucket(getDepartureTime(r));
+      if(b !== lastBucket){
+        html += '<div class="tv-group-hdr" style="grid-column:1/-1;">'+escapeHTML(b)+'</div>';
+        lastBucket = b;
+      }
+      html += tvCard(r);
+    });
+    return html;
+  }
+  var gridClassForTier = function(t){ return 'tv-density-'+t; };
+  var fullHtml = '<div class="tv-card-grid">'+cardsHtmlFor(vm.leavingTomorrow)+'</div>';
+  var fit = tvFitTier(gridClassForTier, fullHtml, pageBodyBox.width, availH);
+
+  var cap = vm.leavingTomorrow.length;
+  if(!fit.fits){
+    cap = tvFindCapacityAtTier('tv-density-min', pageBodyBox.width, availH, vm.leavingTomorrow.length, function(n){
+      return '<div class="tv-card-grid">'+cardsHtmlFor(vm.leavingTomorrow.slice(0,n))+'</div>';
+    });
+  }
+
+  var slicePages = tvPaginate(vm.leavingTomorrow, cap);
   var pageCount = slicePages.length;
   var pages = [];
   var _loop = function(p, slice){
     pages.push({
-      kind:'tomorrow', sub:p, of:pageCount,
+      kind:'tomorrow', sub:p, of:pageCount, fitTier: fit.tier,
       render:function(bodyEl){
-        bodyEl.className = 'tv-page-body tv-density-'+tier;
-        var titleHtml =
-          '<div class="tv-page-title">'+
-            '<span>&#128198; Leaving Tomorrow</span>'+
-            '<span class="tv-count-pill">'+vm.leavingTomorrow.length+'</span>'+
-            (pageCount>1?'<span class="tv-page-continuation">TOMORROW '+(p+1)+'/'+pageCount+'</span>':'')+
-            '<span class="tv-prep-badge"><span class="tv-dot"></span>PREP FOR TOMORROW</span>'+
-          '</div>';
+        bodyEl.className = 'tv-page-body tv-density-'+fit.tier;
+        // Explicit reset, not just className — .tv-page-body elements are
+        // reused by index across renders (tvReconcilePageDom()), and
+        // Today/Operations both set inline flexDirection/gap on the SAME
+        // indices at other times; an inline style always beats a class
+        // rule, so without this a bodyEl that was previously a Today or
+        // Operations page silently kept flex-direction:row here, breaking
+        // the grid down to a narrow shrink-to-fit width instead of the
+        // real full page width — found via real-DOM testing, not visible
+        // from the fit-tier decision alone (that's computed by the
+        // offscreen probe, which is unaffected by this).
+        bodyEl.style.flexDirection = ''; bodyEl.style.gap = '';
+        var titleHtml = titleHtmlFor(pageCount, p);
         if(!slice.length){ bodyEl.innerHTML = titleHtml+'<div class="tv-empty">No vehicles scheduled to leave tomorrow.</div>'; return; }
-        // ONE grid per page, not one per time bucket — bucket headers are
-        // full-width grid items interspersed among the cards (slice is
-        // already time-sorted, so same-bucket cards are always
-        // contiguous). N independent per-bucket grids each auto-sizing
-        // within the page's flex column was measured splitting the
-        // available height unevenly, overflowing several small buckets
-        // even though the page as a whole had room — a single shared
-        // grid lets the browser distribute space across all of this
-        // page's cards at once, which is what TV_CARD_CAP is sized for.
-        var html = titleHtml + '<div class="tv-card-grid">';
-        var lastBucket = null;
-        slice.forEach(function(r){
-          var b = tvGetTimeBucket(getDepartureTime(r));
-          if(b !== lastBucket){
-            html += '<div class="tv-group-hdr" style="grid-column:1/-1;">'+escapeHTML(b)+'</div>';
-            lastBucket = b;
-          }
-          html += tvCard(r);
-        });
-        html += '</div>';
-        bodyEl.innerHTML = html;
+        bodyEl.innerHTML = titleHtml + '<div class="tv-card-grid">'+cardsHtmlFor(slice)+'</div>';
       }
     });
   };
@@ -9974,6 +10222,70 @@ function offlineDiagSetDeviceCode(){
     offlineDiagRefresh();
   }catch(e){
     alert(e.message);
+  }
+}
+
+// TV Mode diagnostics (2026-08-25) — reads window/DPI/fullscreen live
+// (always current, regardless of which mode this tab is in right now)
+// and everything TV-page-specific from _tv state + whatever .tv-page
+// DOM still exists in this tab, which both survive destroyTvMode() (it
+// only tears down timers/listeners, never _tv's page/fit-tier fields or
+// the .tv-page elements themselves) — so this reads the real numbers
+// from the most recent TV Mode render in this browser tab, not guesses.
+// Deliberately lives only here, in Debug — never rendered inside TV
+// Mode's own page, per explicit instruction not to clutter that passive
+// display with diagnostics text.
+function tvDiagRefresh(){
+  var set = function(id, val){ var el = document.getElementById(id); if(el) el.textContent = val; };
+  set('tvDiagInnerW', window.innerWidth);
+  set('tvDiagInnerH', window.innerHeight);
+  set('tvDiagDpr', window.devicePixelRatio);
+  set('tvDiagFullscreen', (document.fullscreenElement || document.webkitFullscreenElement) ? 'Yes' : 'No');
+
+  // Live _tv state only exists if this exact tab is currently (or was,
+  // without a reload since) in TV Mode. The realistic path — exiting via
+  // the "Exit TV Mode" control — navigates away and wipes it, so fall
+  // back to the last localStorage snapshot (tvPersistDiagSnapshot(),
+  // written on every TV render) whenever _tv looks like a freshly-booted
+  // page that was never in TV Mode this session (pageFitTiers empty).
+  var liveTvActive = typeof _tv!=='undefined' && _tv.pageFitTiers && _tv.pageFitTiers.length>0;
+  var snap = null;
+  if(!liveTvActive){
+    try{ var raw = localStorage.getItem(TV_DIAG_SNAPSHOT_KEY); if(raw) snap = JSON.parse(raw); }catch(e){ /* corrupt/unavailable — treat as no snapshot */ }
+  }
+
+  if(liveTvActive){
+    set('tvDiagCurrentPage', (_tv.currentPage+1)+' of '+_tv.pageCount);
+    set('tvDiagPageCount', _tv.pageCount);
+    set('tvDiagFitTier', _tv.pageFitTiers[_tv.currentPage] || '—');
+    set('tvDiagAllTiers', _tv.pageFitTiers.map(function(t,i){return (i+1)+':'+(t||'—');}).join('  '));
+    var pageBody = document.getElementById('tvPageBody'+_tv.currentPage);
+    if(pageBody){
+      set('tvDiagClientDims', pageBody.clientWidth+' × '+pageBody.clientHeight);
+      set('tvDiagScrollDims', pageBody.scrollWidth+' × '+pageBody.scrollHeight);
+      set('tvDiagBodyHeight', pageBody.clientHeight+'px');
+    } else {
+      set('tvDiagClientDims', '—'); set('tvDiagScrollDims', '—'); set('tvDiagBodyHeight', '—');
+    }
+    var check = _tv.lastFitCheck;
+    set('tvDiagOverflow', check ? (check.ok ? 'OK — no overflow' : (check.issues.length+' issue(s), see console')) : '—');
+    var kpiRow = document.getElementById('tvKpiRow');
+    set('tvDiagKpiHeight', kpiRow ? Math.round(kpiRow.getBoundingClientRect().height)+'px' : '—');
+  } else if(snap){
+    var age = Math.round((Date.now()-snap.savedAt)/1000);
+    set('tvDiagCurrentPage', (snap.currentPage+1)+' of '+snap.pageCount+' (snapshot, '+age+'s ago)');
+    set('tvDiagPageCount', snap.pageCount);
+    set('tvDiagFitTier', (snap.pageFitTiers && snap.pageFitTiers[snap.currentPage]) || '—');
+    set('tvDiagAllTiers', (snap.pageFitTiers||[]).map(function(t,i){return (i+1)+':'+(t||'—');}).join('  '));
+    set('tvDiagClientDims', '— (snapshot, no live DOM)');
+    set('tvDiagScrollDims', '— (snapshot, no live DOM)');
+    set('tvDiagOverflow', snap.fitCheck ? (snap.fitCheck.ok ? 'OK — no overflow (snapshot)' : (snap.fitCheck.issues.length+' issue(s) (snapshot))')) : '—');
+    set('tvDiagBodyHeight', '—');
+    set('tvDiagKpiHeight', '—');
+  } else {
+    ['tvDiagCurrentPage','tvDiagPageCount','tvDiagFitTier','tvDiagAllTiers','tvDiagClientDims','tvDiagScrollDims','tvDiagOverflow','tvDiagKpiHeight','tvDiagBodyHeight'].forEach(function(id){
+      set(id, '— (open TV Mode first)');
+    });
   }
 }
 
