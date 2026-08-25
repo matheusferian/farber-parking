@@ -46,7 +46,22 @@
 // TV_ROW_CAP/TV_CARD_CAP were retuned for the extra badge-row height —
 // see PROJECT.md, TV Mode — H19 Move Reminder. Same SHELL_FILES, same
 // reasoning as v2/v3.
-var CACHE_VERSION = 'v4';
+//
+// v5 (2026-08-25, NOT YET DEPLOYED — prepared pending approval):
+// index.html/styles.css changed again — TV Mode's Operations page was
+// restructured into Group A (Alerts/Customs+Ascend/Active Vehicles,
+// responsive 1-3 page layout from real measured width) and Group B
+// (Return Date Follow-Up, dedicated continuation page(s), responsive
+// 1-2 sub-columns), fixing a real physical-TV bug where Active Vehicles
+// clipped on the right edge and Follow-Up showed an internal scrollbar
+// — see PROJECT.md, TV Mode — Operations page architecture. Row/column
+// capacity for these Operations pages is now measured live against the
+// real DOM (tvMeasureColumnCapacity()) instead of reusing Today's
+// static TV_ROW_CAP, and every `.tv-list` in TV Mode changed from
+// overflow-y:auto to overflow:hidden (TV Mode has no mouse/remote, so
+// an interactive scrollbar was never something a passive viewer could
+// use). Same SHELL_FILES, same reasoning as v2/v3/v4.
+var CACHE_VERSION = 'v5';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 // Resolved relative to this file's own location, so they land in the

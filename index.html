@@ -1215,6 +1215,14 @@ https://buy.stripe.com/8x214mccK0uh9TjgIM6Vq00</div>
     <div class="tv-page-dots tv-hidden" id="tvPageDots"></div>
   </div>
 
+  <!-- Offscreen, real-DOM measurement surface for Operations capacity
+       planning (tvMeasureColumnCapacity()) — never visible, never
+       interactive. Rendered with the exact same classes/markup as the
+       live page so row height reflects real fonts/wrapping at the real
+       column width instead of an assumed constant, then cleared. See
+       PROJECT.md, TV Mode — Operations Layout (2026-08-25). -->
+  <div id="tvMeasureProbe" style="position:fixed;left:-9999px;top:0;visibility:hidden;pointer-events:none;" aria-hidden="true"></div>
+
   <button class="tv-fs-btn" id="tvFsBtn" onclick="tvEnterFullscreen()">&#9974; Enter Full Screen</button>
 
   <div class="tv-controls" id="tvControls">
@@ -9280,12 +9288,102 @@ function tvBuildTomorrowPages(vm){
   return pages;
 }
 
-// ── OPS page group — Special Handling & Alerts / Ascend In Custody +
-// At Customs (combined, one column, two sub-headers — order preserved
-// across page slices so a continuation page never shows At Customs rows
-// before Ascend In Custody rows that belong on an earlier page) /
-// Return Date Follow-Up / Active Vehicles by Location (fixed-size,
-// page-1 only — it doesn't grow with volume, no reason to repeat it). ──
+// ── OPERATIONS CAPACITY MEASUREMENT ─────────────────────────────────
+// Real-DOM, offscreen measurement — never assumes a constant row/title
+// height or a fixed 1920x1080 viewport. #tvMeasureProbe (see markup) is
+// rendered with the exact same classes as the live page, measured, then
+// immediately cleared — a single deterministic operation per call, never
+// a loop, never touching the visible page. See PROJECT.md, TV Mode —
+// Operations Layout (2026-08-25) for the full audit that motivated this.
+function tvMeasureElementOuterHeight(html){
+  var probe = document.getElementById('tvMeasureProbe');
+  if(!probe) return 0;
+  probe.innerHTML = html;
+  var el = probe.firstElementChild;
+  var h = 0;
+  if(el){
+    var r = el.getBoundingClientRect();
+    var cs = getComputedStyle(el);
+    h = r.height + (parseFloat(cs.marginTop)||0) + (parseFloat(cs.marginBottom)||0);
+  }
+  probe.innerHTML = '';
+  return h;
+}
+// Renders two copies of `sampleRowHtml` (real tvRow()/list-row markup,
+// ideally worst-case realistic content) inside a `.tv-list` set to the
+// given real pixel width/height directly (not a wrapping `.tv-ops-col`
+// relying on flex-grow to stretch it — `.tv-list` has flex-grow:0 in the
+// real page, only ever getting its real height via flex-shrink pressure
+// from a stretched parent; an isolated probe never supplies that
+// pressure, so the caller must measure `listAvailableHeightPx` itself,
+// e.g. via tvMeasureElementOuterHeight() on the real title markup, and
+// pass the remainder in directly). Measures the row's real rendered
+// height and returns how many such rows actually fit — `null` if
+// measurement isn't possible (probe missing, zero-size target), letting
+// the caller fall back to a safe static cap.
+function tvMeasureColumnCapacity(colWidthPx, listAvailableHeightPx, sampleRowHtml, rowSelector, densityCls){
+  var probe = document.getElementById('tvMeasureProbe');
+  if(!probe || colWidthPx<=0 || listAvailableHeightPx<=0) return null;
+  probe.innerHTML =
+    '<div class="tv-list'+(densityCls?' '+densityCls:'')+'" style="width:'+colWidthPx+'px;height:'+listAvailableHeightPx+'px;">'+sampleRowHtml+sampleRowHtml+'</div>';
+  var listEl = probe.firstElementChild;
+  var row = listEl ? listEl.querySelector(rowSelector) : null;
+  var result = null;
+  if(row){
+    var rowH = row.getBoundingClientRect().height;
+    var gapPx = parseFloat(getComputedStyle(listEl).rowGap) || 8;
+    var availH = listAvailableHeightPx - TV_OPS_SAFETY_MARGIN_PX;
+    if(rowH>0 && availH>0) result = Math.max(1, Math.floor((availH + gapPx) / (rowH + gapPx)));
+  }
+  probe.innerHTML = '';
+  return result;
+}
+// Real, currently-rendered page-body box — every .tv-page shares the
+// same inset from #tvPages, so any page body already in the DOM (Today's
+// or Tomorrow's, built earlier in this same render) is a faithful stand-
+// in for "the real available Operations page area" even before this
+// Operations page's own DOM element exists (tvBuildOpsPages runs before
+// tvReconcilePageDom creates it). Falls back to #tvPages's own box minus
+// its known inset only on the very first render, before any page body
+// has ever existed — never the primary path.
+function tvRealPageBodyBox(){
+  var existing = document.querySelector('.tv-page-body');
+  if(existing){
+    var r = existing.getBoundingClientRect();
+    if(r.width>0 && r.height>0) return {width:r.width, height:r.height};
+  }
+  var pagesEl = document.getElementById('tvPages');
+  if(pagesEl){
+    var pr = pagesEl.getBoundingClientRect();
+    return {width:Math.max(0,pr.width-64), height:Math.max(0,pr.height-22)};
+  }
+  return {width:1920-64, height:1080-120};
+}
+
+// ── OPS page group ───────────────────────────────────────────────────
+// Split into GROUP A (Special Handling & Alerts, Customs/Ascend, Active
+// Vehicles by Location — kept together on one page whenever the real
+// measured page width comfortably fits all three; degrades to {Alerts+
+// Customs}/{Location alone} or, at the narrowest widths, one widget per
+// page — Location is never the one squeezed, since it was never what
+// was actually too wide, the badge-heavy text columns were) and GROUP B
+// (Return Date Follow-Up — its own dedicated continuation page(s), full
+// page width, responsive 1-2 sub-columns, only created when it actually
+// has records). Both groups' row capacity is measured live against the
+// real column width/height (tvMeasureColumnCapacity), not the static
+// Today/Tomorrow TV_ROW_CAP, which was tuned for a different (wider,
+// fewer-column) layout and silently overflowed here on real (non-
+// 1920x1080) TV viewports — see PROJECT.md, TV Mode — Operations
+// Layout (2026-08-25) for the full before/after audit. ──
+var TV_OPS_SAFETY_MARGIN_PX = 30;
+var TV_OPS_COL_MIN = {alerts:300, customs:340, hangars:190};
+var TV_OPS_GROUPA_GAP = 20;
+var TV_OPS_WIDTH_BUFFER = 40; // extra real-world margin on top of the raw minimums
+var TV_FOLLOWUP_COL_MIN = 430;
+var TV_FOLLOWUP_GAP = 20;
+
+function tvDayTagBadge(day){ return '<span class="tv-badge tv-badge-daytag">'+(day==='today'?'TODAY':'TOMORROW')+'</span>'; }
+
 function tvBuildOpsPages(vm){
   var alerts = []
     .concat(vm.missingTimeTomorrow.map(function(r){ return {r:r, txt:'Leaving tomorrow — TIME NOT SET', lvl:'critical'}; }))
@@ -9300,16 +9398,6 @@ function tvBuildOpsPages(vm){
   var ascendCustomsCombined = vm.ascendActive.map(function(r){ return {type:'ascend', r:r}; })
     .concat(vm.atCustoms.map(function(item){ return {type:'atcustoms', r:item.r, day:item.day}; }));
 
-  var alertsTier = tvTierForCount(alerts.length);
-  var acTier = tvTierForCount(ascendCustomsCombined.length);
-  var fuTier = tvTierForCount(vm.followUp.length);
-
-  var alertsPages = tvPaginate(alerts, TV_ROW_CAP[alertsTier]);
-  var acPages = tvPaginate(ascendCustomsCombined, TV_ROW_CAP[acTier]);
-  var fuPages = tvPaginate(vm.followUp, TV_ROW_CAP[fuTier]);
-  var pageCount = Math.max(alertsPages.length, acPages.length, fuPages.length, 1);
-
-  function tvDayTagBadge(day){ return '<span class="tv-badge tv-badge-daytag">'+(day==='today'?'TODAY':'TOMORROW')+'</span>'; }
   function alertsColHtml(slice){
     if(!alerts.length) return '<div class="tv-empty">No special-handling alerts right now.</div>';
     return slice.map(function(a){
@@ -9345,49 +9433,174 @@ function tvBuildOpsPages(vm){
     }
     return html;
   }
-  function followUpColHtml(slice){
-    if(!vm.followUp.length) return '<div class="tv-empty">No return-date follow-up needed.</div>';
-    return slice.map(function(r){
-      var chip = tvFollowUpChip(r);
-      return tvRow(r,{nameBadges:tvChipHtml(chip)});
+  function hangarGridHtml(){
+    return HANGARS.map(function(h){
+      return '<div class="tv-hangar-card"><div class="tv-hangar-num">'+(vm.hangarCounts[h]||0)+'</div><div class="tv-hangar-lbl">'+escapeHTML(h)+'</div></div>';
     }).join('');
   }
+  function followUpRowHtml(r){
+    var chip = tvFollowUpChip(r);
+    return tvRow(r,{nameBadges:tvChipHtml(chip)});
+  }
 
-  var pages = [];
-  var _loop = function(p){
-    var alertsSlice = alertsPages[p] || [];
-    var acSlice = acPages[p] || [];
-    var fuSlice = fuPages[p] || [];
-    pages.push({
-      kind:'ops', sub:p, of:pageCount,
-      render:function(bodyEl){
-        bodyEl.style.flexDirection='row'; bodyEl.style.gap='20px';
-        var contHtml = pageCount>1 ? ' <span class="tv-page-continuation">OPERATIONS '+(p+1)+'/'+pageCount+'</span>' : '';
-        var showHangar = (p===0);
-        var hangarHtml = showHangar ? HANGARS.map(function(h){
-          return '<div class="tv-hangar-card"><div class="tv-hangar-num">'+(vm.hangarCounts[h]||0)+'</div><div class="tv-hangar-lbl">'+escapeHTML(h)+'</div></div>';
-        }).join('') : '';
-        bodyEl.innerHTML =
-          '<div class="tv-ops-col tv-ops-col-alerts">'+
-            '<div class="tv-page-title" style="font-size:16px;margin-bottom:8px;">&#9888; Special Handling &amp; Alerts <span class="tv-count-pill">'+alerts.length+'</span>'+contHtml+'</div>'+
-            '<div class="tv-list tv-density-'+alertsTier+'">'+alertsColHtml(alertsSlice)+'</div>'+
-          '</div>'+
-          '<div class="tv-ops-col tv-ops-col-customs">'+
-            '<div class="tv-page-title" style="font-size:16px;margin-bottom:8px;">&#9992; Customs / Ascend <span class="tv-count-pill">'+(vm.ascendActive.length+vm.atCustoms.length)+'</span></div>'+
-            '<div class="tv-list tv-density-'+acTier+'">'+ascendCustomsColHtml(acSlice)+'</div>'+
-          '</div>'+
-          '<div class="tv-ops-col tv-ops-col-followup">'+
-            '<div class="tv-page-title" style="font-size:16px;margin-bottom:8px;">&#9888; Return Date Follow-Up <span class="tv-count-pill">'+vm.followUp.length+'</span></div>'+
-            '<div class="tv-list tv-density-'+fuTier+'">'+followUpColHtml(fuSlice)+'</div>'+
-          '</div>'+
-          (showHangar ? '<div class="tv-ops-col tv-ops-col-hangars">'+
-            '<div class="tv-page-title" style="font-size:16px;margin-bottom:8px;">&#127968; Active Vehicles by Location</div>'+
-            '<div class="tv-hangar-grid">'+hangarHtml+'</div>'+
-          '</div>' : '');
-      }
+  var alertsTier = tvTierForCount(alerts.length);
+  var acTier = tvTierForCount(ascendCustomsCombined.length);
+  var fuTier = tvTierForCount(vm.followUp.length);
+
+  var pageBodyBox = tvRealPageBodyBox();
+
+  // ── GROUP A layout decision — real measured width, not assumed.
+  // Wide: 3 columns, one page (matches the original layout, now with
+  // min-width:0 so it can actually shrink instead of silently
+  // overflowing). Medium: {Alerts+Customs} on one page, {Location}
+  // alone full-width on the next — Location gets MORE room here, not
+  // less. Narrow: each widget gets its own full-width page. ──
+  var need3 = TV_OPS_COL_MIN.alerts + TV_OPS_COL_MIN.customs + TV_OPS_COL_MIN.hangars + TV_OPS_GROUPA_GAP*2 + TV_OPS_WIDTH_BUFFER;
+  var need2 = TV_OPS_COL_MIN.alerts + TV_OPS_COL_MIN.customs + TV_OPS_GROUPA_GAP + TV_OPS_WIDTH_BUFFER;
+  var groupALayout = pageBodyBox.width >= need3 ? 'wide' : (pageBodyBox.width >= need2 ? 'medium' : 'narrow');
+
+  var alertsSampleRow = '<div class="tv-list-row tv-overdue"><div class="tv-list-name">CHRISTOPHER ALEXANDER MARTINEZ</div><div class="tv-list-meta"><span class="tv-badge tv-badge-critical">LEAVING TOMORROW &mdash; TIME NOT SET</span></div></div>';
+  var acSampleRow = tvRow({name:'ALEXANDRIA MONTGOMERY-SMITH',car:'Range Rover',color:'White',loc:'HANGAR 18',ticket:'0824-99'},{completed:true, showLocationAlert:false, nameBadges:'<span class="tv-badge tv-badge-ascend">&#9992; ASCEND</span> <span class="tv-badge tv-badge-atcustoms">&#10003; AT CUSTOMS</span> <span class="tv-badge tv-badge-gratuity">GRATUITY DUE</span> <span class="tv-badge tv-badge-daytag">TODAY</span>'});
+  var followUpSampleRow = tvRow({name:'JOHNATHAN PAUL WILLIAMS',car:'Range Rover',color:'White',loc:'HANGAR 18',ticket:'0824-99'},{nameBadges:tvChipHtml({level:'warning', text:'APPROX AUGUST 27 — CONFIRM'})});
+
+  function colWidthsForGroupA(layout, bodyWidth){
+    if(layout==='wide'){
+      var totalFlex = 0.85+1.1+0.7, gaps = TV_OPS_GROUPA_GAP*2;
+      var unit = (bodyWidth-gaps)/totalFlex;
+      return {alerts:unit*0.85, customs:unit*1.1, hangars:unit*0.7};
+    }
+    if(layout==='medium'){
+      var totalFlex2 = 0.85+1.1, gaps2 = TV_OPS_GROUPA_GAP;
+      var unit2 = (bodyWidth-gaps2)/totalFlex2;
+      return {alerts:unit2*0.85, customs:unit2*1.1, hangars:bodyWidth};
+    }
+    return {alerts:bodyWidth, customs:bodyWidth, hangars:bodyWidth};
+  }
+  var colW = colWidthsForGroupA(groupALayout, pageBodyBox.width);
+
+  var alertsTitleHtml = '<div class="tv-page-title" style="font-size:16px;margin-bottom:8px;">&#9888; Special Handling &amp; Alerts</div>';
+  var acTitleHtml = '<div class="tv-page-title" style="font-size:16px;margin-bottom:8px;">&#9992; Customs / Ascend</div>';
+  var alertsAvailHeight = pageBodyBox.height - tvMeasureElementOuterHeight(alertsTitleHtml);
+  var acAvailHeight = pageBodyBox.height - tvMeasureElementOuterHeight(acTitleHtml);
+
+  var alertsCap = tvMeasureColumnCapacity(colW.alerts, alertsAvailHeight, alertsSampleRow, '.tv-list-row', 'tv-density-'+alertsTier) || TV_ROW_CAP[alertsTier];
+  var acCap = tvMeasureColumnCapacity(colW.customs, acAvailHeight, acSampleRow, '.tv-row', 'tv-density-'+acTier) || TV_ROW_CAP[acTier];
+
+  var alertsPages = tvPaginate(alerts, alertsCap);
+  var acPages = tvPaginate(ascendCustomsCombined, acCap);
+
+  // ── GROUP A page descriptors ──
+  var groupA = [];
+  function pushAlertsCustomsPage(alertsSlice, acSlice, showHangar){
+    groupA.push({kind:'ops', render:function(bodyEl, contHtml){
+      bodyEl.style.flexDirection='row'; bodyEl.style.gap=TV_OPS_GROUPA_GAP+'px';
+      bodyEl.innerHTML =
+        '<div class="tv-ops-col tv-ops-col-alerts">'+
+          '<div class="tv-page-title" style="font-size:16px;margin-bottom:8px;">&#9888; Special Handling &amp; Alerts <span class="tv-count-pill">'+alerts.length+'</span>'+contHtml+'</div>'+
+          '<div class="tv-list tv-density-'+alertsTier+'">'+alertsColHtml(alertsSlice)+'</div>'+
+        '</div>'+
+        '<div class="tv-ops-col tv-ops-col-customs">'+
+          '<div class="tv-page-title" style="font-size:16px;margin-bottom:8px;">&#9992; Customs / Ascend <span class="tv-count-pill">'+(vm.ascendActive.length+vm.atCustoms.length)+'</span></div>'+
+          '<div class="tv-list tv-density-'+acTier+'">'+ascendCustomsColHtml(acSlice)+'</div>'+
+        '</div>'+
+        (showHangar ? '<div class="tv-ops-col tv-ops-col-hangars">'+
+          '<div class="tv-page-title" style="font-size:16px;margin-bottom:8px;">&#127968; Active Vehicles by Location</div>'+
+          '<div class="tv-hangar-grid">'+hangarGridHtml()+'</div>'+
+        '</div>' : '');
+    }});
+  }
+  function pushHangarOnlyPage(){
+    groupA.push({kind:'ops', render:function(bodyEl, contHtml){
+      bodyEl.style.flexDirection='row'; bodyEl.style.gap=TV_OPS_GROUPA_GAP+'px';
+      bodyEl.innerHTML =
+        '<div class="tv-ops-col tv-ops-col-hangars" style="flex:1;">'+
+          '<div class="tv-page-title" style="font-size:16px;margin-bottom:8px;">&#127968; Active Vehicles by Location'+contHtml+'</div>'+
+          '<div class="tv-hangar-grid">'+hangarGridHtml()+'</div>'+
+        '</div>';
+    }});
+  }
+  function pushAlertsOnlyPage(slice){
+    groupA.push({kind:'ops', render:function(bodyEl, contHtml){
+      bodyEl.style.flexDirection='row'; bodyEl.style.gap=TV_OPS_GROUPA_GAP+'px';
+      bodyEl.innerHTML =
+        '<div class="tv-ops-col tv-ops-col-alerts" style="flex:1;">'+
+          '<div class="tv-page-title" style="font-size:16px;margin-bottom:8px;">&#9888; Special Handling &amp; Alerts <span class="tv-count-pill">'+alerts.length+'</span>'+contHtml+'</div>'+
+          '<div class="tv-list tv-density-'+alertsTier+'">'+alertsColHtml(slice)+'</div>'+
+        '</div>';
+    }});
+  }
+  function pushCustomsOnlyPage(slice){
+    groupA.push({kind:'ops', render:function(bodyEl, contHtml){
+      bodyEl.style.flexDirection='row'; bodyEl.style.gap=TV_OPS_GROUPA_GAP+'px';
+      bodyEl.innerHTML =
+        '<div class="tv-ops-col tv-ops-col-customs" style="flex:1;">'+
+          '<div class="tv-page-title" style="font-size:16px;margin-bottom:8px;">&#9992; Customs / Ascend <span class="tv-count-pill">'+(vm.ascendActive.length+vm.atCustoms.length)+'</span>'+contHtml+'</div>'+
+          '<div class="tv-list tv-density-'+acTier+'">'+ascendCustomsColHtml(slice)+'</div>'+
+        '</div>';
+    }});
+  }
+
+  if(groupALayout==='wide'){
+    var wideCount = Math.max(alertsPages.length, acPages.length, 1);
+    for(var wp=0; wp<wideCount; wp++) pushAlertsCustomsPage(alertsPages[wp]||[], acPages[wp]||[], wp===0);
+  } else if(groupALayout==='medium'){
+    var medCount = Math.max(alertsPages.length, acPages.length, 1);
+    for(var mp=0; mp<medCount; mp++) pushAlertsCustomsPage(alertsPages[mp]||[], acPages[mp]||[], false);
+    pushHangarOnlyPage();
+  } else {
+    var apCount = Math.max(alertsPages.length,1), cpCount = Math.max(acPages.length,1);
+    for(var ap=0; ap<apCount; ap++) pushAlertsOnlyPage(alertsPages[ap]||[]);
+    for(var cp=0; cp<cpCount; cp++) pushCustomsOnlyPage(acPages[cp]||[]);
+    pushHangarOnlyPage();
+  }
+
+  // ── GROUP B: Return Date Follow-Up — dedicated page(s), only created
+  // when it actually has records (a quiet day with zero Follow-Up gets
+  // zero extra pages, per the low-volume requirement). Responsive 1-2
+  // sub-columns from the real measured page width — reuses the exact
+  // same tvRow()/tvPaginate() machinery as everywhere else, just fed a
+  // capacity measured at Follow-Up's own (much wider, since it no
+  // longer shares the page with 3 other columns) real column width. ──
+  var groupB = [];
+  if(vm.followUp.length){
+    var fuTitleHtml = '<div class="tv-page-title" style="font-size:16px;margin-bottom:8px;">&#9888; Return Date Follow-Up <span class="tv-count-pill">'+vm.followUp.length+'</span></div>';
+    var fuTitleHeight = tvMeasureElementOuterHeight(fuTitleHtml);
+    var fuAvailHeight = pageBodyBox.height - fuTitleHeight;
+    var fuCols = pageBodyBox.width >= (TV_FOLLOWUP_COL_MIN*2 + TV_FOLLOWUP_GAP) ? 2 : 1;
+    var fuColWidth = fuCols===2 ? (pageBodyBox.width - TV_FOLLOWUP_GAP)/2 : pageBodyBox.width;
+    var fuCapPerCol = tvMeasureColumnCapacity(fuColWidth, fuAvailHeight, followUpSampleRow, '.tv-row', 'tv-density-'+fuTier) || TV_ROW_CAP[fuTier];
+    var fuCapPerPage = fuCapPerCol * fuCols;
+    var fuPages = tvPaginate(vm.followUp, fuCapPerPage);
+    fuPages.forEach(function(slice){
+      groupB.push({kind:'ops', render:function(bodyEl, contHtml){
+        bodyEl.style.flexDirection='column'; bodyEl.style.gap='8px';
+        var colsHtml;
+        if(fuCols===2){
+          var half = Math.ceil(slice.length/2);
+          var colA = slice.slice(0,half), colB = slice.slice(half);
+          colsHtml = '<div style="display:flex;gap:'+TV_FOLLOWUP_GAP+'px;flex:1;min-height:0;">'+
+            '<div class="tv-list tv-density-'+fuTier+'" style="flex:1;">'+colA.map(followUpRowHtml).join('')+'</div>'+
+            '<div class="tv-list tv-density-'+fuTier+'" style="flex:1;">'+colB.map(followUpRowHtml).join('')+'</div>'+
+          '</div>';
+        } else {
+          colsHtml = '<div class="tv-list tv-density-'+fuTier+'" style="flex:1;">'+slice.map(followUpRowHtml).join('')+'</div>';
+        }
+        bodyEl.innerHTML = '<div class="tv-page-title" style="font-size:16px;margin-bottom:8px;">&#9888; Return Date Follow-Up <span class="tv-count-pill">'+vm.followUp.length+'</span>'+contHtml+'</div>'+colsHtml;
+      }});
     });
-  };
-  for(var p=0;p<pageCount;p++) _loop(p);
+  }
+
+  var allOps = groupA.concat(groupB);
+  var pageCount = allOps.length;
+  var pages = allOps.map(function(pg, i){
+    return {
+      kind:'ops', sub:i, of:pageCount,
+      render:function(bodyEl){
+        var contHtml = pageCount>1 ? ' <span class="tv-page-continuation">OPERATIONS '+(i+1)+'/'+pageCount+'</span>' : '';
+        pg.render(bodyEl, contHtml);
+      }
+    };
+  });
   return pages;
 }
 

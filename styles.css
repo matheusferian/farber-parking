@@ -1126,8 +1126,16 @@ body.tv-stale .tv-stale-banner{display:block;}
 .tv-card-notes{font-size:11.5px;color:var(--tv-mu);margin-top:7px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .tv-card.tv-critical{border-left-color:var(--tv-critical);}
 
-/* ── COMPACT LIST (Special Handling & Alerts) ── */
-.tv-list{display:flex;flex-direction:column;gap:8px;overflow-y:auto;min-height:0;}
+/* ── COMPACT LIST (Special Handling & Alerts) ──
+   overflow:hidden, not auto (2026-08-25) — TV Mode is a passive display
+   with no mouse/remote, so an interactive scroll container is never an
+   acceptable fallback for content that doesn't fit; the real defense is
+   correct pagination capacity (tvMeasureColumnCapacity(), tvPaginate()).
+   hidden stays only as a last-resort visual safety net if that capacity
+   math is ever wrong in the future — tvVerifyNoOverflow() still
+   console.warns when it fires, so a regression is caught, not silently
+   turned into a scrollbar nobody watching the TV could ever use. */
+.tv-list{display:flex;flex-direction:column;gap:8px;overflow:hidden;min-height:0;}
 .tv-list-row{
   display:flex;align-items:center;justify-content:space-between;gap:12px;
   background:var(--tv-panel2);border:1px solid var(--tv-border);border-radius:10px;padding:10px 14px;
@@ -1243,15 +1251,25 @@ body.tv-stale .tv-stale-banner{display:block;}
    (see #tvPageTodayBody / #tvPageOpsBody in the markup). */
 .tv-today-col{flex:1;display:flex;flex-direction:column;min-height:0;}
 
-/* ── OPERATIONS page: 4 columns on the first sub-page (Alerts / Ascend +
-   Customs / Return Follow-Up / Hangar Summary), 3 on any continuation
-   sub-page (Hangar Summary is fixed-size and only ever shown once —
-   see tvBuildOpsPages, showHangar). Ratios rebalanced from the original
-   3-column .85/1.2/.85 split to make room for the new Follow-Up column. */
-.tv-ops-col{display:flex;flex-direction:column;min-height:0;}
+/* ── OPERATIONS page — Group A (Alerts / Customs+Ascend / Active
+   Vehicles by Location, tvBuildOpsPages()'s "wide" layout — 2-page
+   "medium" and 3-page "narrow" fallbacks reuse these same column
+   classes, just never combined into one row when width doesn't
+   measurably fit all three). Return Date Follow-Up (Group B) no longer
+   shares this row at all — it gets its own dedicated page(s), see the
+   inline styles tvBuildOpsPages() applies for that responsive 1-2
+   column layout, since a fixed CSS class can't express "however many
+   columns the real measured width supports."
+   min-width:0 (2026-08-25) is the actual fix for the real-TV clipping
+   bug: without it, a flex item refuses to shrink below its content's
+   intrinsic width, so the long uppercase badge text in Alerts/Customs
+   silently held its own minimum width no matter how narrow the real
+   viewport was, and Active Vehicles — the shortest-content column —
+   absorbed 100% of the resulting squeeze and got pushed past the page's
+   right edge. See PROJECT.md, TV Mode — Operations Layout. */
+.tv-ops-col{display:flex;flex-direction:column;min-height:0;min-width:0;}
 .tv-ops-col-alerts{flex:.85;}
 .tv-ops-col-customs{flex:1.1;}
-.tv-ops-col-followup{flex:1;}
 .tv-ops-col-hangars{flex:.7;}
 
 /* ── HANGAR SUMMARY ── */
