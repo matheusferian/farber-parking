@@ -695,6 +695,14 @@ body{-webkit-text-size-adjust:100%;}
   white-space:nowrap;
 }
 .fb-print-all-btn:hover{opacity:.88;}
+/* Leaving Today header action group (Print All + All H19) — keeps the
+   two buttons adjacent as one flex item within the title row, so
+   justify-content:space-between on the row only ever distributes two
+   things (title left, this group right) instead of stranding a button
+   in the middle. flex-wrap:wrap on the row lets this whole group drop
+   to its own line at narrow widths without splitting the two buttons
+   apart from each other (nowrap here, wrap on the parent). */
+.dt-action-group{display:flex;gap:6px;align-items:center;flex-wrap:nowrap;flex-shrink:0;}
 /* Bulk H19 — Leaving Today section header, next to Print All. Same
    compact toolbar sizing, distinct light-blue "location" tint matching
    the individual .dc-h19-btn so the two read as the same action family. */
@@ -1167,6 +1175,41 @@ body.tv-stale .tv-stale-banner{display:block;}
 .tv-row-flight{font-size:11px;color:var(--tv-mu);margin-top:1px;}
 .tv-density-compact .tv-row-flight{font-size:10px;}
 .tv-density-high .tv-row-flight{font-size:9.5px;}
+
+/* Dedicated operational-status badge row (opts.statusBadges in tvRow())
+   — H19 move reminder + Welcome Back, deliberately separate from the
+   name line so neither badge (nor both at once) ever competes with the
+   passenger name for width. flex-wrap:wrap is a safety net only (there
+   are never more than 2 badges here) — verified under stress-test not
+   to trigger in practice. */
+.tv-row-status-badges{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:3px;}
+.tv-density-compact .tv-row-status-badges{gap:5px;margin-top:2px;}
+.tv-density-high .tv-row-status-badges{gap:4px;margin-top:2px;}
+
+/* H19 move reminder — Leaving Today/Tomorrow only (tvNeedsH19Move()),
+   read-only, never a move button. Gentle pulse via opacity oscillating
+   between 1 and .75–.85 (never toward 0) so the badge text stays
+   readable at every point in the cycle — a "blink" that hides the text
+   would defeat the point of an operational reminder. Today gets the
+   stronger/faster cycle; Tomorrow a lighter/slower one. Neither uses
+   red — this isn't a critical/overdue condition, just an outstanding
+   task, so it stays in the amber/orange family throughout. */
+.tv-badge-move-h19-today,.tv-badge-move-h19-tomorrow{
+  animation-iteration-count:infinite;animation-timing-function:ease-in-out;
+}
+.tv-badge-move-h19-today{
+  background:rgba(230,140,20,.22);color:#d97a06;border:1px solid rgba(230,140,20,.55);
+  animation-name:tvMoveH19PulseStrong;animation-duration:1.4s;
+}
+.tv-badge-move-h19-tomorrow{
+  background:var(--tv-warning-bg);color:var(--tv-warning);border:1px solid rgba(184,121,10,.4);
+  animation-name:tvMoveH19Pulse;animation-duration:1.8s;
+}
+@keyframes tvMoveH19Pulse{0%,100%{opacity:1;}50%{opacity:.75;}}
+@keyframes tvMoveH19PulseStrong{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(230,140,20,0);}50%{opacity:.85;box-shadow:0 0 0 4px rgba(230,140,20,.18);}}
+@media (prefers-reduced-motion:reduce){
+  .tv-badge-move-h19-today,.tv-badge-move-h19-tomorrow{animation:none;}
+}
 
 /* Per-section "TODAY 2/2" / "TOMORROW 2/2" / "OPERATIONS 2/2" indicator
    — only rendered when that section actually spans more than one page

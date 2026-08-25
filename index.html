@@ -2204,13 +2204,15 @@ function renderDay() {
   var lm=sortByDepartureTime(data.filter(function(r){return isTmrw(r.ret)&&r.status!=='DELIVERED'&&r.status!=='ARCHIVED';}));
   var ls=data.filter(function(r){return isSunday(r.ret)&&r.status!=='DELIVERED'&&r.status!=='ARCHIVED';});
   var sun=nextSunday();
-  function mkCards(list,cls,btnCls,showCustoms,showDeliver,showCheckin,showReturnFlight,isArrivedSection,showFlightPrint,showWelcomeBack){
+  function mkCards(list,cls,btnCls,showCustoms,showDeliver,showCheckin,showReturnFlight,isArrivedSection,showFlightPrint,showWelcomeBack,showQuickH19){
     if(!list.length) return '<div class="eday">No cars in this group</div>';
     return list.map(function(r){
       var isApprox=isApproxRecord(r);
-      // Same eligibility as before (only relocated — never shown for a
-      // DELIVERED record, already-H19, or a local pending-sync record).
-      var h19Eligible=r.status!=='DELIVERED'&&r.loc!=='HANGAR 19'&&!r.isOfflinePending;
+      // Which section this is is the caller's explicit decision
+      // (showQuickH19), never inferred from r.ret/status here — Quick H19
+      // is Leaving Today/Tomorrow only, not Arrived Today/Sunday/Forgot,
+      // even though mkCards() is shared across all of them.
+      var h19Eligible=!!showQuickH19&&r.status!=='DELIVERED'&&r.loc!=='HANGAR 19'&&!r.isOfflinePending;
       var h19Btn=h19Eligible?'<button type="button" class="qd-btn dc-h19-btn" onclick="event.stopPropagation();quickMoveH19('+r.id+')" title="Move to Hangar 19">&#8594; H19</button>':'';
       var actionHtml='';
       if(showCheckin){
@@ -2265,8 +2267,8 @@ function renderDay() {
       '</div>';
     }).join('');
   }
-  document.getElementById('dArrived').innerHTML=mkCards(arrived,'ca','',false,false,true,false,true,false);
-  document.getElementById('dToday').innerHTML=mkCards(lt,'ct','',true,true,false,true,false,true,true);
+  document.getElementById('dArrived').innerHTML=mkCards(arrived,'ca','',false,false,true,false,true,false,false);
+  document.getElementById('dToday').innerHTML=mkCards(lt,'ct','',true,true,false,true,false,true,true,true);
   document.getElementById('dTomorrow').innerHTML=(function(){
     // Build tail+time group counts
     var tailTimeCounts={};
@@ -2280,7 +2282,7 @@ function renderDay() {
     });
     var warnKeys={};
     Object.keys(tailTimeCounts).forEach(function(k){if(tailTimeCounts[k].count>=3)warnKeys[k]=true;});
-    if(!Object.keys(warnKeys).length)return mkCards(lm,'cm','',false,true,false,true,false,true);
+    if(!Object.keys(warnKeys).length)return mkCards(lm,'cm','',false,true,false,true,false,true,false,true);
     var warned={};
     return lm.map(function(r){
       var tail=(r.return_flight||'').trim().toUpperCase();
@@ -2296,15 +2298,15 @@ function renderDay() {
           banner='<div style="background:rgba(231,76,60,0.1);border-left:3px solid var(--red);padding:7px 12px;font-size:12px;font-weight:700;color:var(--red);margin:4px 0 2px;border-radius:0 6px 6px 0">⚠ '+escapeHTML(g.tail)+' GROUP: '+g.count+' passengers • '+escapeHTML(tf)+'</div>';
         }
       }
-      return banner+mkCards([r],'cm','',false,true,false,true,false,true);
+      return banner+mkCards([r],'cm','',false,true,false,true,false,true,false,true);
     }).join('');
   })();
-  document.getElementById('dSunday').innerHTML=mkCards(ls,'cm','',false,true,false,true,false,false);
+  document.getElementById('dSunday').innerHTML=mkCards(ls,'cm','',false,true,false,true,false,false,false);
   var _mhc=arrived.filter(function(r){return !r.loc||!String(r.loc).trim();}).length;
   var _mhAlert=_mhc>0?'<span class="hangar-missing-alert">🔴 '+_mhc+' MISSING HANGAR'+(_mhc===1?'':'S')+'</span>':'';
   document.getElementById('titleArrived').innerHTML='🚗 Arrived Today <span class="tbadge" style="background:var(--ok);color:#000">'+arrived.length+'</span>'+_mhAlert;
   var titleTodayEl=document.getElementById('titleToday');
-  titleTodayEl.style.display='flex';titleTodayEl.style.alignItems='center';titleTodayEl.style.justifyContent='space-between';
+  titleTodayEl.style.display='flex';titleTodayEl.style.alignItems='center';titleTodayEl.style.justifyContent='space-between';titleTodayEl.style.flexWrap='wrap';titleTodayEl.style.rowGap='6px';
   var ltPending=lt.filter(function(r){return r.status!=='DELIVERED';}).length;
   var custReminderDue=getCustomsDueRecords().length;
   var custBadgeAttrs=custReminderDue
@@ -2312,8 +2314,16 @@ function renderDay() {
     : ' style="background:var(--red);color:#fff;display:none;margin-left:4px" title="Open gratuity reminders" aria-label="Open gratuity reminders"';
   titleTodayEl.innerHTML='<span>🔔 Leaving Today <span class="tbadge" style="background:var(--acc);color:#000">'+ltPending+'</span>'+
     '<span class="tbadge" id="custReminderBadge"'+custBadgeAttrs+'>⏰ '+custReminderDue+'</span></span>'+
-    (lt.length?'<button class="fb-print-all-btn" onclick="event.stopPropagation();printFlightBagAll(\'today\')">🖨 Print All</button>':'')+
-    (lt.length?'<button class="fb-print-all-btn dc-bulk-h19-btn" onclick="event.stopPropagation();bulkMoveLeavingTodayToH19()">&#8594; All H19</button>':'');
+    // Both header actions live in ONE flex group (mirrors Leaving
+    // Tomorrow's header below) so they stay adjacent — titleTodayEl has
+    // exactly 2 direct children (title span, action group), and
+    // justify-content:space-between pushes those two to opposite ends
+    // instead of spreading 3 separate children across the row (which
+    // was stranding "Print All" in the middle before this fix).
+    (lt.length?'<span class="dt-action-group">'+
+      '<button class="fb-print-all-btn" onclick="event.stopPropagation();printFlightBagAll(\'today\')">🖨 Print All</button>'+
+      '<button class="fb-print-all-btn dc-bulk-h19-btn" onclick="event.stopPropagation();bulkMoveLeavingTodayToH19()">&#8594; All H19</button>'+
+    '</span>':'');
   var titleTomorrowEl=document.getElementById('titleTomorrow');
   titleTomorrowEl.style.display='flex';titleTomorrowEl.style.alignItems='center';titleTomorrowEl.style.justifyContent='space-between';
   titleTomorrowEl.innerHTML='<span>📆 Leaving Tomorrow <span class="tbadge" style="background:var(--pur);color:#fff">'+lm.length+'</span></span>'+
@@ -2338,7 +2348,7 @@ function renderDay() {
   });
   if(forgot.length){
     document.getElementById('forgotSection').style.display='block';
-    document.getElementById('dForgot').innerHTML=mkCards(forgot,'cr','late',false,true,false,true,false,false);
+    document.getElementById('dForgot').innerHTML=mkCards(forgot,'cr','late',false,true,false,true,false,false,false);
     document.getElementById('titleForgot').innerHTML='⚠️ Forgot Yesterday <span class="tbadge" style="background:var(--red);color:#fff">'+forgot.length+'</span>';
   } else {
     document.getElementById('forgotSection').style.display='none';
@@ -8477,8 +8487,20 @@ var TV_RECONNECT_MAX_MS     = 30000;
 // that breaks the estimate is caught rather than silently accepted.
 var TV_TIER_NORMAL_MAX  = 12;
 var TV_TIER_COMPACT_MAX = 24;
-var TV_ROW_CAP  = {normal:8,  compact:9,  high:12}; // rows per page — Today/Ops list sections
-var TV_CARD_CAP = {normal:7,  compact:10, high:11}; // cards per page — Leaving Tomorrow grid
+// Retuned for the H19-move / Welcome-Back status-badge row+area (added to
+// Leaving Today rows and Leaving Tomorrow cards — see tvNeedsH19Move()):
+// measured worst case (every row/card eligible, i.e. badge present on all
+// of them, which is a realistic early-shift state before any hangar moves
+// have happened) against the real fixed page-body ceiling at 1920x1080 —
+// .tv-list caps out at 809px, .tv-card-grid at 838px. Today high tier was
+// the worst hit (12→8: at 12 badged rows the list overflowed by 287px);
+// Tomorrow's compact/high tiers were worse than they looked (10→6/11→6:
+// the card grid renders as a single column at these widths, so 10-11
+// badged cards overflowed by ~480-500px even though the earlier no-badge
+// baseline never showed it). Each value re-verified empirically to leave
+// real headroom, not just clear zero by a pixel — see PROJECT.md.
+var TV_ROW_CAP  = {normal:7, compact:8, high:8}; // rows per page — Today/Ops list sections
+var TV_CARD_CAP = {normal:7, compact:6, high:6}; // cards per page — Leaving Tomorrow grid
 function tvTierForCount(n){
   if(n<=TV_TIER_NORMAL_MAX) return 'normal';
   if(n<=TV_TIER_COMPACT_MAX) return 'compact';
@@ -8913,6 +8935,23 @@ function tvFlightLine(r){
 function tvChipHtml(chip){
   return '<span class="tv-badge tv-badge-'+chip.level+'">'+escapeHTML(chip.text)+'</span>';
 }
+
+// ── H19 MOVE REMINDER — Leaving Today / Leaving Tomorrow only ───────
+// Read-only reminder that a returning vehicle still needs to be
+// physically brought to Hangar 19. Derived only from the passenger's
+// actual `loc` (the same source of truth Dashboard's Quick H19/Bulk H19
+// write to) — no separate TV-only acknowledgement state, so it
+// disappears on its own the next time TV Mode refreshes after the
+// location actually changes. `day` controls only which pulse tier CSS
+// class is used (today = stronger/faster, tomorrow = lighter/slower);
+// the eligibility rule itself never differs by day.
+function tvNeedsH19Move(r){
+  return r.status!=='DELIVERED' && r.loc!=='HANGAR 19' && !r.isOfflinePending;
+}
+function tvMoveH19Badge(day){
+  var cls = day==='today' ? 'tv-badge-move-h19-today' : 'tv-badge-move-h19-tomorrow';
+  return '<span class="tv-badge '+cls+'">&#9888; MOVE TO H19</span>';
+}
 function tvCard(r){
   var time=getDepartureTime(r);
   // Exact stored 24-hour HH:MM, never converted to 12-hour — the
@@ -8924,11 +8963,15 @@ function tvCard(r){
   var critical = !time; // missing time on a Leaving-Tomorrow card is a critical alert
   var metaParts = [r.car, r.color, (r.loc||'No location')].filter(Boolean).map(function(x){ return escapeHTML(x); });
   metaParts.push('#'+escapeHTML(r.ticket||''));
+  // H19 move reminder joins the card's existing badge row (Ascend/Not
+  // Returning) rather than crowding the name line — never hides the
+  // passenger name, and coexists with whatever else is already there.
+  var allBadges = tvBadges(r) + (tvNeedsH19Move(r) ? tvMoveH19Badge('tomorrow') : '');
   return '<div class="tv-card'+(critical?' tv-critical':'')+'">'+
     '<div class="tv-card-row"><div class="tv-card-name">'+escapeHTML(r.name||'')+'</div>'+timeHtml+'</div>'+
     '<div class="tv-card-meta">'+metaParts.join(' &middot; ')+'</div>'+
     tvFlightLine(r)+
-    (tvBadges(r) ? '<div class="tv-card-badges">'+tvBadges(r)+'</div>' : '')+
+    (allBadges ? '<div class="tv-card-badges">'+allBadges+'</div>' : '')+
     (r.obs ? '<div class="tv-card-notes">'+escapeHTML(r.obs)+'</div>' : '')+
   '</div>';
 }
@@ -8953,12 +8996,20 @@ function tvRow(r, opts){
   var critical = !!opts.critical || (showLocAlert && noLoc);
   // Flight is a real value only — never invented when return_flight is empty.
   var flightHtml = opts.flight ? '<div class="tv-row-flight">&#9992; '+escapeHTML(opts.flight)+'</div>' : '';
+  // Dedicated row for operational status badges (H19 move reminder,
+  // Welcome Back) — deliberately NOT inline with the name (opts.nameBadges
+  // above): two badges firing at once must never eat into the name's
+  // available width. Only rendered when a caller explicitly passes
+  // opts.statusBadges — Checked-In-Today and every other tvRow() caller
+  // that doesn't pass it is unaffected.
+  var statusBadgesHtml = opts.statusBadges ? '<div class="tv-row-status-badges">'+opts.statusBadges+'</div>' : '';
   return '<div class="tv-row'+(critical?' tv-critical':'')+(opts.completed?' tv-row-completed':'')+'">'+
     timeHtml+
     '<div class="tv-row-main">'+
       '<div class="tv-row-name">'+escapeHTML(r.name||'')+(opts.nameBadges?' '+opts.nameBadges:'')+'</div>'+
       '<div class="tv-row-meta">'+metaParts.join(' &middot; ')+'</div>'+
       flightHtml+
+      statusBadgesHtml+
     '</div>'+
   '</div>';
 }
@@ -9136,10 +9187,19 @@ function tvBuildTodayPages(vm){
                 ? leavingSlice.map(function(r){
                     var t = getDepartureTime(r);
                     var wcbState = tvWelcomeBackState(r);
+                    // Both operational badges share one dedicated row
+                    // (opts.statusBadges) below the meta/flight lines —
+                    // never inline with the name, so neither badge (nor
+                    // both firing at once) can shrink the passenger
+                    // name's available width.
+                    var badgeParts = [];
+                    if(tvNeedsH19Move(r)) badgeParts.push(tvMoveH19Badge('today'));
+                    var wcbBadge = tvWelcomeBackBadge(r);
+                    if(wcbBadge) badgeParts.push(wcbBadge);
                     return tvRow(r,{
                       time: t?t:'TIME NOT SET', timeUnset:!t,
                       critical: isLate(r.ret) || wcbState==='overdue',
-                      nameBadges: tvWelcomeBackBadge(r),
+                      statusBadges: badgeParts.join(' '),
                       flight: (r.return_flight||'').trim()
                     });
                   }).join('')

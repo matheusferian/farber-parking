@@ -33,7 +33,20 @@
 // separate, easy-to-miss meta-corner button) plus a fixed CSS
 // specificity bug, and a new Leaving-Today "Bulk H19" action. Same
 // SHELL_FILES, same reasoning as v2 — content changed, no new file.
-var CACHE_VERSION = 'v3';
+//
+// v4 (2026-08-24): index.html/styles.css changed again — individual
+// Quick H19 is now Leaving Today/Tomorrow only (was showing on every
+// Dashboard section via mkCards()'s shared render, now gated by an
+// explicit showQuickH19 flag each caller passes), and the Leaving Today
+// header's Print All + All H19 buttons are grouped into one flex
+// container so they stay adjacent instead of Print All landing in the
+// middle of the row. Also in this same v4 package (not a separate
+// bump): TV Mode gained a pulsing "MOVE TO H19" reminder badge on
+// Leaving Today/Tomorrow rows and cards (tvNeedsH19Move()), and
+// TV_ROW_CAP/TV_CARD_CAP were retuned for the extra badge-row height —
+// see PROJECT.md, TV Mode — H19 Move Reminder. Same SHELL_FILES, same
+// reasoning as v2/v3.
+var CACHE_VERSION = 'v4';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 // Resolved relative to this file's own location, so they land in the
