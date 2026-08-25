@@ -47,21 +47,34 @@
 // see PROJECT.md, TV Mode — H19 Move Reminder. Same SHELL_FILES, same
 // reasoning as v2/v3.
 //
-// v5 (2026-08-25, NOT YET DEPLOYED — prepared pending approval):
-// index.html/styles.css changed again — TV Mode's Operations page was
-// restructured into Group A (Alerts/Customs+Ascend/Active Vehicles,
-// responsive 1-3 page layout from real measured width) and Group B
-// (Return Date Follow-Up, dedicated continuation page(s), responsive
-// 1-2 sub-columns), fixing a real physical-TV bug where Active Vehicles
-// clipped on the right edge and Follow-Up showed an internal scrollbar
-// — see PROJECT.md, TV Mode — Operations page architecture. Row/column
-// capacity for these Operations pages is now measured live against the
-// real DOM (tvMeasureColumnCapacity()) instead of reusing Today's
-// static TV_ROW_CAP, and every `.tv-list` in TV Mode changed from
-// overflow-y:auto to overflow:hidden (TV Mode has no mouse/remote, so
-// an interactive scrollbar was never something a passive viewer could
-// use). Same SHELL_FILES, same reasoning as v2/v3/v4.
-var CACHE_VERSION = 'v5';
+// v5 (2026-08-25, deployed): index.html/styles.css changed again — TV
+// Mode's Operations page was restructured into Group A (Alerts/Customs+
+// Ascend/Active Vehicles, responsive 1-3 page layout from real measured
+// width) and Group B (Return Date Follow-Up, dedicated continuation
+// page(s), responsive 1-2 sub-columns), fixing a real physical-TV bug
+// where Active Vehicles clipped on the right edge and Follow-Up showed
+// an internal scrollbar — see PROJECT.md, TV Mode — Operations page
+// architecture. Row/column capacity for these Operations pages is now
+// measured live against the real DOM (tvMeasureColumnCapacity())
+// instead of reusing Today's static TV_ROW_CAP, and every `.tv-list` in
+// TV Mode changed from overflow-y:auto to overflow:hidden. Same
+// SHELL_FILES, same reasoning as v2/v3/v4.
+//
+// v6 (2026-08-25): index.html changed again — same-day follow-up fix to
+// v5. Production verification after the v5 deploy (rendering a
+// constrained synthetic scenario on the live site, not just checking
+// source) found real Operations overflow that every local test before
+// deploy had missed: tvDoRender() called tvRenderKpis(vm) AFTER
+// building Operations pages, so tvBuildOpsPages()'s real-DOM capacity
+// measurement (tvRealPageBodyBox()) read the PREVIOUS render's KPI row
+// height, not the current one — correct on a settled page where KPI
+// height happens to stay put between renders (which is what every local
+// test exercised), wrong the moment KPI height actually changes
+// render-to-render, which a real device does regularly. Fixed by moving
+// tvRenderKpis(vm) before the page-building calls, so the real available
+// page-body height Operations measures against is always current. Same
+// SHELL_FILES, same reasoning as v2-v5.
+var CACHE_VERSION = 'v6';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 // Resolved relative to this file's own location, so they land in the

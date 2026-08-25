@@ -9068,6 +9068,19 @@ function renderTvDashboard(){
 function tvDoRender(){
   if(!document.body.classList.contains('tv-active')) return;
   var vm = buildTvViewModel();
+  // KPI row must be updated to this render's real content BEFORE
+  // building Operations pages (2026-08-25) — tvBuildOpsPages() measures
+  // the real available page-body height via tvRealPageBodyBox(), which
+  // reads whatever .tv-page-body already exists in the DOM; that box's
+  // height is only correct once the KPI row above it reflects the
+  // CURRENT vm (KPI label text can wrap to an extra line depending on
+  // content, changing how much vertical space is left below it). Doing
+  // this after page-building instead used the PREVIOUS render's KPI
+  // height, silently overflowing whenever KPI height changed between
+  // renders — found via production verification, not local testing,
+  // since local re-runs on an already-settled page rarely change KPI
+  // height render-to-render the way a fresh real device does.
+  tvRenderKpis(vm);
   var pages = [].concat(tvBuildTodayPages(vm), tvBuildTomorrowPages(vm), tvBuildOpsPages(vm));
   tvReconcilePageDom(pages);
   if(_tv.currentPage >= _tv.pageCount) _tv.currentPage = 0;
@@ -9083,7 +9096,6 @@ function tvDoRender(){
     var bodyEl = document.getElementById('tvPageBody'+i);
     if(bodyEl) pg.render(bodyEl);
   });
-  tvRenderKpis(vm);
   tvVerifyNoOverflow();
 }
 
