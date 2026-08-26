@@ -1227,14 +1227,58 @@ body.tv-stale .tv-stale-banner{display:block;}
 .tv-density-min .tv-row-meta{font-size:9px;}
 .tv-density-min .tv-list{gap:3px;}
 
-/* Flight-number line on Leaving Today rows only (opts.flight in tvRow())
-   — one small extra text line, never a second name/time row, so rows
-   don't grow tall just because a flight number is present. */
+/* Flight-number line — separate-line fallback for any tvRow() caller
+   that passes `flight` WITHOUT opts.combineFlightTime. Leaving Today
+   currently always sets combineFlightTime, so this path is presently
+   unused there; kept for callers that want the old layout. */
 .tv-row-flight{font-size:11px;color:var(--tv-mu);margin-top:1px;}
 .tv-density-compact .tv-row-flight{font-size:10px;}
 .tv-density-high .tv-row-flight{font-size:9.5px;}
 .tv-density-xcompact .tv-row-flight{font-size:9px;}
 .tv-density-min .tv-row-flight{font-size:8.5px;}
+
+/* Combined "✈ RV 17:02" time+flight block (opts.combineFlightTime in
+   tvRow(), Leaving Today only). Same primary font-size/weight as
+   .tv-row-time at every density tier — this is not secondary metadata,
+   it replaces the time column outright — just with a bounded flexible
+   width instead of the fixed narrow time-only width, so it never eats
+   arbitrary space from the passenger name. */
+.tv-row-time-flight{
+  width:auto;min-width:78px;max-width:168px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  display:flex;align-items:center;gap:3px;
+}
+/* Reuses the existing tv-time-unset shrink so "✈ RV TIME NOT SET" still
+   fits one line instead of wrapping/clipping. width:auto is repeated
+   here (not just inherited from .tv-row-time-flight above) because the
+   pre-existing .tv-row-time.tv-time-unset{width:76px} rule has equal
+   specificity (two classes) and would otherwise win by source order,
+   clamping this to 76px and clipping the text — confirmed by measuring
+   scrollWidth(112px) > clientWidth(78px) before this override was added. */
+.tv-row-time-flight.tv-time-unset{font-size:10.5px;letter-spacing:.3px;width:auto;}
+.tv-density-compact .tv-row-time-flight{max-width:150px;}
+.tv-density-high .tv-row-time-flight{max-width:132px;width:auto;}
+.tv-density-xcompact .tv-row-time-flight{max-width:118px;width:auto;}
+.tv-density-min .tv-row-time-flight{max-width:110px;width:auto;}
+/* Same specificity fight as the base tv-time-unset override above, but
+   the high/xcompact/min tiers each carry their OWN 3-class width rule
+   (.tv-density-X .tv-row-time.tv-time-unset{width:...}) that would
+   otherwise clamp the combined block back down to 60/54/50px at those
+   tiers. Matching 3-class specificity + later source order wins. */
+.tv-density-compact .tv-row-time-flight.tv-time-unset,
+.tv-density-high .tv-row-time-flight.tv-time-unset,
+.tv-density-xcompact .tv-row-time-flight.tv-time-unset,
+.tv-density-min .tv-row-time-flight.tv-time-unset{width:auto;}
+/* "✈ RV TIME NOT SET" measures ~112px at the base 10.5px — fits inside
+   every tier's max-width above EXCEPT xcompact (118px, 6px of slack)
+   and min (110px, narrower than the text itself). Rather than widening
+   the bounded box, shrink the font one notch further at just these two
+   densest tiers — measured with canvas-equivalent getBoundingClientRect
+   at each candidate size: 10px ≈107px (fits 118 easily), 9.5px ≈102px
+   (fits 110 with margin). Kept on one line at every tier; no two-line
+   fallback needed. */
+.tv-density-xcompact .tv-row-time-flight.tv-time-unset{font-size:10px;}
+.tv-density-min .tv-row-time-flight.tv-time-unset{font-size:9.5px;}
 
 /* Dedicated operational-status badge row (opts.statusBadges in tvRow())
    — H19 move reminder + Welcome Back, deliberately separate from the

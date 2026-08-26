@@ -101,7 +101,22 @@
 // Debug (real viewport/DPI/fullscreen/fit-tier/overflow status — never
 // shown on the TV display itself). See PROJECT.md, TV Mode — Adaptive
 // Fit Engine. Same SHELL_FILES, same reasoning as v2-v6.
-var CACHE_VERSION = 'v7';
+//
+// v8 (2026-08-26, NOT YET DEPLOYED — prepared pending approval):
+// index.html/styles.css changed again — Leaving Today only. The left
+// time column now shows "✈ RV 17:02" (flight folded into the time
+// block via a new opts.combineFlightTime flag on tvRow(), set only by
+// tvTodayRowHtml's 'leaving' branch) instead of a bare time plus a
+// separate flight line underneath the vehicle/hangar meta. No flight ->
+// unchanged bare time; time missing -> "✈ RV TIME NOT SET" reusing the
+// existing tv-time-unset shrink. New .tv-row-time-flight CSS gives that
+// block a bounded auto width (78-168px, narrower per density tier) so
+// it can't eat arbitrary space from the passenger name; .tv-row-time's
+// fixed width for every other tvRow() consumer (Checked In Today,
+// Ascend/Customs, Return Date Follow-Up) is untouched. Leaving
+// Tomorrow's card layout (tvCard()/tvFlightLine()) is untouched — that
+// is a separate code path. Same SHELL_FILES, same reasoning as v2-v7.
+var CACHE_VERSION = 'v8';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 // Resolved relative to this file's own location, so they land in the

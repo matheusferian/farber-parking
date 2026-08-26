@@ -9066,9 +9066,22 @@ function tvCard(r){
 // instead of near-duplicate ones per panel.
 function tvRow(r, opts){
   opts = opts||{};
-  var timeHtml = opts.time!=null
-    ? '<div class="tv-row-time'+(opts.timeUnset?' tv-time-unset':'')+'">'+escapeHTML(opts.time)+'</div>'
-    : '';
+  var flight = (opts.flight||'').trim();
+  // combineFlightTime is an explicit opt-in (Leaving Today only, set by
+  // tvTodayRowHtml) — passing `flight` alone still gets the original
+  // separate-line behavior below, so a future tvRow() caller that only
+  // passes `flight` doesn't silently inherit this layout.
+  var combine = !!opts.combineFlightTime && !!flight;
+  var timeHtml;
+  if (combine) {
+    var timeLabel = opts.time!=null ? opts.time : '';
+    var combinedText = timeLabel ? (flight+' '+timeLabel) : flight;
+    timeHtml = '<div class="tv-row-time tv-row-time-flight'+(opts.timeUnset?' tv-time-unset':'')+'">&#9992; '+escapeHTML(combinedText)+'</div>';
+  } else {
+    timeHtml = opts.time!=null
+      ? '<div class="tv-row-time'+(opts.timeUnset?' tv-time-unset':'')+'">'+escapeHTML(opts.time)+'</div>'
+      : '';
+  }
   var showLocAlert = opts.showLocationAlert!==false;
   var noLoc = !r.loc || !String(r.loc).trim();
   var locHtml = (showLocAlert && noLoc) ? '<span class="tv-badge tv-badge-nolocation">NO LOCATION</span>' : escapeHTML(r.loc||'—');
@@ -9079,7 +9092,8 @@ function tvRow(r, opts){
   metaParts.push('#'+escapeHTML(r.ticket||''));
   var critical = !!opts.critical || (showLocAlert && noLoc);
   // Flight is a real value only — never invented when return_flight is empty.
-  var flightHtml = opts.flight ? '<div class="tv-row-flight">&#9992; '+escapeHTML(opts.flight)+'</div>' : '';
+  // Separate line only when NOT combined into the time column above.
+  var flightHtml = (flight && !combine) ? '<div class="tv-row-flight">&#9992; '+escapeHTML(flight)+'</div>' : '';
   // Dedicated row for operational status badges (H19 move reminder,
   // Welcome Back) — deliberately NOT inline with the name (opts.nameBadges
   // above): two badges firing at once must never eat into the name's
@@ -9386,7 +9400,12 @@ function tvTodayRowHtml(r, kind){
       time: t?t:'TIME NOT SET', timeUnset:!t,
       critical: isLate(r.ret) || wcbState==='overdue',
       statusBadges: badgeParts.join(' '),
-      flight: (r.return_flight||'').trim()
+      flight: (r.return_flight||'').trim(),
+      // Leaving Today only: fold flight into the time column instead of
+      // a separate line below. Explicit opt-in so any future tvRow()
+      // caller can pass `flight` for the old separate-line behavior
+      // without silently inheriting this layout.
+      combineFlightTime: true
     });
   }
   var d = r.checkin_date ? new Date(r.checkin_date) : null;
