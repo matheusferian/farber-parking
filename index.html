@@ -9025,14 +9025,15 @@ function tvChipHtml(chip){
 // other consumer (Dashboard, search, SMS, printed tickets, reports,
 // Offline Mode) — this only shortens the string right before it's
 // escaped into TV Mode HTML. Deterministic, no surname-guessing: first
-// word → initial, every word after it preserved exactly as stored
-// (casing, hyphens, "VAN DER" style compound names all pass through
-// unchanged). A single-word name is returned unchanged.
+// word → initial + period, every word after it preserved exactly as
+// stored (casing, hyphens, "VAN DER" style compound names all pass
+// through unchanged). A single-word name is returned unchanged — no
+// initial, no trailing period, since there's nothing to abbreviate.
 function tvShortName(name){
   var parts = String(name || '').trim().split(/\s+/).filter(Boolean);
   if(!parts.length) return '';
   if(parts.length === 1) return parts[0];
-  return parts[0].charAt(0).toUpperCase() + ' ' + parts.slice(1).join(' ');
+  return parts[0].charAt(0).toUpperCase() + '. ' + parts.slice(1).join(' ');
 }
 
 // ── H19 MOVE REMINDER — Leaving Today / Leaving Tomorrow only ───────

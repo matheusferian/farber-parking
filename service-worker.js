@@ -131,7 +131,16 @@
 // — the fit engine's existing measurement automatically reflects
 // shorter names since it renders through these same functions. styles.css
 // is unchanged this release. Same SHELL_FILES, same reasoning as v2-v8.
-var CACHE_VERSION = 'v9';
+//
+// v10 (2026-08-27, NOT YET DEPLOYED — prepared pending approval):
+// index.html changed again — tiny follow-up to v9's tvShortName(): the
+// kept first-name initial now gets a trailing period ("M FERIAN" ->
+// "M. FERIAN") only when the name has more than one word; a single-word
+// name is still returned completely unchanged, with no stray period.
+// Same three TV Mode render points as v9 (tvCard/tvRow/alertsColHtml),
+// same presentation-only scope — r.name and every other consumer
+// untouched. No CSS changed. Same SHELL_FILES, same reasoning as v2-v9.
+var CACHE_VERSION = 'v10';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 // Resolved relative to this file's own location, so they land in the
