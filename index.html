@@ -9020,6 +9020,21 @@ function tvChipHtml(chip){
   return '<span class="tv-badge tv-badge-'+chip.level+'">'+escapeHTML(chip.text)+'</span>';
 }
 
+// ── TV MODE NAME DISPLAY — presentation-only, TV Mode rendering paths
+// only (tvCard/tvRow/alertsColHtml). Never touches r.name itself or any
+// other consumer (Dashboard, search, SMS, printed tickets, reports,
+// Offline Mode) — this only shortens the string right before it's
+// escaped into TV Mode HTML. Deterministic, no surname-guessing: first
+// word → initial, every word after it preserved exactly as stored
+// (casing, hyphens, "VAN DER" style compound names all pass through
+// unchanged). A single-word name is returned unchanged.
+function tvShortName(name){
+  var parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+  if(!parts.length) return '';
+  if(parts.length === 1) return parts[0];
+  return parts[0].charAt(0).toUpperCase() + ' ' + parts.slice(1).join(' ');
+}
+
 // ── H19 MOVE REMINDER — Leaving Today / Leaving Tomorrow only ───────
 // Read-only reminder that a returning vehicle still needs to be
 // physically brought to Hangar 19. Derived only from the passenger's
@@ -9052,7 +9067,7 @@ function tvCard(r){
   // passenger name, and coexists with whatever else is already there.
   var allBadges = tvBadges(r) + (tvNeedsH19Move(r) ? tvMoveH19Badge('tomorrow') : '');
   return '<div class="tv-card'+(critical?' tv-critical':'')+'">'+
-    '<div class="tv-card-row"><div class="tv-card-name">'+escapeHTML(r.name||'')+'</div>'+timeHtml+'</div>'+
+    '<div class="tv-card-row"><div class="tv-card-name">'+escapeHTML(tvShortName(r.name))+'</div>'+timeHtml+'</div>'+
     '<div class="tv-card-meta">'+metaParts.join(' &middot; ')+'</div>'+
     tvFlightLine(r)+
     (allBadges ? '<div class="tv-card-badges">'+allBadges+'</div>' : '')+
@@ -9104,7 +9119,7 @@ function tvRow(r, opts){
   return '<div class="tv-row'+(critical?' tv-critical':'')+(opts.completed?' tv-row-completed':'')+'">'+
     timeHtml+
     '<div class="tv-row-main">'+
-      '<div class="tv-row-name">'+escapeHTML(r.name||'')+(opts.nameBadges?' '+opts.nameBadges:'')+'</div>'+
+      '<div class="tv-row-name">'+escapeHTML(tvShortName(r.name))+(opts.nameBadges?' '+opts.nameBadges:'')+'</div>'+
       '<div class="tv-row-meta">'+metaParts.join(' &middot; ')+'</div>'+
       flightHtml+
       statusBadgesHtml+
@@ -9681,7 +9696,7 @@ function tvBuildOpsPages(vm){
     if(!alerts.length) return '<div class="tv-empty">No special-handling alerts right now.</div>';
     return slice.map(function(a){
       return '<div class="tv-list-row'+(a.lvl==='critical'?' tv-overdue':'')+'">'+
-        '<div class="tv-list-name">'+escapeHTML(a.r.name||'')+'</div>'+
+        '<div class="tv-list-name">'+escapeHTML(tvShortName(a.r.name))+'</div>'+
         '<div class="tv-list-meta"><span class="tv-badge tv-badge-'+a.lvl+'">'+escapeHTML(a.txt.toUpperCase())+'</span></div>'+
       '</div>';
     }).join('');

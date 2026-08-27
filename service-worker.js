@@ -116,7 +116,22 @@
 // Ascend/Customs, Return Date Follow-Up) is untouched. Leaving
 // Tomorrow's card layout (tvCard()/tvFlightLine()) is untouched — that
 // is a separate code path. Same SHELL_FILES, same reasoning as v2-v7.
-var CACHE_VERSION = 'v8';
+//
+// v9 (2026-08-27, NOT YET DEPLOYED — prepared pending approval):
+// index.html changed again — a new presentation-only `tvShortName()`
+// helper shortens passenger names in TV Mode to "FIRST-INITIAL LAST
+// WORD(S)" (e.g. "CHRISTOPHER ALEXANDER MARTINEZ" -> "C ALEXANDER
+// MARTINEZ") at its three TV Mode name-render points: tvCard()
+// (Leaving Tomorrow), tvRow() (Leaving Today, Checked In Today,
+// Ascend/Customs, Return Date Follow-Up), and alertsColHtml() (Special
+// Handling & Alerts). Deterministic string split only — no
+// surname-guessing, no casing changes beyond uppercasing the kept
+// initial, no change to r.name or any other consumer (Dashboard,
+// search, SMS, printed tickets, reports, Offline Mode). No CSS changed
+// — the fit engine's existing measurement automatically reflects
+// shorter names since it renders through these same functions. styles.css
+// is unchanged this release. Same SHELL_FILES, same reasoning as v2-v8.
+var CACHE_VERSION = 'v9';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 // Resolved relative to this file's own location, so they land in the
