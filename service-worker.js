@@ -140,7 +140,17 @@
 // Same three TV Mode render points as v9 (tvCard/tvRow/alertsColHtml),
 // same presentation-only scope — r.name and every other consumer
 // untouched. No CSS changed. Same SHELL_FILES, same reasoning as v2-v9.
-var CACHE_VERSION = 'v10';
+//
+// v11 (2026-08-29, NOT YET DEPLOYED — prepared pending approval):
+// index.html changed again — TV Mode (C.1) now reads the centralized
+// aircraft_live_state_computed view from Supabase into _tv.aircraftState,
+// throttled to its own ~60s cadence independent of refreshTvData()'s own
+// call frequency (see maybeFetchTvAircraftState()/fetchTvAircraftState()).
+// Read-only: the browser never calls adsb.lol and never invokes the
+// refresh-aircraft-state Edge Function. Transport/state plumbing only — no
+// rendering, no new DOM, no CSS. styles.css is unchanged this release.
+// Same SHELL_FILES, same reasoning as v2-v10.
+var CACHE_VERSION = 'v11';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 // Resolved relative to this file's own location, so they land in the

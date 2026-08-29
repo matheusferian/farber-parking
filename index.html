@@ -8502,7 +8502,13 @@ var _tv = {
   realtimeDebounceTimer:null,
   refreshInFlight:false,
   listenersBound:false,
-  viewportListenersBound:false
+  viewportListenersBound:false,
+  // Aircraft live state (C.1 — transport/state plumbing only, see below).
+  // Independent of refreshTvData()'s own success/failure — a fetch here
+  // never blanks the last good snapshot and never touches passenger data.
+  aircraftState:{},
+  aircraftLastFetchAt:null,
+  aircraftFetchInFlight:false
 };
 var TV_RESIZE_DEBOUNCE_MS = 350;
 
@@ -8517,6 +8523,19 @@ var TV_CURSOR_HIDE_MS       = 4000;
 var TV_CONTROLS_HIDE_MS     = 3500;
 var TV_RECONNECT_BASE_MS    = 2000;
 var TV_RECONNECT_MAX_MS     = 30000;
+// Aircraft state has its own ~60s throttle, independent of refreshTvData()'s
+// call frequency (passenger realtime events / watchdog can call it far more
+// often) — matches the backend's own ~60s refresh cadence (see
+// migrations/20260829_schedule_aircraft_tracking_refresh.sql). See
+// maybeFetchTvAircraftState().
+var TV_AIRCRAFT_FETCH_INTERVAL_MS = 60000;
+// Bounded timeout local to the aircraft REST read only — a simple Supabase
+// REST GET should settle well under this. Without it, a fetch() that never
+// settles (dropped connection, stalled proxy, etc.) would leave
+// _tv.aircraftFetchInFlight stuck true forever, silently freezing aircraft
+// tracking (the passenger board is unaffected either way — see
+// fetchTvAircraftState()). Never applied to the passenger fetch (sbGet()).
+var TV_AIRCRAFT_FETCH_TIMEOUT_MS = 9000;
 
 // ── ADAPTIVE DENSITY / PAGINATION ────────────────────────────────────
 // Replaces the old single global TV_DENSITY_THRESHOLD: density is now
@@ -8713,6 +8732,11 @@ function tvWatchdogTick(){
 // only the connection indicator changes.
 async function refreshTvData(){
   if(_tv.refreshInFlight) return; // prevent overlapping fetches from the poll/watchdog/realtime firing together
+  // Fire-and-forget, never awaited: aircraft state is isolated from the
+  // passenger refresh below — its own throttle/in-flight guards live in
+  // maybeFetchTvAircraftState(), and its own try/catch means a failure
+  // here can never reject this function or affect passenger data.
+  maybeFetchTvAircraftState();
   _tv.refreshInFlight = true;
   try{
     var rows = await sbGet();
@@ -8743,6 +8767,97 @@ function tvShowSessionExpired(){
 function tvHideSessionExpired(){
   var el = document.getElementById('tvSessionExpired');
   if(el) el.classList.remove('tv-visible');
+}
+
+// ── AIRCRAFT LIVE STATE (C.1 — transport/state plumbing only) ──────────
+// Reads the centralized, server-computed aircraft_live_state_computed view
+// (see migrations/20260829_create_aircraft_tracking_tables.sql). The TV is
+// a read-only consumer: it never calls adsb.lol and never invokes
+// refresh-aircraft-state — that Edge Function runs on its own pg_cron
+// schedule (migrations/20260829_schedule_aircraft_tracking_refresh.sql).
+// freshness/physical_status/distance_trend are stored exactly as the view
+// returns them — never recomputed here. No rendering yet (see C.2).
+//
+// Authoritative registrations — never the provider's own registration
+// string, and never widened by an unexpected extra row from the view.
+var AIRCRAFT_REGISTRATIONS = ['N208JH','N740RV','N821DD','N310CH','N146WM','N512DH','N633AH','N624JR'];
+var AIRCRAFT_SELECT_FIELDS = 'registration,icao_hex,freshness,physical_status,distance_trend,'+
+  'distance_to_fxe_nm,previous_distance_to_fxe_nm,is_on_ground,altitude_ft,'+
+  'ground_speed_kt,track_deg,vertical_rate_fpm,last_message_at,last_position_at,polled_at';
+
+// Deliberately isolated from refreshTvData()'s own try/catch — a failure
+// here must never reject the passenger refresh, never touch `data`, and
+// never crash TV Mode. On failure the last good _tv.aircraftState is left
+// exactly as it was (or stays {} if there has never been a good snapshot);
+// no status is ever fabricated for a registration with no row.
+async function fetchTvAircraftState(){
+  // Set before the first await so a second synchronous call to
+  // maybeFetchTvAircraftState() (e.g. a realtime event firing while this
+  // is still pending) sees the in-flight flag immediately — JS runs this
+  // function synchronously up to the `await fetch(...)` below.
+  _tv.aircraftFetchInFlight = true;
+  // ATTEMPT start time, not success time — deliberate. Setting this here
+  // (before the request even goes out) means a failing/slow/timed-out
+  // backend still holds the ~60s throttle in maybeFetchTvAircraftState(),
+  // so a stream of passenger realtime events during an outage can't turn
+  // into a stream of aircraft requests. The next eligible attempt is
+  // always ~60s after this attempt STARTED, success or not.
+  _tv.aircraftLastFetchAt = Date.now();
+  // Local to this one request only — never applied to sbGet()/passenger
+  // fetches. Cleared in finally regardless of outcome.
+  var controller = new AbortController();
+  var timeoutId = setTimeout(function(){ controller.abort(); }, TV_AIRCRAFT_FETCH_TIMEOUT_MS);
+  try{
+    var url = SUPABASE_URL + '/rest/v1/aircraft_live_state_computed' +
+      '?select=' + AIRCRAFT_SELECT_FIELDS +
+      '&registration=in.(' + AIRCRAFT_REGISTRATIONS.join(',') + ')';
+    var res = await fetch(url, { headers: sbHeaders(), signal: controller.signal });
+    if(!res.ok){
+      var errText = await res.text().catch(function(){ return ''; });
+      throw new Error('Aircraft state fetch failed: ' + res.status + ' ' + errText);
+    }
+    var rows = await res.json();
+    var next = {};
+    (rows || []).forEach(function(row){
+      // Defensive allowlist filter — the view should already only ever
+      // contain configured aircraft (see B.1), but C.1 never trusts a
+      // registration string it didn't itself authorize.
+      if(row && row.registration && AIRCRAFT_REGISTRATIONS.indexOf(row.registration) !== -1){
+        next[row.registration] = row;
+      }
+    });
+    _tv.aircraftState = next;
+  } catch(e){
+    console.error('Aircraft state fetch error:', e);
+    // A timeout/abort (e.name==='AbortError') or any other network failure
+    // is never treated as a session/auth problem — only a real 401/JWT
+    // response from the server (checked via our own thrown Error message
+    // above, which only happens for an actual HTTP response) shows the
+    // session-expired overlay. Same session the passenger refresh already
+    // uses; reuse its existing overlay rather than inventing a second flow.
+    if(e && e.name !== 'AbortError' &&
+       (String(e.message).indexOf('401')!==-1 || String(e.message).toLowerCase().indexOf('jwt')!==-1)){
+      tvShowSessionExpired();
+    }
+    // _tv.aircraftState intentionally untouched — preserve last good snapshot.
+  } finally {
+    clearTimeout(timeoutId);
+    _tv.aircraftFetchInFlight = false;
+  }
+}
+
+// Gate called from refreshTvData() on every invocation — cheap no-op most
+// of the time. Independent ~60s throttle because refreshTvData() itself
+// fires far more often (passenger realtime events, watchdog reconciliation)
+// than the backend refreshes aircraft state; without this every passenger
+// change would trigger a redundant aircraft REST read. Fire-and-forget by
+// design — callers never await this, so it can never delay or fail the
+// passenger refresh path.
+function maybeFetchTvAircraftState(){
+  if(_tv.aircraftFetchInFlight) return; // coalesce — never issue a second concurrent request
+  var now = Date.now();
+  if(_tv.aircraftLastFetchAt !== null && (now - _tv.aircraftLastFetchAt) < TV_AIRCRAFT_FETCH_INTERVAL_MS) return;
+  fetchTvAircraftState();
 }
 
 // ── REALTIME ──────────────────────────────────────────────────────────
