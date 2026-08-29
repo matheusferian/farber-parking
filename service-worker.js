@@ -161,7 +161,32 @@
 // server-computed freshness/physical_status/distance_trend, never
 // recomputes them; no badge for STALE/NO_SIGNAL/missing/unmapped rows.
 // Same SHELL_FILES, same reasoning as v2-v11.
-var CACHE_VERSION = 'v12';
+//
+// v13 (2026-08-29, NOT YET DEPLOYED — prepared pending approval):
+// index.html AND styles.css changed — C.2 visual refinement, shipping as
+// one combined release (nothing from v12 has been deployed yet):
+//   1. Aircraft badge display changed from NM to an estimated minutes
+//      value (~N MIN, radial distance / ground_speed_kt), falling back
+//      to the status alone when speed is missing/invalid. Classification
+//      thresholds (25nm/8nm on distance_to_fxe_nm) are unchanged —
+//      display only.
+//   2. ARRIVING SOON (airborne and ON_GROUND_NEAR_FXE) now pulses via a
+//      new .tv-badge-arriving-pulse rule (styles.css), reusing the same
+//      restrained never-toward-0 opacity-pulse idiom as the existing H19
+//      move reminder, reduced-motion-aware. RETURNING/APPROACHING remain
+//      static.
+//   3. A new "⚠ DELAYED" badge on Leaving Today rows
+//      (tvDelayedBadge()/tvIsDelayedRow()/tvExpectedReturnDateTime()),
+//      shown once the row's scheduled return time (r.ret + departure_time,
+//      via the existing pd()/getDepartureTime() helpers already used
+//      elsewhere in TV Mode) has passed. Independent of the aircraft
+//      badge — coexists with RETURNING/APPROACHING/ARRIVING SOON — and
+//      clears only when the mapped aircraft reports LIVE +
+//      ON_GROUND_NEAR_FXE (tvAircraftTrackingStatus()'s new
+//      onGround:true field). Reuses the existing static
+//      .tv-badge-critical class — no new CSS for this part.
+// Same SHELL_FILES, same reasoning as v2-v12.
+var CACHE_VERSION = 'v13';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 // Resolved relative to this file's own location, so they land in the

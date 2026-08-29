@@ -1323,6 +1323,20 @@ body.tv-stale .tv-stale-banner{display:block;}
   .tv-badge-move-h19-today,.tv-badge-move-h19-tomorrow{animation:none;}
 }
 
+/* Aircraft ARRIVING SOON badge (C.2 visual refinement) — same restrained,
+   never-toward-0 opacity-pulse idiom as the H19 move reminder above, so
+   the badge text stays fully readable at every point in the cycle. Only
+   ARRIVING SOON pulses (airborne <=8nm and ON_GROUND_NEAR_FXE);
+   RETURNING/APPROACHING stay static — see tvAircraftTrackingBadge(). */
+.tv-badge-arriving-pulse{
+  animation-name:tvArrivingSoonPulse;animation-duration:1.6s;
+  animation-iteration-count:infinite;animation-timing-function:ease-in-out;
+}
+@keyframes tvArrivingSoonPulse{0%,100%{opacity:1;}50%{opacity:.7;}}
+@media (prefers-reduced-motion:reduce){
+  .tv-badge-arriving-pulse{animation:none;}
+}
+
 /* Per-section "TODAY 2/2" / "TOMORROW 2/2" / "OPERATIONS 2/2" indicator
    — only rendered when that section actually spans more than one page
    (tvBuildTodayPages/tvBuildTomorrowPages/tvBuildOpsPages), so a quiet
