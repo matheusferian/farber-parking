@@ -641,6 +641,47 @@ export async function handleRequest(req: Request, deps?: Partial<HandleRequestDe
       });
     }
 
+    // ── Inferred landing confirmation ──────────────────────────────────
+    // Reached ONLY by the worker whose own write for this cycle actually
+    // succeeded (not fenced) and whose completion telemetry was itself
+    // recorded — NOT_CLAIMED, provider-failure/malformed-response, and
+    // fenced-out paths all return earlier and never reach this line.
+    // Isolated in its own try/catch so a failure here can never affect
+    // the primary refresh result already computed above; landingsConfirmed
+    // simply stays an empty array if anything goes wrong. See
+    // migrations/20260829_add_aircraft_inferred_landing_confirmation.sql
+    // for the full design/rationale — this call passes exactly the two
+    // inputs that function needs and computes nothing itself: the
+    // Edge Function's own configured-registration list, and this cycle's
+    // own normalized (already dedupe/configured-filtered) observations.
+    let landingsConfirmed: string[] = [];
+    try {
+      const { data: confirmedRows, error: confirmError } = await supabaseAdmin.rpc(
+        'confirm_pending_aircraft_landings',
+        {
+          p_configured_registrations: CONFIGURED_AIRCRAFT.map((a) => a.registration),
+          p_returned_registrations: observations.map((o) => o.registration),
+        },
+      );
+      if (confirmError) {
+        console.error(
+          JSON.stringify({
+            event: 'confirm_pending_aircraft_landings_failed',
+            message: confirmError.message,
+          }),
+        );
+      } else if (Array.isArray(confirmedRows)) {
+        landingsConfirmed = (confirmedRows as Array<{ registration: string }>).map((r) => r.registration);
+      }
+    } catch (err) {
+      console.error(
+        JSON.stringify({
+          event: 'confirm_pending_aircraft_landings_exception',
+          message: classifyFetchError(err),
+        }),
+      );
+    }
+
     return jsonResponse({
       refreshed: true,
       provider: 'adsb.lol',
@@ -652,6 +693,7 @@ export async function handleRequest(req: Request, deps?: Partial<HandleRequestDe
       registrationsWritten: observations.map((o) => o.registration),
       providerFetchAttempted,
       completionRecorded: true,
+      landingsConfirmed,
     });
   } catch (err) {
     // Covers fetch() throwing outright: timeout (AbortSignal), DNS/TCP/TLS

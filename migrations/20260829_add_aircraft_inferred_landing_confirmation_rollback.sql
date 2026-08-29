@@ -1,0 +1,25 @@
+-- Rollback for 20260829_add_aircraft_inferred_landing_confirmation.sql
+-- Drops the inferred-landing function only. No column/table/view was
+-- added by the forward migration, so there is nothing else to revert here
+-- — the literal is_on_ground=true AND distance_to_fxe_nm<=3 path in
+-- upsert_aircraft_observations, and the landed_at column itself (added by
+-- 20260829_add_aircraft_landed_at_timestamp.sql), are both untouched by
+-- this rollback.
+--
+-- Any landed_at values this function already confirmed are left exactly
+-- as they are — rolling back the inference mechanism does not retroactively
+-- undo data it already wrote, matching how every other rollback in this
+-- project behaves.
+--
+-- The corresponding Edge Function call site (refresh-aircraft-state/index.ts)
+-- must be reverted and redeployed separately — this SQL rollback cannot do
+-- that. If this SQL rollback is applied without also reverting the Edge
+-- Function, the next successful refresh cycle's call to this function will
+-- fail with an "undefined function" error; that failure is caught in its
+-- own isolated try/catch in the Edge Function and will not affect the
+-- primary refresh flow, but landingsConfirmed will silently stop
+-- appearing until the Edge Function is reverted too.
+--
+-- Safe to run more than once.
+
+drop function if exists public.confirm_pending_aircraft_landings(text[], text[]);
