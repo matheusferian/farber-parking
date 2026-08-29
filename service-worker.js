@@ -186,7 +186,26 @@
 //      onGround:true field). Reuses the existing static
 //      .tv-badge-critical class — no new CSS for this part.
 // Same SHELL_FILES, same reasoning as v2-v12.
-var CACHE_VERSION = 'v13';
+//
+// v14 (2026-08-29, NOT YET DEPLOYED — prepared pending approval):
+// index.html changed again — Leaving Today's aircraft badge now shows a
+// live ETA (still ~N MIN math: distance_to_fxe_nm / ground_speed_kt * 60,
+// same safeguards) alongside the existing RETURNING/APPROACHING/ARRIVING
+// SOON tier word ("✈ APPROACHING · ETA 9 MIN"), and a new backend-derived
+// "✓ LANDED · N MIN AGO" state (from the new aircraft_live_state.landed_at
+// column, see migrations/20260829_add_aircraft_landed_at_timestamp.sql)
+// replaces the airborne tier once the aircraft is confirmed on the ground
+// near FXE — deliberately NOT gated on freshness, since a parked aircraft
+// commonly stops transmitting ADS-B, but landed_at is meant to keep
+// displaying anyway. DELAYED (⚠) remains a fully separate, independent,
+// always-static badge — it coexists with the tier/ETA badge rather than
+// replacing it, and now also clears on confirmed LANDED (in addition to
+// the existing live ON_GROUND_NEAR_FXE fallback). ARRIVING SOON pulse
+// unchanged (<=8nm only); LANDED reuses the existing static .tv-badge-ok
+// class (same as DELIVERED) — no new CSS, styles.css unchanged this
+// release. WELCOME BACK OVERDUE untouched. No adsb.lol/Edge Function call
+// from the browser. Same SHELL_FILES, same reasoning as v2-v13.
+var CACHE_VERSION = 'v14';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 // Resolved relative to this file's own location, so they land in the

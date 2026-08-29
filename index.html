@@ -8783,7 +8783,7 @@ function tvHideSessionExpired(){
 var AIRCRAFT_REGISTRATIONS = ['N208JH','N740RV','N821DD','N310CH','N146WM','N512DH','N633AH','N624JR'];
 var AIRCRAFT_SELECT_FIELDS = 'registration,icao_hex,freshness,physical_status,distance_trend,'+
   'distance_to_fxe_nm,previous_distance_to_fxe_nm,is_on_ground,altitude_ft,'+
-  'ground_speed_kt,track_deg,vertical_rate_fpm,last_message_at,last_position_at,polled_at';
+  'ground_speed_kt,track_deg,vertical_rate_fpm,last_message_at,last_position_at,polled_at,landed_at';
 
 // Deliberately isolated from refreshTvData()'s own try/catch — a failure
 // here must never reject the passenger refresh, never touch `data`, and
@@ -8881,29 +8881,47 @@ function tvAircraftRegistrationForRow(r){
 }
 
 // Pure decision table — no rendering, no DOM. Returns {status, minutes} or
-// null. Distance-band thresholds (8/25 NM, from distance_to_fxe_nm) and
-// the LIVE-only gate are the approved C.2 classification values and are
-// UNCHANGED here — only the displayed value (minutes instead of NM) was
-// revised. OUTBOUND is a real, matched status but deliberately has no
-// visible rendering (see tvAircraftTrackingBadge).
+// {status:'LANDED', landedAt} or null. Distance-band thresholds (8/25 NM,
+// from distance_to_fxe_nm) determine ONLY the tier, never the ETA minutes
+// — the two are computed independently below. OUTBOUND is a real, matched
+// status but deliberately has no visible rendering (see
+// tvAircraftTrackingBadge).
+//
+// LANDED is checked FIRST, before the freshness gate, and deliberately
+// bypasses it: landed_at (see migrations/20260829_add_aircraft_landed_at_timestamp.sql)
+// is a persisted fact set once by the backend on first on-ground-near-FXE
+// detection and preserved by upsert_aircraft_observations independent of
+// later staleness — a real aircraft commonly stops transmitting ADS-B
+// entirely once parked, so freshness legitimately degrades to
+// STALE/NO_SIGNAL right after landing while landed_at (and therefore this
+// badge) must keep displaying. Every other status below remains gated on
+// freshness==='LIVE' exactly as before — no client-side hysteresis, no
+// recomputation of freshness/physical_status/distance_trend.
 //
 // `minutes` is a rough radial ETA (straight-line distance / current ground
 // speed), never a real scheduled ETA and never derived from the
-// passenger's own departure_time. Only computed for the airborne branch,
-// and only when ground_speed_kt is a finite positive number — otherwise
-// null, so the caller renders the status alone with no fabricated number.
+// passenger's own departure_time or from the 8/25nm tier thresholds. Only
+// computed for the airborne branch, and only when ground_speed_kt is a
+// finite positive number — otherwise null, so the caller renders the tier
+// alone with no fabricated number.
 function tvAircraftTrackingStatus(r){
   var reg = tvAircraftRegistrationForRow(r);
   if(!reg) return null; // unmapped/free-text return_flight -> no badge
   var ac = _tv.aircraftState[reg];
   if(!ac) return null; // missing aircraft row -> no badge, nothing implied
-  if(ac.freshness !== 'LIVE') return null; // STALE/NO_SIGNAL -> no badge, no hysteresis
+
+  if(ac.landed_at){
+    return {status:'LANDED', landedAt: ac.landed_at}; // NOT gated on freshness — see comment above
+  }
+
+  if(ac.freshness !== 'LIVE') return null; // STALE/NO_SIGNAL (and not landed) -> no badge, no hysteresis
 
   if(ac.physical_status === 'ON_GROUND_NEAR_FXE'){
-    // onGround:true distinguishes this from the airborne <=8nm ARRIVING_SOON
-    // case below (same displayed status, different physical fact) — used
-    // by tvIsDelayedRow() as the ONLY condition that clears DELAYED.
-    return {status:'ARRIVING_SOON', minutes:null, onGround:true}; // never a minutes estimate once on the ground
+    // Defensive fallback only — landed_at should normally already be set
+    // by the same write that produced this physical_status. onGround:true
+    // is real live-state evidence of arrival, used by tvDelayedBadge() as
+    // a secondary clearing condition alongside status==='LANDED'.
+    return {status:'ARRIVING_SOON', minutes:null, onGround:true};
   }
   if(ac.physical_status === 'ON_GROUND_AWAY'){
     return {status:'OUTBOUND', minutes:null};
@@ -8918,7 +8936,7 @@ function tvAircraftTrackingStatus(r){
     var speed = ac.ground_speed_kt;
     var minutes = (typeof speed === 'number' && isFinite(speed) && speed > 0)
       ? Math.round((d / speed) * 60)
-      : null; // invalid/missing speed -> status alone, never an invented number
+      : null; // invalid/missing speed -> tier alone, never an invented number
     return {status:status, minutes:minutes};
   }
   return null; // non-DECREASING airborne trend, or any other physical_status -> no badge
@@ -8928,19 +8946,24 @@ function tvAircraftTrackingStatus(r){
 // shape as tvMoveH19Badge/tvWelcomeBackBadge). ARRIVING SOON additionally
 // gets tv-badge-arriving-pulse (styles.css) — the same restrained,
 // never-to-zero opacity pulse already used for the H19 move reminder,
-// reduced-motion-aware. RETURNING/APPROACHING stay static.
+// reduced-motion-aware. RETURNING/APPROACHING/LANDED stay static.
 function tvAircraftTrackingBadge(r){
   var t = tvAircraftTrackingStatus(r);
   if(!t || t.status === 'OUTBOUND') return ''; // OUTBOUND: matched, not rendered (approved scope)
-  var minutesText = (t.minutes!=null) ? (' &middot; ~'+t.minutes+' MIN') : '';
+  if(t.status === 'LANDED'){
+    var agoMs = Date.now() - new Date(t.landedAt).getTime();
+    var minsAgo = Math.max(0, Math.round(agoMs / 60000)); // clamp — never a negative "ago" from clock/parse skew
+    return '<span class="tv-badge tv-badge-ok">&#10003; LANDED &middot; '+minsAgo+' MIN AGO</span>';
+  }
+  var etaText = (t.minutes!=null) ? (' &middot; ETA '+t.minutes+' MIN') : '';
   if(t.status === 'RETURNING'){
-    return '<span class="tv-badge tv-badge-daytag">&#9992; RETURNING'+minutesText+'</span>';
+    return '<span class="tv-badge tv-badge-daytag">&#9992; RETURNING'+etaText+'</span>';
   }
   if(t.status === 'APPROACHING'){
-    return '<span class="tv-badge tv-badge-customs">&#9992; APPROACHING'+minutesText+'</span>';
+    return '<span class="tv-badge tv-badge-customs">&#9992; APPROACHING'+etaText+'</span>';
   }
   if(t.status === 'ARRIVING_SOON'){
-    return '<span class="tv-badge tv-badge-warning tv-badge-arriving-pulse">&#9992; ARRIVING SOON'+minutesText+'</span>';
+    return '<span class="tv-badge tv-badge-warning tv-badge-arriving-pulse">&#9992; ARRIVING SOON'+etaText+'</span>';
   }
   return '';
 }
@@ -8976,17 +8999,22 @@ function tvIsDelayedRow(r){
   return Date.now() > expected.getTime();
 }
 
-// DELAYED clears ONLY when the mapped tracked aircraft is LIVE AND
-// ON_GROUND_NEAR_FXE (tvAircraftTrackingStatus()'s onGround:true — see
-// above). Lack of tracking (missing row/STALE/NO_SIGNAL/unmapped
-// return_flight) is never evidence of arrival, so DELAYED stays exactly
-// as computed by tvIsDelayedRow() in every other case — including a
-// still-airborne ARRIVING_SOON, which is deliberately NOT enough on its
-// own. No altitude/speed/distance-only heuristic, no LANDED/ARRIVED wording.
+// DELAYED clears ONLY on confirmed arrival: status==='LANDED' (the
+// persisted landed_at fact) or, as a narrow defensive fallback for the
+// brief window before landed_at has propagated, the live
+// ON_GROUND_NEAR_FXE snapshot (onGround:true) — both are real live-state
+// evidence the aircraft is down, never an altitude/speed/distance-only
+// heuristic, never LANDED/ARRIVED wording invented client-side. Lack of
+// tracking (missing row/STALE/NO_SIGNAL/unmapped return_flight) is never
+// evidence of arrival, so DELAYED stays exactly as computed by
+// tvIsDelayedRow() in every other case — including a still-airborne
+// ARRIVING_SOON, which is deliberately NOT enough on its own. Always a
+// separate, independent badge — never merged into or replacing the
+// aircraft tracking badge above.
 function tvDelayedBadge(r){
   if(!tvIsDelayedRow(r)) return '';
   var t = tvAircraftTrackingStatus(r);
-  var clearsDelay = !!(t && t.status === 'ARRIVING_SOON' && t.onGround === true);
+  var clearsDelay = !!(t && (t.status === 'LANDED' || (t.status === 'ARRIVING_SOON' && t.onGround === true)));
   if(clearsDelay) return '';
   return '<span class="tv-badge tv-badge-critical">&#9888; DELAYED</span>';
 }
