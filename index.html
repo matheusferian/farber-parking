@@ -8860,6 +8860,72 @@ function maybeFetchTvAircraftState(){
   fetchTvAircraftState();
 }
 
+// ── AIRCRAFT OPERATIONAL BADGE (C.2 — Leaving Today only) ──────────────
+// Derives a passenger-facing operational status by combining C.1's
+// server-computed aircraft state with the passenger's return_flight field.
+// Never recomputes freshness/physical_status/distance_trend — those are
+// read exactly as the aircraft_live_state_computed view returns them, and
+// no client-side hysteresis is applied: if the backend says STALE, this
+// renders nothing, immediately, every time.
+//
+// Authoritative suffix -> registration map, exact match only — never a
+// fuzzy/partial match, never the provider's own registration string.
+var TAIL_SUFFIX_TO_REGISTRATION = {
+  JH: 'N208JH', RV: 'N740RV', DD: 'N821DD', CH: 'N310CH',
+  WM: 'N146WM', DH: 'N512DH', AH: 'N633AH', JR: 'N624JR'
+};
+
+function tvAircraftRegistrationForRow(r){
+  var first = String((r && r.return_flight) || '').trim().split(/\s+/)[0] || '';
+  return TAIL_SUFFIX_TO_REGISTRATION[first.toUpperCase()] || null;
+}
+
+// Pure decision table — no rendering, no DOM. Returns {status, dist} or
+// null. Distance-band thresholds (8/25 NM) and the LIVE-only gate are the
+// approved C.2 values; OUTBOUND is a real, matched status but deliberately
+// has no visible rendering in this version (see tvAircraftTrackingBadge).
+function tvAircraftTrackingStatus(r){
+  var reg = tvAircraftRegistrationForRow(r);
+  if(!reg) return null; // unmapped/free-text return_flight -> no badge
+  var ac = _tv.aircraftState[reg];
+  if(!ac) return null; // missing aircraft row -> no badge, nothing implied
+  if(ac.freshness !== 'LIVE') return null; // STALE/NO_SIGNAL -> no badge, no hysteresis
+
+  if(ac.physical_status === 'ON_GROUND_NEAR_FXE'){
+    return {status:'ARRIVING_SOON', dist:null};
+  }
+  if(ac.physical_status === 'ON_GROUND_AWAY'){
+    return {status:'OUTBOUND', dist:null};
+  }
+  if(ac.physical_status === 'AIRBORNE' && ac.distance_trend === 'DECREASING'){
+    var d = ac.distance_to_fxe_nm;
+    if(typeof d !== 'number' || !isFinite(d)) return null; // invalid/null distance where distance is required
+    if(d <= 8) return {status:'ARRIVING_SOON', dist:d};
+    if(d <= 25) return {status:'APPROACHING', dist:d};
+    if(d > 25) return {status:'RETURNING', dist:d};
+    return null;
+  }
+  return null; // non-DECREASING airborne trend, or any other physical_status -> no badge
+}
+
+// Rendering only — reuses the exact existing .tv-badge idiom (same markup
+// shape as tvMoveH19Badge/tvWelcomeBackBadge), no new CSS.
+function tvAircraftTrackingBadge(r){
+  var t = tvAircraftTrackingStatus(r);
+  if(!t || t.status === 'OUTBOUND') return ''; // OUTBOUND: matched, not rendered (approved scope)
+  if(t.status === 'RETURNING'){
+    return '<span class="tv-badge tv-badge-daytag">&#9992; RETURNING &middot; '+Math.round(t.dist)+' NM</span>';
+  }
+  if(t.status === 'APPROACHING'){
+    return '<span class="tv-badge tv-badge-customs">&#9992; APPROACHING &middot; '+Math.round(t.dist)+' NM</span>';
+  }
+  if(t.status === 'ARRIVING_SOON'){
+    var label = (t.dist!=null) ? ('ARRIVING SOON &middot; '+Math.round(t.dist)+' NM') : 'ARRIVING SOON';
+    return '<span class="tv-badge tv-badge-warning">&#9992; '+label+'</span>';
+  }
+  return '';
+}
+
 // ── REALTIME ──────────────────────────────────────────────────────────
 // Best-effort enhancement layered on top of the reconciliation poll above
 // (which alone already satisfies "no manual refresh ever needed", just
@@ -9527,6 +9593,8 @@ function tvTodayRowHtml(r, kind){
     if(tvNeedsH19Move(r)) badgeParts.push(tvMoveH19Badge('today'));
     var wcbBadge = tvWelcomeBackBadge(r);
     if(wcbBadge) badgeParts.push(wcbBadge);
+    var aircraftBadge = tvAircraftTrackingBadge(r);
+    if(aircraftBadge) badgeParts.push(aircraftBadge);
     return tvRow(r,{
       time: t?t:'TIME NOT SET', timeUnset:!t,
       critical: isLate(r.ret) || wcbState==='overdue',

@@ -150,7 +150,18 @@
 // refresh-aircraft-state Edge Function. Transport/state plumbing only — no
 // rendering, no new DOM, no CSS. styles.css is unchanged this release.
 // Same SHELL_FILES, same reasoning as v2-v10.
-var CACHE_VERSION = 'v11';
+//
+// v12 (2026-08-29, NOT YET DEPLOYED — prepared pending approval):
+// index.html changed again — TV Mode (C.2) now renders an operational
+// aircraft-tracking badge (RETURNING/APPROACHING/ARRIVING SOON) on Leaving
+// Today rows only, derived from C.1's _tv.aircraftState combined with
+// return_flight (tvAircraftTrackingBadge()/tvAircraftTrackingStatus()/
+// TAIL_SUFFIX_TO_REGISTRATION). Reuses the existing .tv-badge/statusBadges
+// mechanism — no new CSS, styles.css unchanged this release. Only reads
+// server-computed freshness/physical_status/distance_trend, never
+// recomputes them; no badge for STALE/NO_SIGNAL/missing/unmapped rows.
+// Same SHELL_FILES, same reasoning as v2-v11.
+var CACHE_VERSION = 'v12';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 // Resolved relative to this file's own location, so they land in the
