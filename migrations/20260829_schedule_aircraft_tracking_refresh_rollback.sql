@@ -1,0 +1,26 @@
+-- Rollback for 20260829_schedule_aircraft_tracking_refresh.sql
+--
+-- Conservative by design: removes ONLY the one cron job this migration
+-- created. Does not touch:
+--   - the pg_cron / pg_net extensions (dropping them would affect any
+--     other scheduled job in this project, not just this one — a much
+--     broader blast radius than "undo B.4")
+--   - the Vault secrets 'aircraft_tracking_platform_jwt' and
+--     'aircraft_tracking_scheduler_secret' — both created exclusively
+--     for B.4, but deliberately LEFT IN PLACE here rather than deleted.
+--     Unscheduling the cron job below fully stops B.4's live effect (no
+--     more scheduled calls, no more use of either secret) — that alone
+--     restores the pre-B.4 *behavior*. Deleting Vault secrets is a more
+--     sensitive, harder-to-reverse operation than a routine rollback
+--     should perform automatically; an orphaned, unused secret is
+--     harmless. If a full teardown (including deleting these two
+--     secrets and the AIRCRAFT_REFRESH_SCHEDULER_SECRET Edge Function
+--     env var via `supabase secrets unset`, which this SQL rollback
+--     cannot do anyway) is ever actually wanted, that is a deliberate
+--     separate decision, not part of this rollback.
+--   - aircraft_live_state / aircraft_refresh_control (B.1) or
+--     refresh-aircraft-state (B.2/B.3/B.4) — completely unaffected; the
+--     Edge Function remains manually invokable (with the correct
+--     X-Aircraft-Refresh-Secret header) exactly as before this rollback.
+
+select cron.unschedule('refresh-aircraft-state-every-minute');

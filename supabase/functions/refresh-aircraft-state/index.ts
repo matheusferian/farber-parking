@@ -1,15 +1,28 @@
-// Live Aircraft Tracking — Phase B.2/B.3. Manually invokable only (no
-// cron, no pg_net, no Vault scheduling yet — see PROJECT.md, Live
-// Aircraft Tracking). This is the ONLY code in the project authorized to
-// call adsb.lol; TV Mode never will (it only ever reads
+// Live Aircraft Tracking — Phase B.2/B.3/B.4. Scheduled once per minute
+// by pg_cron + pg_net (B.4 migration) and still manually invokable for
+// diagnostics. This is the ONLY code in the project authorized to call
+// adsb.lol; TV Mode never will (it only ever reads
 // aircraft_live_state_computed, see the B.1 migration).
 //
-// Flow: claim lease -> (only if claimed) one batch provider request ->
-// evaluate/normalize -> dedupe by configured registration -> upsert ->
-// complete. There is no code path that reaches the provider fetch
-// without first successfully claiming the lease, and no code path that
-// mutates aircraft_live_state without the lease still being valid at
-// write time (see the B.2 fencing migration).
+// Flow: authenticate scheduler -> claim lease -> (only if claimed) one
+// batch provider request -> evaluate/normalize -> dedupe by configured
+// registration -> upsert -> complete. There is no code path that reaches
+// the provider fetch without first passing scheduler authentication AND
+// successfully claiming the lease, and no code path that mutates
+// aircraft_live_state without the lease still being valid at write time
+// (see the B.2 fencing migration).
+//
+// B.4 scheduler authentication: Supabase's platform-level JWT
+// verification stays enabled, but it only proves the caller holds SOME
+// valid project JWT — the anon key it accepts is already public in the
+// frontend, so it cannot alone prove the caller is our own cron
+// scheduler. The X-Aircraft-Refresh-Secret header (checked via
+// timingSafeEqual against AIRCRAFT_REFRESH_SCHEDULER_SECRET, a dedicated
+// high-entropy value that is neither the anon key nor the service_role
+// key) is the actual authorization boundary — checked first, before the
+// Supabase client is even created, before any lease claim or provider
+// fetch. Unauthorized requests get providerFetchAttempted:false and a
+// 401, same evidentiary guarantee as the lease's own NOT_CLAIMED path.
 //
 // B.3 hardening: every provider/runtime failure mode (timeout, non-200,
 // malformed body, invalid timestamp, claim/upsert RPC errors) never
@@ -241,6 +254,34 @@ export function normalizeObservations(
   return Array.from(byRegistration.values());
 }
 
+// ── SCHEDULER AUTHENTICATION (B.4 hardening) ─────────────────────────
+// Supabase JWT verification (platform-level, stays enabled) only proves
+// the caller holds SOME valid project JWT — the anon key is public in
+// the frontend, so it cannot by itself prove the caller is our own
+// cron scheduler. This header is the actual authorization boundary: a
+// dedicated, high-entropy secret that is neither the anon key nor the
+// service_role key, known only to (a) the Vault entry pg_net reads to
+// send it, and (b) this function's own AIRCRAFT_REFRESH_SCHEDULER_SECRET
+// env var. Checked before any lease claim or provider fetch — there is
+// no code path that reaches claim_aircraft_refresh without this passing
+// first.
+export const SCHEDULER_SECRET_HEADER = 'X-Aircraft-Refresh-Secret';
+
+// Constant-time-ish comparison to reduce timing side-channel exposure
+// for a 64-hex-char secret — not cryptographically perfect (JS string
+// operations aren't guaranteed constant-time at the engine level), but
+// meaningfully better than a naive `===` short-circuit, and proportionate
+// to this system's actual threat model (a low-value internal trigger
+// endpoint, not a high-security auth boundary).
+export function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) {
+    diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return diff === 0;
+}
+
 // ── ERROR CLASSIFICATION ──────────────────────────────────────────────
 // Concise, sanitized labels for last_error. We never send credentials to
 // the provider (the request is an unauthenticated public GET, no
@@ -356,14 +397,53 @@ export async function safeComplete(
 
 export interface HandleRequestDeps {
   // Injectable for deterministic handler-level tests — no real network or
-  // database access required. Defaults to the real Supabase client and
-  // the global fetch when omitted, which is exactly how production (and
-  // Deno.serve below) invokes this function.
+  // database access required. Defaults to the real Supabase client, the
+  // global fetch, and Deno.env when omitted, which is exactly how
+  // production (and Deno.serve below) invokes this function.
   rpcClient: RpcClient;
   fetchImpl: typeof fetch;
+  expectedSchedulerSecret: string | undefined;
 }
 
-export async function handleRequest(_req: Request, deps?: Partial<HandleRequestDeps>): Promise<Response> {
+export async function handleRequest(req: Request, deps?: Partial<HandleRequestDeps>): Promise<Response> {
+  // ── Scheduler authentication — checked before ANYTHING else, including
+  // creating the Supabase client. No claim, no fetch, no DB access of any
+  // kind happens before this passes. See SCHEDULER_SECRET_HEADER's doc
+  // comment for why this exists alongside (not instead of) the platform
+  // JWT gate.
+  const expectedSchedulerSecret =
+    deps && 'expectedSchedulerSecret' in deps ? deps.expectedSchedulerSecret : Deno.env.get('AIRCRAFT_REFRESH_SCHEDULER_SECRET');
+
+  if (!expectedSchedulerSecret) {
+    // Server misconfiguration — the secret was never provisioned. Never
+    // silently fall through to allowing requests without it.
+    return jsonResponse(
+      {
+        refreshed: false,
+        reason: 'SCHEDULER_SECRET_NOT_CONFIGURED',
+        providerFetchAttempted: false,
+        cachePreserved: true,
+        completionRecorded: false,
+      },
+      500,
+    );
+  }
+
+  const providedSchedulerSecret = req.headers.get(SCHEDULER_SECRET_HEADER);
+  if (!providedSchedulerSecret || !timingSafeEqual(providedSchedulerSecret, expectedSchedulerSecret)) {
+    // Never log the provided or expected value — only that the check failed.
+    return jsonResponse(
+      {
+        refreshed: false,
+        reason: 'UNAUTHORIZED',
+        providerFetchAttempted: false,
+        cachePreserved: true,
+        completionRecorded: false,
+      },
+      401,
+    );
+  }
+
   let supabaseAdmin: RpcClient;
   if (deps?.rpcClient) {
     // Test path: never touches Deno.env at all when a client is injected.
