@@ -1,15 +1,69 @@
-// Live Aircraft Tracking — Phase B.2. Manually invokable only (no cron,
-// no pg_net, no Vault scheduling yet — see PROJECT.md, Live Aircraft
-// Tracking). This is the ONLY code in the project authorized to call
-// adsb.lol; TV Mode never will (it only ever reads
+// Live Aircraft Tracking — Phase B.2/B.3. Manually invokable only (no
+// cron, no pg_net, no Vault scheduling yet — see PROJECT.md, Live
+// Aircraft Tracking). This is the ONLY code in the project authorized to
+// call adsb.lol; TV Mode never will (it only ever reads
 // aircraft_live_state_computed, see the B.1 migration).
 //
 // Flow: claim lease -> (only if claimed) one batch provider request ->
-// normalize -> dedupe by configured registration -> upsert -> complete.
-// There is no code path that reaches the provider fetch without first
-// successfully claiming the lease.
+// evaluate/normalize -> dedupe by configured registration -> upsert ->
+// complete. There is no code path that reaches the provider fetch
+// without first successfully claiming the lease, and no code path that
+// mutates aircraft_live_state without the lease still being valid at
+// write time (see the B.2 fencing migration).
+//
+// B.3 hardening: every provider/runtime failure mode (timeout, non-200,
+// malformed body, invalid timestamp, claim/upsert RPC errors) never
+// mutates aircraft_live_state, never touches last_success_at, and always
+// attempts (once, never retried) to record the failure via
+// complete_aircraft_refresh. See classifyFetchError()/safeComplete()/
+// evaluateProviderResponse() below.
+//
+// One deliberate exception to "failure never mutates aircraft_live_state"
+// — NOT a failure mode, a genuine partial-success case: the observation
+// upsert and the final complete_aircraft_refresh(success:true) call are
+// TWO SEPARATE database transactions. If the upsert commits but the
+// completion call that follows it fails, the aircraft rows are already
+// correctly written and stay written — there is nothing to roll back,
+// and this code does not fabricate doing so. That response is reported
+// as `refreshed:false, reason:'COMPLETION_FAILED_AFTER_WRITE',
+// dataPlaneWritten:true` — never `refreshed:true` (control-plane
+// telemetry did not confirm), but also never claiming nothing was
+// written when it was. last_success_at is left at its previous (stale)
+// value in that case; the lease still expires on its own original
+// schedule regardless, so the next refresh attempt is always safe. See
+// the COMPLETION_FAILED_AFTER_WRITE branch below for the full reasoning,
+// and PROJECT.md, Live Aircraft Tracking, for why this stays a
+// two-transaction design for now rather than one atomic RPC.
+//
+// Telemetry field semantics (aircraft_refresh_control):
+//   last_attempt_at    — advances on every successful lease CLAIM (set by
+//                         claim_aircraft_refresh itself, B.1), regardless
+//                         of what happens afterward.
+//   last_success_at    — advances ONLY when complete_aircraft_refresh
+//                         (success:true) itself is successfully recorded.
+//                         Per the exception above, this means a successful
+//                         data-plane write can transiently coexist with an
+//                         older last_success_at if only the completion
+//                         call failed — that must be read as a
+//                         control-plane telemetry gap, not as evidence
+//                         the aircraft rows are stale or unwritten.
+//   last_provider_status / last_error / consecutive_failures — written by
+//                         complete_aircraft_refresh; reset to
+//                         null/null/0 on success, incremented/populated
+//                         on failure (B.1).
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
+
+// Minimal surface actually used from the Supabase client — only `.rpc()`.
+// Declaring our own interface (rather than importing the full
+// SupabaseClient type) lets tests inject a lightweight fake without
+// needing to satisfy the entire real client's shape.
+export interface RpcClient {
+  rpc(
+    fn: string,
+    params: object,
+  ): PromiseLike<{ data: unknown; error: { message: string } | null }>;
+}
 
 // ── STATIC AIRCRAFT CONFIG ───────────────────────────────────────────
 // The 8 Makers Air Caravans. `registration` here is the ONLY authoritative
@@ -187,6 +241,80 @@ export function normalizeObservations(
   return Array.from(byRegistration.values());
 }
 
+// ── ERROR CLASSIFICATION ──────────────────────────────────────────────
+// Concise, sanitized labels for last_error. We never send credentials to
+// the provider (the request is an unauthenticated public GET, no
+// Authorization header), so err.message can't contain them by
+// construction — this is trimmed short regardless, per the "concise
+// sanitized" requirement, and specifically distinguishes a timeout from
+// other network failures for clearer telemetry.
+export function classifyFetchError(err: unknown): string {
+  if (err instanceof Error) {
+    if (err.name === 'TimeoutError' || err.name === 'AbortError') return 'provider_timeout';
+    return `network_error: ${err.message}`.slice(0, 200);
+  }
+  return `network_error: ${String(err)}`.slice(0, 200);
+}
+
+// ── PROVIDER RESPONSE EVALUATION — pure/testable, no network access ───
+// Takes an already-fetched Response (real fetch() result in production,
+// a synthetic `new Response(...)` in tests) so every HTTP-status/body
+// failure mode is fully testable without hitting adsb.lol.
+export type ProviderEvaluation =
+  | {
+      ok: true;
+      observations: NormalizedObservation[];
+      totalReturnedByProvider: number;
+      providerStatus: number;
+    }
+  | { ok: false; reason: string; providerStatus: number | null };
+
+export async function evaluateProviderResponse(
+  res: Response,
+  receiptTimeMs: number,
+): Promise<ProviderEvaluation> {
+  // Item 2: 429, 5xx, and every other non-200 status share one path —
+  // no upsert, no change to last_success_at, provider status preserved
+  // for telemetry. lock_until is never touched here or anywhere in this
+  // file for rate-limit/backoff purposes — it means lease/concurrency
+  // only (see B.1/B.2 migrations).
+  if (res.status !== 200) {
+    return { ok: false, reason: 'PROVIDER_HTTP_ERROR', providerStatus: res.status };
+  }
+
+  // Item 4: a JSON parse exception (including genuinely non-JSON bodies)
+  // is a failure, not a crash — caught here, never touches aircraft rows.
+  let body: unknown;
+  try {
+    body = await res.json();
+  } catch {
+    return { ok: false, reason: 'MALFORMED_RESPONSE', providerStatus: res.status };
+  }
+
+  // Item 3: HTTP 200 is only treated as success when the body is a valid
+  // object AND `ac` is an array AND `now` is a plausible timestamp — a
+  // malformed 200 (missing ac, ac not an array, garbage now) is a
+  // failure, never treated as a valid empty batch. A genuinely valid
+  // `ac: []` still passes this check and is a real success (item 10).
+  if (!isValidProviderBody(body)) {
+    return { ok: false, reason: 'MALFORMED_RESPONSE', providerStatus: res.status };
+  }
+
+  if (!isPlausibleEpochMs(body.now, receiptTimeMs, CLOCK_SKEW_TOLERANCE_MS)) {
+    return { ok: false, reason: 'INVALID_PROVIDER_TIMESTAMP', providerStatus: res.status };
+  }
+
+  const polledAtIso = new Date(receiptTimeMs).toISOString(); // one receipt timestamp for the whole batch
+  const observations = normalizeObservations(body.ac, body.now, polledAtIso);
+
+  return {
+    ok: true,
+    observations,
+    totalReturnedByProvider: body.ac.length,
+    providerStatus: res.status,
+  };
+}
+
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -194,17 +322,71 @@ function jsonResponse(body: unknown, status = 200): Response {
   });
 }
 
-export async function handleRequest(_req: Request): Promise<Response> {
-  const supabaseUrl = Deno.env.get('SUPABASE_URL');
-  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-  if (!supabaseUrl || !serviceRoleKey) {
-    // Never log the key itself — only that it's missing.
-    return jsonResponse({ refreshed: false, reason: 'MISSING_SERVICE_ROLE_CONFIG' }, 500);
-  }
+interface CompleteParams {
+  p_worker_id: string;
+  p_success: boolean;
+  p_provider_status: number | null;
+  p_error: string | null;
+}
 
-  const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
-    auth: { persistSession: false },
-  });
+// Item 5: complete_aircraft_refresh itself can fail (network blip to the
+// database, transient Postgres error). This is called exactly once per
+// refresh attempt — never retried recursively or in a loop — and never
+// throws; it reports back whether the completion actually landed so the
+// HTTP response can honestly reflect it via `completionRecorded` (item 8)
+// instead of silently assuming success. Logging is best-effort only and
+// never includes request/auth headers or the service-role key.
+export async function safeComplete(
+  supabaseAdmin: RpcClient,
+  params: CompleteParams,
+): Promise<boolean> {
+  const { error } = await supabaseAdmin.rpc('complete_aircraft_refresh', params);
+  if (error) {
+    console.error(
+      JSON.stringify({
+        event: 'complete_aircraft_refresh_failed',
+        workerId: params.p_worker_id,
+        message: error.message,
+      }),
+    );
+    return false;
+  }
+  return true;
+}
+
+export interface HandleRequestDeps {
+  // Injectable for deterministic handler-level tests — no real network or
+  // database access required. Defaults to the real Supabase client and
+  // the global fetch when omitted, which is exactly how production (and
+  // Deno.serve below) invokes this function.
+  rpcClient: RpcClient;
+  fetchImpl: typeof fetch;
+}
+
+export async function handleRequest(_req: Request, deps?: Partial<HandleRequestDeps>): Promise<Response> {
+  let supabaseAdmin: RpcClient;
+  if (deps?.rpcClient) {
+    // Test path: never touches Deno.env at all when a client is injected.
+    supabaseAdmin = deps.rpcClient;
+  } else {
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    if (!supabaseUrl || !serviceRoleKey) {
+      // Never log the key itself — only that it's missing.
+      return jsonResponse(
+        {
+          refreshed: false,
+          reason: 'MISSING_SERVICE_ROLE_CONFIG',
+          providerFetchAttempted: false,
+          cachePreserved: true,
+          completionRecorded: false,
+        },
+        500,
+      );
+    }
+    supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false } });
+  }
+  const fetchImpl = deps?.fetchImpl ?? fetch;
 
   const workerId = `edge-${crypto.randomUUID()}`;
 
@@ -214,12 +396,22 @@ export async function handleRequest(_req: Request): Promise<Response> {
   });
 
   if (claimError) {
-    return jsonResponse({ refreshed: false, reason: 'CLAIM_RPC_ERROR', message: claimError.message }, 500);
+    // Nothing was claimed — nothing to complete/release.
+    return jsonResponse(
+      {
+        refreshed: false,
+        reason: 'CLAIM_RPC_ERROR',
+        message: claimError.message,
+        providerFetchAttempted: false,
+        cachePreserved: true,
+        completionRecorded: false,
+      },
+      500,
+    );
   }
 
-  const claim = claimRows?.[0] as
-    | { claimed: boolean; cache_is_fresh: boolean; last_success_at: string | null }
-    | undefined;
+  const claim = (claimRows as Array<{ claimed: boolean; cache_is_fresh: boolean; last_success_at: string | null }> | null)
+    ?.[0];
 
   if (!claim?.claimed) {
     // Lease held by another worker, or cache still fresh — either way,
@@ -228,6 +420,8 @@ export async function handleRequest(_req: Request): Promise<Response> {
     // call below — there is no code path that sets it true without that
     // line actually having executed, which is the concrete evidence this
     // field exists to provide (see PROJECT.md, Live Aircraft Tracking).
+    // completionRecorded is false because nothing was claimed, so there
+    // is nothing to complete.
     return jsonResponse({
       refreshed: false,
       reason: 'NOT_CLAIMED',
@@ -235,6 +429,7 @@ export async function handleRequest(_req: Request): Promise<Response> {
       cacheIsFresh: !!claim?.cache_is_fresh,
       lastSuccessAt: claim?.last_success_at ?? null,
       providerFetchAttempted: false,
+      completionRecorded: false,
     });
   }
 
@@ -251,55 +446,29 @@ export async function handleRequest(_req: Request): Promise<Response> {
     const providerUrl = PROVIDER_BASE_URL + hexList;
 
     providerFetchAttempted = true;
-    const res = await fetch(providerUrl, { signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS) });
+    const res = await fetchImpl(providerUrl, { signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS) });
+    const receiptTimeMs = Date.now();
 
-    if (res.status !== 200) {
-      await supabaseAdmin.rpc('complete_aircraft_refresh', {
+    const evaluation = await evaluateProviderResponse(res, receiptTimeMs);
+
+    if (!evaluation.ok) {
+      const completionRecorded = await safeComplete(supabaseAdmin, {
         p_worker_id: workerId,
         p_success: false,
-        p_provider_status: res.status,
-        p_error: `provider_http_${res.status}`,
+        p_provider_status: evaluation.providerStatus,
+        p_error: evaluation.reason.toLowerCase(),
       });
       return jsonResponse({
         refreshed: false,
-        reason: 'PROVIDER_HTTP_ERROR',
-        providerStatus: res.status,
+        reason: evaluation.reason,
+        providerStatus: evaluation.providerStatus,
         cachePreserved: true,
         providerFetchAttempted,
+        completionRecorded,
       });
     }
 
-    const body = await res.json().catch(() => null);
-    if (!isValidProviderBody(body)) {
-      await supabaseAdmin.rpc('complete_aircraft_refresh', {
-        p_worker_id: workerId,
-        p_success: false,
-        p_provider_status: res.status,
-        p_error: 'malformed_response',
-      });
-      return jsonResponse({ refreshed: false, reason: 'MALFORMED_RESPONSE', cachePreserved: true, providerFetchAttempted });
-    }
-
-    // Single batch reference timestamp, provider-supplied — derive every
-    // aircraft's absolute timestamps from this one value, never our own
-    // clock called per-aircraft. A merely-finite body.now is not enough
-    // (see isPlausibleEpochMs doc comment) — it must be within a
-    // documented clock-skew tolerance of our own receipt time.
-    const receiptTimeMs = Date.now();
-    const batchTimeMs = body.now;
-    if (!isPlausibleEpochMs(batchTimeMs, receiptTimeMs, CLOCK_SKEW_TOLERANCE_MS)) {
-      await supabaseAdmin.rpc('complete_aircraft_refresh', {
-        p_worker_id: workerId,
-        p_success: false,
-        p_provider_status: res.status,
-        p_error: 'invalid_provider_timestamp',
-      });
-      return jsonResponse({ refreshed: false, reason: 'INVALID_PROVIDER_TIMESTAMP', cachePreserved: true, providerFetchAttempted });
-    }
-
-    const polledAtIso = new Date().toISOString(); // one receipt timestamp for the whole batch
-
-    const observations = normalizeObservations(body.ac, batchTimeMs, polledAtIso);
+    const { observations, totalReturnedByProvider, providerStatus } = evaluation;
 
     // Empty valid batch (HTTP 200, ac: []) is still a provider success —
     // the upsert call is simply skippable when there's nothing to write.
@@ -314,13 +483,19 @@ export async function handleRequest(_req: Request): Promise<Response> {
         p_observations: observations,
       });
       if (upsertError) {
-        await supabaseAdmin.rpc('complete_aircraft_refresh', {
+        const completionRecorded = await safeComplete(supabaseAdmin, {
           p_worker_id: workerId,
           p_success: false,
-          p_provider_status: res.status,
-          p_error: `upsert_failed: ${upsertError.message}`,
+          p_provider_status: providerStatus,
+          p_error: `upsert_failed: ${upsertError.message}`.slice(0, 200),
         });
-        return jsonResponse({ refreshed: false, reason: 'UPSERT_FAILED', cachePreserved: true, providerFetchAttempted });
+        return jsonResponse({
+          refreshed: false,
+          reason: 'UPSERT_FAILED',
+          cachePreserved: true,
+          providerFetchAttempted,
+          completionRecorded,
+        });
       }
       if (rowCount === 0) {
         // Fenced out: lease expired or was reclaimed by a newer worker
@@ -328,43 +503,94 @@ export async function handleRequest(_req: Request): Promise<Response> {
         // attempted defensively, but its own lock_owner guard means it
         // will just as safely no-op if this worker no longer owns the
         // lease — no double-reporting risk either way.
-        await supabaseAdmin.rpc('complete_aircraft_refresh', {
+        const completionRecorded = await safeComplete(supabaseAdmin, {
           p_worker_id: workerId,
           p_success: false,
-          p_provider_status: res.status,
+          p_provider_status: providerStatus,
           p_error: 'lease_fenced_out_before_write',
         });
-        return jsonResponse({ refreshed: false, reason: 'LEASE_FENCED_OUT', cachePreserved: true, providerFetchAttempted });
+        return jsonResponse({
+          refreshed: false,
+          reason: 'LEASE_FENCED_OUT',
+          cachePreserved: true,
+          providerFetchAttempted,
+          completionRecorded,
+        });
       }
     }
 
-    await supabaseAdmin.rpc('complete_aircraft_refresh', {
+    // Data-plane mutation (if any) has already committed in its own
+    // separate transaction by this point (the upsert RPC call above, if
+    // observations.length > 0). This completion call is a SEPARATE
+    // transaction — it can fail independently of that write having
+    // already succeeded.
+    const completionRecorded = await safeComplete(supabaseAdmin, {
       p_worker_id: workerId,
       p_success: true,
-      p_provider_status: res.status,
+      p_provider_status: providerStatus,
       p_error: null,
     });
+
+    if (!completionRecorded) {
+      // Real, rare gap: the write already committed, but the closing
+      // complete_aircraft_refresh(success:true) call itself failed. Per
+      // explicit design decision, we do NOT report refreshed:true here —
+      // control-plane telemetry did not confirm — and we do NOT attempt
+      // to roll back or fabricate undoing a write that has already
+      // committed and cannot actually be reversed from this point.
+      // `dataPlaneWritten` tells the caller the aircraft rows genuinely
+      // are fresh despite refreshed:false, so this isn't confused with
+      // any other failure mode where nothing was written at all.
+      //
+      // last_success_at is left at its PREVIOUS value (stale) and the
+      // lease is not released here, but lock_until is unaffected by this
+      // failure and still expires on its own original schedule — the
+      // next refresh attempt is safe once that passes, with no retry
+      // loop needed (see PROJECT.md, Live Aircraft Tracking, for the
+      // architecture note on why this stays a two-transaction design
+      // for now rather than one atomic RPC).
+      return jsonResponse({
+        refreshed: false,
+        reason: 'COMPLETION_FAILED_AFTER_WRITE',
+        dataPlaneWritten: observations.length > 0,
+        totalMatchedAndWritten: observations.length,
+        registrationsWritten: observations.map((o) => o.registration),
+        providerStatus,
+        providerFetchAttempted,
+        completionRecorded: false,
+      });
+    }
 
     return jsonResponse({
       refreshed: true,
       provider: 'adsb.lol',
       providerRequests: 1,
-      providerStatus: res.status,
+      providerStatus,
       totalConfigured: CONFIGURED_AIRCRAFT.length,
-      totalReturnedByProvider: body.ac.length,
+      totalReturnedByProvider,
       totalMatchedAndWritten: observations.length,
       registrationsWritten: observations.map((o) => o.registration),
       providerFetchAttempted,
+      completionRecorded: true,
     });
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    await supabaseAdmin.rpc('complete_aircraft_refresh', {
+    // Covers fetch() throwing outright: timeout (AbortSignal), DNS/TCP/TLS
+    // failure, etc. — never touches aircraft_live_state, cache preserved.
+    const sanitized = classifyFetchError(err);
+    const completionRecorded = await safeComplete(supabaseAdmin, {
       p_worker_id: workerId,
       p_success: false,
       p_provider_status: null,
-      p_error: message.slice(0, 500),
+      p_error: sanitized,
     });
-    return jsonResponse({ refreshed: false, reason: 'EXCEPTION', message, cachePreserved: true, providerFetchAttempted });
+    return jsonResponse({
+      refreshed: false,
+      reason: 'EXCEPTION',
+      message: sanitized,
+      cachePreserved: true,
+      providerFetchAttempted,
+      completionRecorded,
+    });
   }
 }
 
@@ -373,5 +599,5 @@ export async function handleRequest(_req: Request): Promise<Response> {
 // when imported by another module, e.g. for isolated testing of the pure
 // functions above.
 if (import.meta.main) {
-  Deno.serve(handleRequest);
+  Deno.serve((req) => handleRequest(req));
 }
