@@ -205,7 +205,17 @@
 // class (same as DELIVERED) — no new CSS, styles.css unchanged this
 // release. WELCOME BACK OVERDUE untouched. No adsb.lol/Edge Function call
 // from the browser. Same SHELL_FILES, same reasoning as v2-v13.
-var CACHE_VERSION = 'v14';
+//
+// v15 (2026-08-29): iOS "Add to Home Screen" was showing a generic icon —
+// index.html's apple-touch-icon was a 1x1 transparent placeholder and the
+// manifest was an inline data: URI with no icons declared at all. Fixed
+// with real icon files (apple-touch-icon.png, icon-192.png, icon-512.png,
+// favicon-32x32.png) and an external manifest.webmanifest (replacing the
+// inline data: URI so it can declare real icon src paths). SHELL_FILES
+// DOES change this time — these 5 new files are added below — which is
+// exactly the case this version-bump convention exists for (unlike v2-v14,
+// which only changed content of files already on the list).
+var CACHE_VERSION = 'v15';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 // Resolved relative to this file's own location, so they land in the
@@ -216,6 +226,11 @@ var SHELL_FILES = [
   './styles.css',
   './utils.js',
   './logo.PNG',
+  './manifest.webmanifest',
+  './apple-touch-icon.png',
+  './icon-192.png',
+  './icon-512.png',
+  './favicon-32x32.png',
   './vendor/supabase.js',
   // index.html loads these two via <script src> for the Offline Mode
   // infrastructure itself — without them precached, a cold offline
