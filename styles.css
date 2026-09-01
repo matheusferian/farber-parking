@@ -70,26 +70,43 @@ header img{display:none!important;}
 }
 .ref-btn:hover{background:rgba(255,255,255,.18);transform:translateY(-1px);}
 
-/* ── TABS ── */
+/* ── TABS / SIDEBAR NAVIGATION ──────────────────────────────────────
+   Responsive-fix pass: the fixed sidebar (previously >=1101px) was
+   too wide for real iPads, which often report a landscape CSS width
+   above that threshold — the sidebar ate into the main content on an
+   actual device. Replaced with an off-canvas drawer for every width
+   below true desktop (now 1280px), verified against 375/768/834/1024/
+   1440 specifically. The base rules below are the column/nav-item look
+   — shared by BOTH the drawer (default, closed unless .open) and the
+   always-visible desktop sidebar (>=1280px, see media block below,
+   which only changes position/visibility, not the nav item styling
+   itself). Same underlying .tab[data-t] elements/click handlers as
+   before — only the container's open/closed presentation changed. */
 .tabs{
-  display:flex;align-items:center;gap:20px;
-  background:#F7F9FD;border-bottom:1px solid #DDE6F3;
-  box-shadow:0 5px 14px rgba(32,50,77,.08);
-  overflow-x:auto;padding:0 28px;min-height:64px;
+  display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;
+  gap:2px;overflow-y:auto;padding:18px 12px;
+  background:var(--s);border-right:1px solid var(--b);
+  position:fixed;top:0;left:0;bottom:0;width:232px;max-width:85vw;
+  z-index:150;transform:translateX(-100%);transition:transform .25s ease;
+  box-shadow:none;
 }
+.tabs.open{transform:translateX(0);box-shadow:8px 0 32px rgba(1,21,50,.18);}
 .tab{
-  position:relative;display:flex;align-items:center;gap:10px;
-  padding:20px 8px 18px;
-  font-family:'Inter',sans-serif;font-size:15px;font-weight:700;
-  color:#20324D;cursor:pointer;
-  border-bottom:3px solid transparent;white-space:nowrap;flex-shrink:0;
+  padding:9px 10px;border-radius:10px;font-size:13.5px;font-weight:600;
+  color:var(--mu);gap:10px;position:relative;
+  display:flex;align-items:center;cursor:pointer;
+  border-bottom:none;white-space:nowrap;flex-shrink:0;
   transition:all .18s ease;
 }
-.tab i{font-size:18px;width:22px;text-align:center;color:#1F5FBF;opacity:.95;flex-shrink:0;}
+.tab i{font-size:14px;width:16px;text-align:center;color:inherit;opacity:.85;flex-shrink:0;}
 .tab span{display:inline-flex;align-items:center;}
-.tab:hover{color:#1F5FBF;background:#EAF1FB;}
-.tab.on{color:#1F5FBF;border-bottom-color:#1F5FBF;}
-.tab.on i{color:#1F5FBF;opacity:1;}
+.tab:hover{color:var(--navy);background:var(--s2);}
+.tab.on{color:var(--blue);background:#EAF1FF;}
+.tab.on i{color:var(--blue);opacity:1;}
+.tab.on::before{
+  content:"";position:absolute;left:-12px;top:8px;bottom:8px;
+  width:3px;border-radius:3px;background:var(--blue);
+}
 .tbadge{
   display:inline-flex;align-items:center;justify-content:center;
   min-width:34px;height:22px;padding:0 9px;border-radius:999px;
@@ -98,27 +115,42 @@ header img{display:none!important;}
 }
 .tbadge.red{min-width:22px;height:22px;padding:0 7px;background:var(--red);color:#fff;font-size:12px;}
 .pane{display:none;}.pane.on{display:block;}
-.tab-group-label{display:none;}
+.tab-group-label{
+  display:block;font-family:'JetBrains Mono',monospace;font-size:10px;
+  font-weight:700;letter-spacing:.09em;color:#8B99B8;
+  text-transform:uppercase;padding:14px 10px 6px;
+}
 .sidebar-brand{display:none;}
 
-/* ── V2 SHELL — DESKTOP SIDEBAR NAVIGATION ──────────────────────────
-   Desktop-only (>=1101px). At and below 1100px (the existing "iPad /
-   tablet" breakpoint already used elsewhere in this file) the .tabs
-   bar keeps its original horizontal layout completely unchanged —
-   field iPads are this app's primary real-world device and must not
-   regress. This block repositions the *existing* header via body
-   padding-left rather than reordering the DOM, so every modal (.ov,
-   position:fixed) and #tvMode (position:fixed;inset:0) are completely
-   unaffected regardless of where they physically sit in the file. ── */
-@media(min-width:1101px){
+/* Backdrop — drawer mode only; hidden entirely at true desktop below. */
+.nav-backdrop{position:fixed;inset:0;background:rgba(1,21,50,.45);z-index:140;display:none;}
+.nav-backdrop.on{display:block;}
+
+/* Hamburger — visible by default (drawer mode is the default state now);
+   hidden at true desktop, where the sidebar is always open. */
+.hamburger-btn{
+  display:flex;align-items:center;justify-content:center;
+  width:38px;height:38px;flex-shrink:0;
+  background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.4);
+  border-radius:9px;color:#fff;font-size:17px;cursor:pointer;
+  transition:background .15s;
+}
+.hamburger-btn:hover{background:rgba(255,255,255,.2);}
+
+/* ── V2 SHELL — TRUE DESKTOP ONLY ─────────────────────────────────────
+   Verified specifically against 375/768/834/1024 (all drawer mode) and
+   1440 (this block). 1101-1279px used to get the fixed sidebar too —
+   that's exactly the zone that was cramping real iPads in landscape;
+   it's drawer mode now, same as narrower widths. This block repositions
+   the *existing* header via body padding-left rather than reordering
+   the DOM, so every modal (.ov, position:fixed) and #tvMode
+   (position:fixed;inset:0) are completely unaffected regardless of
+   where they physically sit in the file. ── */
+@media(min-width:1280px){
   body{padding-left:232px;}
-  .tabs{
-    position:fixed;top:0;left:0;bottom:0;width:232px;
-    flex-direction:column;align-items:stretch;justify-content:flex-start;
-    gap:2px;overflow-y:auto;padding:18px 12px;min-height:auto;
-    background:var(--s);border-right:1px solid var(--b);border-bottom:none;
-    box-shadow:none;z-index:90;
-  }
+  .tabs{transform:none;box-shadow:none;z-index:90;}
+  .nav-backdrop{display:none!important;}
+  .hamburger-btn{display:none;}
   /* Mockup 2 sidebar-brand, adapted to this sidebar's existing 18px/12px
      padding (mockup's own .sidebar has zero padding of its own, so its
      absolute padding values would double up here without the negative
@@ -130,23 +162,6 @@ header img{display:none!important;}
   }
   .sidebar-brand img{width:30px;height:auto;}
   .sidebar-brand .sb-name{font-family:'Sora',sans-serif;font-weight:800;font-size:16px;color:var(--navy);}
-  .tab{
-    padding:9px 10px;border-radius:10px;font-size:13.5px;font-weight:600;
-    color:var(--mu);border-bottom:none;gap:10px;position:relative;
-  }
-  .tab i{font-size:14px;width:16px;color:inherit;opacity:.85;}
-  .tab:hover{color:var(--navy);background:var(--s2);}
-  .tab.on{color:var(--blue);background:#EAF1FF;border-bottom-color:transparent;}
-  .tab.on i{color:var(--blue);opacity:1;}
-  .tab.on::before{
-    content:"";position:absolute;left:-12px;top:8px;bottom:8px;
-    width:3px;border-radius:3px;background:var(--blue);
-  }
-  .tab-group-label{
-    display:block;font-family:'JetBrains Mono',monospace;font-size:10px;
-    font-weight:700;letter-spacing:.09em;color:#8B99B8;
-    text-transform:uppercase;padding:14px 10px 6px;
-  }
   /* Desktop density (Phase 3) — the sidebar already reclaimed the width
      Phase 1 needed; this just uses it: tighter table rows fit more of
      the operational list on screen, and the stats row wraps to use full
@@ -645,17 +660,15 @@ body{-webkit-text-size-adjust:100%;}
 .tw td,.tw th{padding:12px 10px;}
 
 /* ── iPad / tablet ── */
-@media(max-width:1100px){
-  header{flex-wrap:wrap;align-items:flex-start;padding:12px 20px;gap:10px;overflow:visible;}
-  .brand-wrap{width:100%;flex-basis:100%;}
+@media(max-width:1279px){
+  header{flex-wrap:wrap;align-items:center;padding:12px 20px;gap:10px;overflow:visible;}
+  .brand-wrap{flex:1;min-width:0;}
   .brand-name{font-size:20px;}
   .brand-system{font-size:20px;}
   .brand-divider{height:30px;}
   .hdr-r{width:100%;justify-content:flex-end;}
   .hdr-date{font-size:12px;}
   .ref-btn{padding:7px 12px;font-size:12px;}
-  .tabs{padding:0 16px;gap:14px;}
-  .tab{font-size:14px;padding:18px 6px 16px;}
   /* iPad is the primary operational device, not a shrunk desktop — larger
      tap targets on every interactive row/control below, and a little
      breathing room in the table since this is the surface attendants
@@ -675,7 +688,8 @@ body{-webkit-text-size-adjust:100%;}
 /* ── iPhone / small phones ── */
 @media(max-width:600px){
   header{padding:12px 14px;min-height:auto;gap:10px;}
-  .brand-wrap{width:100%;flex-basis:100%;gap:0;}
+  .brand-wrap{flex:1;min-width:0;gap:0;}
+  .hamburger-btn{width:34px;height:34px;font-size:15px;}
   .brand-name{font-size:18px;letter-spacing:.3px;max-width:100%;overflow:hidden;text-overflow:ellipsis;}
   .brand-divider,.brand-system{display:none;}
   .hdr-r{width:100%;justify-content:space-between;gap:8px;}
@@ -697,7 +711,6 @@ body{-webkit-text-size-adjust:100%;}
   .ho{padding:10px 13px;font-size:12px;}
   .hgrid{gap:8px;flex-wrap:wrap;}
   .hgrid .ho{flex:1;min-width:70px;text-align:center;}
-  .tabs{overflow-x:auto;}
   .fltrs{overflow-x:auto;-webkit-overflow-scrolling:touch;}
   .stats{overflow-x:auto;-webkit-overflow-scrolling:touch;}
   .stats .chip{min-width:88px;}

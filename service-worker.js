@@ -237,7 +237,16 @@
 // wordmark.png) were copied into ./assets/ for future use but are not
 // referenced by any current page, so they're deliberately not added
 // here.
-var CACHE_VERSION = 'v19';
+// v20: responsive-fix — the fixed sidebar (previously >=1101px) was
+// too wide for real iPads (landscape CSS width often exceeds that
+// threshold) and cramped the main content. Replaced with an
+// off-canvas drawer for every width below true desktop (now 1280px):
+// hamburger button in the header, backdrop, auto-close on nav-item
+// select, drawer closes on backdrop tap. True desktop (>=1280px)
+// keeps the exact same always-visible fixed sidebar as before, just
+// at a higher breakpoint. No new files added to SHELL_FILES — only
+// index.html/styles.css content changed.
+var CACHE_VERSION = 'v20';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 // Resolved relative to this file's own location, so they land in the

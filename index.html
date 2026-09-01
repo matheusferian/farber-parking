@@ -47,6 +47,7 @@
 <div id="bar"></div>
 <div id="msg"></div>
 <header>
+  <button type="button" class="hamburger-btn" id="navMenuBtn" onclick="toggleSidebarDrawer()" aria-label="Open navigation menu">&#9776;</button>
   <div class="brand-wrap">
     <div class="brand-name">AirValet</div>
     <div class="brand-divider"></div>
@@ -94,6 +95,7 @@
   <div class="tab" data-t="debug"><i class="fa-solid fa-screwdriver-wrench"></i><span>Debug</span></div>
   <div class="tab" data-t="useraccess" onclick="loadUserAccessList()"><i class="fa-solid fa-user-shield"></i><span>User Access</span></div>
 </div>
+<div class="nav-backdrop" id="navBackdrop" onclick="closeSidebarDrawer()"></div>
 <div class="pane on" id="pane-all">
   <div class="stats" id="statsBar"></div>
   <div class="sw">
@@ -2809,6 +2811,24 @@ async function doArchive(){
 }
 function closeArchiveModal(){_pendingArchivedBy='';document.getElementById('archiveOv').classList.remove('on');}
 
+// ── SIDEBAR DRAWER (responsive-fix: iPad/iPhone off-canvas nav) ─────
+// Desktop (>=1280px) never calls these — the hamburger button and
+// backdrop are display:none there via CSS, and .tabs ignores the .open
+// class (transform:none at that width) — so toggling the classes below
+// on desktop is harmless even if it somehow fired.
+function openSidebarDrawer(){
+  document.querySelector('.tabs').classList.add('open');
+  document.getElementById('navBackdrop').classList.add('on');
+}
+function closeSidebarDrawer(){
+  document.querySelector('.tabs').classList.remove('open');
+  document.getElementById('navBackdrop').classList.remove('on');
+}
+function toggleSidebarDrawer(){
+  if(document.querySelector('.tabs').classList.contains('open')) closeSidebarDrawer();
+  else openSidebarDrawer();
+}
+
 // ── TABS & FILTERS ─────────────────────────────────────────────
 document.querySelectorAll('.tab').forEach(function(t){
   t.addEventListener('click',function(){
@@ -2816,6 +2836,7 @@ document.querySelectorAll('.tab').forEach(function(t){
     document.querySelectorAll('.pane').forEach(function(x){x.classList.remove('on');});
     t.classList.add('on');
     document.getElementById('pane-'+t.getAttribute('data-t')).classList.add('on');
+    closeSidebarDrawer();
   });
 });
 document.querySelectorAll('.fb').forEach(function(b){
