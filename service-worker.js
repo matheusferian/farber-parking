@@ -225,13 +225,19 @@
 // position:fixed, are unaffected), and the .tabs children regrouped into
 // Operations/Management/Administration. At <=1100px the original
 // horizontal tab bar is pixel-identical to before. No JS logic changed.
-// Same SHELL_FILES, same reasoning as v2-v17 — bumping again for the
-// Mockup 2 visual-parity pass (typography swapped app-wide to Sora/
-// Inter/JetBrains Mono, 3 nav icons updated). TV Mode's own fonts
-// (.tv-* rules) were deliberately restored to their original Syne/
-// DM Mono values after the global font swap — TV Mode stays
-// unredesigned, per instruction, while the rest of the app updates.
-var CACHE_VERSION = 'v18';
+// v19: Mockup 2 branding — logo-icon.png (Canva brand-kit asset, copied
+// unmodified from the approved mockup) now used on the login screen,
+// the desktop sidebar brand header, and the favicon, replacing the
+// text-only "AirValet" treatment in those 3 spots. NEW FILE added to
+// SHELL_FILES (./assets/logo-icon.png) — this bump is required, not
+// optional, since cache.addAll() only ever fetches what's listed at
+// install time; without bumping, an already-installed device would
+// keep serving the old shell indefinitely and never precache the new
+// asset. The other 3 brand-kit variants (logo-horizontal/stacked/
+// wordmark.png) were copied into ./assets/ for future use but are not
+// referenced by any current page, so they're deliberately not added
+// here.
+var CACHE_VERSION = 'v19';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 // Resolved relative to this file's own location, so they land in the
@@ -242,6 +248,7 @@ var SHELL_FILES = [
   './styles.css',
   './utils.js',
   './logo.PNG',
+  './assets/logo-icon.png',
   './manifest.webmanifest',
   './apple-touch-icon.png',
   './icon-192.png',

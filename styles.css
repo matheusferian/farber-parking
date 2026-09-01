@@ -99,6 +99,7 @@ header img{display:none!important;}
 .tbadge.red{min-width:22px;height:22px;padding:0 7px;background:var(--red);color:#fff;font-size:12px;}
 .pane{display:none;}.pane.on{display:block;}
 .tab-group-label{display:none;}
+.sidebar-brand{display:none;}
 
 /* ── V2 SHELL — DESKTOP SIDEBAR NAVIGATION ──────────────────────────
    Desktop-only (>=1101px). At and below 1100px (the existing "iPad /
@@ -118,6 +119,17 @@ header img{display:none!important;}
     background:var(--s);border-right:1px solid var(--b);border-bottom:none;
     box-shadow:none;z-index:90;
   }
+  /* Mockup 2 sidebar-brand, adapted to this sidebar's existing 18px/12px
+     padding (mockup's own .sidebar has zero padding of its own, so its
+     absolute padding values would double up here without the negative
+     margin reaching back out to the container edge). */
+  .sidebar-brand{
+    display:flex;align-items:center;gap:10px;
+    margin:-6px -12px 12px;padding:8px 18px 14px;
+    border-bottom:1px solid var(--b);
+  }
+  .sidebar-brand img{width:30px;height:auto;}
+  .sidebar-brand .sb-name{font-family:'Sora',sans-serif;font-weight:800;font-size:16px;color:var(--navy);}
   .tab{
     padding:9px 10px;border-radius:10px;font-size:13.5px;font-weight:600;
     color:var(--mu);border-bottom:none;gap:10px;position:relative;
@@ -598,7 +610,9 @@ input[type=checkbox]{width:17px;height:17px;accent-color:var(--gold);cursor:poin
 .login-err{color:#ff7070;font-size:11px;font-family:'JetBrains Mono',monospace;text-align:center;margin-top:8px;display:none;}
 #loginOv{position:fixed;inset:0;background:linear-gradient(135deg,#0a0f1e,#011532);z-index:9999;display:flex;align-items:center;justify-content:center;}
 #loginBox{background:var(--s);border:1px solid var(--b);border-top:4px solid var(--gold);border-radius:16px;padding:32px 28px;width:100%;max-width:360px;box-shadow:0 20px 60px rgba(0,0,0,0.4);}
-.login-logo{font-family:'Sora',sans-serif;font-size:20px;font-weight:800;color:var(--navy);margin-bottom:4px;}
+/* Mockup 2 spec: .login-card img.login-logo{width:64px;height:auto;margin:0 auto 18px;display:block;} */
+.login-logo{width:64px;height:auto;margin:0 auto 18px;display:block;}
+.login-brand-name{font-family:'Sora',sans-serif;font-size:20px;font-weight:800;color:var(--navy);margin-bottom:4px;text-align:center;}
 .login-tagline{font-size:12px;color:var(--mu);font-family:'Inter',sans-serif;margin-bottom:10px;}
 .login-sub{font-size:11px;color:var(--mu);font-family:'JetBrains Mono',monospace;letter-spacing:1px;margin-bottom:24px;}
 .login-inp{width:100%;box-sizing:border-box;background:var(--s2);border:1.5px solid var(--b);border-radius:10px;padding:12px 14px;font-size:14px;color:var(--tx);font-family:'Inter',sans-serif;outline:none;margin-bottom:10px;display:block;}

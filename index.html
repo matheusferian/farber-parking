@@ -8,7 +8,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="AirValet">
 <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
-<link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+<link rel="icon" type="image/png" href="assets/logo-icon.png">
 <meta name="theme-color" content="#0B2547">
 <title>AirValet</title>
 <link rel="manifest" href="manifest.webmanifest">
@@ -30,7 +30,8 @@
 <body>
 <div id="loginOv">
   <div id="loginBox">
-    <div class="login-logo">&#9992; AirValet</div>
+    <img class="login-logo" src="assets/logo-icon.png" alt="AirValet">
+    <div class="login-brand-name">AirValet</div>
     <div class="login-tagline">Professional Valet Management System</div>
     <div class="login-sub">MAKERS AIR &middot; SECURE ACCESS</div>
     <input class="login-inp" type="text" id="loginEmail" placeholder="Username" autocomplete="username" />
@@ -79,6 +80,7 @@
      updateOfflineModeBanner(). -->
 <div id="offlineModeBanner" style="display:none;align-items:center;gap:10px;color:#fff;padding:8px 16px;font-family:'Inter',sans-serif;font-size:12.5px;font-weight:600;"></div>
 <div class="tabs">
+  <div class="sidebar-brand"><img src="assets/logo-icon.png" alt="AirValet"><div class="sb-name">AirValet</div></div>
   <div class="tab-group-label">Operations</div>
   <div class="tab on" data-t="all"><i class="fa-solid fa-users"></i><span>All Passengers</span><span class="tbadge" id="ball">0</span></div>
   <div class="tab" data-t="day"><i class="fa-solid fa-gauge-high"></i><span>Dashboard</span><span class="tbadge red" id="bday">!</span></div>
