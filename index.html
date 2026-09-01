@@ -9,7 +9,7 @@
 <meta name="apple-mobile-web-app-title" content="AirValet">
 <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
-<meta name="theme-color" content="#1a3d7c">
+<meta name="theme-color" content="#0B2547">
 <title>AirValet</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
@@ -79,13 +79,16 @@
      updateOfflineModeBanner(). -->
 <div id="offlineModeBanner" style="display:none;align-items:center;gap:10px;color:#fff;padding:8px 16px;font-family:'DM Sans',sans-serif;font-size:12.5px;font-weight:600;"></div>
 <div class="tabs">
+  <div class="tab-group-label">Operations</div>
   <div class="tab on" data-t="all"><i class="fa-solid fa-users"></i><span>All Passengers</span><span class="tbadge" id="ball">0</span></div>
   <div class="tab" data-t="day"><i class="fa-solid fa-table-columns"></i><span>Dashboard</span><span class="tbadge red" id="bday">!</span></div>
   <div class="tab" data-t="tasks"><i class="fa-solid fa-square-check"></i><span>Tasks</span><span class="tbadge red" id="btasks">0</span></div>
+  <div class="tab-group-label">Management</div>
   <div class="tab" data-t="report" onclick="refreshSyncUI()"><i class="fa-solid fa-chart-line"></i><span>Report</span></div>
-  <div class="tab" data-t="debug"><i class="fa-solid fa-screwdriver-wrench"></i><span>Debug</span></div>
   <div class="tab" data-t="logs"><i class="fa-solid fa-clipboard-list"></i><span>Logs</span></div>
   <div class="tab" data-t="closing" onclick="openDailyClosingTab()"><i class="fa-solid fa-clipboard-check"></i><span>Daily Closing</span></div>
+  <div class="tab-group-label">Administration</div>
+  <div class="tab" data-t="debug"><i class="fa-solid fa-screwdriver-wrench"></i><span>Debug</span></div>
 </div>
 <div class="pane on" id="pane-all">
   <div class="stats" id="statsBar"></div>
