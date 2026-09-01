@@ -215,7 +215,20 @@
 // DOES change this time — these 5 new files are added below — which is
 // exactly the case this version-bump convention exists for (unlike v2-v14,
 // which only changed content of files already on the list).
-var CACHE_VERSION = 'v15';
+//
+// v16 (2026-09-01, Phase 1 — AirValet V2 shell/layout/navigation):
+// index.html/styles.css changed — :root color tokens repainted to the
+// approved V2 palette (--tv-* tokens/every .tv-* rule untouched, verified
+// not to inherit from anything changed here), a new desktop-only
+// (>=1101px) fixed left sidebar replacing the horizontal .tabs bar (CSS
+// only — no DOM reordering, so every modal and #tvMode, both
+// position:fixed, are unaffected), and the .tabs children regrouped into
+// Operations/Management/Administration. At <=1100px the original
+// horizontal tab bar is pixel-identical to before. No JS logic changed.
+// Same SHELL_FILES, same reasoning as v2-v15 — only bumping so already-
+// installed devices actually detect this content change and get the
+// normal Update Available banner instead of silently staying on v15.
+var CACHE_VERSION = 'v16';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 // Resolved relative to this file's own location, so they land in the
