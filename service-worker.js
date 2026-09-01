@@ -225,13 +225,13 @@
 // position:fixed, are unaffected), and the .tabs children regrouped into
 // Operations/Management/Administration. At <=1100px the original
 // horizontal tab bar is pixel-identical to before. No JS logic changed.
-// Same SHELL_FILES, same reasoning as v2-v16 — bumping again to cover
-// every Phase 5 User Access change (username login field, fixed-role
-// nav visibility, User Access tab/RPCs, canonicalized username login)
-// made since v16, none of which had bumped this — already-installed
-// devices/tabs get the normal Update Available banner instead of
-// silently staying on stale pre-User-Access code indefinitely.
-var CACHE_VERSION = 'v17';
+// Same SHELL_FILES, same reasoning as v2-v17 — bumping again for the
+// Mockup 2 visual-parity pass (typography swapped app-wide to Sora/
+// Inter/JetBrains Mono, 3 nav icons updated). TV Mode's own fonts
+// (.tv-* rules) were deliberately restored to their original Syne/
+// DM Mono values after the global font swap — TV Mode stays
+// unredesigned, per instruction, while the rest of the app updates.
+var CACHE_VERSION = 'v18';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 // Resolved relative to this file's own location, so they land in the

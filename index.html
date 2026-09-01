@@ -12,7 +12,7 @@
 <meta name="theme-color" content="#0B2547">
 <title>AirValet</title>
 <link rel="manifest" href="manifest.webmanifest">
-<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
 <!-- Vendored (Offline Mode Phase 1) — was cdn.jsdelivr.net/npm/@supabase/supabase-js@2,
      a FLOATING major-version tag. Frozen at the exact version it resolved to on
@@ -56,8 +56,8 @@
     <!-- Device-network indicator only — Phase 1. Not a claim that
          Supabase is reachable (see offNetStatus vs offSupabaseStatus
          in the Debug tab); just the browser-level online/offline signal. -->
-    <div id="netStatusIndicator" style="font-family:'DM Mono',monospace;font-size:11px;font-weight:700;letter-spacing:.4px;white-space:nowrap;padding:4px 10px;border-radius:20px;">—</div>
-    <div id="syncStatus" style="display:none;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:500;color:rgba(255,255,255,0.85);white-space:nowrap;">🟢 <span id="syncTime">—</span></div>
+    <div id="netStatusIndicator" style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:.4px;white-space:nowrap;padding:4px 10px;border-radius:20px;">—</div>
+    <div id="syncStatus" style="display:none;font-family:'Inter',sans-serif;font-size:12px;font-weight:500;color:rgba(255,255,255,0.85);white-space:nowrap;">🟢 <span id="syncTime">—</span></div>
     <button class="ref-btn" onclick="loadData()">&#8635; Refresh</button>
     <button class="ref-btn" style="background:linear-gradient(135deg,#1a3d7c,#2a5db0);border-color:var(--gold)" onclick="window.open(location.pathname+'?mode=tv','_blank')">📺 Open TV Mode</button>
     <button class="ref-btn" id="logoutBtn" onclick="doLogout()" style="display:none">Sign Out</button>
@@ -65,7 +65,7 @@
 </header>
 <!-- Offline Mode Phase 1 — service-worker update banner. Never shown
      automatically-reloading; requires an explicit tap. See PROJECT.md. -->
-<div id="offlineUpdateBanner" style="display:none;align-items:center;justify-content:space-between;gap:12px;background:#1a3d7c;color:#fff;padding:8px 16px;font-family:'DM Sans',sans-serif;font-size:12.5px;">
+<div id="offlineUpdateBanner" style="display:none;align-items:center;justify-content:space-between;gap:12px;background:#1a3d7c;color:#fff;padding:8px 16px;font-family:'Inter',sans-serif;font-size:12.5px;">
   <span>🔄 A new version of AirValet is available.</span>
   <span style="display:flex;gap:8px;">
     <button onclick="offlineApplyUpdate()" style="background:var(--gold);color:#1a3d7c;border:none;border-radius:8px;padding:5px 12px;font-weight:700;font-size:11.5px;cursor:pointer;">Reload Now</button>
@@ -77,13 +77,13 @@
      locally, ONLINE — X CHECK-INS PENDING SERVER SYNC once back online
      with unsynced records still on this device, hidden otherwise. See
      updateOfflineModeBanner(). -->
-<div id="offlineModeBanner" style="display:none;align-items:center;gap:10px;color:#fff;padding:8px 16px;font-family:'DM Sans',sans-serif;font-size:12.5px;font-weight:600;"></div>
+<div id="offlineModeBanner" style="display:none;align-items:center;gap:10px;color:#fff;padding:8px 16px;font-family:'Inter',sans-serif;font-size:12.5px;font-weight:600;"></div>
 <div class="tabs">
   <div class="tab-group-label">Operations</div>
   <div class="tab on" data-t="all"><i class="fa-solid fa-users"></i><span>All Passengers</span><span class="tbadge" id="ball">0</span></div>
-  <div class="tab" data-t="day"><i class="fa-solid fa-table-columns"></i><span>Dashboard</span><span class="tbadge red" id="bday">!</span></div>
+  <div class="tab" data-t="day"><i class="fa-solid fa-gauge-high"></i><span>Dashboard</span><span class="tbadge red" id="bday">!</span></div>
   <div class="tab" data-t="tasks"><i class="fa-solid fa-square-check"></i><span>Tasks</span><span class="tbadge red" id="btasks">0</span></div>
-  <div class="tab" data-t="messages" onclick="renderMessagesWorkspace()"><i class="fa-solid fa-comment-sms"></i><span>Messages</span></div>
+  <div class="tab" data-t="messages" onclick="renderMessagesWorkspace()"><i class="fa-solid fa-message"></i><span>Messages</span></div>
   <div class="tab-group-label">Management</div>
   <div class="tab" data-t="report" onclick="refreshSyncUI()"><i class="fa-solid fa-chart-line"></i><span>Report</span></div>
   <div class="tab" data-t="logs"><i class="fa-solid fa-clipboard-list"></i><span>Logs</span></div>
@@ -238,23 +238,23 @@
 
     <!-- Preview table -->
     <div id="reportPreviewTable" style="background:var(--s);border:1px solid var(--b);border-radius:12px;overflow:hidden;margin-bottom:16px;">
-      <div style="padding:12px 16px;border-bottom:1px solid var(--b);font-size:11px;color:var(--mu);font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:0.5px;">Preview</div>
+      <div style="padding:12px 16px;border-bottom:1px solid var(--b);font-size:11px;color:var(--mu);font-family:'JetBrains Mono',monospace;text-transform:uppercase;letter-spacing:0.5px;">Preview</div>
       <div id="reportPreview" style="font-size:13px;color:var(--tx);line-height:2;padding:14px 16px;"></div>
     </div>
 
-    <button onclick="generatePDF()" style="width:100%;background:linear-gradient(135deg,var(--navy),#2a5db0);color:#fff;border:1px solid var(--gold);border-radius:10px;padding:15px;font-family:'Syne',sans-serif;font-weight:800;font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:10px;">
+    <button onclick="generatePDF()" style="width:100%;background:linear-gradient(135deg,var(--navy),#2a5db0);color:#fff;border:1px solid var(--gold);border-radius:10px;padding:15px;font-family:'Sora',sans-serif;font-weight:800;font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:10px;">
       🖨️ Print / Save PDF
     </button>
-    <button onclick="generatePDF('share')" style="width:100%;background:var(--s2);color:var(--mu);border:1px solid var(--b);border-radius:10px;padding:12px;font-family:'Syne',sans-serif;font-size:13px;cursor:pointer;">
+    <button onclick="generatePDF('share')" style="width:100%;background:var(--s2);color:var(--mu);border:1px solid var(--b);border-radius:10px;padding:12px;font-family:'Sora',sans-serif;font-size:13px;cursor:pointer;">
       🔗 Open in New Tab
     </button>
 
     <div style="margin-top:18px;padding-top:16px;border-top:1px solid var(--b);">
-      <div style="font-size:10px;color:var(--mu);font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;">Monthly Operations Report</div>
+      <div style="font-size:10px;color:var(--mu);font-family:'JetBrains Mono',monospace;text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;">Monthly Operations Report</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
         <div>
           <div style="font-size:10px;color:var(--mu);margin-bottom:4px;">Month</div>
-          <select id="opsReportMonth" style="width:100%;background:var(--s);border:1px solid var(--b);border-radius:8px;padding:9px 10px;color:var(--tx);font-size:13px;font-family:'Syne',sans-serif;outline:none;">
+          <select id="opsReportMonth" style="width:100%;background:var(--s);border:1px solid var(--b);border-radius:8px;padding:9px 10px;color:var(--tx);font-size:13px;font-family:'Sora',sans-serif;outline:none;">
             <option value="0">January</option><option value="1">February</option>
             <option value="2">March</option><option value="3">April</option>
             <option value="4" selected>May</option><option value="5">June</option>
@@ -265,7 +265,7 @@
         </div>
         <div>
           <div style="font-size:10px;color:var(--mu);margin-bottom:4px;">Year</div>
-          <select id="opsReportYear" style="width:100%;background:var(--s);border:1px solid var(--b);border-radius:8px;padding:9px 10px;color:var(--tx);font-size:13px;font-family:'Syne',sans-serif;outline:none;">
+          <select id="opsReportYear" style="width:100%;background:var(--s);border:1px solid var(--b);border-radius:8px;padding:9px 10px;color:var(--tx);font-size:13px;font-family:'Sora',sans-serif;outline:none;">
             <option value="2024">2024</option>
             <option value="2025">2025</option>
             <option value="2026" selected>2026</option>
@@ -275,31 +275,31 @@
       </div>
       <div style="margin-bottom:10px;">
         <div style="font-size:10px;color:var(--mu);margin-bottom:4px;">Delivery Filter</div>
-        <select id="opsReportDeliveryFilter" style="width:100%;background:var(--s);border:1px solid var(--b);border-radius:8px;padding:9px 10px;color:var(--tx);font-size:13px;font-family:'Syne',sans-serif;outline:none;">
+        <select id="opsReportDeliveryFilter" style="width:100%;background:var(--s);border:1px solid var(--b);border-radius:8px;padding:9px 10px;color:var(--tx);font-size:13px;font-family:'Sora',sans-serif;outline:none;">
           <option value="ALL" selected>All Deliveries</option>
           <option value="NORMAL">Normal Only</option>
           <option value="CUSTOMS">Customs Only</option>
           <option value="LOCKBOX">Lockbox Only</option>
         </select>
       </div>
-      <button onclick="generateOperationsReport().catch(function(err){console.error(err);alert('Report generation failed: '+err.message);})" style="width:100%;background:linear-gradient(135deg,#1a3d7c,#0f2a56);color:#fff;border:1px solid var(--gold);border-radius:10px;padding:14px;font-family:'Syne',sans-serif;font-weight:800;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;">
+      <button onclick="generateOperationsReport().catch(function(err){console.error(err);alert('Report generation failed: '+err.message);})" style="width:100%;background:linear-gradient(135deg,#1a3d7c,#0f2a56);color:#fff;border:1px solid var(--gold);border-radius:10px;padding:14px;font-family:'Sora',sans-serif;font-weight:800;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;">
         📊 Generate Operations PDF
       </button>
     </div>
 
     <!-- PASSENGER CONTACTS EXPORT -->
     <div style="margin-top:18px;padding-top:16px;border-top:1px solid var(--b);">
-      <div style="font-size:10px;color:var(--mu);font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;">Passenger Contacts Export</div>
+      <div style="font-size:10px;color:var(--mu);font-family:'JetBrains Mono',monospace;text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;">Passenger Contacts Export</div>
       <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:10px;">
-        <button onclick="downloadVcfContacts('all')" style="width:100%;background:linear-gradient(135deg,#1a3d7c,#2a5db0);color:#fff;border:1px solid var(--gold);border-radius:10px;padding:13px;font-family:'Syne',sans-serif;font-weight:800;font-size:14px;cursor:pointer;">
+        <button onclick="downloadVcfContacts('all')" style="width:100%;background:linear-gradient(135deg,#1a3d7c,#2a5db0);color:#fff;border:1px solid var(--gold);border-radius:10px;padding:13px;font-family:'Sora',sans-serif;font-weight:800;font-size:14px;cursor:pointer;">
           📇 Export All Contacts (.vcf)
         </button>
-        <button onclick="downloadVcfContacts('new')" style="width:100%;background:var(--s2);color:var(--tx);border:1px solid var(--b);border-radius:10px;padding:13px;font-family:'Syne',sans-serif;font-weight:700;font-size:14px;cursor:pointer;">
+        <button onclick="downloadVcfContacts('new')" style="width:100%;background:var(--s2);color:var(--tx);border:1px solid var(--b);border-radius:10px;padding:13px;font-family:'Sora',sans-serif;font-weight:700;font-size:14px;cursor:pointer;">
           🆕 Export New Contacts (.vcf)
         </button>
       </div>
-      <div id="contactsExportStatus" style="font-size:12px;color:var(--mu);font-family:'DM Mono',monospace;margin-bottom:8px;">Last contacts export: Never</div>
-      <button onclick="resetContactsExportDate()" style="background:none;border:1px solid var(--b);border-radius:8px;padding:7px 14px;color:var(--mu);font-size:12px;cursor:pointer;font-family:'DM Mono',monospace;">
+      <div id="contactsExportStatus" style="font-size:12px;color:var(--mu);font-family:'JetBrains Mono',monospace;margin-bottom:8px;">Last contacts export: Never</div>
+      <button onclick="resetContactsExportDate()" style="background:none;border:1px solid var(--b);border-radius:8px;padding:7px 14px;color:var(--mu);font-size:12px;cursor:pointer;font-family:'JetBrains Mono',monospace;">
         ↺ Reset Export Date
       </button>
     </div>
@@ -308,7 +308,7 @@
          not replacing it yet. Remove the old section only once this is
          verified against the live database (see migrations/20260714_create_contact_sync_tables.sql). -->
     <div style="margin-top:18px;padding-top:16px;border-top:1px solid var(--b);">
-      <div style="font-size:10px;color:var(--mu);font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;">Daily Contact Sync</div>
+      <div style="font-size:10px;color:var(--mu);font-family:'JetBrains Mono',monospace;text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;">Daily Contact Sync</div>
 
       <div id="syncSchemaWarning" style="display:none;background:var(--s2);border:1px solid var(--gold);border-radius:10px;padding:12px 14px;font-size:12px;color:var(--tx);margin-bottom:10px;overflow-wrap:break-word;word-break:break-word;">
         ⚠️ Daily Contact Sync requires a one-time database update that has not been applied yet. Ask an administrator to run <code>migrations/20260714_create_contact_sync_tables.sql</code> in the Supabase SQL Editor. The Passenger Contacts Export above still works normally.
@@ -319,7 +319,7 @@
           No baseline set yet. If your iPhone already has the historical Makers Air contacts saved, use <strong>Start Daily Sync From Current Database</strong> under Advanced before your first sync.
         </div>
 
-        <div style="display:flex;flex-direction:column;gap:4px;background:var(--s);border:1px solid var(--b);border-radius:10px;padding:12px 14px;margin-bottom:10px;font-size:12px;font-family:'DM Mono',monospace;color:var(--mu);">
+        <div style="display:flex;flex-direction:column;gap:4px;background:var(--s);border:1px solid var(--b);border-radius:10px;padding:12px 14px;margin-bottom:10px;font-size:12px;font-family:'JetBrains Mono',monospace;color:var(--mu);">
           <div>Last confirmed sync: <span id="syncLastConfirmedText" style="color:var(--tx)">—</span></div>
           <div>Pending contacts: <span id="syncPendingCountText" style="color:var(--tx)">—</span></div>
           <div>Duplicate phone records in preview: <span id="syncDuplicateCountText" style="color:var(--tx)">0</span></div>
@@ -329,25 +329,25 @@
         <div id="syncUnconfirmedWrap" style="display:none;background:rgba(201,168,76,0.12);border:1px solid var(--gold);border-radius:10px;padding:10px 14px;margin-bottom:10px;font-size:12px;">
           <div id="syncUnconfirmedText" style="margin-bottom:8px;color:var(--tx)"></div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;">
-            <button onclick="redownloadCurrentBatch()" style="background:var(--s);border:1px solid var(--b);border-radius:8px;padding:7px 12px;font-size:11px;cursor:pointer;font-family:'Syne',sans-serif;font-weight:700;">↻ Re-download</button>
-            <button onclick="showSyncImportConfirmModal(_syncCurrentBatch,{method:'download'})" style="background:var(--navy);color:#fff;border:none;border-radius:8px;padding:7px 12px;font-size:11px;cursor:pointer;font-family:'Syne',sans-serif;font-weight:700;">✓ Confirm</button>
-            <button onclick="cancelSyncBatch(_syncCurrentBatch&&_syncCurrentBatch.id)" style="background:none;border:1px solid var(--red);color:var(--red);border-radius:8px;padding:7px 12px;font-size:11px;cursor:pointer;font-family:'Syne',sans-serif;font-weight:700;">✕ Cancel</button>
+            <button onclick="redownloadCurrentBatch()" style="background:var(--s);border:1px solid var(--b);border-radius:8px;padding:7px 12px;font-size:11px;cursor:pointer;font-family:'Sora',sans-serif;font-weight:700;">↻ Re-download</button>
+            <button onclick="showSyncImportConfirmModal(_syncCurrentBatch,{method:'download'})" style="background:var(--navy);color:#fff;border:none;border-radius:8px;padding:7px 12px;font-size:11px;cursor:pointer;font-family:'Sora',sans-serif;font-weight:700;">✓ Confirm</button>
+            <button onclick="cancelSyncBatch(_syncCurrentBatch&&_syncCurrentBatch.id)" style="background:none;border:1px solid var(--red);color:var(--red);border-radius:8px;padding:7px 12px;font-size:11px;cursor:pointer;font-family:'Sora',sans-serif;font-weight:700;">✕ Cancel</button>
           </div>
         </div>
 
-        <button id="syncPrimaryBtn" onclick="openSyncPreview()" style="width:100%;background:linear-gradient(135deg,#1a3d7c,#2a5db0);color:#fff;border:1px solid var(--gold);border-radius:10px;padding:13px;font-family:'Syne',sans-serif;font-weight:800;font-size:14px;cursor:pointer;margin-bottom:8px;">
+        <button id="syncPrimaryBtn" onclick="openSyncPreview()" style="width:100%;background:linear-gradient(135deg,#1a3d7c,#2a5db0);color:#fff;border:1px solid var(--gold);border-radius:10px;padding:13px;font-family:'Sora',sans-serif;font-weight:800;font-size:14px;cursor:pointer;margin-bottom:8px;">
           📲 Sync Pending Contacts
         </button>
-        <button id="syncPreviewBtn" onclick="openSyncPreview()" style="width:100%;background:var(--s2);color:var(--tx);border:1px solid var(--b);border-radius:10px;padding:11px;font-family:'Syne',sans-serif;font-weight:700;font-size:13px;cursor:pointer;margin-bottom:8px;">
+        <button id="syncPreviewBtn" onclick="openSyncPreview()" style="width:100%;background:var(--s2);color:var(--tx);border:1px solid var(--b);border-radius:10px;padding:11px;font-family:'Sora',sans-serif;font-weight:700;font-size:13px;cursor:pointer;margin-bottom:8px;">
           👁 Preview Pending Contacts
         </button>
 
         <div style="margin-top:10px;">
-          <div onclick="toggleSyncAdvanced()" style="cursor:pointer;font-size:11px;color:var(--mu);font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.5px;padding:6px 0;">▾ Advanced</div>
+          <div onclick="toggleSyncAdvanced()" style="cursor:pointer;font-size:11px;color:var(--mu);font-family:'JetBrains Mono',monospace;text-transform:uppercase;letter-spacing:.5px;padding:6px 0;">▾ Advanced</div>
           <div id="syncAdvancedBody" style="display:none;flex-direction:column;gap:8px;">
-            <button id="syncBaselineTriggerBtn" onclick="openBaselineModal()" style="width:100%;background:var(--s);border:1px solid var(--b);border-radius:8px;padding:10px;font-size:12px;cursor:pointer;font-family:'Syne',sans-serif;font-weight:700;color:var(--tx);">Start Daily Sync From Current Database</button>
-            <button id="syncFullExportTriggerBtn" onclick="openFullExportModal()" style="width:100%;background:var(--s);border:1px solid var(--b);border-radius:8px;padding:10px;font-size:12px;cursor:pointer;font-family:'Syne',sans-serif;font-weight:700;color:var(--tx);">Export All Contacts</button>
-            <button onclick="openSyncHistoryModal()" style="width:100%;background:var(--s);border:1px solid var(--b);border-radius:8px;padding:10px;font-size:12px;cursor:pointer;font-family:'Syne',sans-serif;font-weight:700;color:var(--tx);">View Sync History</button>
+            <button id="syncBaselineTriggerBtn" onclick="openBaselineModal()" style="width:100%;background:var(--s);border:1px solid var(--b);border-radius:8px;padding:10px;font-size:12px;cursor:pointer;font-family:'Sora',sans-serif;font-weight:700;color:var(--tx);">Start Daily Sync From Current Database</button>
+            <button id="syncFullExportTriggerBtn" onclick="openFullExportModal()" style="width:100%;background:var(--s);border:1px solid var(--b);border-radius:8px;padding:10px;font-size:12px;cursor:pointer;font-family:'Sora',sans-serif;font-weight:700;color:var(--tx);">Export All Contacts</button>
+            <button onclick="openSyncHistoryModal()" style="width:100%;background:var(--s);border:1px solid var(--b);border-radius:8px;padding:10px;font-size:12px;cursor:pointer;font-family:'Sora',sans-serif;font-weight:700;color:var(--tx);">View Sync History</button>
           </div>
         </div>
       </div>
@@ -355,7 +355,7 @@
   </div>
 </div>
 
-<button class="fab" onclick="openAdd()">&#43; New Entry</button>
+<button class="fab" onclick="openAdd()"><i class="fa-solid fa-circle-plus"></i> New Entry</button>
 <div class="ov" id="addOv">
   <div class="modal">
     <h2 id="modalTitle">New Passenger</h2>
@@ -386,9 +386,9 @@
     </div>
     <div id="erWarn" class="er-warn" style="display:none;">⚠️ HEADS UP: This passenger had an Early Return before. Confirm the return date carefully.</div>
     <div class="fr two">
-      <div class="fg"><label>Ticket # <span style="color:var(--red)">*</span></label><input type="text" id="fTicket" placeholder="" autocomplete="off" style="font-family:'DM Mono',monospace"></div>
+      <div class="fg"><label>Ticket # <span style="color:var(--red)">*</span></label><input type="text" id="fTicket" placeholder="" autocomplete="off" style="font-family:'JetBrains Mono',monospace"></div>
       <div class="fg"><label>Return Date <span style="color:var(--red)" id="retRequired">*</span></label>
-        <input type="date" id="fReturn" style="width:100%;background:var(--s2);border:1px solid var(--b);border-radius:10px;padding:11px 14px;font-size:16px;color:var(--tx);outline:none;font-family:'Syne',sans-serif;box-sizing:border-box;">
+        <input type="date" id="fReturn" style="width:100%;background:var(--s2);border:1px solid var(--b);border-radius:10px;padding:11px 14px;font-size:16px;color:var(--tx);outline:none;font-family:'Sora',sans-serif;box-sizing:border-box;">
       </div>
     </div>
     <div class="fr two">
@@ -474,7 +474,7 @@
       </div>
       <div class="fr full">
         <div class="fg"><label>Rental Company <span style="color:var(--red)">*</span></label>
-          <select id="rlCompany" style="width:100%;background:var(--s2);border:1px solid var(--b);border-radius:10px;padding:11px 14px;font-size:16px;color:var(--tx);outline:none;font-family:'Syne',sans-serif;box-sizing:border-box;">
+          <select id="rlCompany" style="width:100%;background:var(--s2);border:1px solid var(--b);border-radius:10px;padding:11px 14px;font-size:16px;color:var(--tx);outline:none;font-family:'Sora',sans-serif;box-sizing:border-box;">
             <option value="">Select company...</option>
             <option value="Enterprise">Enterprise</option>
             <option value="Hertz">Hertz</option>
@@ -491,7 +491,7 @@
       </div>
       <div class="fr full">
         <div class="fg"><label>Flight Date</label>
-          <input type="date" id="rlFlightDate" style="width:100%;background:var(--s2);border:1px solid var(--b);border-radius:10px;padding:11px 14px;font-size:16px;color:var(--tx);outline:none;font-family:'Syne',sans-serif;box-sizing:border-box;">
+          <input type="date" id="rlFlightDate" style="width:100%;background:var(--s2);border:1px solid var(--b);border-radius:10px;padding:11px 14px;font-size:16px;color:var(--tx);outline:none;font-family:'Sora',sans-serif;box-sizing:border-box;">
         </div>
       </div>
       <div class="fr two">
@@ -547,9 +547,9 @@
 <!-- TIP CONFIRMATION OVERLAY -->
 <div class="ov" id="tipOv">
   <div class="modal" style="max-width:340px;text-align:center">
-    <div style="font-family:'Syne',sans-serif;font-size:18px;font-weight:800;color:var(--tx);margin-bottom:4px">💵 Tip Received?</div>
-    <div id="tipPassName" style="font-size:16px;font-weight:800;color:var(--tx);margin-top:8px;font-family:'Syne',sans-serif"></div>
-    <div id="tipVehicleLine" style="font-size:12px;color:var(--mu);margin-top:2px;font-family:'DM Mono',monospace"></div>
+    <div style="font-family:'Sora',sans-serif;font-size:18px;font-weight:800;color:var(--tx);margin-bottom:4px">💵 Tip Received?</div>
+    <div id="tipPassName" style="font-size:16px;font-weight:800;color:var(--tx);margin-top:8px;font-family:'Sora',sans-serif"></div>
+    <div id="tipVehicleLine" style="font-size:12px;color:var(--mu);margin-top:2px;font-family:'JetBrains Mono',monospace"></div>
     <div style="font-size:13px;color:var(--mu);margin:14px 0 16px">Did the passenger leave a tip?</div>
     <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px">
       <button class="tip-opt tip-yes" id="tipYesBtn" onclick="selectTip(true)">✅ Yes</button>
@@ -631,7 +631,7 @@
   <div class="modal" style="max-width:400px">
     <h2>💬 Free-form Message</h2>
     <div id="freeformComposeMeta"></div>
-    <textarea id="freeformComposeText" rows="5" placeholder="Type the message to simulate sending..." style="width:100%;background:var(--s2);border:1.5px solid var(--b);border-radius:10px;padding:10px 12px;color:var(--tx);font-size:13px;font-family:'DM Sans',sans-serif;margin-top:10px;resize:vertical;"></textarea>
+    <textarea id="freeformComposeText" rows="5" placeholder="Type the message to simulate sending..." style="width:100%;background:var(--s2);border:1.5px solid var(--b);border-radius:10px;padding:10px 12px;color:var(--tx);font-size:13px;font-family:'Inter',sans-serif;margin-top:10px;resize:vertical;"></textarea>
     <div class="mact">
       <button class="btnc" id="freeformCancelBtn" onclick="closeFreeformCompose()">Cancel</button>
       <button class="btnp" id="freeformContinueBtn" onclick="continueFreeformCompose()">Continue</button>
@@ -659,7 +659,7 @@
       <div style="display:flex;align-items:center;gap:8px;">
         <span style="font-size:16px;">&#128203;</span>
         <div>
-          <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:800;color:#63b3ed;">Activity Logs</div>
+          <div style="font-family:'Sora',sans-serif;font-size:13px;font-weight:800;color:#63b3ed;">Activity Logs</div>
           <div style="font-size:10px;color:var(--mu)">Check-ins, deliveries and edits</div>
         </div>
       </div>
@@ -674,7 +674,7 @@
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
           <div class="fg"><label style="font-size:10px;">Passenger name</label><input type="text" id="alfName" placeholder="Search..." style="background:var(--s2);border:1px solid var(--b);border-radius:8px;padding:7px 10px;font-size:13px;color:var(--tx);outline:none;width:100%;box-sizing:border-box;"></div>
-          <div class="fg"><label style="font-size:10px;">Ticket #</label><input type="text" id="alfTicket" placeholder="e.g. 1042" style="background:var(--s2);border:1px solid var(--b);border-radius:8px;padding:7px 10px;font-size:13px;color:var(--tx);outline:none;width:100%;box-sizing:border-box;font-family:'DM Mono',monospace;"></div>
+          <div class="fg"><label style="font-size:10px;">Ticket #</label><input type="text" id="alfTicket" placeholder="e.g. 1042" style="background:var(--s2);border:1px solid var(--b);border-radius:8px;padding:7px 10px;font-size:13px;color:var(--tx);outline:none;width:100%;box-sizing:border-box;font-family:'JetBrains Mono',monospace;"></div>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
           <div class="fg"><label style="font-size:10px;">Action type</label>
@@ -691,7 +691,7 @@
           </div>
           <div class="fg"><label style="font-size:10px;">User (email)</label><input type="text" id="alfUser" placeholder="email..." style="background:var(--s2);border:1px solid var(--b);border-radius:8px;padding:7px 10px;font-size:13px;color:var(--tx);outline:none;width:100%;box-sizing:border-box;"></div>
         </div>
-        <button onclick="searchActivityLogs()" style="width:100%;background:linear-gradient(135deg,var(--navy),#2a5db0);color:#fff;border:1px solid var(--gold);border-radius:10px;padding:10px;font-family:'Syne',sans-serif;font-weight:800;font-size:13px;cursor:pointer;">&#128269; Search Activity Logs</button>
+        <button onclick="searchActivityLogs()" style="width:100%;background:linear-gradient(135deg,var(--navy),#2a5db0);color:#fff;border:1px solid var(--gold);border-radius:10px;padding:10px;font-family:'Sora',sans-serif;font-weight:800;font-size:13px;cursor:pointer;">&#128269; Search Activity Logs</button>
       </div>
       <!-- Results -->
       <div id="actLogsContainer" style="padding:0 20px 12px;">
@@ -712,7 +712,7 @@
       <div style="display:flex;align-items:center;gap:8px;">
         <span style="font-size:16px;">&#128273;</span>
         <div>
-          <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:800;color:var(--gold);">Rental Logs</div>
+          <div style="font-family:'Sora',sans-serif;font-size:13px;font-weight:800;color:var(--gold);">Rental Logs</div>
           <div style="font-size:10px;color:var(--mu)">Internal rental car records — search to load</div>
         </div>
       </div>
@@ -743,7 +743,7 @@
             </select>
           </div>
         </div>
-        <button onclick="searchRentalLogs()" style="width:100%;background:linear-gradient(135deg,#7a4e00,#c47a00);color:#fff;border:1px solid var(--gold);border-radius:10px;padding:10px;font-family:'Syne',sans-serif;font-weight:800;font-size:13px;cursor:pointer;">&#128273; Search Rental Logs</button>
+        <button onclick="searchRentalLogs()" style="width:100%;background:linear-gradient(135deg,#7a4e00,#c47a00);color:#fff;border:1px solid var(--gold);border-radius:10px;padding:10px;font-family:'Sora',sans-serif;font-weight:800;font-size:13px;cursor:pointer;">&#128273; Search Rental Logs</button>
       </div>
       <!-- Results -->
       <div id="rentalLogsContainer" style="padding:0 20px 12px;">
@@ -788,14 +788,14 @@
   </div>
   <!-- EPSON DIAGNOSTICS END -->
 
-  <div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:800;color:#e86030;margin-bottom:4px">&#128295; Connection Diagnostics</div>
+  <div style="font-family:'Sora',sans-serif;font-size:16px;font-weight:800;color:#e86030;margin-bottom:4px">&#128295; Connection Diagnostics</div>
   <div style="font-size:11px;color:var(--mu);margin-bottom:16px">Use this tab to test if the Google Apps Script is responding correctly.</div>
-  <button onclick="runDiagnostic()" style="background:linear-gradient(135deg,#1a3d7c,#2a5db0);color:#fff;border:1px solid var(--gold);border-radius:10px;padding:12px 20px;font-family:'Syne',sans-serif;font-weight:700;font-size:13px;cursor:pointer;margin-bottom:12px;">&#9654; Run Connection Test</button>
-  <button onclick="runTestAppend()" style="background:linear-gradient(135deg,#1a5c3a,#1a9e6a);color:#fff;border:none;border-radius:10px;padding:12px 20px;font-family:'Syne',sans-serif;font-weight:700;font-size:13px;cursor:pointer;margin-bottom:12px;margin-left:8px;">&#128196; Test Append (writes TEST row)</button>
-  <div id="diagLog" style="background:#0a0f1e;border:1px solid var(--b);border-radius:10px;padding:14px;font-family:'DM Mono',monospace;font-size:12px;color:#6fc898;min-height:120px;white-space:pre-wrap;word-break:break-all;"></div>
+  <button onclick="runDiagnostic()" style="background:linear-gradient(135deg,#1a3d7c,#2a5db0);color:#fff;border:1px solid var(--gold);border-radius:10px;padding:12px 20px;font-family:'Sora',sans-serif;font-weight:700;font-size:13px;cursor:pointer;margin-bottom:12px;">&#9654; Run Connection Test</button>
+  <button onclick="runTestAppend()" style="background:linear-gradient(135deg,#1a5c3a,#1a9e6a);color:#fff;border:none;border-radius:10px;padding:12px 20px;font-family:'Sora',sans-serif;font-weight:700;font-size:13px;cursor:pointer;margin-bottom:12px;margin-left:8px;">&#128196; Test Append (writes TEST row)</button>
+  <div id="diagLog" style="background:#0a0f1e;border:1px solid var(--b);border-radius:10px;padding:14px;font-family:'JetBrains Mono',monospace;font-size:12px;color:#6fc898;min-height:120px;white-space:pre-wrap;word-break:break-all;"></div>
   <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--b);">
-    <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:800;color:var(--mu);margin-bottom:8px;">🗄 Data Management</div>
-    <button onclick="openArchiveModal('2025')" style="background:rgba(107,114,128,0.08);border:1px solid rgba(107,114,128,0.25);color:#4B5563;border-radius:8px;padding:10px 16px;font-family:'Syne',sans-serif;font-weight:700;font-size:12px;cursor:pointer;">📦 Archive All Pending Records From 2025</button>
+    <div style="font-family:'Sora',sans-serif;font-size:13px;font-weight:800;color:var(--mu);margin-bottom:8px;">🗄 Data Management</div>
+    <button onclick="openArchiveModal('2025')" style="background:rgba(107,114,128,0.08);border:1px solid rgba(107,114,128,0.25);color:#4B5563;border-radius:8px;padding:10px 16px;font-family:'Sora',sans-serif;font-weight:700;font-size:12px;cursor:pointer;">📦 Archive All Pending Records From 2025</button>
   </div>
 
   <!-- SMS PROVIDER — DEVELOPMENT / TESTING ONLY (Fase 1+2). Default is
@@ -803,16 +803,16 @@
        current browser tab/session and resets on reload. See
        docs/TWILIO_MIGRATION_AUDIT.md. -->
   <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--b);">
-    <div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:800;color:var(--mu);margin-bottom:8px;">🧪 SMS Provider (Development / Testing)</div>
+    <div style="font-family:'Sora',sans-serif;font-size:13px;font-weight:800;color:var(--mu);margin-bottom:8px;">🧪 SMS Provider (Development / Testing)</div>
     <div style="font-size:11px;color:var(--mu);margin-bottom:10px;">Default is always <code>native</code> on page load. This selector only changes the setting for this browser tab, for testing — it is not persisted and resets on reload.</div>
-    <select id="smsProviderSelect" onchange="setSmsProviderFromDebug(this.value)" style="background:var(--s2);border:1.5px solid var(--b);border-radius:8px;padding:8px 10px;color:var(--tx);font-size:13px;font-family:'DM Mono',monospace;margin-bottom:14px;">
+    <select id="smsProviderSelect" onchange="setSmsProviderFromDebug(this.value)" style="background:var(--s2);border:1.5px solid var(--b);border-radius:8px;padding:8px 10px;color:var(--tx);font-size:13px;font-family:'JetBrains Mono',monospace;margin-bottom:14px;">
       <option value="native" selected>native (current sms: behavior)</option>
       <option value="mock_twilio">mock_twilio (local simulation)</option>
       <option value="twilio">twilio (not configured — throws)</option>
     </select>
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-      <div style="font-family:'Syne',sans-serif;font-size:12px;font-weight:800;color:var(--mu);">Mock SMS History (this browser only)</div>
-      <button onclick="clearMockSmsHistory()" style="background:rgba(204,51,51,0.08);border:1px solid rgba(204,51,51,0.3);color:var(--red);border-radius:8px;padding:6px 12px;font-family:'Syne',sans-serif;font-weight:700;font-size:11px;cursor:pointer;">🗑 Clear Mock Data</button>
+      <div style="font-family:'Sora',sans-serif;font-size:12px;font-weight:800;color:var(--mu);">Mock SMS History (this browser only)</div>
+      <button onclick="clearMockSmsHistory()" style="background:rgba(204,51,51,0.08);border:1px solid rgba(204,51,51,0.3);color:var(--red);border-radius:8px;padding:6px 12px;font-family:'Sora',sans-serif;font-weight:700;font-size:11px;cursor:pointer;">🗑 Clear Mock Data</button>
     </div>
     <div class="epson-history-wrap">
       <table class="epson-history-table">
@@ -828,7 +828,7 @@
        look like (Fase 6/7, not approved) — it is not wired to anything. -->
   <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--b);">
     <details>
-      <summary style="cursor:pointer;font-family:'Syne',sans-serif;font-size:13px;font-weight:800;color:var(--mu);">🖼 SMS Demo Gallery (static examples — not connected to any data)</summary>
+      <summary style="cursor:pointer;font-family:'Sora',sans-serif;font-size:13px;font-weight:800;color:var(--mu);">🖼 SMS Demo Gallery (static examples — not connected to any data)</summary>
       <div style="margin-top:12px;">
 
         <div class="sms-demo-card">
@@ -927,7 +927,7 @@ https://buy.stripe.com/8x214mccK0uh9TjgIM6Vq00</div>
 
     <div style="margin-top:14px;">
       <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
-        <input type="text" id="offDeviceCodeInput" placeholder="e.g. M1" maxlength="4" style="background:var(--s2);border:1.5px solid var(--b);border-radius:8px;padding:8px 10px;color:var(--tx);font-size:13px;font-family:'DM Mono',monospace;text-transform:uppercase;width:100px;">
+        <input type="text" id="offDeviceCodeInput" placeholder="e.g. M1" maxlength="4" style="background:var(--s2);border:1.5px solid var(--b);border-radius:8px;padding:8px 10px;color:var(--tx);font-size:13px;font-family:'JetBrains Mono',monospace;text-transform:uppercase;width:100px;">
         <button onclick="offlineDiagSetDeviceCode()" class="epson-btn epson-btn-navy" style="margin:0;">Set Device Code</button>
       </div>
       <div class="epson-card-sub" style="margin:0 0 10px;">Manually assigned for Phase 1 testing only. Two iPads must never be given the same code — not yet enforced automatically (requires the Phase 3 server-side device registry; see PROJECT.md).</div>
@@ -984,15 +984,15 @@ https://buy.stripe.com/8x214mccK0uh9TjgIM6Vq00</div>
      themselves, same as every other guarded RPC in this project). -->
 <div class="pane" id="pane-useraccess" style="padding:16px 20px 100px">
   <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:4px">
-    <div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:800;color:#e86030;">👤 User Access</div>
-    <button onclick="openCreateUserModal()" style="background:linear-gradient(135deg,#1a3d7c,#2a5db0);color:#fff;border:1px solid var(--gold);border-radius:8px;padding:8px 16px;font-family:'Syne',sans-serif;font-weight:700;font-size:12px;cursor:pointer;">＋ Create User</button>
+    <div style="font-family:'Sora',sans-serif;font-size:16px;font-weight:800;color:#e86030;">👤 User Access</div>
+    <button onclick="openCreateUserModal()" style="background:linear-gradient(135deg,#1a3d7c,#2a5db0);color:#fff;border:1px solid var(--gold);border-radius:8px;padding:8px 16px;font-family:'Sora',sans-serif;font-weight:700;font-size:12px;cursor:pointer;">＋ Create User</button>
   </div>
   <div style="font-size:11px;color:var(--mu);margin-bottom:16px">AirValet accounts and their fixed roles. Internal login identities (usernames only) — no email is shown here.</div>
   <div id="uaError" style="display:none;color:#c0392b;background:rgba(192,57,43,0.08);border:1px solid rgba(192,57,43,0.3);border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:12px;"></div>
   <div style="overflow-x:auto;">
     <table style="width:100%;border-collapse:collapse;font-size:13px;">
       <thead>
-        <tr style="text-align:left;border-bottom:1px solid var(--b);color:var(--mu);font-family:'Syne',sans-serif;font-size:11px;text-transform:uppercase;letter-spacing:.03em;">
+        <tr style="text-align:left;border-bottom:1px solid var(--b);color:var(--mu);font-family:'Sora',sans-serif;font-size:11px;text-transform:uppercase;letter-spacing:.03em;">
           <th style="padding:8px 10px;">Username</th>
           <th style="padding:8px 10px;">Display Name</th>
           <th style="padding:8px 10px;">Role</th>
@@ -1027,7 +1027,7 @@ https://buy.stripe.com/8x214mccK0uh9TjgIM6Vq00</div>
     </div>
     <div class="fg">
       <label>Role</label>
-      <select id="uaCreateRole" style="width:100%;background:var(--s);border:1px solid var(--b);border-radius:8px;padding:9px 10px;color:var(--tx);font-size:13px;font-family:'Syne',sans-serif;outline:none;">
+      <select id="uaCreateRole" style="width:100%;background:var(--s);border:1px solid var(--b);border-radius:8px;padding:9px 10px;color:var(--tx);font-size:13px;font-family:'Sora',sans-serif;outline:none;">
         <option value="ADMIN">ADMIN</option>
         <option value="IPAD_OPS" selected>IPAD_OPS</option>
         <option value="IPHONE_OPS">IPHONE_OPS</option>
@@ -1046,7 +1046,7 @@ https://buy.stripe.com/8x214mccK0uh9TjgIM6Vq00</div>
 <div class="pane" id="pane-closing" style="padding:16px 14px 120px">
 <div class="dc-wrap">
 
-  <div style="font-family:'Syne',sans-serif;font-size:18px;font-weight:800;color:var(--navy);margin-bottom:2px">📋 Daily Closing</div>
+  <div style="font-family:'Sora',sans-serif;font-size:18px;font-weight:800;color:var(--navy);margin-bottom:2px">📋 Daily Closing</div>
   <div style="font-size:11px;color:var(--mu);margin-bottom:16px">Internal end-of-day control · no customer data</div>
 
   <div id="dcStatusBanner" class="dc-status-banner draft" style="display:none"></div>
@@ -1167,7 +1167,7 @@ https://buy.stripe.com/8x214mccK0uh9TjgIM6Vq00</div>
 
   <!-- Notes -->
   <div class="dc-card dc-lockable">
-    <div class="dc-sec-title">📝 Closing Notes <span style="font-weight:400;text-transform:none;font-family:'DM Sans',sans-serif;font-size:10.5px;color:var(--mu)">(optional)</span></div>
+    <div class="dc-sec-title">📝 Closing Notes <span style="font-weight:400;text-transform:none;font-family:'Inter',sans-serif;font-size:10.5px;color:var(--mu)">(optional)</span></div>
     <textarea class="dc-textarea" id="dcNotes" placeholder="Optional notes for this closing…" oninput="dcMarkDirty()"></textarea>
   </div>
 
@@ -1216,7 +1216,7 @@ https://buy.stripe.com/8x214mccK0uh9TjgIM6Vq00</div>
   <div class="modal">
     <h2>Daily Contact Sync</h2>
     <div class="msub"><span id="syncPreviewEvaluated">0</span> passenger records evaluated · <span id="syncPreviewUnique">0</span> unique contacts ready · <span id="syncPreviewDuplicates">0</span> duplicate phone records removed · <span id="syncPreviewInvalid">0</span> invalid record(s) excluded</div>
-    <div id="syncPreviewDateRange" style="font-size:11px;color:var(--mu);font-family:'DM Mono',monospace;margin:8px 0;"></div>
+    <div id="syncPreviewDateRange" style="font-size:11px;color:var(--mu);font-family:'JetBrains Mono',monospace;margin:8px 0;"></div>
     <div id="syncPreviewList" style="max-height:280px;overflow-y:auto;margin:10px 0;"></div>
     <div class="mact">
       <button class="btnc" onclick="closeSyncPreviewModal()">Cancel</button>
@@ -1296,7 +1296,7 @@ https://buy.stripe.com/8x214mccK0uh9TjgIM6Vq00</div>
       <input type="checkbox" id="syncFullExportIncludeArchived" onchange="onFullExportArchivedToggle(this)">
       Include Archived Passengers
     </label>
-    <div style="background:var(--s2);border-radius:8px;padding:10px 12px;font-size:12px;font-family:'DM Mono',monospace;color:var(--mu);display:flex;flex-direction:column;gap:3px;">
+    <div style="background:var(--s2);border-radius:8px;padding:10px 12px;font-size:12px;font-family:'JetBrains Mono',monospace;color:var(--mu);display:flex;flex-direction:column;gap:3px;">
       <div>Total records: <span id="syncFullExportEvaluated">0</span></div>
       <div>Unique contacts: <span id="syncFullExportUnique">0</span></div>
       <div>Duplicates removed: <span id="syncFullExportDuplicates">0</span></div>
@@ -2472,7 +2472,7 @@ function renderDay() {
       return '<div class="dcard '+cls+(isApprox?' approx-card':'')+(r.status==='DELIVERED'&&showDeliver?' delivered-today-card':'')+'" onclick="showDet('+r.id+')">'+
         '<div class="dc-top">'+
           '<div class="dc-body">'+
-            '<div class="dc-n">'+(r.status==='DELIVERED'&&showDeliver?'<span style="text-decoration:line-through;opacity:0.6">'+(isAscend(r)?'[A] ':'')+escapeHTML(r.name)+'</span>':(isAscend(r)?'[A] ':'')+escapeHTML(r.name))+(isApprox?' <span style="font-size:9px;background:rgba(201,168,76,0.2);color:var(--gold);border-radius:4px;padding:2px 5px;margin-left:4px">~APPROX</span>':'')+(isAscend(r)?'<span style="font-size:9px;background:rgba(99,179,237,0.18);color:#63b3ed;border-radius:4px;padding:2px 5px;margin-left:4px;font-family:\'DM Mono\',monospace">✈ ASCEND</span>':'')+(r.isOfflinePending?'<span style="font-size:9px;background:rgba(232,160,48,.22);color:#e8a030;border-radius:4px;padding:2px 5px;margin-left:4px;font-weight:800;font-family:\'DM Mono\',monospace" title="Saved locally, not yet on the server">🟠 PENDING SYNC</span>':'')+(r.status==='DELIVERED'?tipStatusCompact(r):'')+'</div>'+
+            '<div class="dc-n">'+(r.status==='DELIVERED'&&showDeliver?'<span style="text-decoration:line-through;opacity:0.6">'+(isAscend(r)?'[A] ':'')+escapeHTML(r.name)+'</span>':(isAscend(r)?'[A] ':'')+escapeHTML(r.name))+(isApprox?' <span style="font-size:9px;background:rgba(201,168,76,0.2);color:var(--gold);border-radius:4px;padding:2px 5px;margin-left:4px">~APPROX</span>':'')+(isAscend(r)?'<span style="font-size:9px;background:rgba(99,179,237,0.18);color:#63b3ed;border-radius:4px;padding:2px 5px;margin-left:4px;font-family:\'JetBrains Mono\',monospace">✈ ASCEND</span>':'')+(r.isOfflinePending?'<span style="font-size:9px;background:rgba(232,160,48,.22);color:#e8a030;border-radius:4px;padding:2px 5px;margin-left:4px;font-weight:800;font-family:\'JetBrains Mono\',monospace" title="Saved locally, not yet on the server">🟠 PENDING SYNC</span>':'')+(r.status==='DELIVERED'?tipStatusCompact(r):'')+'</div>'+
             '<div class="dc-c">'+escapeHTML(r.car)+' · '+escapeHTML(fmtP(r.phone))+'</div>'+
             flightHtml+
           '</div>'+
@@ -2731,7 +2731,7 @@ function showArchiveStep1_2025(){
     '<p class="msub">Step 1 of 3</p>'+
     (c>0?
       '<div style="background:rgba(201,168,76,0.1);border:1px solid rgba(201,168,76,0.3);border-radius:10px;padding:16px;margin-bottom:20px;text-align:center;">'+
-        '<div style="font-size:32px;font-weight:800;color:var(--gold);font-family:\'Syne\',sans-serif">'+c+'</div>'+
+        '<div style="font-size:32px;font-weight:800;color:var(--gold);font-family:\'Sora\',sans-serif">'+c+'</div>'+
         '<div style="font-size:12px;color:var(--mu)">pending records from 2025 found</div>'+
       '</div>'+
       '<div class="mact">'+
@@ -2769,8 +2769,8 @@ function showArchiveConfirm(){
     '<h2>&#128230; Archive Records</h2>'+
     '<p class="msub" style="margin-bottom:16px">Archive '+c+' record'+(c===1?'':'s')+'?</p>'+
     '<div style="background:rgba(107,114,128,0.08);border:1px solid rgba(107,114,128,0.2);border-radius:10px;padding:14px;margin-bottom:20px;">'+
-      '<div style="font-size:10px;color:var(--mu);margin-bottom:4px;font-family:\'DM Mono\',monospace;text-transform:uppercase;letter-spacing:.5px">Archived By</div>'+
-      '<div style="font-size:16px;font-weight:800;color:var(--tx);font-family:\'Syne\',sans-serif;">'+escapeHTML(_pendingArchivedBy)+'</div>'+
+      '<div style="font-size:10px;color:var(--mu);margin-bottom:4px;font-family:\'JetBrains Mono\',monospace;text-transform:uppercase;letter-spacing:.5px">Archived By</div>'+
+      '<div style="font-size:16px;font-weight:800;color:var(--tx);font-family:\'Sora\',sans-serif;">'+escapeHTML(_pendingArchivedBy)+'</div>'+
     '</div>'+
     '<div class="mact">'+
       '<button class="btnp" onclick="doArchive()">&#128230; ARCHIVE</button>'+
@@ -3566,7 +3566,7 @@ function renderMockSmsModal(status, sid, error) {
     '<div class="mock-sms-row"><span class="mock-sms-lbl">Phone (E.164)</span><span class="mock-sms-val">' + (pi.valid ? escapeHTML(pi.e164) : '<span style="color:var(--red)">invalid — ' + escapeHTML(pi.reason) + '</span>') + '</span></div>' +
     '<div class="mock-sms-msgbox">' + escapeHTML(o.body || '') + '</div>' +
     '<div class="mock-sms-row"><span class="mock-sms-lbl">Status</span><span class="mock-sms-status mock-sms-status-' + statusCls + '">' + mockSmsStatusLabel(status) + '</span></div>' +
-    (sid ? '<div class="mock-sms-row"><span class="mock-sms-lbl">Mock SID</span><span class="mock-sms-val" style="font-family:\'DM Mono\',monospace">' + escapeHTML(sid) + '</span></div>' : '') +
+    (sid ? '<div class="mock-sms-row"><span class="mock-sms-lbl">Mock SID</span><span class="mock-sms-val" style="font-family:\'JetBrains Mono\',monospace">' + escapeHTML(sid) + '</span></div>' : '') +
     '<div class="mock-sms-row"><span class="mock-sms-lbl">Timestamp</span><span class="mock-sms-val">' + escapeHTML(new Date().toLocaleString('en-US')) + '</span></div>' +
     errHtml + outcomeHtml;
 }
@@ -3676,7 +3676,7 @@ function renderMockSmsHistoryPanel() {
       '<td>' + escapeHTML(m.templateKey || '—') + '</td>' +
       '<td>' + escapeHTML(m.phoneE164 || m.phoneOriginal || '—') + '</td>' +
       '<td><span class="mock-sms-status mock-sms-status-' + statusCls + '">' + mockSmsStatusLabel(m.status) + '</span></td>' +
-      '<td style="font-family:\'DM Mono\',monospace;font-size:10px">' + escapeHTML(m.id) + '</td>' +
+      '<td style="font-family:\'JetBrains Mono\',monospace;font-size:10px">' + escapeHTML(m.id) + '</td>' +
       '</tr>';
   }).join('');
 }
@@ -4559,16 +4559,16 @@ function showDet(id){
   var histH='';
   if(hist.length>1){histH='<div class="htitle">Visit History ('+hist.length+' visit'+(hist.length>1?'s':'')+' - all contacts)</div><div class="hlist">'+hist.map(function(h){return '<div class="hi" style="flex-direction:column;gap:3px;align-items:flex-start"><div style="display:flex;justify-content:space-between;width:100%"><span class="h-tk">'+escapeHTML(h.ticket)+'</span><span class="h-dt">'+escapeHTML(fmtA(h.ts))+'</span></div><div style="font-size:11px;color:var(--mu)">'+escapeHTML(h.car)+(h.phone?' · '+escapeHTML(fmtP(h.phone)):'')+'</div><div style="font-size:10px;color:'+(h.status==='DELIVERED'?'var(--ok)':'var(--acc)')+'">'+escapeHTML(h.status)+'</div></div>';}).join('')+'</div>';}
   document.getElementById('detPanel').innerHTML=
-    (isAscend(r)?'<div style="background:rgba(99,179,237,0.12);border:1px solid rgba(99,179,237,0.4);border-radius:10px;padding:10px 14px;margin-bottom:12px;display:flex;align-items:center;gap:8px"><span style="font-size:13px;font-weight:800;font-family:\'DM Mono\',monospace;color:#63b3ed;letter-spacing:.5px">✈ ASCEND / PRIVATE FLIGHT</span></div>':'')+
+    (isAscend(r)?'<div style="background:rgba(99,179,237,0.12);border:1px solid rgba(99,179,237,0.4);border-radius:10px;padding:10px 14px;margin-bottom:12px;display:flex;align-items:center;gap:8px"><span style="font-size:13px;font-weight:800;font-family:\'JetBrains Mono\',monospace;color:#63b3ed;letter-spacing:.5px">✈ ASCEND / PRIVATE FLIGHT</span></div>':'')+
     '<div class="dname">'+escapeHTML(r.name)+'</div>'+
     '<div class="dphone" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'+escapeHTML(fmtP(r.phone))+
-      (r.phone?'<a href="tel:'+r.phone.replace(/\D/g,'')+'" style="background:var(--ok);color:#000;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;text-decoration:none;font-family:Syne,sans-serif;">📞 CALL</a>':'')+
-      (r.phone?'<button type="button" onclick="sendGenericTextSms('+r.id+')" style="background:var(--pur);color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;cursor:pointer;font-family:Syne,sans-serif;">💬 TEXT</button>':'')+
-      (r.phone?'<button onclick="sendWelcomeSms('+r.id+')" style="background:linear-gradient(135deg,#1a5c3a,#1a9e6a);color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;font-family:Syne,sans-serif;cursor:pointer;">💬 Welcome</button>':'')+
-      '<button onclick="printCustomerCopyForRecord(data.find(function(x){return x.id==='+r.id+'}))" style="background:var(--navy);color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;font-family:Syne,sans-serif;cursor:pointer;">🧾 Customer Copy</button>'+
-      '<button onclick="printKeyTicket(data.find(function(x){return x.id==='+r.id+'}))" style="background:var(--navy);color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;font-family:Syne,sans-serif;cursor:pointer;">🔑 Key Copy</button>'+
-      '<button onclick="printDashboardTicket(data.find(function(x){return x.id==='+r.id+'}))" style="background:var(--navy);color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;font-family:Syne,sans-serif;cursor:pointer;">🚗 Dashboard</button>'+
-      '<button onclick="printAllTickets(data.find(function(x){return x.id==='+r.id+'}))" style="background:var(--navy);color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;font-family:Syne,sans-serif;cursor:pointer;">🖨 Print All</button>'+
+      (r.phone?'<a href="tel:'+r.phone.replace(/\D/g,'')+'" style="background:var(--ok);color:#000;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;text-decoration:none;font-family:Sora,sans-serif;">📞 CALL</a>':'')+
+      (r.phone?'<button type="button" onclick="sendGenericTextSms('+r.id+')" style="background:var(--pur);color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;cursor:pointer;font-family:Sora,sans-serif;">💬 TEXT</button>':'')+
+      (r.phone?'<button onclick="sendWelcomeSms('+r.id+')" style="background:linear-gradient(135deg,#1a5c3a,#1a9e6a);color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;font-family:Sora,sans-serif;cursor:pointer;">💬 Welcome</button>':'')+
+      '<button onclick="printCustomerCopyForRecord(data.find(function(x){return x.id==='+r.id+'}))" style="background:var(--navy);color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;font-family:Sora,sans-serif;cursor:pointer;">🧾 Customer Copy</button>'+
+      '<button onclick="printKeyTicket(data.find(function(x){return x.id==='+r.id+'}))" style="background:var(--navy);color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;font-family:Sora,sans-serif;cursor:pointer;">🔑 Key Copy</button>'+
+      '<button onclick="printDashboardTicket(data.find(function(x){return x.id==='+r.id+'}))" style="background:var(--navy);color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;font-family:Sora,sans-serif;cursor:pointer;">🚗 Dashboard</button>'+
+      '<button onclick="printAllTickets(data.find(function(x){return x.id==='+r.id+'}))" style="background:var(--navy);color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;font-family:Sora,sans-serif;cursor:pointer;">🖨 Print All</button>'+
     '</div>'+
     '<div id="saveEditsWrap"><button class="save-edits-btn" id="saveEditsBtn" data-rid="'+r.id+'">💾 Save Changes</button></div>'+
     '<div class="dgrid">'+
@@ -4590,13 +4590,13 @@ function showDet(id){
         '</label></div></div>'+
       (r.status==='DELIVERED'?
         '<div class="di" style="grid-column:1/-1"><div class="di-l">Delivery Method</div><div class="di-v">'+deliveryMethodHtml(r.delivery_type)+'</div></div>'+
-        (r.previous_delivery_location?'<div class="di" style="grid-column:1/-1"><div class="di-l">Delivered From</div><div class="di-v" style="font-family:\'DM Mono\',monospace;font-size:13px;color:var(--mu)">'+escapeHTML(r.previous_delivery_location)+'</div></div>':'')+
+        (r.previous_delivery_location?'<div class="di" style="grid-column:1/-1"><div class="di-l">Delivered From</div><div class="di-v" style="font-family:\'JetBrains Mono\',monospace;font-size:13px;color:var(--mu)">'+escapeHTML(r.previous_delivery_location)+'</div></div>':'')+
         '<div class="di" style="grid-column:1/-1"><div class="di-l">Tip</div><div class="di-v">'+tipStatusHtml(r)+'</div></div>'
       :'')+
     '</div>'+histH+
     (r.archived_by?
       '<div style="background:rgba(107,114,128,0.08);border:1px solid rgba(107,114,128,0.25);border-radius:10px;padding:12px 14px;margin-bottom:12px;">'+
-        '<div style="font-size:11px;color:#6B7280;font-weight:700;margin-bottom:4px;font-family:\'DM Mono\',monospace;letter-spacing:.5px">📦 ARCHIVED RECORD</div>'+
+        '<div style="font-size:11px;color:#6B7280;font-weight:700;margin-bottom:4px;font-family:\'JetBrains Mono\',monospace;letter-spacing:.5px">📦 ARCHIVED RECORD</div>'+
         '<div style="font-size:12px;color:var(--mu)">Archived By: <span style="font-weight:700;color:var(--tx)">'+escapeHTML(r.archived_by)+'</span></div>'+
         '<div style="font-size:12px;color:var(--mu)">Archived At: <span style="font-weight:700;color:var(--tx)">'+escapeHTML(r.archived_at)+'</span></div>'+
       '</div>':'')+
@@ -4609,7 +4609,7 @@ function showDet(id){
     '<div class="hgrid">'+hangH+'</div>'+
     (r.status!=='DELIVERED'?'<button class="delb" onclick="markDel('+r.id+')">Mark as Delivered</button>':'')+
     (r.status!=='DELIVERED'&&!isToday(r.ret)&&!isLate(r.ret)?
-      '<button onclick="earlyReturn('+r.id+')" style="width:100%;background:linear-gradient(135deg,#7b3fa0,#a855f7);color:#fff;border:none;border-radius:10px;padding:13px;font-family:Syne,sans-serif;font-weight:800;font-size:14px;cursor:pointer;margin-top:8px;display:flex;align-items:center;justify-content:center;gap:8px;">⚡ Early Return — Arrived Today</button>'
+      '<button onclick="earlyReturn('+r.id+')" style="width:100%;background:linear-gradient(135deg,#7b3fa0,#a855f7);color:#fff;border:none;border-radius:10px;padding:13px;font-family:Sora,sans-serif;font-weight:800;font-size:14px;cursor:pointer;margin-top:8px;display:flex;align-items:center;justify-content:center;gap:8px;">⚡ Early Return — Arrived Today</button>'
     :'')+
     '<button class="clsb" style="margin-top:6px;color:var(--red);border-color:var(--red)" onclick="deleteRec('+r.id+')">🗑 Delete Record</button>'+
     '<button class="clsb" onclick="closeAll()">Close</button>'+
@@ -5819,8 +5819,8 @@ function renderUserAccessTable(rows){
       return '<option value="'+r+'"'+(r===u.role?' selected':'')+'>'+r+'</option>';
     }).join('');
     var roleCell = u.is_protected
-      ? '<span style="font-family:\'DM Mono\',monospace;font-size:12px;">'+escapeHTML(u.role)+'</span>'
-      : '<select onchange="onUserAccessRoleChange(this,\''+u.id+'\')" style="background:var(--s);border:1px solid var(--b);border-radius:8px;padding:7px 9px;color:var(--tx);font-size:13px;font-family:\'Syne\',sans-serif;outline:none;">'+roleOptions+'</select>';
+      ? '<span style="font-family:\'JetBrains Mono\',monospace;font-size:12px;">'+escapeHTML(u.role)+'</span>'
+      : '<select onchange="onUserAccessRoleChange(this,\''+u.id+'\')" style="background:var(--s);border:1px solid var(--b);border-radius:8px;padding:7px 9px;color:var(--tx);font-size:13px;font-family:\'Sora\',sans-serif;outline:none;">'+roleOptions+'</select>';
     var statusCell = u.is_protected
       ? '<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;color:#e86030;">🔒 Protected</span>'
       : (u.is_active
@@ -5829,8 +5829,8 @@ function renderUserAccessTable(rows){
     var actionsCell = '';
     if(!u.is_protected){
       actionsCell =
-        '<button onclick="onUserAccessToggleActive(this,\''+u.id+'\','+(u.is_active?'false':'true')+')" style="background:'+(u.is_active?'rgba(192,57,43,0.08)':'rgba(26,158,106,0.1)')+';border:1px solid '+(u.is_active?'rgba(192,57,43,0.3)':'rgba(26,158,106,0.35)')+';color:'+(u.is_active?'#c0392b':'#1a9e6a')+';border-radius:7px;padding:5px 10px;font-size:11px;font-weight:700;font-family:Syne,sans-serif;cursor:pointer;margin-right:6px;">'+(u.is_active?'Disable':'Enable')+'</button>'+
-        '<button onclick="onUserAccessDelete(this,\''+u.id+'\',\''+escapeHTML(u.username||'')+'\')" style="background:rgba(192,57,43,0.08);border:1px solid rgba(192,57,43,0.3);color:#c0392b;border-radius:7px;padding:5px 10px;font-size:11px;font-weight:700;font-family:Syne,sans-serif;cursor:pointer;">Delete</button>';
+        '<button onclick="onUserAccessToggleActive(this,\''+u.id+'\','+(u.is_active?'false':'true')+')" style="background:'+(u.is_active?'rgba(192,57,43,0.08)':'rgba(26,158,106,0.1)')+';border:1px solid '+(u.is_active?'rgba(192,57,43,0.3)':'rgba(26,158,106,0.35)')+';color:'+(u.is_active?'#c0392b':'#1a9e6a')+';border-radius:7px;padding:5px 10px;font-size:11px;font-weight:700;font-family:Sora,sans-serif;cursor:pointer;margin-right:6px;">'+(u.is_active?'Disable':'Enable')+'</button>'+
+        '<button onclick="onUserAccessDelete(this,\''+u.id+'\',\''+escapeHTML(u.username||'')+'\')" style="background:rgba(192,57,43,0.08);border:1px solid rgba(192,57,43,0.3);color:#c0392b;border-radius:7px;padding:5px 10px;font-size:11px;font-weight:700;font-family:Sora,sans-serif;cursor:pointer;">Delete</button>';
     }
     return '<tr style="border-bottom:1px solid var(--b);">'+
       '<td style="padding:9px 10px;font-weight:700;">'+escapeHTML(u.username||'')+'</td>'+
@@ -6900,7 +6900,7 @@ async function loadOlderPassengerChangeHistory(){
 function pchOlderButtonHtml(){
   return '<button id="pchOlderBtn" onclick="loadOlderPassengerChangeHistory()" '
     + 'style="width:100%;margin-top:8px;background:var(--s2);border:1px solid var(--b);border-radius:8px;'
-    + 'padding:9px;font-size:12px;font-weight:700;color:var(--tx);cursor:pointer;font-family:\'Syne\',sans-serif;">'
+    + 'padding:9px;font-size:12px;font-weight:700;color:var(--tx);cursor:pointer;font-family:\'Sora\',sans-serif;">'
     + 'Show Older Changes</button>';
 }
 
@@ -6928,8 +6928,8 @@ function renderPassengerChangeHistory(rows){
       ? '<div style="font-size:12px;color:var(--tx);margin-top:4px;word-break:break-word">Reason: ' + escapeHTML(prdc.comment) + '</div>'
       : '';
     return '<div style="padding:10px 0;border-bottom:1px solid var(--s2)">'
-      + '<div style="font-size:10px;color:var(--mu);font-family:\'DM Mono\',monospace">' + escapeHTML(String(ts)) + '</div>'
-      + '<div style="font-size:12px;font-weight:800;color:var(--gold);font-family:\'Syne\',sans-serif;letter-spacing:.4px;margin-top:2px">' + escapeHTML(String(fieldLabel)) + '</div>'
+      + '<div style="font-size:10px;color:var(--mu);font-family:\'JetBrains Mono\',monospace">' + escapeHTML(String(ts)) + '</div>'
+      + '<div style="font-size:12px;font-weight:800;color:var(--gold);font-family:\'Sora\',sans-serif;letter-spacing:.4px;margin-top:2px">' + escapeHTML(String(fieldLabel)) + '</div>'
       + diffHtml
       + reasonHtml
       + '<div style="font-size:11px;color:var(--mu);margin-top:4px">Changed by: ' + changedBy + '</div>'
@@ -7067,7 +7067,7 @@ function _renderRentalLogs(rows, container) {
 
 function _rlField(lbl, val) {
   return '<div><div style="font-size:9px;color:var(--mu);text-transform:uppercase;letter-spacing:0.06em">' + lbl + '</div>'
-    + '<div style="font-size:11px;color:var(--tx);font-family:\'DM Mono\',monospace">' + escapeHTML(String(val)) + '</div></div>';
+    + '<div style="font-size:11px;color:var(--tx);font-family:\'JetBrains Mono\',monospace">' + escapeHTML(String(val)) + '</div></div>';
 }
 
 async function reprintRentalLog(btn) {
@@ -7107,7 +7107,7 @@ async function searchActivityLogs() {
       if (res.status === 404 || res.status === 400) {
         container.innerHTML = '<div style="padding:20px;text-align:center;color:var(--mu);font-size:13px">'
           + 'Log table not created yet.<br><br>'
-          + '<button onclick="createLogTable()" style="background:var(--navy);color:#fff;border:none;border-radius:8px;padding:10px 18px;font-family:Syne,sans-serif;font-weight:700;cursor:pointer;">Create Log Table in Supabase</button>'
+          + '<button onclick="createLogTable()" style="background:var(--navy);color:#fff;border:none;border-radius:8px;padding:10px 18px;font-family:Sora,sans-serif;font-weight:700;cursor:pointer;">Create Log Table in Supabase</button>'
           + '</div>';
         return;
       }
@@ -7184,7 +7184,7 @@ function createLogTable() {
   if(el) el.innerHTML = '<div style="background:#0a0f1e;border-radius:10px;padding:16px;font-family:monospace;font-size:12px;color:#6fc898;white-space:pre-wrap">'+
     'Run this SQL in Supabase SQL Editor:\n\n'+sql+'\n\n'+
     '<button onclick="navigator.clipboard.writeText(`'+sql.replace(/`/g,"'"+'`'+"'")+'`).then(function(){alert(\'Copied!\');})" '+
-    'style="background:var(--navy);color:#fff;border:none;border-radius:6px;padding:8px 14px;cursor:pointer;font-family:Syne,sans-serif;font-weight:700;">Copy SQL</button>'+
+    'style="background:var(--navy);color:#fff;border:none;border-radius:6px;padding:8px 14px;cursor:pointer;font-family:Sora,sans-serif;font-weight:700;">Copy SQL</button>'+
     '</div>';
 }
 
@@ -7254,7 +7254,7 @@ function renderTasks() {
         (!isDone ?
           '<div style="display:flex;gap:8px;align-items:center;margin-top:10px;margin-bottom:4px">'+
             '<input type="date" id="taskDate-'+r.id+'" style="background:var(--s2);border:1.5px solid var(--b);border-radius:8px;padding:8px 10px;color:var(--tx);font-size:14px;outline:none;flex:1;">'+
-            '<button onclick="confirmTaskDate('+r.id+')" style="background:var(--navy);color:#fff;border:1px solid var(--gold);border-radius:8px;padding:8px 14px;font-family:Syne,sans-serif;font-weight:700;font-size:12px;cursor:pointer;white-space:nowrap;">&#10003; Set Date</button>'+
+            '<button onclick="confirmTaskDate('+r.id+')" style="background:var(--navy);color:#fff;border:1px solid var(--gold);border-radius:8px;padding:8px 14px;font-family:Sora,sans-serif;font-weight:700;font-size:12px;cursor:pointer;white-space:nowrap;">&#10003; Set Date</button>'+
           '</div>' : '') +
       '</div></div>'+
       '<div class="task-actions">'+
@@ -7875,7 +7875,7 @@ function renderSyncPreviewModal(pd) {
   listEl.innerHTML = pd.contacts.map(function(c) {
     return '<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--b);font-size:13px">' +
       '<span>' + escapeHTML(titleCaseNameSync(c.name)) + '</span>' +
-      '<span style="color:var(--mu);font-family:\'DM Mono\',monospace">' + escapeHTML(formatNormalizedPhoneForDisplay(c.phone)) + '</span>' +
+      '<span style="color:var(--mu);font-family:\'JetBrains Mono\',monospace">' + escapeHTML(formatNormalizedPhoneForDisplay(c.phone)) + '</span>' +
     '</div>';
   }).join('');
 }
@@ -8313,15 +8313,15 @@ function renderSyncHistoryRows(rows) {
     var statusColor = b.status === 'CONFIRMED' ? 'var(--ok)' : b.status === 'CANCELLED' ? 'var(--red)' : 'var(--gold)';
     return '<div style="padding:12px 14px;border-bottom:1px solid var(--b)">' +
       '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">' +
-        '<span style="font-family:\'Syne\',sans-serif;font-weight:700;font-size:13px">' + escapeHTML(b.batch_type) + '</span>' +
+        '<span style="font-family:\'Sora\',sans-serif;font-weight:700;font-size:13px">' + escapeHTML(b.batch_type) + '</span>' +
         '<span style="font-size:11px;font-weight:700;color:' + statusColor + '">' + escapeHTML(b.status) + '</span>' +
       '</div>' +
-      '<div style="font-size:11px;color:var(--mu);font-family:\'DM Mono\',monospace">' +
+      '<div style="font-size:11px;color:var(--mu);font-family:\'JetBrains Mono\',monospace">' +
         escapeHTML(new Date(b.created_at).toLocaleString()) + ' · ' + (b.unique_count || 0) + ' contacts' +
         (b.created_by ? ' · by ' + escapeHTML(b.created_by) : '') +
       '</div>' +
       (b.confirmed_at ? '<div style="font-size:11px;color:var(--ok);margin-top:2px">Confirmed ' + escapeHTML(new Date(b.confirmed_at).toLocaleString()) + (b.confirmed_by ? ' by ' + escapeHTML(b.confirmed_by) : '') + '</div>' : '') +
-      (b.filename ? '<div style="font-size:10px;color:var(--mu);margin-top:2px;font-family:\'DM Mono\',monospace">' + escapeHTML(b.filename) + '</div>' : '') +
+      (b.filename ? '<div style="font-size:10px;color:var(--mu);margin-top:2px;font-family:\'JetBrains Mono\',monospace">' + escapeHTML(b.filename) + '</div>' : '') +
     '</div>';
   }).join('');
 }
@@ -8925,16 +8925,16 @@ function ensureDcExportStyle(){
     '#dailyClosingExport .dcx-title{font-size:15px;font-weight:800;color:#1B3B6F;margin-bottom:8px}'+
     '#dailyClosingExport .dcx-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:7px}'+
     '#dailyClosingExport .dcx-kpi{background:#F0F3FA;border:1px solid #E8EDF7;border-radius:8px;padding:7px 8px;text-align:center}'+
-    '#dailyClosingExport .dcx-kpi .n{font-size:13px;font-weight:800;color:#1B3B6F;font-family:"DM Mono",monospace}'+
+    '#dailyClosingExport .dcx-kpi .n{font-size:13px;font-weight:800;color:#1B3B6F;font-family:"JetBrains Mono",monospace}'+
     '#dailyClosingExport .dcx-kpi .l{font-size:7.5px;color:#888;text-transform:uppercase;letter-spacing:.3px;margin-top:2px}'+
     '#dailyClosingExport .dcx-sec-lbl{font-size:9.5px;font-weight:800;color:#888;text-transform:uppercase;letter-spacing:.5px;margin:10px 0 4px;padding-bottom:2px;border-bottom:1px solid #E8EDF7}'+
     '#dailyClosingExport .dcx-pay-table,#dailyClosingExport .dcx-table{width:100%;border-collapse:collapse;font-size:11.5px}'+
     '#dailyClosingExport .dcx-pay-table td{padding:3px 2px;border-bottom:1px solid #F0F3FA}'+
-    '#dailyClosingExport .dcx-pay-table td:last-child{text-align:right;font-weight:700;font-family:"DM Mono",monospace}'+
+    '#dailyClosingExport .dcx-pay-table td:last-child{text-align:right;font-weight:700;font-family:"JetBrains Mono",monospace}'+
     '#dailyClosingExport .dcx-total-row td{border-top:1.5px solid #1B3B6F;border-bottom:none;font-weight:800;color:#1B3B6F;padding-top:5px}'+
     '#dailyClosingExport .dcx-table th{text-align:left;font-size:9px;color:#888;text-transform:uppercase;padding:3px 4px;border-bottom:1px solid #C8D3E8}'+
     '#dailyClosingExport .dcx-table td{padding:4px;border-bottom:1px solid #F0F3FA}'+
-    '#dailyClosingExport .dcx-money-left{font-size:16px;font-weight:800;color:#1B3B6F;font-family:"DM Mono",monospace;background:#F0F3FA;border-radius:8px;padding:8px 10px}'+
+    '#dailyClosingExport .dcx-money-left{font-size:16px;font-weight:800;color:#1B3B6F;font-family:"JetBrains Mono",monospace;background:#F0F3FA;border-radius:8px;padding:8px 10px}'+
     '#dailyClosingExport .dcx-check{font-size:10.5px;margin-bottom:4px;display:flex;gap:6px;align-items:flex-start}'+
     '#dailyClosingExport .dcx-check .y{color:#1A9E6A;font-weight:800}'+
     '#dailyClosingExport .dcx-check .n{color:#CC3333;font-weight:800}'+
