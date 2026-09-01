@@ -1089,7 +1089,7 @@ body.tv-cursor-hidden, body.tv-cursor-hidden *{cursor:none !important;}
   position:fixed;inset:0;z-index:500;
   background:var(--tv-bg);
   color:var(--tv-text);
-  font-family:'DM Sans',sans-serif;
+  font-family:'Inter',sans-serif;
   overflow:hidden;
   flex-direction:column;
 }
@@ -1106,20 +1106,30 @@ body.tv-active #tvMode{display:flex;}
 }
 .tv-brand{display:flex;flex-direction:column;gap:3px;}
 .tv-brand-top{display:flex;align-items:center;gap:14px;}
-.tv-brand-name{font-family:'Syne',sans-serif;font-weight:800;font-size:22px;letter-spacing:.5px;color:#fff;}
-.tv-brand-name .tv-gold-ic{color:var(--tv-gold);}
-.tv-brand-sub{font-family:'DM Mono',monospace;font-size:11px;letter-spacing:1px;color:rgba(255,255,255,.72);}
+/* White backing chip: the logo mark is navy/blue-dominant, so placed
+   directly on the header's dark navy->blue gradient it would nearly
+   vanish. This is the same crisp-on-dark treatment as a normal app
+   badge — not a new brand element, just what makes an already-navy
+   mark visible on an already-navy header. */
+.tv-logo-badge{
+  width:40px;height:40px;flex-shrink:0;border-radius:10px;
+  background:#fff;display:flex;align-items:center;justify-content:center;
+  box-shadow:0 2px 8px rgba(0,0,0,.18);
+}
+.tv-logo-badge img{width:28px;height:auto;}
+.tv-brand-name{font-family:'Sora',sans-serif;font-weight:800;font-size:22px;letter-spacing:.5px;color:#fff;}
+.tv-brand-sub{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:1px;color:rgba(255,255,255,.72);}
 .tv-live-pill{
-  font-family:'DM Mono',monospace;font-size:11px;font-weight:700;letter-spacing:1px;
+  font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:1px;
   color:#fff;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.35);
   border-radius:20px;padding:4px 12px;
 }
 .tv-header-right{display:flex;align-items:center;gap:26px;}
 .tv-datetime{text-align:right;}
-.tv-date{font-size:13px;color:rgba(255,255,255,.75);font-family:'DM Mono',monospace;}
-.tv-clock{font-family:'Syne',sans-serif;font-weight:800;font-size:26px;letter-spacing:1px;font-variant-numeric:tabular-nums;color:#fff;}
+.tv-date{font-size:13px;color:rgba(255,255,255,.75);font-family:'JetBrains Mono',monospace;}
+.tv-clock{font-family:'Sora',sans-serif;font-weight:800;font-size:26px;letter-spacing:1px;font-variant-numeric:tabular-nums;color:#fff;}
 .tv-conn-wrap{display:flex;flex-direction:column;align-items:flex-end;gap:3px;}
-.tv-conn-label{font-family:'DM Mono',monospace;font-size:11px;font-weight:700;letter-spacing:1px;display:flex;align-items:center;}
+.tv-conn-label{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:1px;display:flex;align-items:center;}
 .tv-conn-dot{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:7px;flex-shrink:0;}
 .tv-conn-live .tv-conn-dot{background:#3FD98A;box-shadow:0 0 0 3px rgba(63,217,138,.25);}
 .tv-conn-reconnecting .tv-conn-dot{background:#FFD166;animation:tv-dot-pulse 1s ease-in-out infinite;}
@@ -1127,7 +1137,7 @@ body.tv-active #tvMode{display:flex;}
 .tv-conn-live{color:#8CF0B8;}
 .tv-conn-reconnecting{color:#FFE1A8;}
 .tv-conn-offline{color:#FFB4AD;}
-.tv-last-update{font-size:10.5px;color:rgba(255,255,255,.62);font-family:'DM Mono',monospace;}
+.tv-last-update{font-size:10.5px;color:rgba(255,255,255,.62);font-family:'JetBrains Mono',monospace;}
 @keyframes tv-dot-pulse{0%,100%{transform:scale(1);opacity:1;}50%{transform:scale(1.7);opacity:.35;}}
 
 /* ── STALE BANNER ── */
@@ -1135,7 +1145,7 @@ body.tv-active #tvMode{display:flex;}
   display:none;position:relative;z-index:1;flex-shrink:0;
   background:var(--tv-critical-bg);border-bottom:1px solid rgba(192,57,46,.35);
   color:var(--tv-critical);text-align:center;padding:8px 12px;font-weight:700;font-size:13px;
-  letter-spacing:.4px;font-family:'DM Mono',monospace;
+  letter-spacing:.4px;font-family:'JetBrains Mono',monospace;
 }
 body.tv-stale .tv-stale-banner{display:block;}
 
@@ -1149,7 +1159,7 @@ body.tv-stale .tv-stale-banner{display:block;}
   background:var(--tv-panel2);border:1px solid var(--tv-border);border-radius:12px;
   padding:14px 18px;display:flex;flex-direction:column;gap:3px;min-width:0;
 }
-.tv-kpi-num{font-family:'Syne',sans-serif;font-weight:800;font-size:34px;line-height:1;font-variant-numeric:tabular-nums;color:var(--tv-accent);}
+.tv-kpi-num{font-family:'Sora',sans-serif;font-weight:800;font-size:34px;line-height:1;font-variant-numeric:tabular-nums;color:var(--tv-accent);}
 /* white-space:nowrap (2026-08-25) — .tv-kpi-sub already had this, .tv-kpi-lbl
    never did, so a label like "MISSING LOCATIONS" could wrap to 2 lines at
    constrained tile widths and nearly double the whole KPI row's height
@@ -1175,15 +1185,15 @@ body.tv-stale .tv-stale-banner{display:block;}
 .tv-page-body{flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column;gap:14px;}
 .tv-page-title{
   display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-shrink:0;
-  font-family:'Syne',sans-serif;font-weight:800;font-size:19px;letter-spacing:.3px;
+  font-family:'Sora',sans-serif;font-weight:800;font-size:19px;letter-spacing:.3px;
   color:var(--tv-navy);
 }
 .tv-page-title .tv-count-pill{
-  font-family:'DM Mono',monospace;font-size:12px;font-weight:700;
+  font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;
   background:rgba(42,93,176,.1);color:var(--tv-accent);border-radius:20px;padding:3px 11px;
 }
 .tv-prep-badge{
-  display:inline-flex;align-items:center;gap:7px;font-family:'DM Mono',monospace;font-size:11px;
+  display:inline-flex;align-items:center;gap:7px;font-family:'JetBrains Mono',monospace;font-size:11px;
   font-weight:700;letter-spacing:1px;color:var(--tv-accent);
   background:rgba(42,93,176,.1);border:1px solid rgba(42,93,176,.3);border-radius:20px;padding:4px 12px;
 }
@@ -1197,7 +1207,7 @@ body.tv-stale .tv-stale-banner{display:block;}
 
 /* ── GROUP HEADERS (Early Morning / Morning / …) ── */
 .tv-group-hdr{
-  font-family:'DM Mono',monospace;font-size:11px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;
+  font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;
   color:var(--tv-mu);padding:8px 2px 6px;flex-shrink:0;
 }
 .tv-group-hdr:first-child{padding-top:0;}
@@ -1239,12 +1249,12 @@ body.tv-stale .tv-stale-banner{display:block;}
 .tv-density-high .tv-card{padding:8px 12px;border-radius:9px;}
 .tv-density-xcompact .tv-card{padding:6px 10px;border-radius:8px;}
 .tv-density-min .tv-card{padding:4px 8px;border-radius:7px;}
-.tv-card-name{font-family:'Syne',sans-serif;font-weight:800;font-size:17px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--tv-text);}
+.tv-card-name{font-family:'Sora',sans-serif;font-weight:800;font-size:17px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--tv-text);}
 .tv-density-compact .tv-card-name{font-size:15px;}
 .tv-density-high .tv-card-name{font-size:13.5px;}
 .tv-density-xcompact .tv-card-name{font-size:12px;}
 .tv-density-min .tv-card-name{font-size:11px;}
-.tv-card-time{font-family:'DM Mono',monospace;font-weight:800;font-size:20px;color:var(--tv-accent);}
+.tv-card-time{font-family:'JetBrains Mono',monospace;font-weight:800;font-size:20px;color:var(--tv-accent);}
 .tv-density-compact .tv-card-time{font-size:16px;}
 .tv-density-high .tv-card-time{font-size:14px;}
 .tv-density-xcompact .tv-card-time{font-size:12px;}
@@ -1262,7 +1272,7 @@ body.tv-stale .tv-stale-banner{display:block;}
 .tv-density-xcompact .tv-card-badges{gap:4px;margin-top:5px;}
 .tv-density-min .tv-card-badges{gap:3px;margin-top:4px;}
 .tv-badge{
-  font-family:'DM Mono',monospace;font-size:10px;font-weight:700;letter-spacing:.4px;
+  font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:.4px;
   border-radius:5px;padding:3px 8px;white-space:nowrap;
 }
 .tv-badge-customs{background:rgba(42,93,176,.1);color:var(--tv-accent);border:1px solid rgba(42,93,176,.3);}
@@ -1317,7 +1327,7 @@ body.tv-stale .tv-stale-banner{display:block;}
 }
 .tv-row.tv-critical{border-left-color:var(--tv-critical);}
 .tv-row-time{
-  font-family:'DM Mono',monospace;font-weight:700;font-size:14px;color:var(--tv-accent);
+  font-family:'JetBrains Mono',monospace;font-weight:700;font-size:14px;color:var(--tv-accent);
   width:76px;flex-shrink:0;font-variant-numeric:tabular-nums;
 }
 .tv-row-time.tv-time-unset{color:var(--tv-critical);font-size:10.5px;letter-spacing:.3px;width:76px;}
@@ -1465,7 +1475,7 @@ body.tv-stale .tv-stale-banner{display:block;}
    (tvBuildTodayPages/tvBuildTomorrowPages/tvBuildOpsPages), so a quiet
    day never shows a continuation badge at all. */
 .tv-page-continuation{
-  font-family:'DM Mono',monospace;font-size:11px;font-weight:700;letter-spacing:.3px;
+  font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:.3px;
   background:rgba(42,93,176,.14);color:var(--tv-accent);border-radius:20px;padding:3px 10px;
 }
 
@@ -1480,7 +1490,7 @@ body.tv-stale .tv-stale-banner{display:block;}
 /* Needs Handling / At Customs sub-labels inside the Customs & Ascend panel */
 .tv-subgroup-hdr{
   display:flex;align-items:center;gap:8px;
-  font-family:'DM Mono',monospace;font-size:10.5px;font-weight:700;letter-spacing:1.1px;text-transform:uppercase;
+  font-family:'JetBrains Mono',monospace;font-size:10.5px;font-weight:700;letter-spacing:1.1px;text-transform:uppercase;
   color:var(--tv-mu);padding:8px 2px 6px;flex-shrink:0;
 }
 .tv-subgroup-hdr:first-child{padding-top:0;}
@@ -1516,7 +1526,7 @@ body.tv-stale .tv-stale-banner{display:block;}
 /* ── HANGAR SUMMARY ── */
 .tv-hangar-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;align-content:start;}
 .tv-hangar-card{background:var(--tv-panel2);border:1px solid var(--tv-border);border-radius:12px;padding:14px;text-align:center;}
-.tv-hangar-num{font-family:'Syne',sans-serif;font-weight:800;font-size:28px;color:var(--tv-accent);}
+.tv-hangar-num{font-family:'Sora',sans-serif;font-weight:800;font-size:28px;color:var(--tv-accent);}
 .tv-hangar-lbl{font-size:10.5px;color:var(--tv-mu);text-transform:uppercase;letter-spacing:.6px;margin-top:3px;}
 
 /* ── EMPTY STATE ── */
@@ -1526,7 +1536,7 @@ body.tv-stale .tv-stale-banner{display:block;}
 .tv-fs-btn{
   position:fixed;bottom:20px;right:20px;z-index:600;
   background:var(--tv-panel2);border:1px solid var(--tv-border);color:var(--tv-accent);
-  font-family:'Syne',sans-serif;font-weight:700;font-size:13px;border-radius:10px;padding:10px 16px;
+  font-family:'Sora',sans-serif;font-weight:700;font-size:13px;border-radius:10px;padding:10px 16px;
   cursor:pointer;box-shadow:0 2px 10px rgba(19,34,68,.12);
 }
 .tv-fs-btn.tv-hidden{display:none;}
@@ -1541,7 +1551,7 @@ body.tv-stale .tv-stale-banner{display:block;}
 .tv-controls.tv-controls-visible{opacity:1;pointer-events:auto;}
 .tv-controls button{
   background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.3);color:#fff;
-  font-family:'DM Sans',sans-serif;font-size:12px;font-weight:600;border-radius:8px;padding:8px 12px;cursor:pointer;
+  font-family:'Inter',sans-serif;font-size:12px;font-weight:600;border-radius:8px;padding:8px 12px;cursor:pointer;
 }
 .tv-controls button:hover{background:rgba(255,255,255,.28);}
 
@@ -1552,7 +1562,7 @@ body.tv-stale .tv-stale-banner{display:block;}
   background:rgba(232,238,247,.97);text-align:center;padding:40px;
 }
 .tv-session-expired.tv-visible{display:flex;}
-.tv-session-expired h2{font-family:'Syne',sans-serif;font-size:24px;font-weight:800;color:var(--tv-critical);}
+.tv-session-expired h2{font-family:'Sora',sans-serif;font-size:24px;font-weight:800;color:var(--tv-critical);}
 .tv-session-expired p{color:var(--tv-mu);font-size:14px;max-width:420px;}
 
 /* The old max-width:1400px -> 3-column KPI override is removed

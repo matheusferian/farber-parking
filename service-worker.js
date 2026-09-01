@@ -246,7 +246,15 @@
 // keeps the exact same always-visible fixed sidebar as before, just
 // at a higher breakpoint. No new files added to SHELL_FILES — only
 // index.html/styles.css content changed.
-var CACHE_VERSION = 'v20';
+// v21: TV Mode visual-only refresh — real AirValet logo (assets/
+// logo-icon.png, in a white contrast chip since the mark is navy/blue
+// and would vanish directly on the dark header gradient) replacing the
+// old plane-emoji brand text, and TV's own typography swapped to match
+// the rest of the app (Syne->Sora, DM Mono->JetBrains Mono, DM Sans->
+// Inter). No TV business logic, RPC, data, timing, or fit/pagination
+// code touched — confirmed via diff: every changed CSS line is a
+// font-family value or the one new logo-badge rule, nothing else.
+var CACHE_VERSION = 'v21';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 // Resolved relative to this file's own location, so they land in the
