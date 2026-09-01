@@ -348,8 +348,8 @@
     </div>
     <div class="fi" id="freqInfo"></div>
     <div class="fr two">
-      <div class="fg"><label>Full Name <span style="color:var(--red)">*</span></label><div class="ac-wrap"><input type="text" id="fName" oninput="this.value=this.value.toUpperCase();chkFreq();acSearch(this.value);updateVcf()" autocomplete="off" placeholder="" style="text-transform:uppercase;width:100%"><div class="ac-drop" id="acDrop"></div></div></div>
-      <div class="fg"><label>Phone <span style="color:var(--red)">*</span></label><input type="tel" inputmode="numeric" pattern="[0-9]*" id="fPhone" oninput="fmtPhoneInput(this);chkFreq();updateVcf()" placeholder="" maxlength="14"></div>
+      <div class="fg"><label>Full Name <span style="color:var(--red)">*</span></label><div class="ac-wrap"><input type="text" id="fName" oninput="this.value=this.value.toUpperCase();chkFreq();acSearch(this.value)" autocomplete="off" placeholder="" style="text-transform:uppercase;width:100%"><div class="ac-drop" id="acDrop"></div></div></div>
+      <div class="fg"><label>Phone <span style="color:var(--red)">*</span></label><input type="tel" inputmode="numeric" pattern="[0-9]*" id="fPhone" oninput="fmtPhoneInput(this);chkFreq()" placeholder="" maxlength="14"></div>
     </div>
     <div id="erWarn" class="er-warn" style="display:none;">⚠️ HEADS UP: This passenger had an Early Return before. Confirm the return date carefully.</div>
     <div class="fr two">
@@ -425,12 +425,9 @@
     </div>
     <div class="mact">
       <button class="btnc" onclick="tryCloseAdd()">Cancel</button>
-      <button class="btnp" id="saveBtnSms" onclick="saveEntry(true)" style="background:linear-gradient(135deg,#1a5c3a,#1a9e6a);border-color:var(--ok);">&#128172; Save + Text</button>
+      <button class="btnp" id="saveBtnSms" onclick="saveEntry(true)" style="background:linear-gradient(135deg,#1a5c3a,#1a9e6a);border-color:var(--ok);">&#128172; Save + Review SMS</button>
       <button class="btnp" id="saveBtn" onclick="saveEntry(false)">Save Only</button>
-      <button class="btnp" id="saveBtnPrint" onclick="saveEntry(true,'both')" style="background:linear-gradient(135deg,#1a3d7c,#2a5db0);border-color:var(--gold);">🖨 Save + Print + Text</button>
-    </div>
-    <div id="vcfWrap" style="display:none;padding:10px 0 0;">
-      <a id="vcfLink" download="" style="display:flex;align-items:center;justify-content:center;gap:8px;background:rgba(26,61,124,0.08);border:1px solid var(--navy);border-radius:10px;padding:11px 14px;font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--navy);text-decoration:none;">&#128100; Save to Contacts</a>
+      <button class="btnp" id="saveBtnPrint" onclick="saveEntry(true,'both')" style="background:linear-gradient(135deg,#1a3d7c,#2a5db0);border-color:var(--gold);">🖨 Save + Print + Review SMS</button>
     </div>
     </div><!-- end #passengerFields -->
     <div id="rentalFields" style="display:none">
@@ -562,6 +559,21 @@
     <div class="mact">
       <button class="btnc" id="mockSmsCancelBtn" onclick="closeMockSmsModal()">Cancel</button>
       <button class="btnp" id="mockSmsSendBtn" onclick="mockSmsSimulateSend()">Simulate Send</button>
+    </div>
+  </div>
+</div>
+<!-- NEW ENTRY SMS REVIEW MODAL (Phase 2) — preview-only. Shows the exact
+     message New Entry's Save + Review SMS/Save + Print + Review SMS
+     buttons prepared, after the passenger record has already been saved.
+     Cancel is the only action — there is no send here. No network call,
+     no Twilio, no window.open('sms:...'). The real Confirm & Send gateway
+     is Phase 3. -->
+<div class="ov" id="reviewSmsOv" onclick="if(event.target===this)closeReviewSms()">
+  <div class="modal" style="max-width:440px">
+    <h2>📋 Review SMS (Not Sent)</h2>
+    <div id="reviewSmsBody"></div>
+    <div class="mact">
+      <button class="btnc" id="reviewSmsCancelBtn" onclick="closeReviewSms()">Cancel</button>
     </div>
   </div>
 </div>
@@ -2765,7 +2777,6 @@ function acSearch(q){
       document.getElementById('fColor').value=r.color||'';
       drop.classList.remove('open');
       chkFreq();
-      updateVcf();
     });
   });
   drop.classList.add('open');
@@ -2835,31 +2846,12 @@ function buildVcardBlock(displayName, phone){
   ].join('\r\n')+'\r\n';
 }
 
-// Tracks the last Blob URL handed to the "Save to Contacts" link so it can
-// be revoked before the next one is created — updateVcf() runs on every
-// keystroke of Name/Phone, so without this each keystroke leaked a URL.
-var _vcfLastUrl=null;
-function updateVcf(){
-  var rawName = (document.getElementById('fName').value||'').trim();
-  var rawPhone = (document.getElementById('fPhone').value||'').trim();
-  var wrap = document.getElementById('vcfWrap');
-  var link = document.getElementById('vcfLink');
-  if(_vcfLastUrl){ URL.revokeObjectURL(_vcfLastUrl); _vcfLastUrl=null; }
-  var phone = normalizePhoneForVcf(rawPhone);
-  if(rawName && phone){
-    var displayName = titleCaseName(rawName);
-    var vcf = buildVcardBlock(displayName, phone);
-    var blob = new Blob([vcf],{type:'text/vcard;charset=utf-8'});
-    var url = URL.createObjectURL(blob);
-    _vcfLastUrl = url;
-    link.href = url;
-    link.download = displayName.replace(/\s+/g,'-')+'.vcf';
-    wrap.style.display='block';
-  } else {
-    link.removeAttribute('href');
-    wrap.style.display='none';
-  }
-}
+// New Entry's own "Save to Contacts" (updateVcf()/#vcfWrap/#vcfLink) was
+// removed in Phase 2 — buildVcardBlock/titleCaseName/titleCaseWord/
+// splitNameForVcard/normalizePhoneForVcf above are kept unchanged, since
+// they're also shared by the admin bulk contact export (Report tab,
+// downloadVcfContacts()) and the Sync tab's generateSyncBatch(), neither
+// of which are in scope here.
 
 // ── TICKET AUTO-SUGGEST ────────────────────────────────────────
 function getSharedDailyMax() {
@@ -2989,7 +2981,6 @@ function openAdd(){
   document.getElementById('modalSub').textContent='Add a new passenger';
   document.getElementById('fName').value='';
   document.getElementById('fPhone').value='';
-  updateVcf(); // clears/hides Save-to-Contacts and revokes any leftover Blob URL from a previous passenger
   _autoTicket = getNextTicket();
   document.getElementById('fTicket').value = _autoTicket;
   var fRet=document.getElementById('fReturn');
@@ -3175,6 +3166,26 @@ async function sendPassengerSms(options) {
     throw new Error('Real Twilio provider is not configured.');
   }
   throw new Error('Unknown SMS_PROVIDER: ' + SMS_PROVIDER);
+}
+
+// ── NEW ENTRY SMS REVIEW (Phase 2) ───────────────────────────────
+// Prepare-and-preview only — never calls sendPassengerSms(), never opens
+// sms:, never touches the network or Twilio. Shown after a successful
+// save; the only action available is Cancel. The real Confirm & Send
+// gateway (server-side, explicit human confirmation) is Phase 3 — this
+// function intentionally has no path that results in a message going out.
+function openNewEntrySmsPreview(options) {
+  options = options || {};
+  document.getElementById('reviewSmsBody').innerHTML =
+    '<div class="mock-sms-badge">📋 PREVIEW ONLY — nothing has been sent</div>' +
+    '<div class="mock-sms-row"><span class="mock-sms-lbl">Passenger</span><span class="mock-sms-val">' + escapeHTML(options.passengerName || '—') + '</span></div>' +
+    '<div class="mock-sms-row"><span class="mock-sms-lbl">Phone</span><span class="mock-sms-val">' + escapeHTML(options.phone || '—') + '</span></div>' +
+    '<div class="mock-sms-row"><span class="mock-sms-lbl">Template</span><span class="mock-sms-val">' + escapeHTML(options.messageType || '—') + '</span></div>' +
+    '<div class="mock-sms-msgbox">' + escapeHTML(options.body || '') + '</div>';
+  document.getElementById('reviewSmsOv').classList.add('on');
+}
+function closeReviewSms() {
+  document.getElementById('reviewSmsOv').classList.remove('on');
 }
 
 // ── MOCK TWILIO SIMULATION (Fase 2) ──────────────────────────────
@@ -4050,8 +4061,8 @@ async function saveEntry(sendSms, printMode){
 
   function resetSaveButtons(){
     btn.textContent='Save Only';btn.disabled=false;
-    btnSms.textContent='💬 Save + Text';btnSms.disabled=false;
-    if(btnPrint){btnPrint.textContent='🖨 Save + Print + Text';btnPrint.disabled=false;}
+    btnSms.textContent='💬 Save + Review SMS';btnSms.disabled=false;
+    if(btnPrint){btnPrint.textContent='🖨 Save + Print + Review SMS';btnPrint.disabled=false;}
   }
   function resetFormFields(){
     closeAll();
@@ -4131,13 +4142,13 @@ async function saveEntry(sendSms, printMode){
       }
 
       if(sendSms && phoneFull){
+        // Phase 2: prepare + preview only — no automatic send, no sms:
+        // composer, no sendPassengerSms() call. See openNewEntrySmsPreview().
         var welcomeRec={ticket:ticket,ret:finalDate,not_returning_with_makers_air:notReturning,loc:locVal};
         var smsBody=buildWelcomeSms(welcomeRec);
-        await sendPassengerSms({
-          passengerId:_newId, passengerName:nameUpper, phone:phoneFull, ticket:ticket,
-          vehicle:formatVehicleLine({car:carVal,color:colorVal}), brand:isAscend(welcomeRec)?'Ascend':'Makers Air',
-          templateKey:'WELCOME', messageType:welcomeSmsMessageType(welcomeRec),
-          body:smsBody, metadata:{trigger:'Check-in — Save + Text / Save + Print + Text'}
+        openNewEntrySmsPreview({
+          passengerName:nameUpper, phone:phoneFull,
+          messageType:welcomeSmsMessageType(welcomeRec), body:smsBody
         });
       }
       await loadData();
