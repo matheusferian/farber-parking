@@ -147,6 +147,11 @@
       </tr></thead>
       <tbody id="tbody"></tbody>
     </table>
+    <!-- iPhone-width card view (Phase 3) — same data/filters/sort as the
+         table above, shown instead of it only at <=600px via CSS
+         (styles.css). Built alongside the table in the same renderTable()
+         pass so there is exactly one source of truth per row. -->
+    <div class="tw-cards" id="tbodyCards"></div>
     <div class="empty" id="emptyMsg" style="display:none">No passengers found</div>
   </div>
 </div>
@@ -2206,13 +2211,19 @@ function setFilter(f){
 function renderTable() {
   var rows=getFiltered();
   var tbody=document.getElementById('tbody');
+  var tbodyCards=document.getElementById('tbodyCards');
   var emptyMsg=document.getElementById('emptyMsg');
   if(!tbody) return;
-  if(!rows.length){tbody.innerHTML='';if(emptyMsg)emptyMsg.style.display='block';return;}
+  if(!rows.length){
+    tbody.innerHTML='';
+    if(tbodyCards) tbodyCards.innerHTML='';
+    if(emptyMsg)emptyMsg.style.display='block';
+    return;
+  }
   if(emptyMsg)emptyMsg.style.display='none';
   var cnt={};
   data.forEach(function(r){var k=r.name.toLowerCase();cnt[k]=(cnt[k]||0)+1;});
-  var h='';
+  var h='',hc='';
   rows.forEach(function(r){
     var rt=isToday(r.ret),rm=isTmrw(r.ret),ro=isLate(r.ret);
     var freq=cnt[r.name.toLowerCase()]>1;
@@ -2223,16 +2234,19 @@ function renderTable() {
     else if(ro){rc='late';}
     var bc=r.status==='PENDING'?'bp':r.status==='DELIVERED'?'bd':r.status==='ARCHIVED'?'ba':'bn';
     var sel=selected[r.id]?true:false;
-    h+='<tr class="passenger-row" data-id="'+r.id+'" style="'+(sel?'background:rgba(232,160,48,.12)':'')+';cursor:pointer">'+
-      '<td class="cbtd" onclick="event.stopPropagation()"><input type="checkbox" data-id="'+r.id+'" '+(sel?'checked':'')+' onchange="rowChk(this)"></td>'+
-      '<td style="font-weight:500">'+(isAscend(r)?'[A] ':'')+escapeHTML(r.name)+
-        (freq?'<span class="t-freq">x'+cnt[r.name.toLowerCase()]+'</span>':'')+
+    // Tags/badges shared verbatim between the table row and the phone
+    // card — one source of truth per row, computed once.
+    var nameTags=(freq?'<span class="t-freq">x'+cnt[r.name.toLowerCase()]+'</span>':'')+
         (rt?'<span class="tag t-today">TODAY</span>':'')+
         (rm?'<span class="tag t-tmrw">TMR</span>':'')+
         (ro&&r.status!=='DELIVERED'?'<span class="tag t-late">LATE</span>':'')+
         (isApproxRecord(r)?'<span class="tag" style="background:rgba(201,168,76,0.15);color:var(--gold)">~APPROX</span>':'')+
         (isAscend(r)?'<span class="tag" style="background:rgba(99,179,237,0.15);color:#63b3ed">✈ ASCEND</span>':'')+
-        (r.isOfflinePending?'<span class="tag" style="background:rgba(232,160,48,.18);color:#e8a030;font-weight:800" title="Saved locally, not yet on the server">🟠 PENDING SYNC</span>':'')+'</td>'+
+        (r.isOfflinePending?'<span class="tag" style="background:rgba(232,160,48,.18);color:#e8a030;font-weight:800" title="Saved locally, not yet on the server">🟠 PENDING SYNC</span>':'');
+    var actionBtn=r.status!=='DELIVERED'?'<button class="qd-btn'+(ro?' late':r.status==='NO DATE'?' nodate':'')+'" onclick="quickDeliver('+r.id+')">✓</button>':'<span style="color:var(--mu);font-size:12px">—</span>';
+    h+='<tr class="passenger-row" data-id="'+r.id+'" style="'+(sel?'background:rgba(232,160,48,.12)':'')+';cursor:pointer">'+
+      '<td class="cbtd" onclick="event.stopPropagation()"><input type="checkbox" data-id="'+r.id+'" '+(sel?'checked':'')+' onchange="rowChk(this)"></td>'+
+      '<td style="font-weight:500">'+(isAscend(r)?'[A] ':'')+escapeHTML(r.name)+nameTags+'</td>'+
       '<td style="font-family:monospace;font-size:12px;color:var(--mu)">'+escapeHTML(fmtP(r.phone))+'</td>'+
       '<td style="font-family:monospace;font-size:12px;color:var(--gold)">'+escapeHTML(r.ticket)+'</td>'+
       '<td style="font-size:12px;color:var(--mu)">'+escapeHTML(r.car)+'</td>'+
@@ -2241,12 +2255,23 @@ function renderTable() {
       '<td style="font-size:11px;color:var(--mu)">'+escapeHTML(fmtA(r.ts))+'</td>'+
       '<td style="cursor:pointer"><span class="rd '+rc+'">'+escapeHTML(rl)+'</span></td>'+
       '<td style="cursor:pointer"><span class="badge '+bc+'">'+escapeHTML(r.status)+'</span></td>'+
-      '<td style="text-align:center;padding:8px" onclick="event.stopPropagation()">'+
-        (r.status!=='DELIVERED'?'<button class="qd-btn'+(ro?' late':r.status==='NO DATE'?' nodate':'')+'" onclick="quickDeliver('+r.id+')">✓</button>':'<span style="color:var(--mu);font-size:12px">—</span>')+
-      '</td>'+
+      '<td style="text-align:center;padding:8px" onclick="event.stopPropagation()">'+actionBtn+'</td>'+
     '</tr>';
+    hc+='<div class="dcard tw-card" data-id="'+r.id+'">'+
+      '<div class="dc-top">'+
+        '<div class="cbtd tw-card-cb" onclick="event.stopPropagation()"><input type="checkbox" data-id="'+r.id+'" '+(sel?'checked':'')+' onchange="rowChk(this)"></div>'+
+        '<div class="dc-body">'+
+          '<div class="dc-n">'+(isAscend(r)?'[A] ':'')+escapeHTML(r.name)+nameTags+'</div>'+
+          '<div class="dc-c">'+escapeHTML(r.car)+(r.color?' · '+escapeHTML(r.color):'')+' · '+escapeHTML(fmtP(r.phone))+'</div>'+
+          '<div class="dc-l">'+escapeHTML(r.loc||'No location')+' · <span class="dc-tk">'+escapeHTML(r.ticket)+'</span></div>'+
+          '<div class="dc-l">Return: <span class="rd '+rc+'">'+escapeHTML(rl)+'</span> · <span class="badge '+bc+'">'+escapeHTML(r.status)+'</span></div>'+
+        '</div>'+
+        '<div class="tw-card-action" onclick="event.stopPropagation()">'+actionBtn+'</div>'+
+      '</div>'+
+    '</div>';
   });
   tbody.innerHTML=h;
+  if(tbodyCards) tbodyCards.innerHTML=hc;
 }
 
 // ── RENDER DAY ─────────────────────────────────────────────────
@@ -4360,6 +4385,14 @@ document.getElementById('tbody').addEventListener('click', function(e) {
   var row = e.target.closest('.passenger-row');
   if (!row) return;
   showDet(parseInt(row.getAttribute('data-id'), 10));
+});
+// Phase 3 — iPhone card view. Same open-detail behavior as the table
+// row above; the checkbox/action button already stopPropagation() on
+// their own onclick, matching the table's .cbtd/action-cell pattern.
+document.getElementById('tbodyCards').addEventListener('click', function(e) {
+  var card = e.target.closest('.tw-card');
+  if (!card) return;
+  showDet(parseInt(card.getAttribute('data-id'), 10));
 });
 document.getElementById('detPanel').addEventListener('click',function(e){
   var el=e.target;

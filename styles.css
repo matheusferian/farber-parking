@@ -135,6 +135,12 @@ header img{display:none!important;}
     font-weight:700;letter-spacing:.09em;color:#8B99B8;
     text-transform:uppercase;padding:14px 10px 6px;
   }
+  /* Desktop density (Phase 3) — the sidebar already reclaimed the width
+     Phase 1 needed; this just uses it: tighter table rows fit more of
+     the operational list on screen, and the stats row wraps to use full
+     width instead of scrolling sideways in a viewport that has room. */
+  td{padding:10px;}
+  .stats{overflow-x:visible;flex-wrap:wrap;}
 }
 
 /* ── STATS CHIPS ── */
@@ -200,6 +206,17 @@ tbody tr:hover{background:rgba(27,59,111,0.04);}
 td{padding:12px 10px;font-size:13px;vertical-align:middle;}
 .cbtd{width:36px;padding-left:10px!important;}
 input[type=checkbox]{width:17px;height:17px;accent-color:var(--gold);cursor:pointer;}
+
+/* ── iPhone-width card view for All Passengers (Phase 3) — hidden by
+   default (desktop/iPad keep the table); shown only under the <=600px
+   media query further down this file, which also hides the table. ── */
+.tw-cards{display:none;flex-direction:column;gap:8px;}
+.tw-card{padding:0;}
+.tw-card .dc-top{align-items:center;}
+.tw-card-cb{display:flex;align-items:center;padding:0 4px 0 14px;flex-shrink:0;}
+.tw-card .dc-body{padding:12px 10px;}
+.tw-card .dc-l{margin-top:2px;}
+.tw-card-action{display:flex;align-items:center;padding:0 14px 0 4px;flex-shrink:0;}
 
 /* ── BADGES ── */
 .badge{display:inline-flex;padding:3px 9px;border-radius:20px;font-size:10px;font-family:'DM Mono',monospace;font-weight:600;}
@@ -612,6 +629,21 @@ body{-webkit-text-size-adjust:100%;}
   .ref-btn{padding:7px 12px;font-size:12px;}
   .tabs{padding:0 16px;gap:14px;}
   .tab{font-size:14px;padding:18px 6px 16px;}
+  /* iPad is the primary operational device, not a shrunk desktop — larger
+     tap targets on every interactive row/control below, and a little
+     breathing room in the table since this is the surface attendants
+     touch most. No columns hidden here — visually verified at 1024x768:
+     the table's 650px min-width already fits an iPad viewport with room
+     to spare, so there is no horizontal-scroll problem to fix by hiding
+     data (see this phase's commit message for the verification note). */
+  td{padding:15px 10px;font-size:14px;}
+  .cbtd{width:44px;}
+  input[type=checkbox]{width:20px;height:20px;}
+  .qd-btn{padding:9px 14px;font-size:13px;}
+  .fb{padding:10px 16px;font-size:13px;}
+  .bbtn{padding:10px 15px;font-size:13px;}
+  .chip{padding:12px 16px;}
+  .fab{padding:16px 22px;font-size:15px;}
 }
 /* ── iPhone / small phones ── */
 @media(max-width:600px){
@@ -644,6 +676,13 @@ body{-webkit-text-size-adjust:100%;}
   .stats .chip{min-width:88px;}
   .bulk{overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:nowrap;}
   .dname{font-size:20px;}
+  /* All Passengers: card view instead of the 650px-min table, which
+     otherwise forces horizontal scrolling at phone widths. Same rows,
+     same filters/sort, same tap targets as the table — see renderTable()
+     in index.html, which builds both from one pass over the data. */
+  .tw{padding:0 12px 100px;overflow-x:visible;}
+  .tw table{display:none;}
+  .tw-cards{display:flex;}
 }
 /* ── very small phones ── */
 @media(max-width:390px){
