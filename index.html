@@ -574,6 +574,7 @@
     <div id="reviewSmsBody"></div>
     <div class="mact">
       <button class="btnc" id="reviewSmsCancelBtn" onclick="closeReviewSms()">Cancel</button>
+      <button class="btnp" id="reviewSmsOpenBtn" onclick="openReviewSmsInMessages()">📱 Open in Messages</button>
     </div>
   </div>
 </div>
@@ -3168,24 +3169,44 @@ async function sendPassengerSms(options) {
   throw new Error('Unknown SMS_PROVIDER: ' + SMS_PROVIDER);
 }
 
-// ── NEW ENTRY SMS REVIEW (Phase 2) ───────────────────────────────
-// Prepare-and-preview only — never calls sendPassengerSms(), never opens
-// sms:, never touches the network or Twilio. Shown after a successful
-// save; the only action available is Cancel. The real Confirm & Send
-// gateway (server-side, explicit human confirmation) is Phase 3 — this
-// function intentionally has no path that results in a message going out.
+// ── NEW ENTRY SMS REVIEW ──────────────────────────────────────────
+// Prepare -> preview -> explicit human choice. Never calls
+// sendPassengerSms() on its own — the attendant must click "Open in
+// Messages" (openReviewSmsInMessages() below) before anything reaches the
+// native composer, and even then the message itself is only sent once the
+// attendant presses Send inside iOS Messages. SMS_PROVIDER stays 'native'
+// in production today; this button is the one place that will later
+// become "Confirm & Send" once SMS_PROVIDER is switched to 'twilio' — no
+// redesign needed then, since it already calls the same central gateway.
+var _reviewSmsPending = null;
 function openNewEntrySmsPreview(options) {
   options = options || {};
+  _reviewSmsPending = options;
   document.getElementById('reviewSmsBody').innerHTML =
-    '<div class="mock-sms-badge">📋 PREVIEW ONLY — nothing has been sent</div>' +
+    '<div class="mock-sms-badge">📋 PREVIEW — nothing sent until you choose Open in Messages</div>' +
     '<div class="mock-sms-row"><span class="mock-sms-lbl">Passenger</span><span class="mock-sms-val">' + escapeHTML(options.passengerName || '—') + '</span></div>' +
     '<div class="mock-sms-row"><span class="mock-sms-lbl">Phone</span><span class="mock-sms-val">' + escapeHTML(options.phone || '—') + '</span></div>' +
     '<div class="mock-sms-row"><span class="mock-sms-lbl">Template</span><span class="mock-sms-val">' + escapeHTML(options.messageType || '—') + '</span></div>' +
     '<div class="mock-sms-msgbox">' + escapeHTML(options.body || '') + '</div>';
+  var openBtn = document.getElementById('reviewSmsOpenBtn');
+  openBtn.disabled = false;
+  openBtn.textContent = '📱 Open in Messages';
   document.getElementById('reviewSmsOv').classList.add('on');
 }
 function closeReviewSms() {
   document.getElementById('reviewSmsOv').classList.remove('on');
+  _reviewSmsPending = null;
+}
+// Explicit human action — the only path from preview to the native
+// composer. Disables itself immediately to guard against a double-click
+// opening two composer instances; re-enabled the next time a fresh
+// preview is opened (openNewEntrySmsPreview() above).
+function openReviewSmsInMessages() {
+  if (!_reviewSmsPending) return;
+  var openBtn = document.getElementById('reviewSmsOpenBtn');
+  openBtn.disabled = true;
+  openBtn.textContent = 'Opened in Messages';
+  sendPassengerSms(_reviewSmsPending);
 }
 
 // ── MOCK TWILIO SIMULATION (Fase 2) ──────────────────────────────
@@ -4142,13 +4163,17 @@ async function saveEntry(sendSms, printMode){
       }
 
       if(sendSms && phoneFull){
-        // Phase 2: prepare + preview only — no automatic send, no sms:
-        // composer, no sendPassengerSms() call. See openNewEntrySmsPreview().
+        // Prepare + preview only — saveEntry() itself never calls
+        // sendPassengerSms()/opens Messages. The attendant must explicitly
+        // click "Open in Messages" in the review modal. See
+        // openNewEntrySmsPreview()/openReviewSmsInMessages() above.
         var welcomeRec={ticket:ticket,ret:finalDate,not_returning_with_makers_air:notReturning,loc:locVal};
         var smsBody=buildWelcomeSms(welcomeRec);
         openNewEntrySmsPreview({
-          passengerName:nameUpper, phone:phoneFull,
-          messageType:welcomeSmsMessageType(welcomeRec), body:smsBody
+          passengerId:_newId, passengerName:nameUpper, phone:phoneFull, ticket:ticket,
+          vehicle:formatVehicleLine({car:carVal,color:colorVal}), brand:isAscend(welcomeRec)?'Ascend':'Makers Air',
+          templateKey:'WELCOME', messageType:welcomeSmsMessageType(welcomeRec),
+          body:smsBody, metadata:{trigger:'Check-in — Save + Review SMS / Save + Print + Review SMS'}
         });
       }
       await loadData();
