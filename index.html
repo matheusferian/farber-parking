@@ -33,7 +33,7 @@
     <div class="login-logo">&#9992; AirValet</div>
     <div class="login-tagline">Professional Valet Management System</div>
     <div class="login-sub">MAKERS AIR &middot; SECURE ACCESS</div>
-    <input class="login-inp" type="email" id="loginEmail" placeholder="Email" autocomplete="username" />
+    <input class="login-inp" type="text" id="loginEmail" placeholder="Username" autocomplete="username" />
     <input class="login-inp" type="password" id="loginPwd" placeholder="Password" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()" />
     <button id="loginBtn" onclick="doLogin()">Sign In</button>
     <div class="login-err" id="loginErr"></div>
@@ -90,6 +90,7 @@
   <div class="tab" data-t="closing" onclick="openDailyClosingTab()"><i class="fa-solid fa-clipboard-check"></i><span>Daily Closing</span></div>
   <div class="tab-group-label">Administration</div>
   <div class="tab" data-t="debug"><i class="fa-solid fa-screwdriver-wrench"></i><span>Debug</span></div>
+  <div class="tab" data-t="useraccess" onclick="loadUserAccessList()"><i class="fa-solid fa-user-shield"></i><span>User Access</span></div>
 </div>
 <div class="pane on" id="pane-all">
   <div class="stats" id="statsBar"></div>
@@ -976,6 +977,71 @@ https://buy.stripe.com/8x214mccK0uh9TjgIM6Vq00</div>
   </div>
 </div>
 
+<!-- USER ACCESS PANE — Phase 5, ADMIN only. Frontend nav visibility
+     (applyRoleNavVisibility) hides this tab for every other role; the
+     real boundary is server-side (admin_list_user_profiles() and
+     set_user_role() both independently re-check current_user_role()
+     themselves, same as every other guarded RPC in this project). -->
+<div class="pane" id="pane-useraccess" style="padding:16px 20px 100px">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:4px">
+    <div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:800;color:#e86030;">👤 User Access</div>
+    <button onclick="openCreateUserModal()" style="background:linear-gradient(135deg,#1a3d7c,#2a5db0);color:#fff;border:1px solid var(--gold);border-radius:8px;padding:8px 16px;font-family:'Syne',sans-serif;font-weight:700;font-size:12px;cursor:pointer;">＋ Create User</button>
+  </div>
+  <div style="font-size:11px;color:var(--mu);margin-bottom:16px">AirValet accounts and their fixed roles. Internal login identities (usernames only) — no email is shown here.</div>
+  <div id="uaError" style="display:none;color:#c0392b;background:rgba(192,57,43,0.08);border:1px solid rgba(192,57,43,0.3);border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:12px;"></div>
+  <div style="overflow-x:auto;">
+    <table style="width:100%;border-collapse:collapse;font-size:13px;">
+      <thead>
+        <tr style="text-align:left;border-bottom:1px solid var(--b);color:var(--mu);font-family:'Syne',sans-serif;font-size:11px;text-transform:uppercase;letter-spacing:.03em;">
+          <th style="padding:8px 10px;">Username</th>
+          <th style="padding:8px 10px;">Display Name</th>
+          <th style="padding:8px 10px;">Role</th>
+          <th style="padding:8px 10px;">Status</th>
+          <th style="padding:8px 10px;">Actions</th>
+        </tr>
+      </thead>
+      <tbody id="uaTableBody">
+        <tr><td colspan="5" style="text-align:center;color:var(--mu);padding:16px;">Loading…</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- CREATE USER MODAL -->
+<div class="ov" id="uaCreateOv" onclick="if(event.target===this)closeCreateUserModal()">
+  <div class="modal">
+    <h2>Create User</h2>
+    <div class="msub">Fixed role model only — username, display name, password, and one of the 5 roles. The internal login email is derived automatically; it is never shown or typed anywhere.</div>
+    <div id="uaCreateErr" style="display:none;color:#c0392b;background:rgba(192,57,43,0.08);border:1px solid rgba(192,57,43,0.3);border-radius:8px;padding:10px 14px;margin:10px 0;font-size:12px;"></div>
+    <div class="fg" style="margin-top:12px">
+      <label>Username</label>
+      <input type="text" id="uaCreateUsername" placeholder="e.g. iPhone" autocomplete="off">
+    </div>
+    <div class="fg">
+      <label>Display Name</label>
+      <input type="text" id="uaCreateDisplayName" placeholder="Optional — defaults to username" autocomplete="off">
+    </div>
+    <div class="fg">
+      <label>Password</label>
+      <input type="password" id="uaCreatePassword" placeholder="At least 8 characters" autocomplete="new-password">
+    </div>
+    <div class="fg">
+      <label>Role</label>
+      <select id="uaCreateRole" style="width:100%;background:var(--s);border:1px solid var(--b);border-radius:8px;padding:9px 10px;color:var(--tx);font-size:13px;font-family:'Syne',sans-serif;outline:none;">
+        <option value="ADMIN">ADMIN</option>
+        <option value="IPAD_OPS" selected>IPAD_OPS</option>
+        <option value="IPHONE_OPS">IPHONE_OPS</option>
+        <option value="TV_ONLY">TV_ONLY</option>
+        <option value="MANAGER">MANAGER</option>
+      </select>
+    </div>
+    <div class="mact">
+      <button class="btnc" onclick="closeCreateUserModal()">Cancel</button>
+      <button class="btnp" id="uaCreateSubmitBtn" onclick="submitCreateUser()">Create User</button>
+    </div>
+  </div>
+</div>
+
 <!-- DAILY CLOSING PANE -->
 <div class="pane" id="pane-closing" style="padding:16px 14px 120px">
 <div class="dc-wrap">
@@ -1369,6 +1435,31 @@ async function sbGet() {
   var pageSize = 1000;
   while(true) {
     var url = SUPABASE_URL + '/rest/v1/' + TABLE +
+      '?order=id.asc&limit=' + pageSize + '&offset=' + (page * pageSize);
+    var res = await fetch(url, { headers: sbHeaders() });
+    if (!res.ok) throw new Error('Load failed: ' + res.status);
+    var rows = await res.json();
+    all = all.concat(rows);
+    if (rows.length < pageSize) break;
+    page++;
+  }
+  return all;
+}
+
+// TV Mode's dedicated read path — calls get_tv_mode_passengers() instead of
+// the passengers table directly, since TV_ONLY is blocked from selecting
+// passengers at the RLS layer (see migrations/20260901_restrict_tv_only_role.sql
+// and its companion 20260901_add_tv_mode_passengers_rpc.sql). The RPC is
+// declared stable so PostgREST allows GET with the same order/limit/offset
+// pagination sbGet() already uses. Every other data path (loadData() and
+// everything else in the app) continues to use sbGet()/passengers directly,
+// unchanged.
+async function sbGetTvModePassengers() {
+  var all = [];
+  var page = 0;
+  var pageSize = 1000;
+  while(true) {
+    var url = SUPABASE_URL + '/rest/v1/rpc/get_tv_mode_passengers' +
       '?order=id.asc&limit=' + pageSize + '&offset=' + (page * pageSize);
     var res = await fetch(url, { headers: sbHeaders() });
     if (!res.ok) throw new Error('Load failed: ' + res.status);
@@ -5536,17 +5627,61 @@ function showLogin() {
   var btn = document.getElementById('loginBtn');
   if(btn){ btn.disabled = false; btn.textContent = 'Sign In'; }
 }
+// Phase 5 — username-based login, deterministic canonicalization. The
+// internal Supabase Auth emails are not security credentials (the
+// password is) and are never shown anywhere in the normal UI — they
+// exist only so signInWithPassword() (which requires an email) can be
+// called. Removed the old hardcoded 5-entry lookup: a username now maps
+// to canonicalizeUsername(username) + '@airvalet.local' for every
+// account EXCEPT the one legacy exception below, so a new account
+// created later through User Access (Create User) works immediately at
+// login with no frontend redeploy. This must stay byte-identical in
+// logic to canonicalizeUsername() in
+// supabase/functions/admin-manage-user/index.ts — both sides must always
+// agree on what email a given username maps to.
+function canonicalizeUsername(raw){
+  var trimmed = String(raw || '').trim();
+  if(!trimmed) return '';
+  var lower = trimmed.toLowerCase();
+  var noDiacritics = lower.normalize('NFKD').replace(/[̀-ͯ]/g, '');
+  return noDiacritics.replace(/[^a-z0-9]/g, '');
+}
+// "Admin" is the one deliberate, permanent exception: it maps to the
+// pre-existing, protected makers@farber.local account (created before
+// this canonicalization scheme existed) rather than the derived
+// admin@airvalet.local — "admin" is also reserved and cannot be taken by
+// a new Create User account (see admin-manage-user's own reserved-word
+// check and user_profiles' case-insensitive unique index).
+function emailForLoginUsername(username){
+  var canonical = canonicalizeUsername(username);
+  if(!canonical) return null;
+  if(canonical === 'admin') return 'makers@farber.local';
+  return canonical + '@airvalet.local';
+}
 async function doLogin() {
-  var email = (document.getElementById('loginEmail').value || '').trim();
+  var username = (document.getElementById('loginEmail').value || '').trim();
   var pwd   = document.getElementById('loginPwd').value;
   var errEl = document.getElementById('loginErr');
   errEl.style.display = 'none';
-  if(!email || !pwd){ errEl.textContent = 'Enter email and password.'; errEl.style.display = 'block'; return; }
+  if(!username || !pwd){ errEl.textContent = 'Enter username and password.'; errEl.style.display = 'block'; return; }
+  var email = emailForLoginUsername(username);
+  if(!email){
+    // Same generic message a real wrong-password would get — an unknown
+    // or unresolvable username must not be distinguishable from a known
+    // one with the wrong password (see Phase 5 enumeration-protection
+    // notes). Any non-empty username resolves to SOME email — if no
+    // real account exists at that address, signInWithPassword() below
+    // fails with the same generic message anyway, so this branch is
+    // only reachable for a genuinely empty/symbol-only username.
+    errEl.textContent = 'Invalid login credentials.';
+    errEl.style.display = 'block';
+    return;
+  }
   var btn = document.getElementById('loginBtn');
   btn.disabled = true; btn.textContent = 'Signing in…';
   var result = await _supaClient.auth.signInWithPassword({ email: email, password: pwd });
   if(result.error){
-    errEl.textContent = result.error.message || 'Login failed.';
+    errEl.textContent = 'Invalid login credentials.';
     errEl.style.display = 'block';
     btn.disabled = false; btn.textContent = 'Sign In';
   }
@@ -5558,18 +5693,260 @@ async function doLogout() {
 }
 
 var _tvStarted = false;
+
+// ── Phase 5 — fixed-role fetch + navigation visibility ───────────────
+// current_user_role() (server-side, fail-closed) is the real security
+// boundary — every table's RLS already enforces it independently of
+// anything here. This is the secondary UX layer only: it decides what
+// the signed-in account SEES, never what it's permitted to do. A failed
+// or empty fetch (network hiccup, or the one real account not yet
+// migrated for any reason) now DENIES all normal navigation — updated
+// from the original "unmapped shows everything" behavior once User
+// Access made it possible for an account to exist without a role for
+// longer than an instant. The real security boundary was always
+// server-side RLS/RPC (unaffected either way) — this only ever decided
+// what the signed-in account SEES. A network hiccup during the profile
+// fetch now means the account sees no tabs until reload/retry, instead
+// of briefly seeing everything; accepted tradeoff, see Phase 5 notes.
+var _currentUserRole = null;
+var _currentUsername = '';
+async function fetchCurrentUserProfile(){
+  try{
+    var res = await fetch(SUPABASE_URL + '/rest/v1/user_profiles?select=role,username', {headers: sbHeaders()});
+    if(!res.ok) return null;
+    var rows = await res.json();
+    return (rows && rows[0]) || null;
+  }catch(e){ console.warn('fetchCurrentUserProfile error:', e); return null; }
+}
+// Explicit fail-closed allowlist for all 5 fixed roles — tab keys match
+// each .tab's data-t attribute exactly. Any role not listed here
+// (including null/undefined — an unmapped account or a failed profile
+// fetch) resolves to an empty array below and sees NO tabs. TV_ONLY's
+// entry is here for explicitness/documentation even though
+// bootstrapAfterAuth() already routes it straight into TV Mode before
+// this function is ever called for that role.
+var TAB_VISIBILITY_BY_ROLE = {
+  ADMIN:      ['all','day','tasks','messages','report','logs','closing','debug','useraccess'],
+  IPAD_OPS:   ['all','day','tasks','messages','report','logs','closing','debug'],
+  IPHONE_OPS: ['all','day','tasks','messages'],
+  MANAGER:    ['all','day','tasks','messages','report','logs','closing'],
+  TV_ONLY:    []
+};
+function applyRoleNavVisibility(role){
+  var allowed = TAB_VISIBILITY_BY_ROLE.hasOwnProperty(role) ? TAB_VISIBILITY_BY_ROLE[role] : [];
+  document.querySelectorAll('.tab[data-t]').forEach(function(t){
+    if(allowed.indexOf(t.getAttribute('data-t')) === -1) t.style.display = 'none';
+  });
+}
+
+// ── User Access (Phase 5) ────────────────────────────────────────────
+// Role changes go through set_user_role(); list/create/disable/enable/
+// delete go through admin_list_user_profiles()/the admin-manage-user
+// Edge Function. Every one of these independently re-checks
+// current_user_role() === 'ADMIN' server-side (RPCs directly; the Edge
+// Function via a caller-scoped client calling current_user_role() before
+// touching Auth Admin or any profile row — see
+// supabase/functions/admin-manage-user/index.ts). This UI hiding the tab
+// for non-ADMIN roles is a convenience only, never the real boundary.
+var UA_ROLES = ['ADMIN','IPAD_OPS','IPHONE_OPS','TV_ONLY','MANAGER'];
+var _uaCache = [];
+function uaShowError(msg){
+  var el = document.getElementById('uaError');
+  if(!el) return;
+  el.textContent = msg;
+  el.style.display = msg ? 'block' : 'none';
+}
+async function callAdminManageUser(payload){
+  var res = await fetch(SUPABASE_URL + '/functions/v1/admin-manage-user', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': SUPABASE_KEY,
+      'Authorization': 'Bearer ' + (_authToken || SUPABASE_KEY)
+    },
+    body: JSON.stringify(payload)
+  });
+  var json = null;
+  try{ json = await res.json(); }catch(e){}
+  if(!res.ok){
+    throw new Error((json && json.error) || ('HTTP ' + res.status));
+  }
+  if(json && json.warning){
+    // Partial success (e.g. profile updated but the Auth-side call
+    // failed) — surfaced as a visible warning, not silently swallowed.
+    uaShowError(json.warning);
+  }
+  return json;
+}
+async function loadUserAccessList(){
+  uaShowError('');
+  var body = document.getElementById('uaTableBody');
+  if(body) body.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--mu);padding:16px;">Loading…</td></tr>';
+  try{
+    var res = await fetch(SUPABASE_URL + '/rest/v1/rpc/admin_list_user_profiles', {
+      method: 'POST', headers: sbHeaders(), body: JSON.stringify({})
+    });
+    if(!res.ok){
+      var errText = await res.text();
+      throw new Error(errText || ('HTTP ' + res.status));
+    }
+    var rows = await res.json();
+    _uaCache = rows || [];
+    renderUserAccessTable(_uaCache);
+  }catch(e){
+    console.error('loadUserAccessList error:', e);
+    uaShowError('Could not load users: ' + e.message);
+    if(body) body.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--mu);padding:16px;">Failed to load.</td></tr>';
+  }
+}
+function renderUserAccessTable(rows){
+  var body = document.getElementById('uaTableBody');
+  if(!body) return;
+  if(!rows.length){
+    body.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--mu);padding:16px;">No users found.</td></tr>';
+    return;
+  }
+  body.innerHTML = rows.map(function(u){
+    var roleOptions = UA_ROLES.map(function(r){
+      return '<option value="'+r+'"'+(r===u.role?' selected':'')+'>'+r+'</option>';
+    }).join('');
+    var roleCell = u.is_protected
+      ? '<span style="font-family:\'DM Mono\',monospace;font-size:12px;">'+escapeHTML(u.role)+'</span>'
+      : '<select onchange="onUserAccessRoleChange(this,\''+u.id+'\')" style="background:var(--s);border:1px solid var(--b);border-radius:8px;padding:7px 9px;color:var(--tx);font-size:13px;font-family:\'Syne\',sans-serif;outline:none;">'+roleOptions+'</select>';
+    var statusCell = u.is_protected
+      ? '<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;color:#e86030;">🔒 Protected</span>'
+      : (u.is_active
+          ? '<span style="font-size:11px;color:var(--mu);">Active</span>'
+          : '<span style="font-size:11px;font-weight:700;color:var(--red);">Disabled</span>');
+    var actionsCell = '';
+    if(!u.is_protected){
+      actionsCell =
+        '<button onclick="onUserAccessToggleActive(this,\''+u.id+'\','+(u.is_active?'false':'true')+')" style="background:'+(u.is_active?'rgba(192,57,43,0.08)':'rgba(26,158,106,0.1)')+';border:1px solid '+(u.is_active?'rgba(192,57,43,0.3)':'rgba(26,158,106,0.35)')+';color:'+(u.is_active?'#c0392b':'#1a9e6a')+';border-radius:7px;padding:5px 10px;font-size:11px;font-weight:700;font-family:Syne,sans-serif;cursor:pointer;margin-right:6px;">'+(u.is_active?'Disable':'Enable')+'</button>'+
+        '<button onclick="onUserAccessDelete(this,\''+u.id+'\',\''+escapeHTML(u.username||'')+'\')" style="background:rgba(192,57,43,0.08);border:1px solid rgba(192,57,43,0.3);color:#c0392b;border-radius:7px;padding:5px 10px;font-size:11px;font-weight:700;font-family:Syne,sans-serif;cursor:pointer;">Delete</button>';
+    }
+    return '<tr style="border-bottom:1px solid var(--b);">'+
+      '<td style="padding:9px 10px;font-weight:700;">'+escapeHTML(u.username||'')+'</td>'+
+      '<td style="padding:9px 10px;color:var(--mu);">'+escapeHTML(u.display_name||'')+'</td>'+
+      '<td style="padding:9px 10px;">'+roleCell+'</td>'+
+      '<td style="padding:9px 10px;">'+statusCell+'</td>'+
+      '<td style="padding:9px 10px;white-space:nowrap;">'+actionsCell+'</td>'+
+    '</tr>';
+  }).join('');
+}
+async function onUserAccessRoleChange(selectEl, targetId){
+  var newRole = selectEl.value;
+  var prevValue = selectEl.getAttribute('data-prev') || selectEl.value;
+  selectEl.disabled = true;
+  try{
+    var res = await fetch(SUPABASE_URL + '/rest/v1/rpc/set_user_role', {
+      method: 'POST', headers: sbHeaders(),
+      body: JSON.stringify({ target_id: targetId, new_role: newRole })
+    });
+    if(!res.ok){
+      var errText = await res.text();
+      throw new Error(errText || ('HTTP ' + res.status));
+    }
+    uaShowError('');
+    await loadUserAccessList();
+  }catch(e){
+    console.error('onUserAccessRoleChange error:', e);
+    uaShowError('Could not change role: ' + e.message);
+    selectEl.value = prevValue;
+    selectEl.disabled = false;
+  }
+}
+async function onUserAccessToggleActive(btnEl, targetId, makeActive){
+  btnEl.disabled = true;
+  try{
+    await callAdminManageUser({ action: (makeActive==='true'?'enable':'disable'), target_id: targetId });
+    await loadUserAccessList();
+  }catch(e){
+    console.error('onUserAccessToggleActive error:', e);
+    uaShowError('Could not change active status: ' + e.message);
+    btnEl.disabled = false;
+  }
+}
+async function onUserAccessDelete(btnEl, targetId, username){
+  if(!confirm('Permanently delete the account "'+username+'"? This removes both its role and its login credential. This cannot be undone.')) return;
+  btnEl.disabled = true;
+  try{
+    await callAdminManageUser({ action: 'delete', target_id: targetId });
+    await loadUserAccessList();
+  }catch(e){
+    console.error('onUserAccessDelete error:', e);
+    uaShowError('Could not delete user: ' + e.message);
+    btnEl.disabled = false;
+  }
+}
+// ── Create User modal ────────────────────────────────────────────────
+function openCreateUserModal(){
+  document.getElementById('uaCreateUsername').value = '';
+  document.getElementById('uaCreateDisplayName').value = '';
+  document.getElementById('uaCreatePassword').value = '';
+  document.getElementById('uaCreateRole').value = 'IPAD_OPS';
+  document.getElementById('uaCreateErr').style.display = 'none';
+  var btn = document.getElementById('uaCreateSubmitBtn');
+  btn.disabled = false; btn.textContent = 'Create User';
+  document.getElementById('uaCreateOv').classList.add('on');
+}
+function closeCreateUserModal(){
+  document.getElementById('uaCreateOv').classList.remove('on');
+}
+async function submitCreateUser(){
+  var username = document.getElementById('uaCreateUsername').value.trim();
+  var displayName = document.getElementById('uaCreateDisplayName').value.trim();
+  var password = document.getElementById('uaCreatePassword').value;
+  var role = document.getElementById('uaCreateRole').value;
+  var errEl = document.getElementById('uaCreateErr');
+  errEl.style.display = 'none';
+  if(!username){ errEl.textContent = 'Username is required.'; errEl.style.display = 'block'; return; }
+  if(!password || password.length < 8){ errEl.textContent = 'Password must be at least 8 characters.'; errEl.style.display = 'block'; return; }
+  var btn = document.getElementById('uaCreateSubmitBtn');
+  btn.disabled = true; btn.textContent = 'Creating…';
+  try{
+    await callAdminManageUser({
+      action: 'create', username: username,
+      display_name: displayName || username,
+      password: password, role: role
+    });
+    closeCreateUserModal();
+    await loadUserAccessList();
+  }catch(e){
+    console.error('submitCreateUser error:', e);
+    errEl.textContent = e.message;
+    errEl.style.display = 'block';
+    btn.disabled = false; btn.textContent = 'Create User';
+  }
+}
+// Shared by both the SIGNED_IN event and the page-load getSession()
+// check below, so a TV_ONLY account is forced into TV Mode regardless of
+// which path fires (getSession() previously always went to the normal
+// shell, even with ?mode=tv in the URL, if a session already existed).
+async function bootstrapAfterAuth(){
+  var profile = await fetchCurrentUserProfile();
+  _currentUserRole = profile ? profile.role : null;
+  _currentUsername = profile ? (profile.username || '') : '';
+  showApp();
+  if(_currentUserRole === 'TV_ONLY'){
+    if(!_tvStarted){ _tvStarted = true; initTvMode(); }
+    else { tvHideSessionExpired(); refreshTvData(); }
+    return;
+  }
+  applyRoleNavVisibility(_currentUserRole);
+  if(isTvMode()){
+    if(!_tvStarted){ _tvStarted = true; initTvMode(); }
+    else { tvHideSessionExpired(); refreshTvData(); }
+  } else {
+    loadData();
+  }
+}
+
 _supaClient.auth.onAuthStateChange(function(event, session) {
   if(event === 'SIGNED_IN') {
     _authToken = session.access_token;
     _currentUserEmail = (session.user && session.user.email) || '';
     if(typeof recordOfflineAuthSuccess==='function') recordOfflineAuthSuccess(_currentUserEmail);
-    showApp();
-    if(isTvMode()){
-      if(!_tvStarted){ _tvStarted = true; initTvMode(); }
-      else { tvHideSessionExpired(); refreshTvData(); }
-    } else {
-      loadData();
-    }
+    bootstrapAfterAuth();
   } else if(event === 'TOKEN_REFRESHED' && session) {
     _authToken = session.access_token;
     _currentUserEmail = (session.user && session.user.email) || _currentUserEmail;
@@ -5593,8 +5970,7 @@ _supaClient.auth.getSession().then(function(result) {
   if(result.data && result.data.session) {
     _authToken = result.data.session.access_token;
     _currentUserEmail = (result.data.session.user && result.data.session.user.email) || '';
-    showApp();
-    loadData();
+    bootstrapAfterAuth();
   } else {
     showLogin();
   }
@@ -8970,7 +9346,7 @@ async function refreshTvData(){
   maybeFetchTvAircraftState();
   _tv.refreshInFlight = true;
   try{
-    var rows = await sbGet();
+    var rows = await sbGetTvModePassengers();
     data = rows.map(mapPassengerRow);
     _tv.lastSuccessAt = Date.now();
     _tv.reconnectAttempts = 0;
