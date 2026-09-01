@@ -5653,7 +5653,15 @@ function canonicalizeUsername(raw){
 // a new Create User account (see admin-manage-user's own reserved-word
 // check and user_profiles' case-insensitive unique index).
 function emailForLoginUsername(username){
-  var canonical = canonicalizeUsername(username);
+  var trimmed = String(username || '').trim();
+  // Backward-compatible direct-email login: if what's typed already looks
+  // like a real email address, use it exactly as typed instead of running
+  // it through username canonicalization — canonicalizeUsername() strips
+  // '@'/'.'  like any other non-alphanumeric character, so without this
+  // check typing "makers@farber.local" directly would mangle into an
+  // unresolvable "makersfarberlocal@airvalet.local" instead of working.
+  if(/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) return trimmed;
+  var canonical = canonicalizeUsername(trimmed);
   if(!canonical) return null;
   if(canonical === 'admin') return 'makers@farber.local';
   return canonical + '@airvalet.local';
@@ -5858,7 +5866,7 @@ async function onUserAccessRoleChange(selectEl, targetId){
 async function onUserAccessToggleActive(btnEl, targetId, makeActive){
   btnEl.disabled = true;
   try{
-    await callAdminManageUser({ action: (makeActive==='true'?'enable':'disable'), target_id: targetId });
+    await callAdminManageUser({ action: (makeActive===true?'enable':'disable'), target_id: targetId });
     await loadUserAccessList();
   }catch(e){
     console.error('onUserAccessToggleActive error:', e);
