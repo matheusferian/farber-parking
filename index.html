@@ -83,6 +83,7 @@
   <div class="tab on" data-t="all"><i class="fa-solid fa-users"></i><span>All Passengers</span><span class="tbadge" id="ball">0</span></div>
   <div class="tab" data-t="day"><i class="fa-solid fa-table-columns"></i><span>Dashboard</span><span class="tbadge red" id="bday">!</span></div>
   <div class="tab" data-t="tasks"><i class="fa-solid fa-square-check"></i><span>Tasks</span><span class="tbadge red" id="btasks">0</span></div>
+  <div class="tab" data-t="messages" onclick="renderMessagesWorkspace()"><i class="fa-solid fa-comment-sms"></i><span>Messages</span></div>
   <div class="tab-group-label">Management</div>
   <div class="tab" data-t="report" onclick="refreshSyncUI()"><i class="fa-solid fa-chart-line"></i><span>Report</span></div>
   <div class="tab" data-t="logs"><i class="fa-solid fa-clipboard-list"></i><span>Logs</span></div>
@@ -185,6 +186,32 @@
     </div>
     <div class="dsub">Passengers with approximate return dates that need text confirmation</div>
     <div id="tasksList"></div>
+  </div>
+</div>
+
+<!-- MESSAGES WORKSPACE PANE (Phase 4) — a unified viewer/log of what the
+     existing scattered Text/Welcome Back/Customs/Tip/Task buttons already
+     do, not a new send trigger and not a persistent history system. See
+     logMessageEvent()/renderMessagesWorkspace() in the inline script. -->
+<div class="pane" id="pane-messages">
+  <div class="dsec">
+    <div class="dtitle" style="color:var(--navy)">&#128172; Messages Workspace</div>
+    <div class="dsub" style="margin-bottom:2px">Session activity only — full messaging history will be available with Twilio integration.</div>
+    <div style="font-size:11px;color:var(--mu);margin-bottom:14px;">Shows what was prepared/opened via the existing Welcome, Welcome Back, Customs, Tip, Tasks, and New Entry actions this session, plus historical entries where a real saved timestamp exists on the passenger record. Reloading the page clears session entries — they are not saved anywhere.</div>
+
+    <div class="epson-card" style="opacity:0.6;margin-bottom:16px;">
+      <div class="epson-card-title">&#128274; Inbound &amp; Replies — Coming with Twilio integration</div>
+      <div class="epson-card-sub">Receiving replies, unread counts, and delivery/read status all require a real Twilio account and server-side webhook, neither of which exist yet. This section is disabled on purpose — nothing here is simulated.</div>
+    </div>
+
+    <div class="sw" style="padding:0 0 14px;">
+      <div class="sb">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <input id="msgSearch" type="text" placeholder="Search name, ticket, phone, template..." autocomplete="off" oninput="renderMessagesWorkspace()">
+      </div>
+    </div>
+
+    <div id="msgActivityList"></div>
   </div>
 </div>
 
@@ -580,6 +607,19 @@
     <div class="mact">
       <button class="btnc" id="reviewSmsCancelBtn" onclick="closeReviewSms()">Cancel</button>
       <button class="btnp" id="reviewSmsOpenBtn" onclick="openReviewSmsInMessages()">📱 Open in Messages</button>
+    </div>
+  </div>
+</div>
+<!-- MESSAGES WORKSPACE DETAIL MODAL (Phase 4) — read-only. Shows a single
+     session-log or historical entry. No send action here — by the time an
+     entry exists it has already been opened in Messages (or errored), so
+     there is nothing left to trigger. -->
+<div class="ov" id="msgDetailOv" onclick="if(event.target===this)closeMsgDetail()">
+  <div class="modal" style="max-width:440px">
+    <h2>💬 Message Detail</h2>
+    <div id="msgDetailBody"></div>
+    <div class="mact">
+      <button class="btnc" onclick="closeMsgDetail()">Close</button>
     </div>
   </div>
 </div>
@@ -3169,17 +3209,54 @@ function validatePhoneForSend(phone) {
   return { valid: info.valid, reason: info.reason, e164: info.e164, original: info.original };
 }
 
+// ── MESSAGES WORKSPACE — SESSION LOG (Phase 4) ────────────────────
+// In-memory only, resets on reload — there is no messages table yet.
+// Every entry is a real event, never a guess: 'Ready to Open' is only
+// pushed from openNewEntrySmsPreview() (the one place that already has a
+// real preview step), 'Error' only from validatePhoneForSend() actually
+// failing, and 'Opened in Messages' only from here, after window.open()
+// for the native composer has actually been attempted without throwing.
+// Nothing here changes what sendPassengerSms()/openNewEntrySmsPreview()
+// DO — this is a pure additive logging side-effect.
+var _messagesLog = [];
+function logMessageEvent(options, state, errorReason) {
+  _messagesLog.unshift({
+    passengerId: options.passengerId != null ? options.passengerId : null,
+    passengerName: options.passengerName || '',
+    phone: options.phone || '',
+    ticket: options.ticket || '',
+    templateKey: options.templateKey || '',
+    messageType: options.messageType || '',
+    body: options.body || '',
+    state: state,
+    errorReason: errorReason || null,
+    ts: new Date()
+  });
+  if (typeof renderMessagesWorkspace === 'function' && document.getElementById('pane-messages')) {
+    renderMessagesWorkspace();
+  }
+}
+
 async function sendPassengerSms(options) {
   options = options || {};
   var phoneCheck = validatePhoneForSend(options.phone);
   if (!phoneCheck.valid) {
     var who = options.passengerName ? (' for ' + options.passengerName) : '';
     showMsg('Could not send SMS' + who + ' — invalid phone number (' + (phoneCheck.reason || 'unrecognized format') + ').', true);
+    logMessageEvent(options, 'Error', phoneCheck.reason || 'Invalid phone number');
     return { ok: false, status: 'invalid_phone', sid: null, provider: SMS_PROVIDER, error: { code: 'INVALID_PHONE', message: phoneCheck.reason || 'Invalid phone number' } };
   }
   if (SMS_PROVIDER === 'native') {
     var cleanPhone = String(options.phone || '').replace(/\D/g, '');
-    window.open('sms:' + cleanPhone + '&body=' + encodeURIComponent(options.body || ''), '_self');
+    try {
+      window.open('sms:' + cleanPhone + '&body=' + encodeURIComponent(options.body || ''), '_self');
+    } catch (openErr) {
+      logMessageEvent(options, 'Error', 'Could not open Messages: ' + openErr.message);
+      return { ok: false, status: 'composer_open_failed', sid: null, provider: 'native', error: { code: 'COMPOSER_OPEN_FAILED', message: openErr.message } };
+    }
+    // Logged only here, only after window.open() above did not throw —
+    // never claims Sent/Delivered, only that the composer was opened.
+    logMessageEvent(options, 'Opened in Messages');
     return { ok: true, status: 'composer_opened', sid: null, provider: 'native' };
   }
   if (SMS_PROVIDER === 'mock_twilio') {
@@ -3207,6 +3284,7 @@ var _reviewSmsPending = null;
 function openNewEntrySmsPreview(options) {
   options = options || {};
   _reviewSmsPending = options;
+  logMessageEvent(options, 'Ready to Open');
   document.getElementById('reviewSmsBody').innerHTML =
     '<div class="mock-sms-badge">📋 PREVIEW — nothing sent until you choose Open in Messages</div>' +
     '<div class="mock-sms-row"><span class="mock-sms-lbl">Passenger</span><span class="mock-sms-val">' + escapeHTML(options.passengerName || '—') + '</span></div>' +
@@ -3232,6 +3310,85 @@ function openReviewSmsInMessages() {
   openBtn.disabled = true;
   openBtn.textContent = 'Opened in Messages';
   sendPassengerSms(_reviewSmsPending);
+}
+
+// ── MESSAGES WORKSPACE — RENDER (Phase 4) ──────────────────────────
+// Two sources, merged, both real:
+// 1. _messagesLog — this session's events (see logMessageEvent() above).
+// 2. Historical rows below — one per real saved *_sent_at column already
+//    on the passenger record. body is deliberately null: no message body
+//    was ever persisted for these, so none is shown or reconstructed.
+var _msgStateClass = {
+  'Ready to Open': 'pending',
+  'Opened in Messages': 'ok',
+  'Error': 'bad',
+  'Draft': 'pending'
+};
+function getHistoricalMessageRows() {
+  var rows = [];
+  (typeof data !== 'undefined' ? data : []).forEach(function(r) {
+    if (r.welcome_back_sent_at) rows.push({source:'historical', passengerId:r.id, passengerName:r.name, phone:r.phone, ticket:r.ticket, templateKey:'HANGAR19_WELCOME_BACK', messageType:'HANGAR19_WELCOME_BACK', body:null, state:'Opened in Messages', ts:new Date(r.welcome_back_sent_at)});
+    if (r.customs_welcome_sent_at) rows.push({source:'historical', passengerId:r.id, passengerName:r.name, phone:r.phone, ticket:r.ticket, templateKey:'CUSTOMS_WELCOME', messageType:'CUSTOMS_WELCOME', body:null, state:'Opened in Messages', ts:new Date(r.customs_welcome_sent_at)});
+    if (r.customs_gratuity_sent_at) rows.push({source:'historical', passengerId:r.id, passengerName:r.name, phone:r.phone, ticket:r.ticket, templateKey:'CUSTOMS_GRATUITY', messageType:'CUSTOMS_GRATUITY', body:null, state:'Opened in Messages', ts:new Date(r.customs_gratuity_sent_at)});
+  });
+  return rows;
+}
+function renderMessagesWorkspace() {
+  var list = document.getElementById('msgActivityList');
+  if (!list) return;
+  var q = (document.getElementById('msgSearch') || {value:''}).value.trim().toLowerCase();
+  var sessionRows = _messagesLog.map(function(e, i) {
+    var r = Object.assign({source:'session', sessionIndex:i}, e);
+    return r;
+  });
+  var all = sessionRows.concat(getHistoricalMessageRows()).sort(function(a, b) { return b.ts - a.ts; });
+  if (q) {
+    all = all.filter(function(r) {
+      return (r.passengerName || '').toLowerCase().indexOf(q) !== -1 ||
+        (r.ticket || '').toLowerCase().indexOf(q) !== -1 ||
+        (r.phone || '').toLowerCase().indexOf(q) !== -1 ||
+        (r.templateKey || '').toLowerCase().indexOf(q) !== -1;
+    });
+  }
+  if (!all.length) {
+    list.innerHTML = '<div class="eday">No message activity yet this session.</div>';
+    return;
+  }
+  list.innerHTML = all.map(function(r, idx) {
+    var cls = _msgStateClass[r.state] || 'pending';
+    var histTag = r.source === 'historical' ? ' <span style="font-size:9px;color:var(--mu);font-weight:400">(historical — body not saved)</span>' : '';
+    return '<div class="msg-row" onclick="openMsgDetail(' + idx + ')" data-idx="' + idx + '">' +
+      '<div class="msg-row-main">' +
+        '<div class="msg-row-name">' + escapeHTML(r.passengerName || '—') + histTag + '</div>' +
+        '<div class="msg-row-sub">' + escapeHTML(r.templateKey || '—') + ' · ' + escapeHTML(fmtP ? fmtP(r.phone) : (r.phone || '')) + '</div>' +
+      '</div>' +
+      '<div class="msg-row-meta">' +
+        '<span class="mock-sms-status mock-sms-status-' + cls + '">' + escapeHTML(r.state) + '</span>' +
+        '<div class="msg-row-time">' + escapeHTML(r.ts.toLocaleString('en-US')) + '</div>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+  window._msgWorkspaceRows = all;
+}
+function openMsgDetail(idx) {
+  var r = (window._msgWorkspaceRows || [])[idx];
+  if (!r) return;
+  var bodyHtml = r.body
+    ? '<div class="mock-sms-msgbox">' + escapeHTML(r.body) + '</div>'
+    : '<div class="mock-sms-row"><span class="mock-sms-lbl" style="color:var(--mu)">Message body was never saved — only the fact and time it was opened in Messages is known.</span></div>';
+  document.getElementById('msgDetailBody').innerHTML =
+    '<div class="mock-sms-row"><span class="mock-sms-lbl">Passenger</span><span class="mock-sms-val">' + escapeHTML(r.passengerName || '—') + '</span></div>' +
+    '<div class="mock-sms-row"><span class="mock-sms-lbl">Phone</span><span class="mock-sms-val">' + escapeHTML(r.phone || '—') + '</span></div>' +
+    '<div class="mock-sms-row"><span class="mock-sms-lbl">Ticket</span><span class="mock-sms-val">' + escapeHTML(r.ticket || '—') + '</span></div>' +
+    '<div class="mock-sms-row"><span class="mock-sms-lbl">Template</span><span class="mock-sms-val">' + escapeHTML(r.templateKey || '—') + '</span></div>' +
+    bodyHtml +
+    '<div class="mock-sms-row"><span class="mock-sms-lbl">State</span><span class="mock-sms-status mock-sms-status-' + (_msgStateClass[r.state] || 'pending') + '">' + escapeHTML(r.state) + '</span></div>' +
+    (r.errorReason ? '<div class="mock-sms-error">⚠ ' + escapeHTML(r.errorReason) + '</div>' : '') +
+    '<div class="mock-sms-row"><span class="mock-sms-lbl">Time</span><span class="mock-sms-val">' + escapeHTML(r.ts.toLocaleString('en-US')) + '</span></div>';
+  document.getElementById('msgDetailOv').classList.add('on');
+}
+function closeMsgDetail() {
+  document.getElementById('msgDetailOv').classList.remove('on');
 }
 
 // ── MOCK TWILIO SIMULATION (Fase 2) ──────────────────────────────
