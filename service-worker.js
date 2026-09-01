@@ -225,10 +225,13 @@
 // position:fixed, are unaffected), and the .tabs children regrouped into
 // Operations/Management/Administration. At <=1100px the original
 // horizontal tab bar is pixel-identical to before. No JS logic changed.
-// Same SHELL_FILES, same reasoning as v2-v15 — only bumping so already-
-// installed devices actually detect this content change and get the
-// normal Update Available banner instead of silently staying on v15.
-var CACHE_VERSION = 'v16';
+// Same SHELL_FILES, same reasoning as v2-v16 — bumping again to cover
+// every Phase 5 User Access change (username login field, fixed-role
+// nav visibility, User Access tab/RPCs, canonicalized username login)
+// made since v16, none of which had bumped this — already-installed
+// devices/tabs get the normal Update Available banner instead of
+// silently staying on stale pre-User-Access code indefinitely.
+var CACHE_VERSION = 'v17';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 // Resolved relative to this file's own location, so they land in the
