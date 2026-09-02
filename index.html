@@ -83,7 +83,7 @@
 <div class="tabs">
   <div class="sidebar-brand"><img src="assets/logo-icon.png" alt="AirValet"><div class="sb-name">AirValet</div></div>
   <div class="tab-group-label">Operations</div>
-  <div class="tab on" data-t="all"><i class="fa-solid fa-users"></i><span>All Passengers</span><span class="tbadge" id="ball">0</span></div>
+  <div class="tab on" data-t="all" onclick="resetAllPassengersDefaults()"><i class="fa-solid fa-users"></i><span>All Passengers</span><span class="tbadge" id="ball">0</span></div>
   <div class="tab" data-t="day"><i class="fa-solid fa-gauge-high"></i><span>Dashboard</span><span class="tbadge red" id="bday">!</span></div>
   <div class="tab" data-t="tasks"><i class="fa-solid fa-square-check"></i><span>Tasks</span><span class="tbadge red" id="btasks">0</span></div>
   <div class="tab" data-t="messages" onclick="renderMessagesWorkspace()"><i class="fa-solid fa-message"></i><span>Messages</span></div>
@@ -105,19 +105,22 @@
     </div>
   </div>
   <div class="fltrs">
-    <button class="fb on" data-f="all">All</button>
-    <button class="fb" data-f="PENDING">Pending</button>
+    <button class="fb" data-f="all">All</button>
+    <button class="fb on" data-f="PENDING">Pending</button>
     <button class="fb" data-f="NO DATE">No Date</button>
     <button class="fb" data-f="DELIVERED">Delivered</button>
     <button class="fb" data-f="today">Out Today</button>
     <button class="fb" data-f="tomorrow">Out Tomorrow</button>
     <button class="fb" data-f="sunday">&#128197; Sunday</button>
     <button class="fb" data-f="overdue">Overdue</button>
-
     <button class="fb" data-f="frequent">Frequent</button>
+    <button class="fb" id="fbDate" onclick="openDateFilterInput()">
+      <span id="fbDateLabel">&#128197; Date</span><span id="fbDateClear" onclick="event.stopPropagation();clearDateFilter();" style="display:none;margin-left:6px;">&#10005;</span>
+    </button>
+    <input type="date" id="dateFilterInput" onchange="applyDateFilter(this.value)" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;">
     <button class="fb" data-f="ARCHIVED">📦 Archived</button>
   </div>
-  <div class="bulk">
+  <div class="bulk" id="bulkBar" style="display:none">
     <span class="bcount" id="bcount">0 selected</span>
     <button class="bbtn del" id="bdel" onclick="bulkAct('DELIVERED')">&#10003; Delivered</button>
     <button class="bbtn nd" id="bnd" onclick="bulkAct('NO DATE')">&#128197; No Date</button>
@@ -2111,8 +2114,13 @@ var today    = new Date(); today.setHours(0,0,0,0);
 var tomorrow = new Date(today); tomorrow.setDate(today.getDate()+1);
 
 var data = [];
-var curFilter = 'all', srchTerm = '', selected = {};
-var sortCol = 'ts', sortAsc = false;
+// Default All Passengers view: Pending, nearest Return Date first, No
+// Date last — restored every time the All Passengers tab is (re)entered,
+// see resetAllPassengersDefaults(). Manual filter/sort clicks still work
+// normally within a visit; this is only the entry-point default.
+var curFilter = 'PENDING', srchTerm = '', selected = {};
+var sortCol = 'ret', sortAsc = true;
+var dateFilterValue = ''; // independent refinement, ANDed onto curFilter — see getFiltered()
 
 
 // ── LOAD DATA ──────────────────────────────────────────────────
@@ -2279,9 +2287,24 @@ function getFiltered() {
     data.forEach(function(r){var k=r.name.toLowerCase();cnt[k]=(cnt[k]||0)+1;});
     rows=rows.filter(function(r){return cnt[r.name.toLowerCase()]>1;});
   }
+  // Date is an independent refinement, ANDed on top of whatever curFilter
+  // already produced — not another curFilter value — so "Pending + Sep 8"
+  // and "Delivered + Sep 8" both work by combining with the filter above.
+  if(dateFilterValue) rows=rows.filter(function(r){return sd(pd(r.ret), pd(dateFilterValue));});
   rows.sort(function(a,b){
     var av=a[sortCol]||'', bv=b[sortCol]||'';
-    if(sortCol==='ret'||sortCol==='ts'){
+    if(sortCol==='ret'){
+      // No Date (unparseable ret) always sorts last, in either direction —
+      // matches the All Passengers default (nearest return date first,
+      // No Date at the end) and stays correct if a user manually re-sorts
+      // by Return Date in either direction.
+      var adr=pd(av), bdr=pd(bv);
+      if(!adr && !bdr) return 0;
+      if(!adr) return 1;
+      if(!bdr) return -1;
+      return sortAsc?(adr-bdr):(bdr-adr);
+    }
+    if(sortCol==='ts'){
       var ad=pd(av)||new Date(av||0), bd=pd(bv)||new Date(bv||0);
       return sortAsc?(ad-bd):(bd-ad);
     }
@@ -2340,6 +2363,65 @@ function setFilter(f){
   document.querySelectorAll('.fb').forEach(function(b){b.classList.remove('on');});
   var btn=document.querySelector('.fb[data-f="'+f+'"]');
   if(btn) btn.classList.add('on');
+  updateDateFilterLabel(); // Date is independent of curFilter — re-apply its own .on state
+  renderTable();
+}
+
+// ── DATE FILTER (independent refinement, ANDed onto curFilter) ──
+function openDateFilterInput(){
+  var inp=document.getElementById('dateFilterInput');
+  if(inp.showPicker){ try{ inp.showPicker(); return; }catch(e){} }
+  inp.focus(); inp.click();
+}
+function applyDateFilter(isoDate){
+  dateFilterValue=isoDate||'';
+  updateDateFilterLabel();
+  renderTable();
+}
+function clearDateFilter(){
+  dateFilterValue='';
+  var inp=document.getElementById('dateFilterInput');
+  if(inp) inp.value='';
+  updateDateFilterLabel();
+  renderTable();
+}
+function updateDateFilterLabel(){
+  var lbl=document.getElementById('fbDateLabel');
+  var clearBtn=document.getElementById('fbDateClear');
+  var fbDate=document.getElementById('fbDate');
+  if(!lbl||!clearBtn||!fbDate) return;
+  if(dateFilterValue){
+    var d=pd(dateFilterValue);
+    lbl.textContent = d ? ('📅 '+d.toLocaleDateString('en-US',{month:'short',day:'numeric'})) : '📅 Date';
+    clearBtn.style.display='inline';
+    fbDate.classList.add('on');
+  } else {
+    lbl.textContent='📅 Date';
+    clearBtn.style.display='none';
+    fbDate.classList.remove('on');
+  }
+}
+
+// ── ALL PASSENGERS DEFAULT VIEW ──────────────────────────────────
+// Restored every time the All Passengers tab is (re)entered: Pending,
+// Return Date ascending (No Date last via the sort comparator above),
+// no active Date refinement. Search is intentionally left alone.
+function resetAllPassengersDefaults(){
+  curFilter='PENDING';
+  sortCol='ret';
+  sortAsc=true;
+  dateFilterValue='';
+  var dateInp=document.getElementById('dateFilterInput');
+  if(dateInp) dateInp.value='';
+  updateDateFilterLabel();
+  document.querySelectorAll('.fb').forEach(function(b){b.classList.remove('on');});
+  var pendingBtn=document.querySelector('.fb[data-f="PENDING"]');
+  if(pendingBtn) pendingBtn.classList.add('on');
+  ['name','ticket','car','loc','ts','ret','status'].forEach(function(c){
+    var el=document.getElementById('s-'+c); if(el) el.textContent='';
+  });
+  var retEl=document.getElementById('s-ret');
+  if(retEl) retEl.textContent=' ▲';
   renderTable();
 }
 
@@ -2597,6 +2679,8 @@ function selAllFn(cb){
 }
 function updateBulk(){
   var n=Object.keys(selected).length;
+  var bulkBar=document.getElementById('bulkBar');
+  if(bulkBar) bulkBar.style.display=n>0?'flex':'none';
   document.getElementById('bcount').textContent=n+' selected';
   document.getElementById('bcount').className='bcount'+(n>0?' on':'');
   document.getElementById('bdel').className='bbtn del'+(n>0?' on':'');
