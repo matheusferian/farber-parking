@@ -463,6 +463,12 @@
         <label for="fNotReturning" style="font-size:13px;color:var(--mu);cursor:pointer">Passenger informed they are NOT returning with Makers Air</label>
       </div>
     </div>
+    <div class="fr full">
+      <div class="fg" style="display:flex;align-items:center;gap:10px;padding:8px 0">
+        <input type="checkbox" id="fDeliveryAtCustoms" style="width:18px;height:18px;accent-color:var(--gold)">
+        <label for="fDeliveryAtCustoms" style="font-size:13px;color:var(--mu);cursor:pointer">Delivery at Customs</label>
+      </div>
+    </div>
     <div class="mact">
       <button class="btnc" onclick="tryCloseAdd()">Cancel</button>
       <button class="btnp" id="saveBtnSms" onclick="saveEntry(true)" style="background:linear-gradient(135deg,#1a5c3a,#1a9e6a);border-color:var(--ok);">&#128172; Save + Review SMS</button>
@@ -1783,7 +1789,10 @@ function buildCustomerTicketXml(r) {
     + '<text font="font_b">claims must be presented before vehicle&#10;</text>'
     + '<text font="font_b">is taken from facility.&#10;</text>'
     + '<text font="font_a">------------------------------------------&#10;</text>'
-    + (!isAscend(r) && !r.not_returning_with_makers_air ?
+    + (!isAscend(r) && !r.not_returning_with_makers_air && r.delivery_at_customs ?
+        '<text align="center" em="true" height="2" width="1">Your vehicle will be ready at Customs&#10;</text>'
+        + '<text align="center" em="true" height="2" width="1">upon your return.&#10;</text>'
+      : !isAscend(r) && !r.not_returning_with_makers_air ?
         '<text align="center" em="true" height="2" width="1">After clearing Customs, please return to&#10;</text>'
         + '<text align="center" em="true" height="2" width="1">Hangar 19 with your pilots to pick up&#10;</text>'
         + '<text align="center" em="true" height="2" width="1">your vehicle.&#10;</text>'
@@ -1817,6 +1826,7 @@ function buildKeyTicketXml(r) {
     // ── Name + Hangar + Return + Ticket ─────────────────────────
     + '<text align="center" height="4" width="2">' + (isAscend(r) ? '[A] ' : '') + (r.name || '') + '&#10;</text>'
     + '<text align="center" height="3" width="2">' + locDisp + '&#10;</text>'
+    + (r.delivery_at_customs ? '<text align="center" em="true">*** DELIVER TO CUSTOMS ***&#10;</text>' : '')
     + '<text align="center" height="2" width="1">' + retDisp + '&#10;</text>'
     + '<text align="center" height="2" width="2">' + r.ticket + '&#10;</text>'
     + '<text align="center">------------------------&#10;</text>'
@@ -2175,7 +2185,8 @@ function mapPassengerRow(r) {
     customs_welcome_sent_at: r.customs_welcome_sent_at||'',
     customs_gratuity_sent: r.customs_gratuity_sent||false,
     customs_gratuity_sent_at: r.customs_gratuity_sent_at||'',
-    customs_gratuity_dismissed: r.customs_gratuity_dismissed||false
+    customs_gratuity_dismissed: r.customs_gratuity_dismissed||false,
+    delivery_at_customs: r.delivery_at_customs||false
   };
 }
 
@@ -2516,7 +2527,17 @@ function renderDay() {
       // is Leaving Today/Tomorrow only, not Arrived Today/Sunday/Forgot,
       // even though mkCards() is shared across all of them.
       var h19Eligible=!!showQuickH19&&r.status!=='DELIVERED'&&r.loc!=='HANGAR 19'&&!r.isOfflinePending;
-      var h19Btn=h19Eligible?'<button type="button" class="qd-btn dc-h19-btn" onclick="event.stopPropagation();quickMoveH19('+r.id+')" title="Move to Hangar 19">&#8594; H19</button>':'';
+      // quickMoveH19() below always writes loc='HANGAR 19' — that button's
+      // label/title must never say "Customs" (would record a false vehicle
+      // location). delivery_at_customs instead surfaces as a SEPARATE,
+      // non-interactive instruction badge next to the real button, same
+      // split TV Mode already uses (an operational reminder is not the
+      // same thing as a location-changing control). See DECISIONS.md.
+      var h19IsCustomsDest = !!r.delivery_at_customs && !isAscend(r);
+      var h19CustomsNote = (h19Eligible && h19IsCustomsDest)
+        ? '<span class="dc-move-customs-note" style="display:inline-flex;align-items:center;gap:4px;background:rgba(232,197,106,.15);color:var(--gold);border:1px solid rgba(232,197,106,.4);border-radius:6px;padding:3px 8px;font-size:10px;font-weight:800;letter-spacing:.3px;white-space:nowrap">&#9888; MOVE TO CUSTOMS</span>'
+        : '';
+      var h19Btn=h19Eligible?(h19CustomsNote+'<button type="button" class="qd-btn dc-h19-btn" onclick="event.stopPropagation();quickMoveH19('+r.id+')" title="Move to Hangar 19">&#8594; H19</button>'):'';
       var actionHtml='';
       if(showCheckin){
         actionHtml='<div class="dc-qd" onclick="event.stopPropagation()"><div class="checkin-badge">CHECKED IN</div>'+h19Btn+'</div>';
@@ -3279,6 +3300,7 @@ function openAdd(){
   if(approxRow) approxRow.style.display='none';
   var fi=document.getElementById('freqInfo'); if(fi) fi.classList.remove('on');
   var fnr=document.getElementById('fNotReturning'); if(fnr) fnr.checked=false;
+  var fdac=document.getElementById('fDeliveryAtCustoms'); if(fdac) fdac.checked=false;
   acClose();
   document.getElementById('addOv').classList.add('on');
   setTimeout(function(){ var n=document.getElementById('fName'); if(n) n.focus(); },100);
@@ -3297,6 +3319,7 @@ function isAddFormDirty(){
   var fEstDate=document.getElementById('fEstDate');
   var fObs=document.getElementById('fObs');
   var fNotReturning=document.getElementById('fNotReturning');
+  var fDeliveryAtCustoms=document.getElementById('fDeliveryAtCustoms');
   if(fName&&fName.value.trim()) return true;
   if(fPhone&&fPhone.value.trim()) return true;
   if(fTicket&&fTicket.value.trim()&&fTicket.value.trim()!==_autoTicket) return true;
@@ -3308,6 +3331,7 @@ function isAddFormDirty(){
   if(fEstDate&&fEstDate.value) return true;
   if(fObs&&fObs.value.trim()) return true;
   if(fNotReturning&&fNotReturning.checked) return true;
+  if(fDeliveryAtCustoms&&fDeliveryAtCustoms.checked) return true;
   return false;
 }
 function tryCloseAdd(){
@@ -3854,7 +3878,10 @@ function buildWelcomeSms(r) {
     body += '\n\nWe currently do not have a return date on file.\n\nOnce your travel plans are confirmed, please reply to this message with your expected return date and arrival time so your vehicle will be ready upon arrival.';
   }
   body += '\n\nThank you and safe travels!';
-  if (!isAscend(r) && !r.not_returning_with_makers_air) {
+  // delivery_at_customs suppresses this reminder only — it must never add
+  // Customs-specific wording here (see DECISIONS.md); the passenger simply
+  // gets no premature pickup instructions until Welcome Back is sent.
+  if (!isAscend(r) && !r.not_returning_with_makers_air && !r.delivery_at_customs) {
     body += '\n\nReminder: After clearing Customs, please return to Hangar 19 with your pilots to pick up your vehicle.';
   }
   return body;
@@ -3941,11 +3968,18 @@ async function sendWelcomeBackSms(id){
   if (r.isOfflinePending) { showMsg(OFFLINE_PENDING_SYNC_MSG, true); return; }
   if (r.delivery_type==='CUSTOMS') return; // use the Customs communication workflow instead
   if (!r.phone) { showMsg('No phone number on file for ' + r.name, true); return; }
-  var smsBody = buildWelcomeBackSms();
+  // delivery_at_customs is independent of the delivery_type==='CUSTOMS'
+  // post-delivery workflow above — it's a planned destination captured at
+  // check-in, still sent through this same Hangar 19 Welcome Back button.
+  // isAscend() already returned above, so buildCustomsWelcomeSms(r) here
+  // always resolves to its Makers Air branch — reused as-is, no new template.
+  var isCustomsDest = !!r.delivery_at_customs;
+  var smsBody = isCustomsDest ? buildCustomsWelcomeSms(r) : buildWelcomeBackSms();
   var sendOpts = {
     passengerId: r.id, passengerName: r.name, phone: r.phone, ticket: r.ticket,
     vehicle: formatVehicleLine(r), brand: 'Makers Air',
-    templateKey: 'HANGAR19_WELCOME_BACK', messageType: SMS_MESSAGE_TYPES.HANGAR19_WELCOME_BACK,
+    templateKey: isCustomsDest ? 'CUSTOMS_WELCOME_MAKERS' : 'HANGAR19_WELCOME_BACK',
+    messageType: isCustomsDest ? SMS_MESSAGE_TYPES.CUSTOMS_WELCOME_MAKERS : SMS_MESSAGE_TYPES.HANGAR19_WELCOME_BACK,
     body: smsBody, metadata: {trigger:'Dashboard — Welcome Back button'}
   };
 
@@ -4495,6 +4529,7 @@ async function saveEntry(sendSms, printMode){
   else { finalDate=d2us(getReturnDate()); }
   var locVal=document.getElementById('fLoc').value;
   var notReturning=!!(document.getElementById('fNotReturning')||{}).checked;
+  var deliveryAtCustoms=!!(document.getElementById('fDeliveryAtCustoms')||{}).checked;
   var nameUpper=name.toUpperCase();
 
   var payload = {
@@ -4511,6 +4546,7 @@ async function saveEntry(sendSms, printMode){
     block: '',
     obs: finalObs,
     not_returning_with_makers_air: notReturning,
+    delivery_at_customs: deliveryAtCustoms,
     deldate: ''
   };
 
@@ -4537,7 +4573,8 @@ async function saveEntry(sendSms, printMode){
       if(printMode==='both'){
         var savedRec={ticket:ticket,name:nameUpper,phone:phoneFull,
                       ret:finalDate,car:carVal,color:colorVal,loc:locVal,
-                      not_returning_with_makers_air:notReturning};
+                      not_returning_with_makers_air:notReturning,
+                      delivery_at_customs:deliveryAtCustoms};
         if(!isAscend(savedRec)){await printCustomerTicket(savedRec);}
         await printKeyTicket(savedRec);
         await printDashboardTicket(savedRec);
@@ -4548,7 +4585,7 @@ async function saveEntry(sendSms, printMode){
         // sendPassengerSms()/opens Messages. The attendant must explicitly
         // click "Open in Messages" in the review modal. See
         // openNewEntrySmsPreview()/openReviewSmsInMessages() above.
-        var welcomeRec={ticket:ticket,ret:finalDate,not_returning_with_makers_air:notReturning,loc:locVal};
+        var welcomeRec={ticket:ticket,ret:finalDate,not_returning_with_makers_air:notReturning,loc:locVal,delivery_at_customs:deliveryAtCustoms};
         var smsBody=buildWelcomeSms(welcomeRec);
         openNewEntrySmsPreview({
           passengerId:_newId, passengerName:nameUpper, phone:phoneFull, ticket:ticket,
@@ -4637,7 +4674,8 @@ async function saveEntry(sendSms, printMode){
     try{
       var savedRecOff={ticket:ticket,name:nameUpper,phone:phoneFull,
                     ret:finalDate,car:carVal,color:colorVal,loc:locVal,
-                    not_returning_with_makers_air:notReturning};
+                    not_returning_with_makers_air:notReturning,
+                    delivery_at_customs:deliveryAtCustoms};
       if(!isAscend(savedRecOff)){await printCustomerTicket(savedRecOff);}
       await printKeyTicket(savedRecOff);
       await printDashboardTicket(savedRecOff);
@@ -4695,6 +4733,12 @@ function showDet(id){
         '<input type="checkbox" '+(r.not_returning_with_makers_air?'checked':'')+
         ' onchange="markDirty(\'not_returning_with_makers_air\',this.checked)">'+
         '<span style="font-size:12px;color:var(--mu)">Passenger informed they are NOT returning with Makers Air</span>'+
+        '</label></div></div>'+
+      '<div class="di" style="grid-column:1/-1"><div class="di-l">Delivery at Customs</div>'+
+        '<div class="di-v"><label style="display:flex;align-items:center;gap:8px;cursor:pointer">'+
+        '<input type="checkbox" '+(r.delivery_at_customs?'checked':'')+
+        ' onchange="markDirty(\'delivery_at_customs\',this.checked)">'+
+        '<span style="font-size:12px;color:var(--mu)">Vehicle should be delivered to Customs upon return</span>'+
         '</label></div></div>'+
       (r.status==='DELIVERED'?
         '<div class="di" style="grid-column:1/-1"><div class="di-l">Delivery Method</div><div class="di-v">'+deliveryMethodHtml(r.delivery_type)+'</div></div>'+
@@ -5047,6 +5091,9 @@ function quickMoveH19(id){
   if(!r) return;
   if(r.isOfflinePending){ showMsg(OFFLINE_PENDING_SYNC_MSG, true); return; }
   if(r.loc==='HANGAR 19'){ showMsg('Already in HANGAR 19', false); return; }
+  // Always the real action this control performs — see the h19CustomsNote
+  // comment in mkCards() for why delivery_at_customs never changes this
+  // wording (it surfaces as a separate non-interactive badge instead).
   if(!confirm('Move '+r.name+' to Hangar 19?')) return;
   moveHangar(id, 'HANGAR 19');
 }
@@ -5504,7 +5551,8 @@ var LOG_FIELD_LABELS={
   name:'Name', phone:'Phone', ticket:'Ticket', car:'Vehicle', color:'Color',
   loc:'Location', ret:'Return date', status:'Status', obs:'Notes', ts:'Arrival date',
   not_returning_with_makers_air:'Not Returning', departure_time:'Departure Time',
-  return_flight:'Return Flight', delivery_type:'Delivery Type'
+  return_flight:'Return Flight', delivery_type:'Delivery Type',
+  delivery_at_customs:'Delivery at Customs'
 };
 // Uppercase field badge used by the new Passenger Change History cards —
 // derived from the same label map that drives the existing sentence-style
@@ -10045,9 +10093,13 @@ function tvShortName(name){
 function tvNeedsH19Move(r){
   return r.status!=='DELIVERED' && r.loc!=='HANGAR 19' && !r.isOfflinePending;
 }
-function tvMoveH19Badge(day){
+function tvMoveH19Badge(day, r){
   var cls = day==='today' ? 'tv-badge-move-h19-today' : 'tv-badge-move-h19-tomorrow';
-  return '<span class="tv-badge '+cls+'">&#9888; MOVE TO H19</span>';
+  // Label only — delivery_at_customs never changes what tvNeedsH19Move()
+  // requires, never touches r.loc, and never applies to Ascend (isAscend()
+  // is ticket-prefix-based, entirely independent of this flag).
+  var label = (r && r.delivery_at_customs && !isAscend(r)) ? 'MOVE TO CUSTOMS' : 'MOVE TO H19';
+  return '<span class="tv-badge '+cls+'">&#9888; '+label+'</span>';
 }
 function tvCard(r){
   var time=getDepartureTime(r);
@@ -10063,7 +10115,7 @@ function tvCard(r){
   // H19 move reminder joins the card's existing badge row (Ascend/Not
   // Returning) rather than crowding the name line — never hides the
   // passenger name, and coexists with whatever else is already there.
-  var allBadges = tvBadges(r) + (tvNeedsH19Move(r) ? tvMoveH19Badge('tomorrow') : '');
+  var allBadges = tvBadges(r) + (tvNeedsH19Move(r) ? tvMoveH19Badge('tomorrow', r) : '');
   return '<div class="tv-card'+(critical?' tv-critical':'')+'">'+
     '<div class="tv-card-row"><div class="tv-card-name">'+escapeHTML(tvShortName(r.name))+'</div>'+timeHtml+'</div>'+
     '<div class="tv-card-meta">'+metaParts.join(' &middot; ')+'</div>'+
@@ -10406,7 +10458,7 @@ function tvTodayRowHtml(r, kind){
     // neither badge (nor both firing at once) can shrink the passenger
     // name's available width.
     var badgeParts = [];
-    if(tvNeedsH19Move(r)) badgeParts.push(tvMoveH19Badge('today'));
+    if(tvNeedsH19Move(r)) badgeParts.push(tvMoveH19Badge('today', r));
     var wcbBadge = tvWelcomeBackBadge(r);
     if(wcbBadge) badgeParts.push(wcbBadge);
     var delayedBadge = tvDelayedBadge(r);
