@@ -271,7 +271,10 @@
 // v26: commit e13b6f6 (New Entry UI cleanup — side-by-side checkboxes,
 // remove Washed toggle) changed index.html content only. Same
 // SHELL_FILES, no new same-origin file introduced.
-var CACHE_VERSION = 'v26';
+// v27: commit 686aa40 (Key Copy font size + Leaving Tomorrow report
+// logo/customs KPI/note) changed index.html content only. Same
+// SHELL_FILES, no new same-origin file introduced.
+var CACHE_VERSION = 'v27';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 // Resolved relative to this file's own location, so they land in the
