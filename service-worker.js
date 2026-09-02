@@ -268,7 +268,10 @@
 // v25: commit 03316c3 (Carwash status — CARWASH/SEND_PRICE/WASHED)
 // changed index.html and styles.css content only. Same SHELL_FILES, no
 // new same-origin file introduced.
-var CACHE_VERSION = 'v25';
+// v26: commit e13b6f6 (New Entry UI cleanup — side-by-side checkboxes,
+// remove Washed toggle) changed index.html content only. Same
+// SHELL_FILES, no new same-origin file introduced.
+var CACHE_VERSION = 'v26';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 // Resolved relative to this file's own location, so they land in the
