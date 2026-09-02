@@ -265,7 +265,10 @@
 // v24: commit a1c1841 (Delivery at Customs — TV Customs/Ascend subgroup,
 // hide H19 for Customs dest, live hangar counts) changed index.html and
 // styles.css content only. Same SHELL_FILES, no new same-origin file.
-var CACHE_VERSION = 'v24';
+// v25: commit 03316c3 (Carwash status — CARWASH/SEND_PRICE/WASHED)
+// changed index.html and styles.css content only. Same SHELL_FILES, no
+// new same-origin file introduced.
+var CACHE_VERSION = 'v25';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 // Resolved relative to this file's own location, so they land in the
