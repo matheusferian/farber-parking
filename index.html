@@ -83,8 +83,8 @@
 <div class="tabs">
   <div class="sidebar-brand"><img src="assets/logo-icon.png" alt="AirValet"><div class="sb-name">AirValet</div></div>
   <div class="tab-group-label">Operations</div>
-  <div class="tab on" data-t="all" onclick="resetAllPassengersDefaults()"><i class="fa-solid fa-users"></i><span>All Passengers</span><span class="tbadge" id="ball">0</span></div>
-  <div class="tab" data-t="day"><i class="fa-solid fa-gauge-high"></i><span>Dashboard</span><span class="tbadge red" id="bday">!</span></div>
+  <div class="tab" data-t="all" onclick="resetAllPassengersDefaults()"><i class="fa-solid fa-users"></i><span>All Passengers</span><span class="tbadge" id="ball">0</span></div>
+  <div class="tab on" data-t="day"><i class="fa-solid fa-gauge-high"></i><span>Dashboard</span><span class="tbadge red" id="bday">!</span></div>
   <div class="tab" data-t="tasks"><i class="fa-solid fa-square-check"></i><span>Tasks</span><span class="tbadge red" id="btasks">0</span></div>
   <div class="tab" data-t="messages" onclick="renderMessagesWorkspace()"><i class="fa-solid fa-message"></i><span>Messages</span></div>
   <div class="tab-group-label">Management</div>
@@ -96,7 +96,7 @@
   <div class="tab" data-t="useraccess" onclick="loadUserAccessList()"><i class="fa-solid fa-user-shield"></i><span>User Access</span></div>
 </div>
 <div class="nav-backdrop" id="navBackdrop" onclick="closeSidebarDrawer()"></div>
-<div class="pane on" id="pane-all">
+<div class="pane" id="pane-all">
   <div class="stats" id="statsBar"></div>
   <div class="sw">
     <div class="sb">
@@ -164,7 +164,7 @@
     <div class="empty" id="emptyMsg" style="display:none">No passengers found</div>
   </div>
 </div>
-<div class="pane" id="pane-day">
+<div class="pane on" id="pane-day">
   <div class="dsec">
     <div class="dtitle" style="color:var(--ok)" id="titleArrived">&#128663; Arrived Today <span class="tbadge" style="background:var(--ok);color:#000">0</span></div>
     <div class="dsub">Registered today</div>
@@ -5852,7 +5852,20 @@ function showApp() {
   document.getElementById('loginOv').style.display = 'none';
   var lb = document.getElementById('logoutBtn'); if(lb) lb.style.display = '';
   loadVehicleSuggestions();
+  // Every successful login lands on Dashboard — no restored tab, no
+  // returnTo/redirectTo. showApp() is the single place both auth paths
+  // (SIGNED_IN and the page-load getSession() restore) funnel through
+  // via bootstrapAfterAuth(), so this is the one spot that needs it.
+  // Runs once per auth event only — never touches tab state on normal
+  // in-app navigation (TOKEN_REFRESHED doesn't call showApp()).
+  document.querySelectorAll('.tab').forEach(function(t){t.classList.remove('on');});
+  document.querySelectorAll('.pane').forEach(function(p){p.classList.remove('on');});
+  var dashTab=document.querySelector('.tab[data-t="day"]');
+  var dashPane=document.getElementById('pane-day');
+  if(dashTab) dashTab.classList.add('on');
+  if(dashPane) dashPane.classList.add('on');
 }
+
 function showLogin() {
   document.getElementById('loginOv').style.display = 'flex';
   var lb = document.getElementById('logoutBtn'); if(lb) lb.style.display = 'none';
