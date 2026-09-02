@@ -254,7 +254,12 @@
 // Inter). No TV business logic, RPC, data, timing, or fit/pagination
 // code touched — confirmed via diff: every changed CSS line is a
 // font-family value or the one new logo-badge rule, nothing else.
-var CACHE_VERSION = 'v21';
+// v22: cache-version bump only — commit 68f45ee (passenger filters +
+// default Pending view) changed index.html content but didn't bump this,
+// so already-installed devices would have kept serving the old shell
+// indefinitely. Bumping now so the normal Update Available flow picks
+// up that commit's changes. No other file touched.
+var CACHE_VERSION = 'v22';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 // Resolved relative to this file's own location, so they land in the
