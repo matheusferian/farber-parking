@@ -259,7 +259,10 @@
 // so already-installed devices would have kept serving the old shell
 // indefinitely. Bumping now so the normal Update Available flow picks
 // up that commit's changes. No other file touched.
-var CACHE_VERSION = 'v22';
+// v23: commit b5437cc (Delivery at Customs) changed index.html content
+// only — New Entry/Edit checkbox, ticket/SMS/TV/Dashboard wording. Same
+// SHELL_FILES, no new same-origin file introduced.
+var CACHE_VERSION = 'v23';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 // Resolved relative to this file's own location, so they land in the
