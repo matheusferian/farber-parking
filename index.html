@@ -430,11 +430,11 @@
       <div class="fg">
         <label>Location <span style="color:var(--mu);font-weight:400">(optional)</span></label>
         <div class="lbs">
-          <div class="lb" onclick="selLoc(this,'HANGAR 19')">Hangar 19</div>
-          <div class="lb" onclick="selLoc(this,'HANGAR 18')">Hangar 18</div>
-          <div class="lb" onclick="selLoc(this,'HANGAR 16')">Hangar 16</div>
-          <div class="lb" onclick="selLoc(this,'HANGAR 7')">Hangar 7</div>
-          <div class="lb" onclick="selLoc(this,'HH')">HH</div>
+          <div class="lb" onclick="selLoc(this,'HANGAR 19')">Hangar 19 <span class="lb-count" data-hangar="HANGAR 19"></span></div>
+          <div class="lb" onclick="selLoc(this,'HANGAR 18')">Hangar 18 <span class="lb-count" data-hangar="HANGAR 18"></span></div>
+          <div class="lb" onclick="selLoc(this,'HANGAR 16')">Hangar 16 <span class="lb-count" data-hangar="HANGAR 16"></span></div>
+          <div class="lb" onclick="selLoc(this,'HANGAR 7')">Hangar 7 <span class="lb-count" data-hangar="HANGAR 7"></span></div>
+          <div class="lb" onclick="selLoc(this,'HH')">HH <span class="lb-count" data-hangar="HH"></span></div>
         </div>
         <input type="hidden" id="fLoc">
       </div>
@@ -2527,17 +2527,21 @@ function renderDay() {
       // is Leaving Today/Tomorrow only, not Arrived Today/Sunday/Forgot,
       // even though mkCards() is shared across all of them.
       var h19Eligible=!!showQuickH19&&r.status!=='DELIVERED'&&r.loc!=='HANGAR 19'&&!r.isOfflinePending;
-      // quickMoveH19() below always writes loc='HANGAR 19' — that button's
-      // label/title must never say "Customs" (would record a false vehicle
-      // location). delivery_at_customs instead surfaces as a SEPARATE,
-      // non-interactive instruction badge next to the real button, same
-      // split TV Mode already uses (an operational reminder is not the
-      // same thing as a location-changing control). See DECISIONS.md.
+      // delivery_at_customs passengers are not expected to move to Hangar
+      // 19 at all — they're going to Customs instead — so the real
+      // location-changing button is HIDDEN for them entirely (not just
+      // relabeled: quickMoveH19() always writes loc='HANGAR 19', which
+      // would be wrong to invite here). Only the non-interactive
+      // instruction badge shows. Normal passengers keep the exact same
+      // button/behavior as before this flag ever existed. See DECISIONS.md.
       var h19IsCustomsDest = !!r.delivery_at_customs && !isAscend(r);
       var h19CustomsNote = (h19Eligible && h19IsCustomsDest)
         ? '<span class="dc-move-customs-note" style="display:inline-flex;align-items:center;gap:4px;background:rgba(232,197,106,.15);color:var(--gold);border:1px solid rgba(232,197,106,.4);border-radius:6px;padding:3px 8px;font-size:10px;font-weight:800;letter-spacing:.3px;white-space:nowrap">&#9888; MOVE TO CUSTOMS</span>'
         : '';
-      var h19Btn=h19Eligible?(h19CustomsNote+'<button type="button" class="qd-btn dc-h19-btn" onclick="event.stopPropagation();quickMoveH19('+r.id+')" title="Move to Hangar 19">&#8594; H19</button>'):'';
+      var h19ButtonHtml = (h19Eligible && !h19IsCustomsDest)
+        ? '<button type="button" class="qd-btn dc-h19-btn" onclick="event.stopPropagation();quickMoveH19('+r.id+')" title="Move to Hangar 19">&#8594; H19</button>'
+        : '';
+      var h19Btn = h19CustomsNote + h19ButtonHtml;
       var actionHtml='';
       if(showCheckin){
         actionHtml='<div class="dc-qd" onclick="event.stopPropagation()"><div class="checkin-badge">CHECKED IN</div>'+h19Btn+'</div>';
@@ -2679,7 +2683,17 @@ function renderDay() {
   }
 }
 
-function render(){renderStats();renderTable();renderDay();renderTasks();updateReportPreview();}
+// Updates the New Entry location pills' "(N)" counts in place — cheap
+// (5 textContent writes), so safe to call on every render() regardless of
+// whether that modal happens to be open. Uses computeHangarCounts(), the
+// same function TV Mode's hangar cards use — no second formula.
+function refreshHangarCountBadges(){
+  var counts = computeHangarCounts();
+  document.querySelectorAll('.lb-count[data-hangar]').forEach(function(el){
+    el.textContent = '('+(counts[el.getAttribute('data-hangar')]||0)+')';
+  });
+}
+function render(){renderStats();renderTable();renderDay();renderTasks();updateReportPreview();refreshHangarCountBadges();}
 
 // ── SELECTION ──────────────────────────────────────────────────
 function rowChk(cb){
@@ -3301,6 +3315,7 @@ function openAdd(){
   var fi=document.getElementById('freqInfo'); if(fi) fi.classList.remove('on');
   var fnr=document.getElementById('fNotReturning'); if(fnr) fnr.checked=false;
   var fdac=document.getElementById('fDeliveryAtCustoms'); if(fdac) fdac.checked=false;
+  refreshHangarCountBadges();
   acClose();
   document.getElementById('addOv').classList.add('on');
   setTimeout(function(){ var n=document.getElementById('fName'); if(n) n.focus(); },100);
@@ -4701,7 +4716,8 @@ function showDet(id){
   var retDisp=r.ret?fmtD(r.ret):'No date';
   if(rt)retDisp='TODAY';if(rm)retDisp='TOMORROW';if(ro)retDisp=fmtD(r.ret)+' (LATE)';
   var retC=rt?'color:var(--acc)':ro?'color:var(--red)':rm?'color:var(--pur)':'';
-  var hangH=HANGARS.map(function(h){return '<div class="ho'+(r.loc===h?' on':'')+' ho-item" data-rid="'+r.id+'" data-h="'+h+'">'+h+'</div>';}).join('');
+  var hangCounts=computeHangarCounts();
+  var hangH=HANGARS.map(function(h){return '<div class="ho'+(r.loc===h?' on':'')+' ho-item" data-rid="'+r.id+'" data-h="'+h+'">'+h+' <span class="lb-count">('+(hangCounts[h]||0)+')</span></div>';}).join('');
   var histH='';
   if(hist.length>1){histH='<div class="htitle">Visit History ('+hist.length+' visit'+(hist.length>1?'s':'')+' - all contacts)</div><div class="hlist">'+hist.map(function(h){return '<div class="hi" style="flex-direction:column;gap:3px;align-items:flex-start"><div style="display:flex;justify-content:space-between;width:100%"><span class="h-tk">'+escapeHTML(h.ticket)+'</span><span class="h-dt">'+escapeHTML(fmtA(h.ts))+'</span></div><div style="font-size:11px;color:var(--mu)">'+escapeHTML(h.car)+(h.phone?' · '+escapeHTML(fmtP(h.phone)):'')+'</div><div style="font-size:10px;color:'+(h.status==='DELIVERED'?'var(--ok)':'var(--acc)')+'">'+escapeHTML(h.status)+'</div></div>';}).join('')+'</div>';}
   document.getElementById('detPanel').innerHTML=
@@ -6536,6 +6552,22 @@ function normalizeHangarValue(v){
 }
 function isValidOperationalHangar(v){
   return HANGARS.indexOf(normalizeHangarValue(v)) !== -1;
+}
+// Single source of truth for "vehicles currently in each hangar" —
+// originally computed inline inside buildTvViewModel() (TV Mode's hangar
+// cards); extracted here so New Entry/Edit Passenger's location pickers
+// can show the exact same counts with no second counting formula.
+// Active = not ARCHIVED, not DELIVERED, loc resolves to one of the 5 real
+// hangars via isValidOperationalHangar/normalizeHangarValue above.
+function computeHangarCounts(){
+  var counts = {};
+  HANGARS.forEach(function(h){ counts[h]=0; });
+  (typeof data!=='undefined' && data ? data : []).forEach(function(r){
+    if(!r || r.status==='ARCHIVED' || r.status==='DELIVERED') return;
+    if(!isValidOperationalHangar(r.loc)) return;
+    counts[normalizeHangarValue(r.loc)]++;
+  });
+  return counts;
 }
 function getOperationalHangarForReport(passenger, historyByPassengerId){
   if(!passenger) return null;
@@ -9976,6 +10008,16 @@ function buildTvViewModel(){
   }), 'today').concat(tvTagDay(active.filter(function(r){
     return (typeof isCustomsDelivered==='function' && isCustomsDelivered(r)) && isTmrw(r.ret);
   }), 'tomorrow'));
+  // DELIVERY TO CUSTOMS — non-Ascend passengers with delivery_at_customs
+  // requested but not yet delivered. Explicitly excludes Ascend (isAscend()
+  // check, same as ascendActive above — never merged into Ascend counts)
+  // and excludes status==='DELIVERED' so a vehicle already handed over
+  // (AT CUSTOMS or otherwise) never double-appears here — mutually
+  // exclusive with atCustoms by the same status test ascendActive uses.
+  var deliveryAtCustomsPending = active.filter(function(r){
+    return r.status!=='DELIVERED' && !!r.delivery_at_customs
+      && !(typeof isAscend==='function' && isAscend(r));
+  });
 
   // Return Date Follow-Up — active (not DELIVERED, not ARCHIVED) vehicles
   // whose return date is genuinely uncertain: status==='NO DATE' (covers
@@ -10004,13 +10046,9 @@ function buildTvViewModel(){
   // historical-hangar fallback (previous_delivery_location, etc.): TV
   // Mode intentionally uses raw current `loc` for active (non-delivered)
   // vehicles only, since that's genuinely where the vehicle is right now.
-  var hangarCounts = {};
-  HANGARS.forEach(function(h){ hangarCounts[h]=0; });
-  active.forEach(function(r){
-    if(r.status==='DELIVERED') return;
-    if(!isValidOperationalHangar(r.loc)) return;
-    hangarCounts[normalizeHangarValue(r.loc)]++;
-  });
+  // computeHangarCounts() is the single shared implementation (also used
+  // by New Entry/Edit Passenger's location pickers) — no second formula.
+  var hangarCounts = computeHangarCounts();
 
   var nextDeparture = leavingTodayRemaining.filter(function(r){ return getDepartureTime(r); })[0] || null;
   var afterHoursTomorrowCount = leavingTomorrow.filter(function(r){ return tvGetTimeBucket(getDepartureTime(r))==='After Hours'; }).length;
@@ -10028,6 +10066,7 @@ function buildTvViewModel(){
     lockboxToday: lockboxToday,
     ascendActive: ascendActive,
     atCustoms: atCustoms,
+    deliveryAtCustomsPending: deliveryAtCustomsPending,
     followUp: followUp,
     missingTimeTomorrow: missingTimeTomorrow,
     missingLocationActive: missingLocationActive,
@@ -10744,7 +10783,8 @@ function tvBuildOpsPages(vm){
   vm.customsDue.forEach(function(r){ gratuityDueIds[r.id]=true; });
 
   var ascendCustomsCombined = vm.ascendActive.map(function(r){ return {type:'ascend', r:r}; })
-    .concat(vm.atCustoms.map(function(item){ return {type:'atcustoms', r:item.r, day:item.day}; }));
+    .concat(vm.atCustoms.map(function(item){ return {type:'atcustoms', r:item.r, day:item.day}; }))
+    .concat(vm.deliveryAtCustomsPending.map(function(r){ return {type:'customsdest', r:r}; }));
 
   function alertsColHtml(slice){
     if(!alerts.length) return '<div class="tv-empty">No special-handling alerts right now.</div>';
@@ -10756,9 +10796,10 @@ function tvBuildOpsPages(vm){
     }).join('');
   }
   function ascendCustomsColHtml(slice){
-    if(!ascendCustomsCombined.length) return '<div class="tv-empty">No Ascend vehicles in custody, none at Customs.</div>';
+    if(!ascendCustomsCombined.length) return '<div class="tv-empty">No Ascend vehicles in custody, none at Customs, none pending Customs delivery.</div>';
     var ascendSlice = slice.filter(function(x){ return x.type==='ascend'; });
     var custSlice = slice.filter(function(x){ return x.type==='atcustoms'; });
+    var destSlice = slice.filter(function(x){ return x.type==='customsdest'; });
     var html = '';
     if(ascendSlice.length){
       html += '<div class="tv-subgroup-hdr">Ascend In Custody <span class="tv-subgroup-count">'+vm.ascendActive.length+'</span></div>';
@@ -10777,6 +10818,25 @@ function tvBuildOpsPages(vm){
         if(gratuityDueIds[r.id]) badges += ' <span class="tv-badge tv-badge-gratuity">GRATUITY DUE</span>';
         badges += ' '+tvDayTagBadge(x.day);
         return tvRow(r,{completed:true, showLocationAlert:false, nameBadges:badges});
+      }).join('');
+    }
+    if(destSlice.length){
+      // Never Ascend (deliveryAtCustomsPending already excludes isAscend()
+      // in buildTvViewModel) and never duplicated with "At Customs" above
+      // (that list requires status==='DELIVERED'; this one requires the
+      // opposite) — reuses the existing tv-badge-atcustoms style, distinct
+      // wording so it's never confused with an already-completed delivery.
+      // r.loc renders via tvRow's normal meta line, untouched/unfaked.
+      // Badge text is "TO CUSTOMS" (not "DELIVERY TO CUSTOMS") — verified
+      // at TV_OPS_COL_MIN.customs (340px, the real worst-case column
+      // width) with a long name, the longer wording clipped to "...
+      // CUSTOM" inside .tv-row-name's nowrap/ellipsis; "TO CUSTOMS" is
+      // the same length as the existing "AT CUSTOMS" badge, which already
+      // fits at that width.
+      html += '<div class="tv-subgroup-hdr">Delivery to Customs <span class="tv-subgroup-count">'+vm.deliveryAtCustomsPending.length+'</span></div>';
+      html += destSlice.map(function(x){
+        var badges = '<span class="tv-badge tv-badge-atcustoms">&#128230; TO CUSTOMS</span>';
+        return tvRow(x.r,{nameBadges:badges});
       }).join('');
     }
     return html;
@@ -10848,7 +10908,7 @@ function tvBuildOpsPages(vm){
           '<div class="tv-list tv-density-'+alertsTier+'">'+alertsColHtml(alertsSlice)+'</div>'+
         '</div>'+
         '<div class="tv-ops-col tv-ops-col-customs">'+
-          '<div class="tv-page-title" style="font-size:16px;margin-bottom:8px;">&#9992; Customs / Ascend <span class="tv-count-pill">'+(vm.ascendActive.length+vm.atCustoms.length)+'</span></div>'+
+          '<div class="tv-page-title" style="font-size:16px;margin-bottom:8px;">&#9992; Customs / Ascend <span class="tv-count-pill">'+ascendCustomsCombined.length+'</span></div>'+
           '<div class="tv-list tv-density-'+acTier+'">'+ascendCustomsColHtml(acSlice)+'</div>'+
         '</div>'+
         (showHangar ? '<div class="tv-ops-col tv-ops-col-hangars">'+
@@ -10882,7 +10942,7 @@ function tvBuildOpsPages(vm){
       bodyEl.style.flexDirection='row'; bodyEl.style.gap=TV_OPS_GROUPA_GAP+'px';
       bodyEl.innerHTML =
         '<div class="tv-ops-col tv-ops-col-customs" style="flex:1;">'+
-          '<div class="tv-page-title" style="font-size:16px;margin-bottom:8px;">&#9992; Customs / Ascend <span class="tv-count-pill">'+(vm.ascendActive.length+vm.atCustoms.length)+'</span>'+contHtml+'</div>'+
+          '<div class="tv-page-title" style="font-size:16px;margin-bottom:8px;">&#9992; Customs / Ascend <span class="tv-count-pill">'+ascendCustomsCombined.length+'</span>'+contHtml+'</div>'+
           '<div class="tv-list tv-density-'+acTier+'">'+ascendCustomsColHtml(slice)+'</div>'+
         '</div>';
     }});
