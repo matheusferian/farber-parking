@@ -274,7 +274,9 @@
 // v27: commit 686aa40 (Key Copy font size + Leaving Tomorrow report
 // logo/customs KPI/note) changed index.html content only. Same
 // SHELL_FILES, no new same-origin file introduced.
-var CACHE_VERSION = 'v27';
+// v28: commit 480176d (login always lands on Dashboard) changed
+// index.html content only. Same SHELL_FILES, no new same-origin file.
+var CACHE_VERSION = 'v28';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 // Resolved relative to this file's own location, so they land in the
