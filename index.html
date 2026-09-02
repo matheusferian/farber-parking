@@ -469,6 +469,17 @@
         <label for="fDeliveryAtCustoms" style="font-size:13px;color:var(--mu);cursor:pointer">Delivery at Customs</label>
       </div>
     </div>
+    <div class="fr full">
+      <div class="fg">
+        <label>Carwash <span style="color:var(--mu);font-weight:400">(optional)</span></label>
+        <div class="lbs">
+          <div class="carwash-btn" onclick="selCarwash(this,'CARWASH')">&#128704; Carwash</div>
+          <div class="carwash-btn" onclick="selCarwash(this,'SEND_PRICE')">&#128172; Send Price</div>
+          <div class="carwash-btn" onclick="selCarwash(this,'WASHED')">&#10003; Washed</div>
+        </div>
+        <input type="hidden" id="fCarwash">
+      </div>
+    </div>
     <div class="mact">
       <button class="btnc" onclick="tryCloseAdd()">Cancel</button>
       <button class="btnp" id="saveBtnSms" onclick="saveEntry(true)" style="background:linear-gradient(135deg,#1a5c3a,#1a9e6a);border-color:var(--ok);">&#128172; Save + Review SMS</button>
@@ -2186,7 +2197,8 @@ function mapPassengerRow(r) {
     customs_gratuity_sent: r.customs_gratuity_sent||false,
     customs_gratuity_sent_at: r.customs_gratuity_sent_at||'',
     customs_gratuity_dismissed: r.customs_gratuity_dismissed||false,
-    delivery_at_customs: r.delivery_at_customs||false
+    delivery_at_customs: r.delivery_at_customs||false,
+    carwash_status: r.carwash_status||null
   };
 }
 
@@ -2518,7 +2530,7 @@ function renderDay() {
   var lm=sortByDepartureTime(data.filter(function(r){return isTmrw(r.ret)&&r.status!=='DELIVERED'&&r.status!=='ARCHIVED';}));
   var ls=data.filter(function(r){return isSunday(r.ret)&&r.status!=='DELIVERED'&&r.status!=='ARCHIVED';});
   var sun=nextSunday();
-  function mkCards(list,cls,btnCls,showCustoms,showDeliver,showCheckin,showReturnFlight,isArrivedSection,showFlightPrint,showWelcomeBack,showQuickH19){
+  function mkCards(list,cls,btnCls,showCustoms,showDeliver,showCheckin,showReturnFlight,isArrivedSection,showFlightPrint,showWelcomeBack,showQuickH19,showCarwashBadge){
     if(!list.length) return '<div class="eday">No cars in this group</div>';
     return list.map(function(r){
       var isApprox=isApproxRecord(r);
@@ -2584,7 +2596,7 @@ function renderDay() {
       return '<div class="dcard '+cls+(isApprox?' approx-card':'')+(r.status==='DELIVERED'&&showDeliver?' delivered-today-card':'')+'" onclick="showDet('+r.id+')">'+
         '<div class="dc-top">'+
           '<div class="dc-body">'+
-            '<div class="dc-n">'+(r.status==='DELIVERED'&&showDeliver?'<span style="text-decoration:line-through;opacity:0.6">'+(isAscend(r)?'[A] ':'')+escapeHTML(r.name)+'</span>':(isAscend(r)?'[A] ':'')+escapeHTML(r.name))+(isApprox?' <span style="font-size:9px;background:rgba(201,168,76,0.2);color:var(--gold);border-radius:4px;padding:2px 5px;margin-left:4px">~APPROX</span>':'')+(isAscend(r)?'<span style="font-size:9px;background:rgba(99,179,237,0.18);color:#63b3ed;border-radius:4px;padding:2px 5px;margin-left:4px;font-family:\'JetBrains Mono\',monospace">✈ ASCEND</span>':'')+(r.isOfflinePending?'<span style="font-size:9px;background:rgba(232,160,48,.22);color:#e8a030;border-radius:4px;padding:2px 5px;margin-left:4px;font-weight:800;font-family:\'JetBrains Mono\',monospace" title="Saved locally, not yet on the server">🟠 PENDING SYNC</span>':'')+(r.status==='DELIVERED'?tipStatusCompact(r):'')+'</div>'+
+            '<div class="dc-n">'+(r.status==='DELIVERED'&&showDeliver?'<span style="text-decoration:line-through;opacity:0.6">'+(isAscend(r)?'[A] ':'')+escapeHTML(r.name)+'</span>':(isAscend(r)?'[A] ':'')+escapeHTML(r.name))+(isApprox?' <span style="font-size:9px;background:rgba(201,168,76,0.2);color:var(--gold);border-radius:4px;padding:2px 5px;margin-left:4px">~APPROX</span>':'')+(isAscend(r)?'<span style="font-size:9px;background:rgba(99,179,237,0.18);color:#63b3ed;border-radius:4px;padding:2px 5px;margin-left:4px;font-family:\'JetBrains Mono\',monospace">✈ ASCEND</span>':'')+(r.isOfflinePending?'<span style="font-size:9px;background:rgba(232,160,48,.22);color:#e8a030;border-radius:4px;padding:2px 5px;margin-left:4px;font-weight:800;font-family:\'JetBrains Mono\',monospace" title="Saved locally, not yet on the server">🟠 PENDING SYNC</span>':'')+(r.status==='DELIVERED'?tipStatusCompact(r):'')+(showCarwashBadge?carwashBadgeHtml(r):'')+'</div>'+
             '<div class="dc-c">'+escapeHTML(r.car)+' · '+escapeHTML(fmtP(r.phone))+'</div>'+
             flightHtml+
           '</div>'+
@@ -2596,7 +2608,7 @@ function renderDay() {
     }).join('');
   }
   document.getElementById('dArrived').innerHTML=mkCards(arrived,'ca','',false,false,true,false,true,false,false);
-  document.getElementById('dToday').innerHTML=mkCards(lt,'ct','',true,true,false,true,false,true,true,true);
+  document.getElementById('dToday').innerHTML=mkCards(lt,'ct','',true,true,false,true,false,true,true,true,true);
   document.getElementById('dTomorrow').innerHTML=(function(){
     // Build tail+time group counts
     var tailTimeCounts={};
@@ -3026,6 +3038,17 @@ function onStatusChange(val) {
   }
 }
 function isAscend(r){return !!(r&&String(r.ticket||'').match(/^A-/));}
+// Carwash status badge — Dashboard's Leaving Today cards only (the
+// showCarwashBadge param mkCards() callers pass). Deliberately
+// independent of isAscend/delivery_at_customs/status/loc — same
+// name-badge slot/style as the existing ~APPROX/ASCEND/PENDING SYNC
+// tags, just a new value, never gated by or gating those.
+function carwashBadgeHtml(r){
+  if(r.carwash_status==='CARWASH') return '<span style="font-size:9px;background:rgba(52,152,219,0.18);color:#2E86C1;border-radius:4px;padding:2px 5px;margin-left:4px;font-weight:800;font-family:\'JetBrains Mono\',monospace">&#128704; CARWASH</span>';
+  if(r.carwash_status==='SEND_PRICE') return '<span style="font-size:9px;background:rgba(140,82,255,0.18);color:#7C4DFF;border-radius:4px;padding:2px 5px;margin-left:4px;font-weight:800;font-family:\'JetBrains Mono\',monospace">&#128172; SEND PRICE</span>';
+  if(r.carwash_status==='WASHED') return '<span style="font-size:9px;background:rgba(107,114,128,0.15);color:var(--mu);border-radius:4px;padding:2px 5px;margin-left:4px;font-weight:600;font-family:\'JetBrains Mono\',monospace">&#10003; WASHED</span>';
+  return '';
+}
 function getNextAscendTicket(){
   var today=getToday();
   var mm=String(today.getMonth()+1).padStart(2,'0');
@@ -3046,6 +3069,21 @@ function selLoc(el,loc){
   document.querySelectorAll('.lb').forEach(function(b){b.classList.remove('on');});
   el.classList.add('on');
   document.getElementById('fLoc').value=loc;
+}
+
+// Carwash status — CARWASH/SEND_PRICE/WASHED, mutually exclusive, and
+// clicking the already-active one clears it back to none (unlike
+// selLoc(), which always has exactly one location selected).
+function selCarwash(el,val){
+  var f=document.getElementById('fCarwash');
+  var wasActive=el.classList.contains('on');
+  document.querySelectorAll('.carwash-btn').forEach(function(b){b.classList.remove('on');});
+  if(wasActive){
+    f.value='';
+  } else {
+    el.classList.add('on');
+    f.value=val;
+  }
 }
 
 // ── AUTOCOMPLETE ───────────────────────────────────────────────
@@ -3315,6 +3353,8 @@ function openAdd(){
   var fi=document.getElementById('freqInfo'); if(fi) fi.classList.remove('on');
   var fnr=document.getElementById('fNotReturning'); if(fnr) fnr.checked=false;
   var fdac=document.getElementById('fDeliveryAtCustoms'); if(fdac) fdac.checked=false;
+  var fcw=document.getElementById('fCarwash'); if(fcw) fcw.value='';
+  document.querySelectorAll('.carwash-btn').forEach(function(b){b.classList.remove('on');});
   refreshHangarCountBadges();
   acClose();
   document.getElementById('addOv').classList.add('on');
@@ -3335,6 +3375,7 @@ function isAddFormDirty(){
   var fObs=document.getElementById('fObs');
   var fNotReturning=document.getElementById('fNotReturning');
   var fDeliveryAtCustoms=document.getElementById('fDeliveryAtCustoms');
+  var fCarwash=document.getElementById('fCarwash');
   if(fName&&fName.value.trim()) return true;
   if(fPhone&&fPhone.value.trim()) return true;
   if(fTicket&&fTicket.value.trim()&&fTicket.value.trim()!==_autoTicket) return true;
@@ -3347,6 +3388,7 @@ function isAddFormDirty(){
   if(fObs&&fObs.value.trim()) return true;
   if(fNotReturning&&fNotReturning.checked) return true;
   if(fDeliveryAtCustoms&&fDeliveryAtCustoms.checked) return true;
+  if(fCarwash&&fCarwash.value) return true;
   return false;
 }
 function tryCloseAdd(){
@@ -4545,6 +4587,7 @@ async function saveEntry(sendSms, printMode){
   var locVal=document.getElementById('fLoc').value;
   var notReturning=!!(document.getElementById('fNotReturning')||{}).checked;
   var deliveryAtCustoms=!!(document.getElementById('fDeliveryAtCustoms')||{}).checked;
+  var carwashStatus=document.getElementById('fCarwash').value||null;
   var nameUpper=name.toUpperCase();
 
   var payload = {
@@ -4562,6 +4605,7 @@ async function saveEntry(sendSms, printMode){
     obs: finalObs,
     not_returning_with_makers_air: notReturning,
     delivery_at_customs: deliveryAtCustoms,
+    carwash_status: carwashStatus,
     deldate: ''
   };
 
@@ -4756,6 +4800,12 @@ function showDet(id){
         ' onchange="markDirty(\'delivery_at_customs\',this.checked)">'+
         '<span style="font-size:12px;color:var(--mu)">Vehicle should be delivered to Customs upon return</span>'+
         '</label></div></div>'+
+      '<div class="di" style="grid-column:1/-1"><div class="di-l">Carwash</div>'+
+        '<div class="di-v"><div class="lbs" id="editCarwashGroup" data-current="'+(r.carwash_status||'')+'">'+
+          '<div class="carwash-btn'+(r.carwash_status==='CARWASH'?' on':'')+'" onclick="editSelCarwash(this,\'CARWASH\')">&#128704; Carwash</div>'+
+          '<div class="carwash-btn'+(r.carwash_status==='SEND_PRICE'?' on':'')+'" onclick="editSelCarwash(this,\'SEND_PRICE\')">&#128172; Send Price</div>'+
+          '<div class="carwash-btn'+(r.carwash_status==='WASHED'?' on':'')+'" onclick="editSelCarwash(this,\'WASHED\')">&#10003; Washed</div>'+
+        '</div></div></div>'+
       (r.status==='DELIVERED'?
         '<div class="di" style="grid-column:1/-1"><div class="di-l">Delivery Method</div><div class="di-v">'+deliveryMethodHtml(r.delivery_type)+'</div></div>'+
         (r.previous_delivery_location?'<div class="di" style="grid-column:1/-1"><div class="di-l">Delivered From</div><div class="di-v" style="font-family:\'JetBrains Mono\',monospace;font-size:13px;color:var(--mu)">'+escapeHTML(r.previous_delivery_location)+'</div></div>':'')+
@@ -5272,6 +5322,19 @@ function markDirty(field,val){
   var btn=document.getElementById('saveEditsBtn');
   if(btn) btn.classList.add('visible');
 }
+// Carwash status in the Edit panel — same clear-on-reclick behavior as
+// selCarwash() (New Entry), tracked via the group's own data-current
+// attribute since Edit's three buttons are freshly built HTML, not a
+// persistent DOM the way New Entry's form is.
+function editSelCarwash(el,val){
+  var group=document.getElementById('editCarwashGroup');
+  var current=group.getAttribute('data-current');
+  var next=(current===val)?'':val;
+  group.setAttribute('data-current',next);
+  group.querySelectorAll('.carwash-btn').forEach(function(b){b.classList.remove('on');});
+  if(next) el.classList.add('on');
+  markDirty('carwash_status', next||null);
+}
 async function saveEdits(rid){
   if(Object.keys(_editChanges).length===0) return;
   var r=null;for(var i=0;i<data.length;i++){if(data[i].id===rid){r=data[i];break;}}
@@ -5568,7 +5631,7 @@ var LOG_FIELD_LABELS={
   loc:'Location', ret:'Return date', status:'Status', obs:'Notes', ts:'Arrival date',
   not_returning_with_makers_air:'Not Returning', departure_time:'Departure Time',
   return_flight:'Return Flight', delivery_type:'Delivery Type',
-  delivery_at_customs:'Delivery at Customs'
+  delivery_at_customs:'Delivery at Customs', carwash_status:'Carwash Status'
 };
 // Uppercase field badge used by the new Passenger Change History cards —
 // derived from the same label map that drives the existing sentence-style
@@ -10019,6 +10082,30 @@ function buildTvViewModel(){
       && !(typeof isAscend==='function' && isAscend(r));
   });
 
+  // Carwash status — independent of delivery_at_customs/Ascend/status/
+  // loc (see DECISIONS.md); never gated by or gating any of those, and
+  // never counted into the Ascend/Customs panel above. Only two of the
+  // three states produce a TV alert: CARWASH is a standing reminder tied
+  // to r.ret (shows regardless of how far out the return date is, same
+  // as ascendActive's own "not scoped to today/tomorrow" reasoning);
+  // SEND_PRICE is a same-day task tied to r.checkin_date instead — the
+  // date the vehicle was checked in, i.e. the passenger's own departure/
+  // travel-out day (they drop the car off on their way to the flight).
+  // Deliberately NOT r.ret (that's the RETURN date — a different day).
+  // Reuses tvIsCheckedInToday()/tvParseCheckinDate() as-is (same fallback
+  // chain — checkin_date||ts — TV's own "Checked In Today" panel already
+  // uses), rather than the plain isToday()/pd() pair, which parse r.ret's
+  // M/D/YYYY string format and would mis-parse checkin_date's ISO
+  // timestamp. WASHED is complete by definition, so it deliberately has
+  // no corresponding list here at all — that's what keeps it out of the
+  // alerts panel, not an extra exclusion check.
+  var carwashPending = active.filter(function(r){
+    return r.status!=='DELIVERED' && r.carwash_status==='CARWASH';
+  });
+  var sendPricePending = active.filter(function(r){
+    return r.status!=='DELIVERED' && r.carwash_status==='SEND_PRICE' && tvIsCheckedInToday(r.checkin_date);
+  });
+
   // Return Date Follow-Up — active (not DELIVERED, not ARCHIVED) vehicles
   // whose return date is genuinely uncertain: status==='NO DATE' (covers
   // both the pure no-date case and the estimated-date case, since
@@ -10067,6 +10154,8 @@ function buildTvViewModel(){
     ascendActive: ascendActive,
     atCustoms: atCustoms,
     deliveryAtCustomsPending: deliveryAtCustomsPending,
+    carwashPending: carwashPending,
+    sendPricePending: sendPricePending,
     followUp: followUp,
     missingTimeTomorrow: missingTimeTomorrow,
     missingLocationActive: missingLocationActive,
@@ -10775,7 +10864,31 @@ function tvBuildOpsPages(vm){
   var alerts = []
     .concat(vm.missingTimeTomorrow.map(function(r){ return {r:r, txt:'Leaving tomorrow — TIME NOT SET', lvl:'critical'}; }))
     .concat(vm.leavingTodayOverdue.map(function(r){ return {r:r, txt:'Overdue — was expected '+fmtD(r.ret), lvl:'critical'}; }))
-    .concat(vm.missingLocationActive.map(function(r){ return {r:r, txt:'Missing location', lvl:'warning'}; }));
+    .concat(vm.missingLocationActive.map(function(r){ return {r:r, txt:'Missing location', lvl:'warning'}; }))
+    // Carwash — tied to r.ret (tvReturnDateLabel already renders NO
+    // RETURN DATE / TODAY / TOMORROW / "AUG 27" consistently with every
+    // other TV date badge); a standing reminder regardless of how far
+    // out the date is, same scope as ascendActive above.
+    .concat(vm.carwashPending.map(function(r){
+      var dl = tvReturnDateLabel(r);
+      var when = dl.text==='NO RETURN DATE' ? 'no return date' : 'returns '+dl.text;
+      // Raw emoji, not an &#...; entity — alertsColHtml() runs a.txt
+      // through escapeHTML(), which would turn an entity's "&" into
+      // "&amp;" and print it as literal text instead of rendering it.
+      return {r:r, txt:'🚿 Carwash — '+when, lvl:'warning'};
+    }))
+    // Send Price — tied to r.checkin_date (the passenger's departure/
+    // travel-out day), not r.ret. vm.sendPricePending already requires
+    // tvIsCheckedInToday(r.checkin_date), so this always reads "Departing
+    // Today" today — the explicit date branch is a defensive fallback
+    // only, in case this list's scope ever changes to include non-today
+    // rows, so it never prints a false "Today".
+    .concat(vm.sendPricePending.map(function(r){
+      var depDate = tvParseCheckinDate(r.checkin_date);
+      var when = tvIsCheckedInToday(r.checkin_date) ? 'departing today'
+        : (depDate ? 'departing '+depDate.toLocaleDateString('en-US',{month:'short',day:'numeric'}) : 'departing — date unknown');
+      return {r:r, txt:'💬 Carwash — Send Price — '+when, lvl:'warning'};
+    }));
   var seen={};
   alerts = alerts.filter(function(a){ if(seen[a.r.id]) return false; seen[a.r.id]=true; return true; });
 
@@ -10824,18 +10937,14 @@ function tvBuildOpsPages(vm){
       // Never Ascend (deliveryAtCustomsPending already excludes isAscend()
       // in buildTvViewModel) and never duplicated with "At Customs" above
       // (that list requires status==='DELIVERED'; this one requires the
-      // opposite) — reuses the existing tv-badge-atcustoms style, distinct
-      // wording so it's never confused with an already-completed delivery.
-      // r.loc renders via tvRow's normal meta line, untouched/unfaked.
-      // Badge text is "TO CUSTOMS" (not "DELIVERY TO CUSTOMS") — verified
-      // at TV_OPS_COL_MIN.customs (340px, the real worst-case column
-      // width) with a long name, the longer wording clipped to "...
-      // CUSTOM" inside .tv-row-name's nowrap/ellipsis; "TO CUSTOMS" is
-      // the same length as the existing "AT CUSTOMS" badge, which already
-      // fits at that width.
+      // opposite). r.loc renders via tvRow's normal meta line, untouched/
+      // unfaked. Plain inline text (no badge box/border/background) per
+      // explicit request — shorter than the already-width-verified boxed
+      // "TO CUSTOMS" badge it replaced, so it fits at least as well at
+      // TV_OPS_COL_MIN.customs (340px) with a long name.
       html += '<div class="tv-subgroup-hdr">Delivery to Customs <span class="tv-subgroup-count">'+vm.deliveryAtCustomsPending.length+'</span></div>';
       html += destSlice.map(function(x){
-        var badges = '<span class="tv-badge tv-badge-atcustoms">&#128230; TO CUSTOMS</span>';
+        var badges = '<span style="color:var(--tv-accent);font-weight:600;font-size:12px;">&#8594; US CUSTOMS</span>';
         return tvRow(x.r,{nameBadges:badges});
       }).join('');
     }
