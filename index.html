@@ -1834,7 +1834,7 @@ function buildKeyTicketXml(r) {
     // ── Name + Hangar + Return + Ticket ─────────────────────────
     + '<text align="center" height="4" width="2">' + (isAscend(r) ? '[A] ' : '') + (r.name || '') + '&#10;</text>'
     + '<text align="center" height="3" width="2">' + locDisp + '&#10;</text>'
-    + (r.delivery_at_customs ? '<text align="center" em="true">*** DELIVER TO CUSTOMS ***&#10;</text>' : '')
+    + (r.delivery_at_customs ? '<text align="center" em="true" font="font_b">*** DELIVER TO CUSTOMS ***&#10;</text>' : '')
     + '<text align="center" height="2" width="1">' + retDisp + '&#10;</text>'
     + '<text align="center" height="2" width="2">' + r.ticket + '&#10;</text>'
     + '<text align="center">------------------------&#10;</text>'
@@ -6272,6 +6272,9 @@ function buildLeavingTomorrowExportData(){
   // ── Stats ────────────────────────────────────────────────────
   var totalAscend=rows.filter(function(r){return isAscend(r);}).length;
   var totalNoLoc=rows.filter(function(r){return !r.loc||!String(r.loc).trim();}).length;
+  // Delivery at Customs — destination instruction, never Ascend, never
+  // r.loc (current hangar stays a separate, untouched field below).
+  var totalCustomsDest=rows.filter(function(r){return !isAscend(r)&&!!r.delivery_at_customs;}).length;
   var times=rows.map(function(r){return getDepartureTime(r);}).filter(Boolean);
   var earliest=times.length?times[0]:'—';
   var latest=times.length?times[times.length-1]:'—';
@@ -6310,6 +6313,9 @@ function buildLeavingTomorrowExportData(){
     var ticketLocParts=[ticketHtml,locHtml].filter(Boolean);
     var vehicleParts=[r.car?escapeHTML(r.car):'',r.color?escapeHTML(r.color):''].filter(Boolean);
     var obs=r.obs&&String(r.obs).trim();
+    // Destination instruction only — r.loc (current hangar, above) is
+    // untouched; never shown for Ascend.
+    var customsNote=(!isAscend(r)&&r.delivery_at_customs)?'<div class="pdf-customs-note">&#8594; US Customs</div>':'';
     return '<div class="pdf-passenger-card'+(isRush?' rush':'')+'">'+
       '<div class="pdf-passenger-card-header">'+
         '<div class="pdf-passenger-name">'+(isAscend(r)?'[A] ':'')+escapeHTML(r.name)+(isAscend(r)?'<span class="pdf-asc-badge">ASCEND</span>':'')+'</div>'+
@@ -6318,6 +6324,7 @@ function buildLeavingTomorrowExportData(){
       (ticketLocParts.length?'<div class="pdf-ticket-location">'+ticketLocParts.join(' • ')+'</div>':'')+
       (vehicleParts.length?'<div class="pdf-vehicle-info">'+vehicleParts.join(' • ')+'</div>':'')+
       (r.phone?'<div class="pdf-phone">'+escapeHTML(fmtP(r.phone))+'</div>':'')+
+      customsNote+
       (obs?'<div class="pdf-obs">'+escapeHTML(obs)+'</div>':'')+
     '</div>';
   }
@@ -6358,17 +6365,21 @@ function buildLeavingTomorrowExportData(){
   var genTime=new Date().toLocaleString('en-US');
   var markup=
     '<div class="pdf-hdr">'+
-      '<div class="pdf-hdr-sub">MAKERS AIR VALET — By Farber Parking</div>'+
-      '<h1>Leaving Tomorrow Report</h1>'+
-      '<div class="pdf-hdr-sub" style="margin-top:1px">'+escapeHTML(tmrwLabel)+'</div>'+
-      '<div class="pdf-hdr-total">'+rows.length+'</div>'+
-      '<div class="pdf-hdr-total-lbl">Vehicle'+(rows.length===1?'':'s')+' leaving tomorrow</div>'+
+      '<div class="pdf-hdr-logo"><img src="assets/logo-icon.png" alt="AirValet"></div>'+
+      '<div class="pdf-hdr-text">'+
+        '<div class="pdf-hdr-sub">MAKERS AIR VALET — By Farber Parking</div>'+
+        '<h1>Leaving Tomorrow Report</h1>'+
+        '<div class="pdf-hdr-sub" style="margin-top:1px">'+escapeHTML(tmrwLabel)+'</div>'+
+        '<div class="pdf-hdr-total">'+rows.length+'</div>'+
+        '<div class="pdf-hdr-total-lbl">Vehicle'+(rows.length===1?'':'s')+' leaving tomorrow</div>'+
+      '</div>'+
     '</div>'+
     '<div class="pdf-summary">'+
       '<div class="pdf-kpi"><div class="num">'+rows.length+'</div><div class="lbl">Total Vehicles</div></div>'+
       '<div class="pdf-kpi asc"><div class="num">'+totalAscend+'</div><div class="lbl">ASCEND / Private Flight</div></div>'+
       '<div class="pdf-kpi'+(totalNoLoc?' warn':'')+'"><div class="num">'+totalNoLoc+'</div><div class="lbl">Missing Hangar</div></div>'+
       '<div class="pdf-kpi time"><div class="num">'+escapeHTML(etaWindow)+'</div><div class="lbl">Return ETA Window</div></div>'+
+      (totalCustomsDest?'<div class="pdf-kpi cust"><div class="num">'+totalCustomsDest+'</div><div class="lbl">Delivery to Customs</div></div>':'')+
     '</div>'+
     middayAlert+
     cardsHtml+
@@ -6383,7 +6394,10 @@ function ensureLeavingTomorrowExportStyle(){
     '#leavingTomorrowExportHost{position:fixed;top:0;left:-10000px;z-index:-1;pointer-events:none}'+
     '#leavingTomorrowExport{width:'+LT_EXPORT_HOST_WIDTH+'px;box-sizing:border-box;font-family:"Segoe UI",Arial,sans-serif;background:#fff;color:#1a1a2e;font-size:12.5px;padding:10px 8px}'+
     '#leavingTomorrowExport *{box-sizing:border-box}'+
-    '#leavingTomorrowExport .pdf-hdr{background:linear-gradient(135deg,#1a3d7c,#2a5db0);color:#fff;border-radius:10px;padding:12px 14px;margin-bottom:9px}'+
+    '#leavingTomorrowExport .pdf-hdr{background:linear-gradient(135deg,#1a3d7c,#2a5db0);color:#fff;border-radius:10px;padding:12px 14px;margin-bottom:9px;display:flex;align-items:center;gap:10px}'+
+    '#leavingTomorrowExport .pdf-hdr-logo{width:36px;height:36px;flex-shrink:0;border-radius:9px;background:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.18)}'+
+    '#leavingTomorrowExport .pdf-hdr-logo img{width:24px;height:auto;display:block}'+
+    '#leavingTomorrowExport .pdf-hdr-text{flex:1;min-width:0}'+
     '#leavingTomorrowExport .pdf-hdr h1{font-size:15px;font-weight:800;letter-spacing:.4px;margin-bottom:2px}'+
     '#leavingTomorrowExport .pdf-hdr-sub{font-size:10.5px;opacity:.8}'+
     '#leavingTomorrowExport .pdf-hdr-total{font-size:26px;font-weight:800;margin-top:6px;letter-spacing:-1px;line-height:1}'+
@@ -6395,6 +6409,8 @@ function ensureLeavingTomorrowExportStyle(){
     '#leavingTomorrowExport .pdf-kpi.warn .num{color:#c0392b}#leavingTomorrowExport .pdf-kpi.warn{border-color:rgba(192,57,43,.25)}'+
     '#leavingTomorrowExport .pdf-kpi.asc .num{color:#2a7ab5}'+
     '#leavingTomorrowExport .pdf-kpi.time .num{font-size:12px;color:#5a4a00}'+
+    '#leavingTomorrowExport .pdf-kpi.cust .num{color:#2a5db0}'+
+    '#leavingTomorrowExport .pdf-customs-note{font-size:10.5px;font-weight:700;color:#2a5db0;margin-top:2px}'+
     '#leavingTomorrowExport .pdf-alert-midday{background:#fff0f0;border:1.5px solid #e74c3c;border-radius:8px;padding:7px 10px;margin-bottom:8px;font-size:11.5px;font-weight:700;color:#c0392b}'+
     '#leavingTomorrowExport .pdf-section-lbl{font-size:9px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.6px;margin:8px 0 4px;padding-bottom:2px;border-bottom:1px solid #dde4f0}'+
     '#leavingTomorrowExport .pdf-rush-lbl{font-size:10.5px;font-weight:700;color:#c0392b;background:rgba(192,57,43,.07);border:1px solid rgba(192,57,43,.2);border-radius:6px;padding:3px 8px;margin:4px 0 3px;display:inline-block}'+
