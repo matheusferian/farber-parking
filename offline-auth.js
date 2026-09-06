@@ -101,3 +101,30 @@ function getOfflineAuthStatus(){
   var valid = !isNaN(expiresAt) && Date.now() < expiresAt;
   return {present:true, valid:valid, marker:marker};
 }
+
+// ── Dashboard opacity guard ───────────────────────────────────────────
+// renderDashboard() currently dims dSunday.parentElement when there are
+// zero Sunday returns. dSunday shares that parent with Arrived Today,
+// Leaving Today and Leaving Tomorrow, so the whole dashboard section is
+// incorrectly rendered at 50% opacity. Keep that shared section fully
+// opaque until the offending parentElement assignment is removed from
+// index.html itself.
+(function installDashboardOpacityGuard(){
+  function keepDashboardOpaque(){
+    var sharedDashboardSection = document.querySelector('#pane-day > .dsec');
+    if(sharedDashboardSection && sharedDashboardSection.style.opacity !== '1'){
+      sharedDashboardSection.style.opacity = '1';
+    }
+  }
+
+  function start(){
+    keepDashboardOpaque();
+    var pane = document.getElementById('pane-day');
+    if(!pane || typeof MutationObserver === 'undefined') return;
+    var observer = new MutationObserver(function(){ keepDashboardOpaque(); });
+    observer.observe(pane, {subtree:true, attributes:true, attributeFilter:['style'], childList:true});
+  }
+
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, {once:true});
+  else start();
+})();
