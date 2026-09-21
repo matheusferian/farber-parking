@@ -2481,10 +2481,10 @@ function renderTable() {
         (ro&&r.status!=='DELIVERED'?'<span class="tag t-late">LATE</span>':'')+
         (isApproxRecord(r)?'<span class="tag" style="background:rgba(201,168,76,0.15);color:var(--gold)">~APPROX</span>':'')+
         (isAscend(r)?'<span class="tag" style="background:rgba(99,179,237,0.15);color:#63b3ed">✈ ASCEND</span>':'')+
-        (notReturning?'<span class="tag t-notreturning">NOT RETURNING</span>':'')+
+        (notReturning?'<span class="tag t-otherboat">🚤 OTHER BOAT</span>':'')+
         (r.isOfflinePending?'<span class="tag" style="background:rgba(232,160,48,.18);color:#e8a030;font-weight:800" title="Saved locally, not yet on the server">🟠 PENDING SYNC</span>':'');
     var actionBtn=r.status!=='DELIVERED'?'<button class="qd-btn'+(ro?' late':r.status==='NO DATE'?' nodate':'')+'" onclick="quickDeliver('+r.id+')">✓</button>':'<span style="color:var(--mu);font-size:12px">—</span>';
-    h+='<tr class="passenger-row'+(notReturning?' not-returning-row':'')+'" data-id="'+r.id+'" style="'+(sel?'background:rgba(232,160,48,.12)':'')+';cursor:pointer">'+
+    h+='<tr class="passenger-row'+(notReturning?' other-boat-row':'')+'" data-id="'+r.id+'" style="'+(sel?'background:rgba(232,160,48,.12)':'')+';cursor:pointer">'+
       '<td class="cbtd" onclick="event.stopPropagation()"><input type="checkbox" data-id="'+r.id+'" '+(sel?'checked':'')+' onchange="rowChk(this)"></td>'+
       '<td style="font-weight:500">'+(isAscend(r)?'[A] ':'')+escapeHTML(r.name)+nameTags+'</td>'+
       '<td style="font-family:monospace;font-size:12px;color:var(--mu)">'+escapeHTML(fmtP(r.phone))+'</td>'+
@@ -2497,7 +2497,7 @@ function renderTable() {
       '<td style="cursor:pointer"><span class="badge '+bc+'">'+escapeHTML(r.status)+'</span></td>'+
       '<td style="text-align:center;padding:8px" onclick="event.stopPropagation()">'+actionBtn+'</td>'+
     '</tr>';
-    hc+='<div class="dcard tw-card'+(notReturning?' not-returning-card':'')+'" data-id="'+r.id+'">'+
+    hc+='<div class="dcard tw-card'+(notReturning?' other-boat-card':'')+'" data-id="'+r.id+'">'+
       '<div class="dc-top">'+
         '<div class="cbtd tw-card-cb" onclick="event.stopPropagation()"><input type="checkbox" data-id="'+r.id+'" '+(sel?'checked':'')+' onchange="rowChk(this)"></div>'+
         '<div class="dc-body">'+
@@ -4787,11 +4787,11 @@ function showDet(id){
       '<div class="di editable" style="grid-column:1/-1" data-field="color" onclick="makeEditable(this,\'color\')" ><div class="di-l">Color ✎</div><div class="di-v">'+escapeHTML(r.color||'—')+'</div></div>'+
       '<div class="di editable" style="grid-column:1/-1" data-field="loc" data-raw="'+escapeHTML(r.loc||'')+'"><div class="di-l">Location ✎</div><div class="di-v">'+escapeHTML(r.loc||'—')+'</div></div>'+
       '<div class="di editable" style="grid-column:1/-1" data-field="obs"><div class="di-l">Notes ✎</div><div class="di-v" style="font-size:12px">'+escapeHTML(r.obs||'—')+'</div></div>'+
-      '<div class="di" style="grid-column:1/-1"><div class="di-l">Not Returning</div>'+
+      '<div class="di" style="grid-column:1/-1"><div class="di-l">Other Boat</div>'+
         '<div class="di-v"><label style="display:flex;align-items:center;gap:8px;cursor:pointer">'+
         '<input type="checkbox" '+(r.not_returning_with_makers_air?'checked':'')+
         ' onchange="markDirty(\'not_returning_with_makers_air\',this.checked)">'+
-        '<span style="font-size:12px;color:var(--mu)">Passenger informed they are NOT returning with Makers Air</span>'+
+        '<span style="font-size:12px;color:var(--mu)">Passenger is returning with another boat company, not Makers Air</span>'+
         '</label></div></div>'+
       '<div class="di" style="grid-column:1/-1"><div class="di-l">Delivery at Customs</div>'+
         '<div class="di-v"><label style="display:flex;align-items:center;gap:8px;cursor:pointer">'+
@@ -5628,7 +5628,7 @@ function formatLogDate(v){
 var LOG_FIELD_LABELS={
   name:'Name', phone:'Phone', ticket:'Ticket', car:'Vehicle', color:'Color',
   loc:'Location', ret:'Return date', status:'Status', obs:'Notes', ts:'Arrival date',
-  not_returning_with_makers_air:'Not Returning', departure_time:'Departure Time',
+  not_returning_with_makers_air:'Other Boat', departure_time:'Departure Time',
   return_flight:'Return Flight', delivery_type:'Delivery Type',
   delivery_at_customs:'Delivery at Customs', carwash_status:'Carwash Status'
 };
@@ -10203,7 +10203,7 @@ function buildTvViewModel(){
 function tvBadges(r){
   var out='';
   if(typeof isAscend==='function' && isAscend(r)) out+='<span class="tv-badge tv-badge-ascend">&#9992; ASCEND</span>';
-  if(r.not_returning_with_makers_air) out+='<span class="tv-badge tv-badge-notreturning">NOT RETURNING</span>';
+  if(r.not_returning_with_makers_air) out+='<span class="tv-badge tv-badge-otherboat">🚤 OTHER BOAT</span>';
   return out;
 }
 function tvFlightLine(r){
@@ -10272,7 +10272,7 @@ function tvCard(r){
   // Returning) rather than crowding the name line — never hides the
   // passenger name, and coexists with whatever else is already there.
   var allBadges = tvBadges(r) + (tvNeedsH19Move(r) ? tvMoveH19Badge('tomorrow', r) : '');
-  return '<div class="tv-card'+(critical?' tv-critical':'')+(r.not_returning_with_makers_air?' tv-not-returning':'')+'">'+
+  return '<div class="tv-card'+(critical?' tv-critical':'')+(r.not_returning_with_makers_air?' tv-other-boat':'')+'">'+
     '<div class="tv-card-row"><div class="tv-card-name">'+escapeHTML(tvShortName(r.name))+'</div>'+timeHtml+'</div>'+
     '<div class="tv-card-meta">'+metaParts.join(' &middot; ')+'</div>'+
     tvFlightLine(r)+
@@ -10322,7 +10322,7 @@ function tvRow(r, opts){
   // opts.statusBadges — Checked-In-Today and every other tvRow() caller
   // that doesn't pass it is unaffected.
   var statusBadgesHtml = opts.statusBadges ? '<div class="tv-row-status-badges">'+opts.statusBadges+'</div>' : '';
-  return '<div class="tv-row'+(critical?' tv-critical':'')+(opts.completed?' tv-row-completed':'')+(opts.notReturning?' tv-not-returning':'')+'">'+
+  return '<div class="tv-row'+(critical?' tv-critical':'')+(opts.completed?' tv-row-completed':'')+(opts.notReturning?' tv-other-boat':'')+'">'+
     timeHtml+
     '<div class="tv-row-main">'+
       '<div class="tv-row-name">'+escapeHTML(tvShortName(r.name))+(opts.nameBadges?' '+opts.nameBadges:'')+'</div>'+
@@ -10615,7 +10615,7 @@ function tvTodayRowHtml(r, kind){
     // name's available width.
     var notReturning = !!r.not_returning_with_makers_air;
     var badgeParts = [];
-    if(notReturning) badgeParts.push('<span class="tv-badge tv-badge-notreturning">NOT RETURNING</span>');
+    if(notReturning) badgeParts.push('<span class="tv-badge tv-badge-otherboat">🚤 OTHER BOAT</span>');
     if(tvNeedsH19Move(r)) badgeParts.push(tvMoveH19Badge('today', r));
     var wcbBadge = tvWelcomeBackBadge(r);
     if(wcbBadge) badgeParts.push(wcbBadge);
@@ -10640,7 +10640,7 @@ function tvTodayRowHtml(r, kind){
   var t2 = (d && !isNaN(d.getTime())) ? d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}) : '—';
   var notReturningChecked = !!r.not_returning_with_makers_air;
   var badges = r.status==='DELIVERED' ? '<span class="tv-badge tv-badge-delivered">&#10003; DELIVERED</span>' : '';
-  if(notReturningChecked) badges += (badges?' ':'')+'<span class="tv-badge tv-badge-notreturning">NOT RETURNING</span>';
+  if(notReturningChecked) badges += (badges?' ':'')+'<span class="tv-badge tv-badge-otherboat">🚤 OTHER BOAT</span>';
   return tvRow(r,{time:t2, nameBadges:badges, notReturning:notReturningChecked});
 }
 
