@@ -2445,6 +2445,16 @@ function resetAllPassengersDefaults(){
   renderTable();
 }
 
+// ── OTHER BOAT ICON — single source of truth for the
+// not_returning_with_makers_air indicator's markup/tooltip, reused by
+// the main Dashboard list, every Dashboard section card (mkCards), and
+// every TV Mode row/card. Icon-only, no visible text — meaning is
+// carried by title/aria-label. Dashboard and TV Mode need different
+// wrapper classes (.tag vs .tv-badge), hence two constants.
+var OTHER_BOAT_TITLE = 'Returning with another boat company';
+var OTHER_BOAT_DASH_ICON_HTML = '<span class="tag t-otherboat" role="img" title="'+OTHER_BOAT_TITLE+'" aria-label="'+OTHER_BOAT_TITLE+'"><i class="fa-solid fa-ship" aria-hidden="true"></i></span>';
+var OTHER_BOAT_TV_BADGE_HTML = '<span class="tv-badge tv-badge-otherboat" role="img" title="'+OTHER_BOAT_TITLE+'" aria-label="'+OTHER_BOAT_TITLE+'"><i class="fa-solid fa-ship" aria-hidden="true"></i></span>';
+
 // ── RENDER TABLE ───────────────────────────────────────────────
 function renderTable() {
   var rows=getFiltered();
@@ -2481,7 +2491,7 @@ function renderTable() {
         (ro&&r.status!=='DELIVERED'?'<span class="tag t-late">LATE</span>':'')+
         (isApproxRecord(r)?'<span class="tag" style="background:rgba(201,168,76,0.15);color:var(--gold)">~APPROX</span>':'')+
         (isAscend(r)?'<span class="tag" style="background:rgba(99,179,237,0.15);color:#63b3ed">✈ ASCEND</span>':'')+
-        (notReturning?'<span class="tag t-otherboat">🚤 OTHER BOAT</span>':'')+
+        (notReturning?OTHER_BOAT_DASH_ICON_HTML:'')+
         (r.isOfflinePending?'<span class="tag" style="background:rgba(232,160,48,.18);color:#e8a030;font-weight:800" title="Saved locally, not yet on the server">🟠 PENDING SYNC</span>':'');
     var actionBtn=r.status!=='DELIVERED'?'<button class="qd-btn'+(ro?' late':r.status==='NO DATE'?' nodate':'')+'" onclick="quickDeliver('+r.id+')">✓</button>':'<span style="color:var(--mu);font-size:12px">—</span>';
     h+='<tr class="passenger-row'+(notReturning?' other-boat-row':'')+'" data-id="'+r.id+'" style="'+(sel?'background:rgba(232,160,48,.12)':'')+';cursor:pointer">'+
@@ -2595,7 +2605,7 @@ function renderDay() {
       return '<div class="dcard '+cls+(isApprox?' approx-card':'')+(r.status==='DELIVERED'&&showDeliver?' delivered-today-card':'')+'" onclick="showDet('+r.id+')">'+
         '<div class="dc-top">'+
           '<div class="dc-body">'+
-            '<div class="dc-n">'+(r.status==='DELIVERED'&&showDeliver?'<span style="text-decoration:line-through;opacity:0.6">'+(isAscend(r)?'[A] ':'')+escapeHTML(r.name)+'</span>':(isAscend(r)?'[A] ':'')+escapeHTML(r.name))+(isApprox?' <span style="font-size:9px;background:rgba(201,168,76,0.2);color:var(--gold);border-radius:4px;padding:2px 5px;margin-left:4px">~APPROX</span>':'')+(isAscend(r)?'<span style="font-size:9px;background:rgba(99,179,237,0.18);color:#63b3ed;border-radius:4px;padding:2px 5px;margin-left:4px;font-family:\'JetBrains Mono\',monospace">✈ ASCEND</span>':'')+(r.isOfflinePending?'<span style="font-size:9px;background:rgba(232,160,48,.22);color:#e8a030;border-radius:4px;padding:2px 5px;margin-left:4px;font-weight:800;font-family:\'JetBrains Mono\',monospace" title="Saved locally, not yet on the server">🟠 PENDING SYNC</span>':'')+(r.status==='DELIVERED'?tipStatusCompact(r):'')+(showCarwashBadge?carwashBadgeHtml(r):'')+'</div>'+
+            '<div class="dc-n">'+(r.status==='DELIVERED'&&showDeliver?'<span style="text-decoration:line-through;opacity:0.6">'+(isAscend(r)?'[A] ':'')+escapeHTML(r.name)+'</span>':(isAscend(r)?'[A] ':'')+escapeHTML(r.name))+(isApprox?' <span style="font-size:9px;background:rgba(201,168,76,0.2);color:var(--gold);border-radius:4px;padding:2px 5px;margin-left:4px">~APPROX</span>':'')+(isAscend(r)?'<span style="font-size:9px;background:rgba(99,179,237,0.18);color:#63b3ed;border-radius:4px;padding:2px 5px;margin-left:4px;font-family:\'JetBrains Mono\',monospace">✈ ASCEND</span>':'')+(r.not_returning_with_makers_air?' '+OTHER_BOAT_DASH_ICON_HTML:'')+(r.isOfflinePending?'<span style="font-size:9px;background:rgba(232,160,48,.22);color:#e8a030;border-radius:4px;padding:2px 5px;margin-left:4px;font-weight:800;font-family:\'JetBrains Mono\',monospace" title="Saved locally, not yet on the server">🟠 PENDING SYNC</span>':'')+(r.status==='DELIVERED'?tipStatusCompact(r):'')+(showCarwashBadge?carwashBadgeHtml(r):'')+'</div>'+
             '<div class="dc-c">'+escapeHTML(r.car)+' · '+escapeHTML(fmtP(r.phone))+'</div>'+
             flightHtml+
           '</div>'+
@@ -10203,7 +10213,7 @@ function buildTvViewModel(){
 function tvBadges(r){
   var out='';
   if(typeof isAscend==='function' && isAscend(r)) out+='<span class="tv-badge tv-badge-ascend">&#9992; ASCEND</span>';
-  if(r.not_returning_with_makers_air) out+='<span class="tv-badge tv-badge-otherboat">🚤 OTHER BOAT</span>';
+  if(r.not_returning_with_makers_air) out+=OTHER_BOAT_TV_BADGE_HTML;
   return out;
 }
 function tvFlightLine(r){
@@ -10615,7 +10625,7 @@ function tvTodayRowHtml(r, kind){
     // name's available width.
     var notReturning = !!r.not_returning_with_makers_air;
     var badgeParts = [];
-    if(notReturning) badgeParts.push('<span class="tv-badge tv-badge-otherboat">🚤 OTHER BOAT</span>');
+    if(notReturning) badgeParts.push(OTHER_BOAT_TV_BADGE_HTML);
     if(tvNeedsH19Move(r)) badgeParts.push(tvMoveH19Badge('today', r));
     var wcbBadge = tvWelcomeBackBadge(r);
     if(wcbBadge) badgeParts.push(wcbBadge);
@@ -10640,7 +10650,7 @@ function tvTodayRowHtml(r, kind){
   var t2 = (d && !isNaN(d.getTime())) ? d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}) : '—';
   var notReturningChecked = !!r.not_returning_with_makers_air;
   var badges = r.status==='DELIVERED' ? '<span class="tv-badge tv-badge-delivered">&#10003; DELIVERED</span>' : '';
-  if(notReturningChecked) badges += (badges?' ':'')+'<span class="tv-badge tv-badge-otherboat">🚤 OTHER BOAT</span>';
+  if(notReturningChecked) badges += (badges?' ':'')+OTHER_BOAT_TV_BADGE_HTML;
   return tvRow(r,{time:t2, nameBadges:badges, notReturning:notReturningChecked});
 }
 
