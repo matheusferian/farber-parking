@@ -5,8 +5,11 @@
 // v30: commit 42207cd (NOT RETURNING indicator — Dashboard + TV Mode)
 // changed index.html and styles.css content only. Same SHELL_FILES, no
 // new same-origin file introduced.
+// v31: commit 71525bb (fix stale PWA update detection — updateViaCache:
+// 'none' + periodic reg.update() poll) changed index.html content only.
+// Same SHELL_FILES, no new same-origin file introduced.
 
-var CACHE_VERSION = 'v30';
+var CACHE_VERSION = 'v31';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 var SHELL_FILES = [
