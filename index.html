@@ -2472,6 +2472,7 @@ function renderTable() {
     else if(ro){rc='late';}
     var bc=r.status==='PENDING'?'bp':r.status==='DELIVERED'?'bd':r.status==='ARCHIVED'?'ba':'bn';
     var sel=selected[r.id]?true:false;
+    var notReturning=!!r.not_returning_with_makers_air;
     // Tags/badges shared verbatim between the table row and the phone
     // card — one source of truth per row, computed once.
     var nameTags=(freq?'<span class="t-freq">x'+cnt[r.name.toLowerCase()]+'</span>':'')+
@@ -2480,9 +2481,10 @@ function renderTable() {
         (ro&&r.status!=='DELIVERED'?'<span class="tag t-late">LATE</span>':'')+
         (isApproxRecord(r)?'<span class="tag" style="background:rgba(201,168,76,0.15);color:var(--gold)">~APPROX</span>':'')+
         (isAscend(r)?'<span class="tag" style="background:rgba(99,179,237,0.15);color:#63b3ed">✈ ASCEND</span>':'')+
+        (notReturning?'<span class="tag t-notreturning">NOT RETURNING</span>':'')+
         (r.isOfflinePending?'<span class="tag" style="background:rgba(232,160,48,.18);color:#e8a030;font-weight:800" title="Saved locally, not yet on the server">🟠 PENDING SYNC</span>':'');
     var actionBtn=r.status!=='DELIVERED'?'<button class="qd-btn'+(ro?' late':r.status==='NO DATE'?' nodate':'')+'" onclick="quickDeliver('+r.id+')">✓</button>':'<span style="color:var(--mu);font-size:12px">—</span>';
-    h+='<tr class="passenger-row" data-id="'+r.id+'" style="'+(sel?'background:rgba(232,160,48,.12)':'')+';cursor:pointer">'+
+    h+='<tr class="passenger-row'+(notReturning?' not-returning-row':'')+'" data-id="'+r.id+'" style="'+(sel?'background:rgba(232,160,48,.12)':'')+';cursor:pointer">'+
       '<td class="cbtd" onclick="event.stopPropagation()"><input type="checkbox" data-id="'+r.id+'" '+(sel?'checked':'')+' onchange="rowChk(this)"></td>'+
       '<td style="font-weight:500">'+(isAscend(r)?'[A] ':'')+escapeHTML(r.name)+nameTags+'</td>'+
       '<td style="font-family:monospace;font-size:12px;color:var(--mu)">'+escapeHTML(fmtP(r.phone))+'</td>'+
@@ -2495,7 +2497,7 @@ function renderTable() {
       '<td style="cursor:pointer"><span class="badge '+bc+'">'+escapeHTML(r.status)+'</span></td>'+
       '<td style="text-align:center;padding:8px" onclick="event.stopPropagation()">'+actionBtn+'</td>'+
     '</tr>';
-    hc+='<div class="dcard tw-card" data-id="'+r.id+'">'+
+    hc+='<div class="dcard tw-card'+(notReturning?' not-returning-card':'')+'" data-id="'+r.id+'">'+
       '<div class="dc-top">'+
         '<div class="cbtd tw-card-cb" onclick="event.stopPropagation()"><input type="checkbox" data-id="'+r.id+'" '+(sel?'checked':'')+' onchange="rowChk(this)"></div>'+
         '<div class="dc-body">'+
@@ -10270,7 +10272,7 @@ function tvCard(r){
   // Returning) rather than crowding the name line — never hides the
   // passenger name, and coexists with whatever else is already there.
   var allBadges = tvBadges(r) + (tvNeedsH19Move(r) ? tvMoveH19Badge('tomorrow', r) : '');
-  return '<div class="tv-card'+(critical?' tv-critical':'')+'">'+
+  return '<div class="tv-card'+(critical?' tv-critical':'')+(r.not_returning_with_makers_air?' tv-not-returning':'')+'">'+
     '<div class="tv-card-row"><div class="tv-card-name">'+escapeHTML(tvShortName(r.name))+'</div>'+timeHtml+'</div>'+
     '<div class="tv-card-meta">'+metaParts.join(' &middot; ')+'</div>'+
     tvFlightLine(r)+
@@ -10320,7 +10322,7 @@ function tvRow(r, opts){
   // opts.statusBadges — Checked-In-Today and every other tvRow() caller
   // that doesn't pass it is unaffected.
   var statusBadgesHtml = opts.statusBadges ? '<div class="tv-row-status-badges">'+opts.statusBadges+'</div>' : '';
-  return '<div class="tv-row'+(critical?' tv-critical':'')+(opts.completed?' tv-row-completed':'')+'">'+
+  return '<div class="tv-row'+(critical?' tv-critical':'')+(opts.completed?' tv-row-completed':'')+(opts.notReturning?' tv-not-returning':'')+'">'+
     timeHtml+
     '<div class="tv-row-main">'+
       '<div class="tv-row-name">'+escapeHTML(tvShortName(r.name))+(opts.nameBadges?' '+opts.nameBadges:'')+'</div>'+
@@ -10611,7 +10613,9 @@ function tvTodayRowHtml(r, kind){
     // below the meta/flight lines — never inline with the name, so
     // neither badge (nor both firing at once) can shrink the passenger
     // name's available width.
+    var notReturning = !!r.not_returning_with_makers_air;
     var badgeParts = [];
+    if(notReturning) badgeParts.push('<span class="tv-badge tv-badge-notreturning">NOT RETURNING</span>');
     if(tvNeedsH19Move(r)) badgeParts.push(tvMoveH19Badge('today', r));
     var wcbBadge = tvWelcomeBackBadge(r);
     if(wcbBadge) badgeParts.push(wcbBadge);
@@ -10628,13 +10632,16 @@ function tvTodayRowHtml(r, kind){
       // a separate line below. Explicit opt-in so any future tvRow()
       // caller can pass `flight` for the old separate-line behavior
       // without silently inheriting this layout.
-      combineFlightTime: true
+      combineFlightTime: true,
+      notReturning: notReturning
     });
   }
   var d = r.checkin_date ? new Date(r.checkin_date) : null;
   var t2 = (d && !isNaN(d.getTime())) ? d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}) : '—';
+  var notReturningChecked = !!r.not_returning_with_makers_air;
   var badges = r.status==='DELIVERED' ? '<span class="tv-badge tv-badge-delivered">&#10003; DELIVERED</span>' : '';
-  return tvRow(r,{time:t2, nameBadges:badges});
+  if(notReturningChecked) badges += (badges?' ':'')+'<span class="tv-badge tv-badge-notreturning">NOT RETURNING</span>';
+  return tvRow(r,{time:t2, nameBadges:badges, notReturning:notReturningChecked});
 }
 
 // ── TODAY page group — Leaving Today and Checked In Today are fit

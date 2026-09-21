@@ -230,6 +230,8 @@ thead tr{border-bottom:2px solid var(--b);background:var(--s2);}
 th{font-family:'JetBrains Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--mu);padding:10px 10px;text-align:left;font-weight:400;}
 tbody tr{border-bottom:1px solid var(--b);transition:background .1s;}
 tbody tr:hover{background:rgba(27,59,111,0.04);}
+tbody tr.not-returning-row{background:var(--s2);}
+tbody tr.not-returning-row:hover{background:rgba(27,59,111,0.06);}
 td{padding:12px 10px;font-size:13px;vertical-align:middle;}
 .cbtd{width:36px;padding-left:10px!important;}
 input[type=checkbox]{width:17px;height:17px;accent-color:var(--gold);cursor:pointer;}
@@ -258,6 +260,7 @@ input[type=checkbox]{width:17px;height:17px;accent-color:var(--gold);cursor:poin
 .t-late{background:rgba(204,51,51,.13);color:var(--red);}
 .t-tmrw{background:rgba(91,127,189,.13);color:#2E4F80;}
 .t-freq{background:var(--s2);border:1px solid var(--b);color:#B06000;border-radius:4px;font-size:9px;padding:2px 5px;font-family:'JetBrains Mono',monospace;margin-left:4px;}
+.t-notreturning{background:rgba(192,57,46,.13);color:var(--red);border:1px solid rgba(192,57,46,.3);}
 .rd{font-size:11px;font-weight:500;}
 .rd.today{color:#8A6A00;}.rd.tmrw{color:#2E4F80;}.rd.late{color:var(--red);}.rd.nd{color:var(--pur);font-style:italic;}.rd.fut{color:var(--mu);}
 
@@ -409,6 +412,7 @@ input[type=checkbox]{width:17px;height:17px;accent-color:var(--gold);cursor:poin
 .dcard.cm{border-left:3px solid var(--pur);}
 .dcard.ca{border-left:3px solid var(--ok);}
 .dcard.cr{border-left:3px solid var(--red);}
+.dcard.not-returning-card{background:var(--s2);}
 .dc-top{display:flex;flex-direction:row;align-items:stretch;}
 .dc-body{flex:1;padding:11px 14px;min-width:0;}
 .dc-n{font-weight:700;font-size:14px;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--navy);}
@@ -1289,7 +1293,7 @@ body.tv-stale .tv-stale-banner{display:block;}
 }
 .tv-badge-customs{background:rgba(42,93,176,.1);color:var(--tv-accent);border:1px solid rgba(42,93,176,.3);}
 .tv-badge-lockbox{background:rgba(168,137,58,.14);color:var(--tv-gold);border:1px solid rgba(168,137,58,.35);}
-.tv-badge-notreturning{background:var(--tv-critical-bg);color:var(--tv-critical);border:1px solid rgba(192,57,46,.3);}
+.tv-badge-notreturning{background:var(--tv-critical-bg);color:var(--tv-critical);border:1px solid rgba(192,57,46,.5);font-weight:800;padding:3px 9px;}
 .tv-badge-critical{background:var(--tv-critical-bg);color:var(--tv-critical);border:1px solid rgba(192,57,46,.35);}
 .tv-badge-warning{background:var(--tv-warning-bg);color:var(--tv-warning);border:1px solid rgba(184,121,10,.3);}
 .tv-badge-ok{background:var(--tv-ok-bg);color:var(--tv-ok);border:1px solid rgba(27,143,99,.3);}
@@ -1304,6 +1308,7 @@ body.tv-stale .tv-stale-banner{display:block;}
 .tv-badge-daytag{background:var(--tv-border);color:var(--tv-text);border:1px solid var(--tv-border);font-weight:700;}
 .tv-card-notes{font-size:11.5px;color:var(--tv-mu);margin-top:7px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .tv-card.tv-critical{border-left-color:var(--tv-critical);}
+.tv-card.tv-not-returning{background:var(--tv-panel);}
 
 /* ── COMPACT LIST (Special Handling & Alerts) ──
    overflow:hidden, not auto (2026-08-25) — TV Mode is a passive display
@@ -1338,6 +1343,7 @@ body.tv-stale .tv-stale-banner{display:block;}
   border-left:4px solid transparent;
 }
 .tv-row.tv-critical{border-left-color:var(--tv-critical);}
+.tv-row.tv-not-returning{background:var(--tv-panel);}
 .tv-row-time{
   font-family:'JetBrains Mono',monospace;font-weight:700;font-size:14px;color:var(--tv-accent);
   width:76px;flex-shrink:0;font-variant-numeric:tabular-nums;
