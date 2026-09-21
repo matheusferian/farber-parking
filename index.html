@@ -11252,13 +11252,24 @@ function tvCopyUrl(){
 var _offlineSw = {registration:null, status:'missing', updateAvailable:false, reloading:false};
 var _offlineNet = {deviceOnline:navigator.onLine, supabaseReachable:null, checking:false, lastCheckedAt:0};
 var OFFLINE_SUPABASE_PROBE_MIN_INTERVAL_MS = 15000; // rate-limit — never poll aggressively
+// GitHub Pages serves service-worker.js itself with Cache-Control: max-age=600,
+// which otherwise delays this browser's own update *detection* by up to 10
+// minutes after every deploy (found 2026-09-21 — a device on a still-open tab
+// kept serving a stale shell past a live, verified-correct deploy).
+// updateViaCache:'none' makes every registration/update check bypass that HTTP
+// cache and hit the network directly, and the periodic reg.update() below means
+// a long-lived open tab (e.g. an unattended TV Mode display) discovers a new
+// version on its own instead of only on the next manual reload. Neither change
+// touches the existing "Reload Now" gate below — a detected update still never
+// auto-activates mid-session, only the *detection* of it is now prompt.
+var OFFLINE_SW_UPDATE_POLL_INTERVAL_MS = 20 * 60 * 1000; // 20 min
 
 function offlineRegisterServiceWorker(){
   if(!('serviceWorker' in navigator)){
     _offlineSw.status = 'unsupported';
     return;
   }
-  navigator.serviceWorker.register('./service-worker.js').then(function(reg){
+  navigator.serviceWorker.register('./service-worker.js', {updateViaCache:'none'}).then(function(reg){
     _offlineSw.registration = reg;
     _offlineSw.status = reg.active ? 'active' : 'installing';
     reg.addEventListener('updatefound', function(){
@@ -11278,6 +11289,7 @@ function offlineRegisterServiceWorker(){
         }
       });
     });
+    setInterval(function(){ reg.update().catch(function(){}); }, OFFLINE_SW_UPDATE_POLL_INTERVAL_MS);
   }).catch(function(e){
     _offlineSw.status = 'error';
     _offlineSw.error = e && e.message;
