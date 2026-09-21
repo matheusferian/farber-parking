@@ -19,8 +19,12 @@
 // not_returning_with_makers_air and its business logic unchanged) changed
 // index.html and styles.css content only. Same SHELL_FILES, no new
 // same-origin file introduced.
+// v34: commit 1177c70 (OTHER BOAT text badge -> icon-only fa-ship, plus
+// new coverage in the Dashboard's Arrived/Leaving Today/Tomorrow/Sunday/
+// Forgot section cards) changed index.html and styles.css content only.
+// Same SHELL_FILES, no new same-origin file introduced.
 
-var CACHE_VERSION = 'v33';
+var CACHE_VERSION = 'v34';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 var SHELL_FILES = [
