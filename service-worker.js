@@ -15,8 +15,12 @@
 // Cache-Control max-age=600) instead of the network, so a deploy made
 // within 10 minutes of a prior one could precache stale content despite
 // a correct CACHE_VERSION bump. Same SHELL_FILES, no new same-origin file.
+// v33: commit d642e54 (relabel NOT RETURNING -> OTHER BOAT, visual only —
+// not_returning_with_makers_air and its business logic unchanged) changed
+// index.html and styles.css content only. Same SHELL_FILES, no new
+// same-origin file introduced.
 
-var CACHE_VERSION = 'v32';
+var CACHE_VERSION = 'v33';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 var SHELL_FILES = [
