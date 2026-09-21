@@ -2,7 +2,11 @@
 // v29 (2026-09-06): refresh precached shell after Dashboard opacity hotfix.
 // Scope: same-origin shell files only. Supabase/API requests are never intercepted.
 
-var CACHE_VERSION = 'v29';
+// v30: commit 42207cd (NOT RETURNING indicator — Dashboard + TV Mode)
+// changed index.html and styles.css content only. Same SHELL_FILES, no
+// new same-origin file introduced.
+
+var CACHE_VERSION = 'v30';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 var SHELL_FILES = [
