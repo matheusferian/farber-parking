@@ -37,8 +37,11 @@
 // block (REVIEW gate before generation).
 // v39: fix Closing Report missing from authenticated nav — update
 // TAB_VISIBILITY_BY_ROLE from 'closing' to 'closingreport'.
+// v40: responsive UI polish (header/dashboard/KPI/FAB), TV Mode moved
+// from header to sidebar, centralized avDevice detection helper,
+// Device/Environment diagnostics in Debug pane.
 
-var CACHE_VERSION = 'v39';
+var CACHE_VERSION = 'v40';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 var SHELL_FILES = [

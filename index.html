@@ -54,15 +54,15 @@
     <div class="brand-system">Makers Air Operations</div>
   </div>
   <div class="hdr-r">
-    <div class="hdr-date" id="hdrDate"></div>
-    <!-- Device-network indicator only — Phase 1. Not a claim that
-         Supabase is reachable (see offNetStatus vs offSupabaseStatus
-         in the Debug tab); just the browser-level online/offline signal. -->
-    <div id="netStatusIndicator" style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:.4px;white-space:nowrap;padding:4px 10px;border-radius:20px;">—</div>
-    <div id="syncStatus" style="display:none;font-family:'Inter',sans-serif;font-size:12px;font-weight:500;color:rgba(255,255,255,0.85);white-space:nowrap;">🟢 <span id="syncTime">—</span></div>
-    <button class="ref-btn" onclick="loadData()">&#8635; Refresh</button>
-    <button class="ref-btn" style="background:linear-gradient(135deg,#1a3d7c,#2a5db0);border-color:var(--gold)" onclick="window.open(location.pathname+'?mode=tv','_blank')">📺 Open TV Mode</button>
-    <button class="ref-btn" id="logoutBtn" onclick="doLogout()" style="display:none">Sign Out</button>
+    <div class="hdr-status">
+      <div class="hdr-date" id="hdrDate"></div>
+      <div id="netStatusIndicator" style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:.4px;white-space:nowrap;padding:4px 10px;border-radius:20px;">—</div>
+      <div id="syncStatus" style="display:none;font-family:'Inter',sans-serif;font-size:12px;font-weight:500;color:rgba(255,255,255,0.85);white-space:nowrap;">🟢 <span id="syncTime">—</span></div>
+    </div>
+    <div class="hdr-actions">
+      <button class="ref-btn" onclick="loadData()"><i class="fa-solid fa-arrows-rotate"></i> Refresh</button>
+      <button class="ref-btn" id="logoutBtn" onclick="doLogout()" style="display:none">Sign Out</button>
+    </div>
   </div>
 </header>
 <!-- Offline Mode Phase 1 — service-worker update banner. Never shown
@@ -87,6 +87,7 @@
   <div class="tab on" data-t="day"><i class="fa-solid fa-gauge-high"></i><span>Dashboard</span><span class="tbadge red" id="bday">!</span></div>
   <div class="tab" data-t="tasks"><i class="fa-solid fa-square-check"></i><span>Tasks</span><span class="tbadge red" id="btasks">0</span></div>
   <div class="tab" data-t="messages" onclick="renderMessagesWorkspace()"><i class="fa-solid fa-message"></i><span>Messages</span></div>
+  <div class="tab" data-t="tvmode" onclick="window.open(location.pathname+'?mode=tv','_blank')"><i class="fa-solid fa-tv"></i><span>TV Mode</span></div>
   <div class="tab-group-label">Management</div>
   <div class="tab" data-t="closingreport" onclick="crOpenTab()"><i class="fa-solid fa-file-image"></i><span>Closing Report</span></div>
   <div class="tab" data-t="report" onclick="refreshSyncUI()"><i class="fa-solid fa-chart-line"></i><span>Report</span></div>
@@ -165,9 +166,12 @@
   </div>
 </div>
 <div class="pane on" id="pane-day">
-  <div class="chip" style="display:inline-flex;margin-bottom:12px;" id="stripeTipsKpi">
-    <div class="dot" style="background:#6772e5"></div>
-    <div><div class="num" style="color:#6772e5" id="stripeTipsTodayNum">$0.00</div><div class="lbl">Stripe Tips Today</div></div>
+  <div class="stripe-kpi" id="stripeTipsKpi">
+    <div class="stripe-kpi-icon"><i class="fa-solid fa-bolt"></i></div>
+    <div class="stripe-kpi-body">
+      <div class="stripe-kpi-val" id="stripeTipsTodayNum">$0.00</div>
+      <div class="stripe-kpi-label">Stripe Tips Today</div>
+    </div>
   </div>
   <div class="dsec">
     <div class="dtitle" style="color:var(--ok)" id="titleArrived">&#128663; Arrived Today <span class="tbadge" style="background:var(--ok);color:#000">0</span></div>
@@ -1026,6 +1030,24 @@ https://buy.stripe.com/8x214mccK0uh9TjgIM6Vq00</div>
       <button onclick="tvDiagRefresh()" class="epson-btn epson-btn-navy">🔄 Refresh Diagnostics</button>
     </div>
   </div>
+
+  <div id="deviceDiagCard" class="epson-card" style="margin-top:16px;">
+    <div class="epson-card-title">📱 Device / Environment</div>
+    <div class="epson-card-sub">Real-time device classification. Role determines permissions; device determines layout. Updates on resize/rotate.</div>
+    <div class="epson-stat-grid">
+      <div class="epson-stat"><div class="epson-stat-label">Role</div><div class="epson-stat-value" id="devDiagRole">—</div></div>
+      <div class="epson-stat"><div class="epson-stat-label">Device Type</div><div class="epson-stat-value" id="devDiagType">—</div></div>
+      <div class="epson-stat"><div class="epson-stat-label">Platform</div><div class="epson-stat-value" id="devDiagPlatform">—</div></div>
+      <div class="epson-stat"><div class="epson-stat-label">Mode</div><div class="epson-stat-value" id="devDiagMode">—</div></div>
+      <div class="epson-stat"><div class="epson-stat-label">Viewport</div><div class="epson-stat-value" id="devDiagViewport">—</div></div>
+      <div class="epson-stat"><div class="epson-stat-label">Touch</div><div class="epson-stat-value" id="devDiagTouch">—</div></div>
+      <div class="epson-stat"><div class="epson-stat-label">Pointer</div><div class="epson-stat-value" id="devDiagPointer">—</div></div>
+      <div class="epson-stat"><div class="epson-stat-label">Touch Points</div><div class="epson-stat-value" id="devDiagTP">—</div></div>
+    </div>
+    <div class="epson-btn-row" style="margin-top:12px;">
+      <button onclick="devDiagRefresh()" class="epson-btn epson-btn-navy">🔄 Refresh</button>
+    </div>
+  </div>
 </div>
 
 <!-- USER ACCESS PANE — Phase 5, ADMIN only. Frontend nav visibility
@@ -1574,6 +1596,52 @@ var _supaClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 // (reserved — not configured, see sendPassengerSms()). Default MUST stay
 // 'native' — only change this from the Debug tab for testing, never here.
 var SMS_PROVIDER = 'native';
+
+// ── DEVICE / ENVIRONMENT DETECTION ────────────────────────────
+// Centralized, role-independent device classification.
+// Role determines WHAT is accessible. Device determines HOW it is presented.
+var avDevice = (function(){
+  function detect(){
+    var w = window.innerWidth;
+    var tp = navigator.maxTouchPoints || 0;
+    var touch = tp > 0 || ('ontouchstart' in window);
+    var coarse = window.matchMedia('(pointer: coarse)').matches;
+    var ua = navigator.userAgent || '';
+    var plat = navigator.platform || '';
+
+    // Platform — UA-based checks take priority over the MacIntel+touch iPadOS heuristic
+    var isAndroid = /Android/.test(ua);
+    var isIOS = !isAndroid && (/iPad|iPhone|iPod/.test(ua) || (plat === 'MacIntel' && tp > 1));
+    var isMacOS = plat === 'MacIntel' && !isIOS && !isAndroid && tp <= 1;
+    var isWindows = /Win/.test(plat);
+    var platform = isIOS ? 'IOS' : isAndroid ? 'ANDROID' : isMacOS ? 'MACOS' : isWindows ? 'WINDOWS' : 'OTHER';
+
+    // Type: iPadOS desktop mode reports MacIntel + touchpoints.
+    // iPhone UA contains 'iPhone'; iPadOS desktop UA does NOT contain 'iPad' or 'iPhone'.
+    var type;
+    if(isIOS && /iPhone|iPod/.test(ua)) type = 'PHONE';
+    else if(isIOS) type = 'TABLET';
+    else if(isAndroid && w < 700 && coarse) type = 'PHONE';
+    else if(isAndroid && coarse) type = 'TABLET';
+    else if(touch && coarse && w < 700) type = 'PHONE';
+    else if(touch && coarse && w >= 700 && w < 1280) type = 'TABLET';
+    else type = 'DESKTOP';
+
+    // Mode
+    var standalone = window.navigator.standalone === true ||
+      window.matchMedia('(display-mode: standalone)').matches;
+    var mode = standalone ? 'PWA' : 'BROWSER';
+
+    return {type:type, platform:platform, mode:mode, width:w, touch:touch, coarse:coarse, touchPoints:tp};
+  }
+  var current = detect();
+  window.addEventListener('resize', function(){
+    var prev = current.type;
+    current = detect();
+    if(current.type !== prev) document.dispatchEvent(new CustomEvent('av-device-change', {detail:current}));
+  });
+  return {get:function(){ return detect(); }, initial:current};
+})();
 
 function sbHeaders() {
   return {
@@ -6341,10 +6409,10 @@ async function fetchCurrentUserProfile(){
 // bootstrapAfterAuth() already routes it straight into TV Mode before
 // this function is ever called for that role.
 var TAB_VISIBILITY_BY_ROLE = {
-  ADMIN:      ['all','day','tasks','messages','closingreport','report','logs','debug','useraccess'],
-  IPAD_OPS:   ['all','day','tasks','messages','closingreport','report','logs','debug'],
-  IPHONE_OPS: ['all','day','tasks','messages'],
-  MANAGER:    ['all','day','tasks','messages','closingreport','report','logs'],
+  ADMIN:      ['all','day','tasks','messages','tvmode','closingreport','report','logs','debug','useraccess'],
+  IPAD_OPS:   ['all','day','tasks','messages','tvmode','closingreport','report','logs','debug'],
+  IPHONE_OPS: ['all','day','tasks','messages','tvmode'],
+  MANAGER:    ['all','day','tasks','messages','tvmode','closingreport','report','logs'],
   TV_ONLY:    []
 };
 function applyRoleNavVisibility(role){
@@ -12611,6 +12679,20 @@ function tvDiagRefresh(){
     });
   }
 }
+
+function devDiagRefresh(){
+  var d = avDevice.get();
+  var set = function(id, val){ var el = document.getElementById(id); if(el) el.textContent = val; };
+  set('devDiagRole', _currentUserRole || '—');
+  set('devDiagType', d.type);
+  set('devDiagPlatform', d.platform);
+  set('devDiagMode', d.mode);
+  set('devDiagViewport', window.innerWidth + ' × ' + window.innerHeight);
+  set('devDiagTouch', d.touch ? 'Yes' : 'No');
+  set('devDiagPointer', d.coarse ? 'Coarse (touch)' : 'Fine (mouse)');
+  set('devDiagTP', d.touchPoints);
+}
+document.addEventListener('av-device-change', devDiagRefresh);
 
 // ── Boot ──────────────────────────────────────────────────────────────
 offlineRegisterServiceWorker();

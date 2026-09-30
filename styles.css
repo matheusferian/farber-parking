@@ -59,6 +59,8 @@ header img{display:none!important;}
   overflow:hidden;text-overflow:ellipsis;min-width:0;
 }
 .hdr-r{display:flex;align-items:center;gap:10px;flex-shrink:0;}
+.hdr-status{display:flex;align-items:center;gap:10px;}
+.hdr-actions{display:flex;align-items:center;gap:8px;}
 .hdr-date{
   font-family:'Inter',sans-serif;font-size:13px;font-weight:700;
   color:rgba(255,255,255,.9);white-space:nowrap;margin-right:4px;
@@ -69,6 +71,7 @@ header img{display:none!important;}
   font-weight:800;cursor:pointer;transition:all .18s ease;white-space:nowrap;
 }
 .ref-btn:hover{background:rgba(255,255,255,.18);transform:translateY(-1px);}
+.ref-btn-tv{background:linear-gradient(135deg,rgba(50,197,230,.15),rgba(27,102,253,.15));border-color:rgba(50,197,230,.5);}
 
 /* ── TABS / SIDEBAR NAVIGATION ──────────────────────────────────────
    Responsive-fix pass: the fixed sidebar (previously >=1101px) was
@@ -184,6 +187,29 @@ header img{display:none!important;}
 .chip .num{font-family:'Sora',sans-serif;font-size:20px;font-weight:700;}
 .chip .lbl{font-size:10px;color:var(--mu);text-transform:uppercase;letter-spacing:0.5px;}
 
+/* ── STRIPE TIPS KPI ── */
+.stripe-kpi{
+  display:flex;align-items:center;gap:14px;
+  background:linear-gradient(135deg,rgba(103,114,229,.06),rgba(103,114,229,.02));
+  border:1px solid rgba(103,114,229,.18);
+  border-radius:14px;padding:16px 20px;
+  margin:16px 16px 0;
+}
+.stripe-kpi-icon{
+  width:40px;height:40px;border-radius:10px;
+  background:linear-gradient(135deg,#6772e5,#7c4dff);
+  display:flex;align-items:center;justify-content:center;
+  color:#fff;font-size:16px;flex-shrink:0;
+}
+.stripe-kpi-val{
+  font-family:'Sora',sans-serif;font-size:26px;font-weight:800;
+  color:#6772e5;line-height:1.1;
+}
+.stripe-kpi-label{
+  font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:600;
+  color:var(--mu);text-transform:uppercase;letter-spacing:.6px;margin-top:2px;
+}
+
 /* ── SEARCH ── */
 .sw{padding:14px 20px 0;}
 .sb{
@@ -270,6 +296,7 @@ input[type=checkbox]{width:17px;height:17px;accent-color:var(--gold);cursor:poin
 /* ── FAB ── */
 .fab{
   position:fixed;bottom:24px;right:20px;
+  bottom:calc(24px + env(safe-area-inset-bottom,0px));
   background:var(--navy);color:#fff;
   border:1.5px solid var(--gold);border-radius:14px;
   padding:14px 22px;font-family:'Sora',sans-serif;font-size:14px;font-weight:700;
@@ -398,10 +425,11 @@ input[type=checkbox]{width:17px;height:17px;accent-color:var(--gold);cursor:poin
 .clsb:hover{border-color:var(--navy);color:var(--navy);}
 
 /* ── DASHBOARD CARDS ── */
-.dsec{padding:16px 20px;}
-.dtitle{font-family:'Sora',sans-serif;font-size:15px;font-weight:800;margin-bottom:3px;}
-.dsub{font-size:11px;color:var(--mu);margin-bottom:10px;}
-.dcards{display:flex;flex-direction:column;gap:8px;margin-bottom:24px;}
+.dsec{padding:16px 16px 0;}
+.dtitle{font-family:'Sora',sans-serif;font-size:14px;font-weight:800;margin-bottom:2px;display:flex;align-items:center;gap:6px;}
+.dtitle .tbadge{font-size:10px;padding:2px 8px;border-radius:10px;vertical-align:middle;}
+.dsub{font-size:11px;color:var(--mu);margin-bottom:10px;padding-left:1px;}
+.dcards{display:flex;flex-direction:column;gap:8px;margin-bottom:20px;}
 .dcard{
   background:var(--s);border:1px solid var(--b);
   border-radius:12px;display:flex;flex-direction:column;
@@ -682,16 +710,11 @@ body{-webkit-text-size-adjust:100%;}
   .brand-name{font-size:20px;}
   .brand-system{font-size:20px;}
   .brand-divider{height:30px;}
-  .hdr-r{width:100%;justify-content:flex-end;}
+  .hdr-r{width:100%;justify-content:flex-end;gap:8px;}
+  .hdr-status{gap:8px;}
+  .hdr-actions{gap:8px;}
   .hdr-date{font-size:12px;}
   .ref-btn{padding:7px 12px;font-size:12px;}
-  /* iPad is the primary operational device, not a shrunk desktop — larger
-     tap targets on every interactive row/control below, and a little
-     breathing room in the table since this is the surface attendants
-     touch most. No columns hidden here — visually verified at 1024x768:
-     the table's 650px min-width already fits an iPad viewport with room
-     to spare, so there is no horizontal-scroll problem to fix by hiding
-     data (see this phase's commit message for the verification note). */
   td{padding:15px 10px;font-size:14px;}
   .cbtd{width:44px;}
   input[type=checkbox]{width:20px;height:20px;}
@@ -700,6 +723,10 @@ body{-webkit-text-size-adjust:100%;}
   .bbtn{padding:10px 15px;font-size:13px;}
   .chip{padding:12px 16px;}
   .fab{padding:16px 22px;font-size:15px;}
+  .stripe-kpi{margin:16px 20px 0;padding:18px 22px;gap:16px;}
+  .stripe-kpi-val{font-size:28px;}
+  .stripe-kpi-icon{width:44px;height:44px;font-size:18px;border-radius:12px;}
+  .dsec{padding:16px 20px 0;}
 }
 /* ── iPhone / small phones ── */
 @media(max-width:600px){
@@ -708,9 +735,18 @@ body{-webkit-text-size-adjust:100%;}
   .hamburger-btn{width:34px;height:34px;font-size:15px;}
   .brand-name{font-size:18px;letter-spacing:.3px;max-width:100%;overflow:hidden;text-overflow:ellipsis;}
   .brand-divider,.brand-system{display:none;}
-  .hdr-r{width:100%;justify-content:space-between;gap:8px;}
+  .hdr-r{width:100%;justify-content:space-between;gap:6px;align-items:center;}
+  .hdr-status{gap:6px;flex:1;min-width:0;}
+  .hdr-actions{gap:6px;}
   .hdr-date{display:none;}
-  .ref-btn{flex:1;text-align:center;padding:8px 10px;font-size:12px;border-radius:9px;}
+  .ref-btn{text-align:center;padding:8px 14px;font-size:12px;border-radius:9px;}
+  .stripe-kpi{margin:12px 14px 0;padding:14px 16px;gap:12px;}
+  .stripe-kpi-icon{width:36px;height:36px;font-size:14px;border-radius:9px;}
+  .stripe-kpi-val{font-size:22px;}
+  .stripe-kpi-label{font-size:9px;letter-spacing:.5px;}
+  .dsec{padding:14px 14px 0;}
+  .dtitle{font-size:13px;}
+  .dcards{gap:6px;margin-bottom:16px;}
   .modal{border-radius:16px 16px 0 0;padding:20px 14px 40px;max-height:92vh;overflow-y:auto;}
   .fr{grid-template-columns:1fr;}
   .fr.two{grid-template-columns:1fr 1fr;}
@@ -744,6 +780,9 @@ body{-webkit-text-size-adjust:100%;}
 @media(max-width:390px){
   .brand-name{font-size:16px;}
   .ref-btn{font-size:11px;padding:7px 8px;}
+  .stripe-kpi{padding:12px 14px;gap:10px;}
+  .stripe-kpi-icon{width:32px;height:32px;font-size:13px;border-radius:8px;}
+  .stripe-kpi-val{font-size:20px;}
 }
 /* ── Return Flight + Departure Time inline inputs ── */
 .return-flight-wrap{
