@@ -29,8 +29,14 @@
 // Same SHELL_FILES, no new same-origin file introduced.
 // v36: sidebar UX fix — move Closing Report above legacy Daily Closing
 // (renamed to Full Accounting). Navigation/label order only.
+// v37: operational redesign — Valet Attendance (clock in/out), Closing
+// Report v2 (VEHICLES 3-col with IN CUSTODY, auto VALETS from attendance,
+// CASH CUSTODY radio, LEAVING TOMORROW, dual-image share).
+// v38: DST-safe vsWallClockToISO (target-date offset, not current-date),
+// Failure≠Zero error handling (Stripe tips, valets), LT incomplete-data
+// block (REVIEW gate before generation).
 
-var CACHE_VERSION = 'v36';
+var CACHE_VERSION = 'v38';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 var SHELL_FILES = [
