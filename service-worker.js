@@ -27,8 +27,10 @@
 // (new sidebar tab, 5-screen pane, html2canvas PNG export, Stripe Tips
 // KPI chip on Dashboard). Changed index.html, styles.css, service-worker.js.
 // Same SHELL_FILES, no new same-origin file introduced.
+// v36: sidebar UX fix — move Closing Report above legacy Daily Closing
+// (renamed to Full Accounting). Navigation/label order only.
 
-var CACHE_VERSION = 'v35';
+var CACHE_VERSION = 'v36';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 var SHELL_FILES = [
