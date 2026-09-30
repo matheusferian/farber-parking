@@ -6341,10 +6341,10 @@ async function fetchCurrentUserProfile(){
 // bootstrapAfterAuth() already routes it straight into TV Mode before
 // this function is ever called for that role.
 var TAB_VISIBILITY_BY_ROLE = {
-  ADMIN:      ['all','day','tasks','messages','report','logs','closing','debug','useraccess'],
-  IPAD_OPS:   ['all','day','tasks','messages','report','logs','closing','debug'],
+  ADMIN:      ['all','day','tasks','messages','closingreport','report','logs','debug','useraccess'],
+  IPAD_OPS:   ['all','day','tasks','messages','closingreport','report','logs','debug'],
   IPHONE_OPS: ['all','day','tasks','messages'],
-  MANAGER:    ['all','day','tasks','messages','report','logs','closing'],
+  MANAGER:    ['all','day','tasks','messages','closingreport','report','logs'],
   TV_ONLY:    []
 };
 function applyRoleNavVisibility(role){

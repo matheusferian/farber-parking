@@ -35,8 +35,10 @@
 // v38: DST-safe vsWallClockToISO (target-date offset, not current-date),
 // Failure≠Zero error handling (Stripe tips, valets), LT incomplete-data
 // block (REVIEW gate before generation).
+// v39: fix Closing Report missing from authenticated nav — update
+// TAB_VISIBILITY_BY_ROLE from 'closing' to 'closingreport'.
 
-var CACHE_VERSION = 'v38';
+var CACHE_VERSION = 'v39';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 var SHELL_FILES = [
