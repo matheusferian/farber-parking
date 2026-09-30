@@ -561,6 +561,12 @@
       </div>
     </div><!-- end #valetFields -->
 
+    <div id="eodSection" style="display:none">
+      <div class="eod-divider"></div>
+      <div class="eod-label">End of Day</div>
+      <button class="eod-btn" onclick="eodOpenClosingReport()"><i class="fa-solid fa-clipboard-check"></i> Closing Report</button>
+    </div>
+
   </div>
 </div>
 <div class="ov" id="vsClockOutOv" onclick="if(event.target===this)vsCloseClockOut()">
@@ -3757,8 +3763,18 @@ function openAdd(){
   document.querySelectorAll('.carwash-btn').forEach(function(b){b.classList.remove('on');});
   refreshHangarCountBadges();
   acClose();
+  var eod=document.getElementById('eodSection');
+  if(eod){
+    var allowed=TAB_VISIBILITY_BY_ROLE.hasOwnProperty(_currentUserRole)?TAB_VISIBILITY_BY_ROLE[_currentUserRole]:[];
+    eod.style.display=allowed.indexOf('closingreport')!==-1?'':'none';
+  }
   document.getElementById('addOv').classList.add('on');
   setTimeout(function(){ var n=document.getElementById('fName'); if(n) n.focus(); },100);
+}
+function eodOpenClosingReport(){
+  document.getElementById('addOv').classList.remove('on');
+  var tab=document.querySelector('.tab[data-t="closingreport"]');
+  if(tab) tab.click();
 }
 var _autoTicket='';
 function closeAll(){document.getElementById('addOv').classList.remove('on');document.getElementById('detOv').classList.remove('on');}

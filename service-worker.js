@@ -40,8 +40,10 @@
 // v40: responsive UI polish (header/dashboard/KPI/FAB), TV Mode moved
 // from header to sidebar, centralized avDevice detection helper,
 // Device/Environment diagnostics in Debug pane.
+// v41: End of Day → Closing Report shortcut in New Entry modal
+// (navigation only, role-gated by TAB_VISIBILITY_BY_ROLE).
 
-var CACHE_VERSION = 'v40';
+var CACHE_VERSION = 'v41';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 var SHELL_FILES = [
