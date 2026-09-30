@@ -1066,6 +1066,88 @@ body{-webkit-text-size-adjust:100%;}
 /* ── DAILY CLOSING END ── */
 
 /* ══════════════════════════════════════════════════════════════════════
+   CLOSING REPORT — mobile-first WhatsApp-shareable report view.
+   Namespaced with .cr- prefix. No shared selectors with Daily Closing.
+   ══════════════════════════════════════════════════════════════════════ */
+.cr-header{background:var(--navy);padding:16px 20px 18px;color:#fff;}
+.cr-header-brand{display:flex;align-items:center;gap:8px;margin-bottom:4px;}
+.cr-header-brand img{height:24px;}
+.cr-header-brand span{font:700 16px 'Sora',sans-serif;}
+.cr-header-title{font:800 22px 'Sora',sans-serif;margin:6px 0 2px;}
+.cr-header-date{font:500 13px 'Inter',sans-serif;color:var(--cyan);}
+.cr-header-loc{display:inline-flex;align-items:center;gap:5px;background:rgba(255,255,255,.1);border-radius:999px;padding:4px 12px;font:600 11px 'Inter',sans-serif;color:rgba(255,255,255,.8);margin-top:10px;}
+.cr-header-loc i{color:var(--cyan);font-size:10px;}
+.cr-content{padding:16px 16px 20px;}
+.cr-section{margin-bottom:20px;}
+.cr-sec-label{font:700 11px 'Sora',sans-serif;text-transform:uppercase;letter-spacing:1.2px;color:var(--mu);margin-bottom:10px;display:flex;align-items:center;gap:6px;}
+.cr-kpi-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.cr-kpi-card{background:var(--s);border-radius:12px;padding:14px 16px;border:1.5px solid var(--b);}
+.cr-kpi-label{font:600 11px 'Sora',sans-serif;text-transform:uppercase;letter-spacing:.8px;color:var(--mu);margin-bottom:4px;display:flex;align-items:center;gap:5px;}
+.cr-kpi-val{font:800 32px 'Sora',sans-serif;color:var(--navy);line-height:1.1;}
+.cr-auto-tag{display:inline-flex;align-items:center;gap:3px;font:600 9px 'Inter',sans-serif;text-transform:uppercase;letter-spacing:.6px;color:var(--ok);background:rgba(26,158,106,.1);border-radius:4px;padding:2px 6px;}
+.cr-manual-tag{display:inline-flex;align-items:center;gap:3px;font:600 9px 'Inter',sans-serif;text-transform:uppercase;letter-spacing:.6px;color:var(--blue);background:rgba(27,102,253,.1);border-radius:4px;padding:2px 6px;}
+.cr-tip-card{background:var(--s);border-radius:12px;padding:14px 16px;border:1.5px solid var(--b);}
+.cr-tip-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;}
+.cr-tip-row:not(:last-child){border-bottom:1px solid var(--b);}
+.cr-tip-label{font:500 13px 'Inter',sans-serif;color:var(--mu);display:flex;align-items:center;gap:6px;}
+.cr-tip-value{font:700 15px 'JetBrains Mono',monospace;color:var(--navy);}
+.cr-tip-input{font:500 14px 'JetBrains Mono',monospace;color:var(--navy);background:var(--s2);border:1.5px solid var(--b);border-radius:8px;padding:6px 12px;width:110px;text-align:right;outline:none;}
+.cr-tip-input:focus{border-color:var(--gold);}
+.cr-tip-total{display:flex;justify-content:space-between;align-items:center;padding:10px 0 2px;border-top:2px solid var(--navy);margin-top:4px;}
+.cr-tip-total-val{font:800 22px 'Sora',sans-serif;color:var(--navy);}
+.cr-valet-card{background:var(--s);border-radius:12px;padding:14px 16px;border:1.5px solid var(--b);margin-bottom:10px;}
+.cr-valet-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
+.cr-valet-top input{font:700 15px 'Sora',sans-serif;color:var(--navy);background:transparent;border:none;border-bottom:1.5px solid var(--b);padding:4px 0;flex:1;outline:none;}
+.cr-valet-top input:focus{border-color:var(--gold);}
+.cr-valet-remove{font:500 11px 'Inter',sans-serif;color:var(--crit);cursor:pointer;background:none;border:none;padding:4px 8px;flex-shrink:0;}
+.cr-valet-times{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.cr-valet-times label{font:600 10px 'Sora',sans-serif;text-transform:uppercase;letter-spacing:.8px;color:var(--mu);display:block;margin-bottom:4px;}
+.cr-valet-times input[type="time"]{font:500 14px 'JetBrains Mono',monospace;color:var(--navy);background:var(--s2);border:1.5px solid var(--b);border-radius:8px;padding:8px 12px;width:100%;outline:none;}
+.cr-valet-times input[type="time"]:focus{border-color:var(--gold);}
+.cr-add-valet{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;padding:12px;border:2px dashed var(--b);border-radius:12px;background:transparent;font:600 13px 'Inter',sans-serif;color:var(--blue);cursor:pointer;}
+.cr-add-valet:hover{border-color:var(--blue);background:rgba(27,102,253,.04);}
+.cr-btn-primary{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:16px;background:var(--blue);color:#fff;border:none;border-radius:12px;font:700 15px 'Sora',sans-serif;cursor:pointer;margin-top:8px;}
+.cr-btn-primary:disabled{opacity:.6;cursor:not-allowed;}
+.cr-btn-secondary{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:14px;background:var(--s);color:var(--navy);border:2px solid var(--b);border-radius:12px;font:600 14px 'Inter',sans-serif;cursor:pointer;margin-top:8px;}
+.cr-preview-card{background:var(--s);border-radius:18px;overflow:hidden;border:1.5px solid var(--b);}
+.cr-pv-header{background:var(--navy);padding:20px;text-align:center;color:#fff;}
+.cr-pv-header img{height:32px;margin-bottom:6px;}
+.cr-pv-header .cr-pv-title{font:800 18px 'Sora',sans-serif;letter-spacing:1px;margin-bottom:2px;}
+.cr-pv-header .cr-pv-sub{font:600 13px 'Inter',sans-serif;color:var(--cyan);}
+.cr-pv-header .cr-pv-date{font:500 12px 'Inter',sans-serif;color:rgba(255,255,255,.6);margin-top:2px;}
+.cr-pv-body{padding:16px;}
+.cr-pv-sec{margin-bottom:16px;}
+.cr-pv-sec-title{font:700 10px 'Sora',sans-serif;text-transform:uppercase;letter-spacing:1.5px;color:var(--mu);margin-bottom:8px;padding-bottom:4px;border-bottom:1px solid var(--b);}
+.cr-pv-kpi-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.cr-pv-kpi{text-align:center;padding:10px 8px;background:var(--s2);border-radius:8px;}
+.cr-pv-kpi .pk-label{font:700 10px 'Sora',sans-serif;text-transform:uppercase;letter-spacing:1px;color:var(--mu);margin-bottom:2px;}
+.cr-pv-kpi .pk-val{font:800 28px 'Sora',sans-serif;color:var(--navy);}
+.cr-pv-tip-row{display:flex;justify-content:space-between;align-items:center;padding:7px 0;}
+.cr-pv-tip-row:not(:last-child){border-bottom:1px solid var(--b);}
+.cr-pv-valet{padding:8px 0;}
+.cr-pv-valet:not(:last-child){border-bottom:1px solid var(--b);}
+.cr-pv-valet-name{font:700 13px 'Sora',sans-serif;color:var(--navy);}
+.cr-pv-valet-time{font:500 12px 'JetBrains Mono',monospace;color:var(--mu);}
+.cr-pv-footer{text-align:center;padding:10px 16px;font:400 10px 'Inter',sans-serif;color:var(--mu);border-top:1px solid var(--b);}
+.cr-ready-wrap{text-align:center;padding:40px 16px 20px;}
+.cr-ready-icon{width:72px;height:72px;background:rgba(26,158,106,.1);border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;font-size:32px;color:var(--ok);}
+.cr-ready-title{font:800 20px 'Sora',sans-serif;color:var(--navy);margin-bottom:4px;}
+.cr-ready-sub{font:400 13px 'Inter',sans-serif;color:var(--mu);margin-bottom:24px;}
+.cr-ready-thumb{background:var(--s);border-radius:12px;border:1.5px solid var(--b);padding:12px;margin:0 20px 24px;box-shadow:0 4px 16px rgba(1,21,50,.08);}
+.cr-ready-thumb-inner{background:var(--navy);border-radius:8px;padding:16px;text-align:center;color:#fff;}
+.cr-ready-thumb-inner .rt-title{font:700 10px 'Sora',sans-serif;letter-spacing:1px;color:var(--cyan);margin-bottom:2px;}
+.cr-ready-thumb-inner .rt-loc{font:600 8px 'Inter',sans-serif;color:rgba(255,255,255,.5);}
+.cr-ready-thumb-inner .rt-numbers{display:flex;justify-content:center;gap:24px;margin:10px 0;}
+.cr-ready-thumb-inner .rt-num{text-align:center;}
+.cr-ready-thumb-inner .rt-num .n{font:800 22px 'Sora',sans-serif;}
+.cr-ready-thumb-inner .rt-num .l{font:600 8px 'Sora',sans-serif;color:rgba(255,255,255,.6);letter-spacing:.5px;}
+.cr-ready-thumb-inner .rt-tips{font:700 14px 'JetBrains Mono',monospace;color:var(--gold);margin-top:4px;}
+.cr-share-btn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:16px;background:#25D366;color:#fff;border:none;border-radius:12px;font:700 15px 'Sora',sans-serif;cursor:pointer;margin-bottom:10px;}
+.cr-share-btn i{font-size:18px;}
+.cr-save-btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:14px;background:var(--s);color:var(--navy);border:2px solid var(--b);border-radius:12px;font:600 14px 'Inter',sans-serif;cursor:pointer;}
+/* ── CLOSING REPORT END ── */
+
+/* ══════════════════════════════════════════════════════════════════════
    TV MODE — light 24/7 operations-board theme (redesigned 2026-08-24,
    see PROJECT.md Changelog). Fully namespaced under #tvMode so it never
    affects the normal light admin theme. Deliberately low-fatigue for a

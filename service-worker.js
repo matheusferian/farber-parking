@@ -23,8 +23,12 @@
 // new coverage in the Dashboard's Arrived/Leaving Today/Tomorrow/Sunday/
 // Forgot section cards) changed index.html and styles.css content only.
 // Same SHELL_FILES, no new same-origin file introduced.
+// v35: Closing Report feature — WhatsApp-shareable end-of-day image
+// (new sidebar tab, 5-screen pane, html2canvas PNG export, Stripe Tips
+// KPI chip on Dashboard). Changed index.html, styles.css, service-worker.js.
+// Same SHELL_FILES, no new same-origin file introduced.
 
-var CACHE_VERSION = 'v34';
+var CACHE_VERSION = 'v35';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 var SHELL_FILES = [

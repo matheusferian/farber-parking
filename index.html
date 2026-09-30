@@ -91,6 +91,7 @@
   <div class="tab" data-t="report" onclick="refreshSyncUI()"><i class="fa-solid fa-chart-line"></i><span>Report</span></div>
   <div class="tab" data-t="logs"><i class="fa-solid fa-clipboard-list"></i><span>Logs</span></div>
   <div class="tab" data-t="closing" onclick="openDailyClosingTab()"><i class="fa-solid fa-clipboard-check"></i><span>Daily Closing</span></div>
+  <div class="tab" data-t="closingreport" onclick="crOpenTab()"><i class="fa-solid fa-file-image"></i><span>Closing Report</span></div>
   <div class="tab-group-label">Administration</div>
   <div class="tab" data-t="debug"><i class="fa-solid fa-screwdriver-wrench"></i><span>Debug</span></div>
   <div class="tab" data-t="useraccess" onclick="loadUserAccessList()"><i class="fa-solid fa-user-shield"></i><span>User Access</span></div>
@@ -165,6 +166,10 @@
   </div>
 </div>
 <div class="pane on" id="pane-day">
+  <div class="chip" style="display:inline-flex;margin-bottom:12px;" id="stripeTipsKpi">
+    <div class="dot" style="background:#6772e5"></div>
+    <div><div class="num" style="color:#6772e5" id="stripeTipsTodayNum">$0.00</div><div class="lbl">Stripe Tips Today</div></div>
+  </div>
   <div class="dsec">
     <div class="dtitle" style="color:var(--ok)" id="titleArrived">&#128663; Arrived Today <span class="tbadge" style="background:var(--ok);color:#000">0</span></div>
     <div class="dsub">Registered today</div>
@@ -1230,6 +1235,105 @@ https://buy.stripe.com/8x214mccK0uh9TjgIM6Vq00</div>
       <button class="btnp" onclick="dcSharePng()">📲 Share PNG</button>
     </div>
   </div>
+</div>
+
+<!-- CLOSING REPORT PANE -->
+<div class="pane" id="pane-closingreport" style="padding:0 0 120px">
+
+  <!-- Header -->
+  <div class="cr-header">
+    <div class="cr-header-brand"><img src="assets/logo-icon.png" alt="AirValet"><span>AirValet</span></div>
+    <div class="cr-header-title">Closing Report</div>
+    <div class="cr-header-date" id="crHeaderDate"></div>
+    <div class="cr-header-loc"><i class="fa-solid fa-location-dot"></i> MAKERS AIR</div>
+  </div>
+
+  <!-- Screen 1: Form -->
+  <div id="crFormScreen" class="cr-content">
+
+    <div class="cr-section">
+      <div class="cr-sec-label"><i class="fa-solid fa-chart-simple"></i> DAILY ACTIVITY</div>
+      <div class="cr-kpi-row">
+        <div class="cr-kpi-card">
+          <div class="cr-kpi-label">CHECK-INS <span class="cr-auto-tag"><i class="fa-solid fa-bolt"></i> AUTO</span></div>
+          <div class="cr-kpi-val" id="crCheckins">—</div>
+        </div>
+        <div class="cr-kpi-card">
+          <div class="cr-kpi-label">DELIVERED <span class="cr-auto-tag"><i class="fa-solid fa-bolt"></i> AUTO</span></div>
+          <div class="cr-kpi-val" id="crDelivered">—</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="cr-section">
+      <div class="cr-sec-label"><i class="fa-solid fa-hand-holding-dollar"></i> TIPS</div>
+      <div class="cr-tip-card">
+        <div class="cr-tip-row">
+          <div class="cr-tip-label">Stripe Tips <span class="cr-auto-tag"><i class="fa-solid fa-bolt"></i> AUTO</span></div>
+          <div class="cr-tip-value" id="crStripeTips">—</div>
+        </div>
+        <div class="cr-tip-row">
+          <div class="cr-tip-label">Other Tips <span class="cr-manual-tag"><i class="fa-solid fa-pen"></i> MANUAL</span></div>
+          <div class="cr-tip-value"><input type="text" inputmode="decimal" id="crOtherTips" class="cr-tip-input" placeholder="$0.00" oninput="crSanitizeCurrency(this);crUpdateTotal()"></div>
+        </div>
+        <div class="cr-tip-total">
+          <div class="cr-tip-label" style="font-weight:700;color:var(--navy)">TOTAL TIPS</div>
+          <div class="cr-tip-total-val" id="crTotalTips">$0.00</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="cr-section">
+      <div class="cr-sec-label"><i class="fa-solid fa-users"></i> VALETS</div>
+      <div id="crValetsList"></div>
+      <button class="cr-add-valet" onclick="crAddValet()"><i class="fa-solid fa-plus"></i> Add Valet</button>
+    </div>
+
+    <button class="cr-btn-primary" id="crPreviewBtn" onclick="crShowPreview()"><i class="fa-solid fa-eye"></i> Preview Closing Report</button>
+  </div>
+
+  <!-- Screen 2: Preview -->
+  <div id="crPreviewScreen" class="cr-content" style="display:none">
+    <div class="cr-preview-card" id="crPreviewCard"></div>
+    <button class="cr-btn-secondary" onclick="crBackToForm()"><i class="fa-solid fa-pen"></i> Edit</button>
+    <button class="cr-btn-primary" id="crGenerateBtn" onclick="crGenerateReport()"><i class="fa-solid fa-image"></i> Generate Report</button>
+  </div>
+
+  <!-- Screen 3: Ready/Share -->
+  <div id="crReadyScreen" class="cr-content" style="display:none">
+    <div class="cr-ready-wrap">
+      <div class="cr-ready-icon"><i class="fa-solid fa-check"></i></div>
+      <div class="cr-ready-title">Report Ready</div>
+      <div class="cr-ready-sub">Your closing report image has been generated.</div>
+      <div class="cr-ready-thumb" id="crReadyThumb"></div>
+      <button class="cr-share-btn" onclick="crShareImage()"><i class="fa-solid fa-share-from-square"></i> Share</button>
+      <button class="cr-save-btn" onclick="crSaveImage()"><i class="fa-solid fa-download"></i> Save Image</button>
+      <button class="cr-btn-secondary" onclick="crBackToForm()" style="margin-top:4px"><i class="fa-solid fa-arrow-left"></i> Back to Form</button>
+    </div>
+  </div>
+
+  <!-- Screen 4: Already exists -->
+  <div id="crExistsScreen" class="cr-content" style="display:none">
+    <div class="cr-ready-wrap">
+      <div class="cr-ready-icon" style="background:rgba(201,172,84,.12);color:#7A5A00"><i class="fa-solid fa-file-circle-check"></i></div>
+      <div class="cr-ready-title">Report Already Created</div>
+      <div class="cr-ready-sub" id="crExistsSub">A closing report for this date already exists.</div>
+      <div class="cr-ready-thumb" id="crExistsThumb"></div>
+      <button class="cr-share-btn" onclick="crShareImage()"><i class="fa-solid fa-share-from-square"></i> Share</button>
+      <button class="cr-save-btn" onclick="crSaveImage()"><i class="fa-solid fa-download"></i> Save Image</button>
+    </div>
+  </div>
+
+  <!-- Error state -->
+  <div id="crErrorScreen" class="cr-content" style="display:none">
+    <div class="cr-ready-wrap">
+      <div class="cr-ready-icon" style="background:rgba(192,57,46,.1);color:var(--crit)"><i class="fa-solid fa-triangle-exclamation"></i></div>
+      <div class="cr-ready-title">Error Loading Data</div>
+      <div class="cr-ready-sub" id="crErrorMsg">Could not load data for the Closing Report.</div>
+      <button class="cr-btn-primary" onclick="crOpenTab()" style="margin-top:12px"><i class="fa-solid fa-rotate-right"></i> Retry</button>
+    </div>
+  </div>
+
 </div>
 
 <!-- DAILY CONTACT SYNC MODALS -->
@@ -5864,6 +5968,8 @@ function showApp() {
   document.getElementById('loginOv').style.display = 'none';
   var lb = document.getElementById('logoutBtn'); if(lb) lb.style.display = '';
   loadVehicleSuggestions();
+  refreshStripeTipsKpi();
+  initStripeTipsRealtime();
   // Every successful login lands on Dashboard — no restored tab, no
   // returnTo/redirectTo. showApp() is the single place both auth paths
   // (SIGNED_IN and the page-load getSession() restore) funnel through
@@ -5878,6 +5984,31 @@ function showApp() {
   if(dashPane) dashPane.classList.add('on');
 }
 
+// Stripe Tips — Phase 1. get_stripe_tips_today_cents() does the
+// America/New_York "today" math in Postgres (see migration) — never
+// hand-rolled here. Only succeeded Stripe tips are summed (RPC itself
+// filters status='succeeded').
+async function refreshStripeTipsKpi(){
+  try{
+    var res = await fetch(SUPABASE_URL+'/rest/v1/rpc/get_stripe_tips_today_cents', {method:'POST', headers: sbHeaders()});
+    if(!res.ok) return;
+    var cents = await res.json();
+    var el = document.getElementById('stripeTipsTodayNum');
+    if(el) el.textContent = '$'+((Number(cents)||0)/100).toFixed(2);
+  }catch(e){ console.error('Stripe tips KPI refresh failed', e); }
+}
+// Realtime, not polling: subscribes once per session to new payments
+// rows and refetches the aggregate (never trusts the row payload
+// itself, which could be a non-succeeded/non-today insert).
+var _stripeTipsRealtimeInit=false;
+function initStripeTipsRealtime(){
+  if(_stripeTipsRealtimeInit) return;
+  if(typeof _supaClient==='undefined'||!_supaClient||typeof _supaClient.channel!=='function') return;
+  _stripeTipsRealtimeInit=true;
+  _supaClient.channel('payments-changes')
+    .on('postgres_changes',{event:'INSERT',schema:'public',table:'payments'},function(){ refreshStripeTipsKpi(); })
+    .subscribe();
+}
 function showLogin() {
   document.getElementById('loginOv').style.display = 'flex';
   var lb = document.getElementById('logoutBtn'); if(lb) lb.style.display = 'none';
@@ -9366,6 +9497,477 @@ async function dcSavePdf(){
   }
 }
 // ── DAILY CLOSING END ─────────────────────────────────────────
+
+// ═══════════════════════════════════════════════════════════════
+// ── CLOSING REPORT ─────────────────────────────────────────────
+// WhatsApp-shareable end-of-day image. Uses America/New_York for
+// all business-day calculations. Reads passengers read-only.
+// Stripe tips via Matt Solutions account only (verified at build).
+// ═══════════════════════════════════════════════════════════════
+var CR_EXPORT_HOST_WIDTH=390;
+var CR_EXPORT_TARGET_PNG_WIDTH=3240;
+var _crBooted=false;
+var _crBusinessDate='';
+var _crValets=[];
+var _crStripeTipsCents=0;
+var _crOtherTipsCents=0;
+var _crCheckins=0;
+var _crDelivered=0;
+var _crLoadError=false;
+var _crSavedReport=null;
+var _crCanvas=null;
+
+function crBusinessDateET(){
+  return new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+}
+function crToDateET(str){
+  if(!str) return null;
+  str=String(str).trim();
+  if(!str) return null;
+  if(/^\d{4}-\d{2}-\d{2}/.test(str)){
+    var d=new Date(str);
+    if(!isNaN(d.getTime())) return new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).format(d);
+  }
+  var p=str.split('/');
+  if(p.length===3){
+    var mo=parseInt(p[0],10),dy=parseInt(p[1],10),yr=parseInt(p[2],10);
+    if(mo&&dy&&yr) return yr+'-'+String(mo).padStart(2,'0')+'-'+String(dy).padStart(2,'0');
+  }
+  return null;
+}
+function crGetCheckinDateET(r){
+  var ci=(r.checkin_date&&String(r.checkin_date).trim())?r.checkin_date:(r.ts||'');
+  return crToDateET(ci);
+}
+function crGetDeliveredDateET(r){
+  var co=(r.checkout_date&&String(r.checkout_date).trim())?r.checkout_date:(r.deldate||'');
+  return crToDateET(co);
+}
+function crFmtDateLong(dateStr){
+  var d=new Date(dateStr+'T12:00:00');
+  return d.toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric',timeZone:'America/New_York'});
+}
+function crFmtDateShort(dateStr){
+  var d=new Date(dateStr+'T12:00:00');
+  return d.toLocaleDateString('en-US',{month:'short',day:'numeric',timeZone:'America/New_York'});
+}
+function crFmtMoney(cents){
+  return '$'+((Number(cents)||0)/100).toFixed(2);
+}
+function crTimeNowET(){
+  return new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',hour:'numeric',minute:'2-digit',hour12:true}).format(new Date());
+}
+
+function crSanitizeCurrency(el){
+  var v=el.value.replace(/[^0-9.]/g,'');
+  var parts=v.split('.');
+  if(parts.length>2) v=parts[0]+'.'+parts.slice(1).join('');
+  el.value=v;
+}
+function crUpdateTotal(){
+  var otherStr=document.getElementById('crOtherTips').value.replace(/[^0-9.]/g,'');
+  var otherDollars=parseFloat(otherStr)||0;
+  _crOtherTipsCents=Math.round(otherDollars*100);
+  var totalCents=_crStripeTipsCents+_crOtherTipsCents;
+  document.getElementById('crTotalTips').textContent=crFmtMoney(totalCents);
+}
+
+async function crOpenTab(){
+  _crBooted=true;
+  _crLoadError=false;
+  _crSavedReport=null;
+  _crCanvas=null;
+  _crBusinessDate=crBusinessDateET();
+  document.getElementById('crHeaderDate').textContent=crFmtDateLong(_crBusinessDate);
+  crShowScreen('crFormScreen');
+  crSetLoading(true);
+  try{
+    var existing=await dcrGetByDate(_crBusinessDate);
+    if(existing&&existing.closed_at){
+      _crSavedReport=existing;
+      crShowExistingReport(existing);
+      return;
+    }
+    await crLoadAutoData();
+    if(existing){
+      if(typeof existing.other_tips_cents==='number'&&existing.other_tips_cents>0){
+        _crOtherTipsCents=existing.other_tips_cents;
+        document.getElementById('crOtherTips').value=(existing.other_tips_cents/100).toFixed(2);
+      }
+      if(Array.isArray(existing.attendants)&&existing.attendants.length>0){
+        _crValets=existing.attendants.map(function(a){return{name:a.name||'',time_in:a.time_in||'',time_out:a.time_out||''};});
+      }
+    }
+    if(_crValets.length===0){
+      _crValets=[{name:'',time_in:'',time_out:''}];
+    }
+    crRenderValets();
+    crUpdateTotal();
+    crSetLoading(false);
+  }catch(e){
+    console.error('Closing Report load error',e);
+    _crLoadError=true;
+    document.getElementById('crErrorMsg').textContent='Could not load data: '+(e.message||'unknown error');
+    crShowScreen('crErrorScreen');
+  }
+}
+
+function crSetLoading(on){
+  var btn=document.getElementById('crPreviewBtn');
+  if(btn) btn.disabled=on;
+  var vals=document.querySelectorAll('#crFormScreen .cr-kpi-val');
+  if(on) vals.forEach(function(v){v.textContent='…';});
+}
+
+async function crLoadAutoData(){
+  var checkins=0,delivered=0;
+  for(var i=0;i<data.length;i++){
+    if(crGetCheckinDateET(data[i])===_crBusinessDate) checkins++;
+    if(crGetDeliveredDateET(data[i])===_crBusinessDate) delivered++;
+  }
+  _crCheckins=checkins;
+  _crDelivered=delivered;
+  document.getElementById('crCheckins').textContent=String(checkins);
+  document.getElementById('crDelivered').textContent=String(delivered);
+
+  try{
+    var res=await fetch(SUPABASE_URL+'/rest/v1/rpc/get_stripe_tips_for_date_cents',{
+      method:'POST',
+      headers:Object.assign({},sbHeaders(),{'Content-Type':'application/json'}),
+      body:JSON.stringify({target_date:_crBusinessDate})
+    });
+    if(!res.ok) throw new Error('RPC failed: '+res.status);
+    var cents=await res.json();
+    _crStripeTipsCents=Number(cents)||0;
+  }catch(e){
+    console.error('Stripe tips RPC error',e);
+    _crStripeTipsCents=0;
+    try{
+      var res2=await fetch(SUPABASE_URL+'/rest/v1/rpc/get_stripe_tips_today_cents',{method:'POST',headers:sbHeaders()});
+      if(res2.ok){
+        var c2=await res2.json();
+        _crStripeTipsCents=Number(c2)||0;
+      }
+    }catch(e2){console.error('Stripe tips fallback error',e2);}
+  }
+  document.getElementById('crStripeTips').textContent=crFmtMoney(_crStripeTipsCents);
+  crUpdateTotal();
+}
+
+function crRenderValets(){
+  var wrap=document.getElementById('crValetsList');
+  var html='';
+  for(var i=0;i<_crValets.length;i++){
+    var v=_crValets[i];
+    html+='<div class="cr-valet-card">'
+      +'<div class="cr-valet-top">'
+      +'<input type="text" placeholder="Valet name" value="'+escapeHTML(v.name)+'" oninput="crValetSet('+i+',\'name\',this.value)">'
+      +'<button class="cr-valet-remove" onclick="crRemoveValet('+i+')">Remove</button>'
+      +'</div>'
+      +'<div class="cr-valet-times">'
+      +'<div><label>ARRIVAL</label><input type="time" value="'+escapeHTML(v.time_in)+'" onchange="crValetSet('+i+',\'time_in\',this.value)"></div>'
+      +'<div><label>DEPARTURE</label><input type="time" value="'+escapeHTML(v.time_out)+'" onchange="crValetSet('+i+',\'time_out\',this.value)"></div>'
+      +'</div>'
+      +'</div>';
+  }
+  wrap.innerHTML=html;
+}
+function crAddValet(){_crValets.push({name:'',time_in:'',time_out:''});crRenderValets();}
+function crRemoveValet(i){_crValets.splice(i,1);if(_crValets.length===0)_crValets=[{name:'',time_in:'',time_out:''}];crRenderValets();}
+function crValetSet(i,field,val){_crValets[i][field]=val;}
+
+function crShowScreen(id){
+  ['crFormScreen','crPreviewScreen','crReadyScreen','crExistsScreen','crErrorScreen'].forEach(function(s){
+    var el=document.getElementById(s);
+    if(el) el.style.display=(s===id)?'':'none';
+  });
+}
+
+function crFmtTime12(t){
+  if(!t) return '—';
+  var p=t.split(':');
+  var h=parseInt(p[0],10),m=p[1]||'00';
+  var ampm=h>=12?'PM':'AM';
+  if(h===0) h=12;
+  else if(h>12) h-=12;
+  return h+':'+m+' '+ampm;
+}
+
+function crBuildPreviewHTML(){
+  var html='<div class="cr-pv-header">'
+    +'<img src="assets/logo-icon.png" alt="AirValet">'
+    +'<div class="cr-pv-title">CLOSING REPORT</div>'
+    +'<div class="cr-pv-sub">MAKERS AIR</div>'
+    +'<div class="cr-pv-date">'+escapeHTML(crFmtDateLong(_crBusinessDate))+'</div>'
+    +'</div>';
+  html+='<div class="cr-pv-body">';
+  html+='<div class="cr-pv-sec"><div class="cr-pv-sec-title">DAILY ACTIVITY</div>'
+    +'<div class="cr-pv-kpi-row">'
+    +'<div class="cr-pv-kpi"><div class="pk-label">CHECK-INS</div><div class="pk-val">'+_crCheckins+'</div></div>'
+    +'<div class="cr-pv-kpi"><div class="pk-label">DELIVERED</div><div class="pk-val">'+_crDelivered+'</div></div>'
+    +'</div></div>';
+  var totalCents=_crStripeTipsCents+_crOtherTipsCents;
+  html+='<div class="cr-pv-sec"><div class="cr-pv-sec-title">TIPS</div>'
+    +'<div class="cr-pv-tip-row"><span style="font:500 12px \'Inter\',sans-serif;color:var(--mu)">Stripe Tips</span><span style="font:700 13px \'JetBrains Mono\',monospace;color:var(--navy)">'+crFmtMoney(_crStripeTipsCents)+'</span></div>'
+    +'<div class="cr-pv-tip-row"><span style="font:500 12px \'Inter\',sans-serif;color:var(--mu)">Other Tips</span><span style="font:700 13px \'JetBrains Mono\',monospace;color:var(--navy)">'+crFmtMoney(_crOtherTipsCents)+'</span></div>'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0 2px;border-top:2px solid var(--navy);margin-top:4px">'
+    +'<span style="font:700 12px \'Sora\',sans-serif;color:var(--navy)">TOTAL TIPS</span>'
+    +'<span style="font:800 16px \'Sora\',sans-serif;color:var(--navy)">'+crFmtMoney(totalCents)+'</span>'
+    +'</div></div>';
+  var activeValets=_crValets.filter(function(v){return v.name.trim();});
+  if(activeValets.length>0){
+    html+='<div class="cr-pv-sec" style="margin-bottom:0"><div class="cr-pv-sec-title">VALETS</div>';
+    for(var i=0;i<activeValets.length;i++){
+      var v=activeValets[i];
+      html+='<div class="cr-pv-valet">'
+        +'<div class="cr-pv-valet-name">'+escapeHTML(v.name)+'</div>'
+        +'<div class="cr-pv-valet-time">'+crFmtTime12(v.time_in)+' — '+crFmtTime12(v.time_out)+'</div>'
+        +'</div>';
+    }
+    html+='</div>';
+  }
+  html+='</div>';
+  html+='<div class="cr-pv-footer">Closed at '+crTimeNowET()+'</div>';
+  return html;
+}
+
+function crShowPreview(){
+  document.getElementById('crPreviewCard').innerHTML=crBuildPreviewHTML();
+  crShowScreen('crPreviewScreen');
+  document.getElementById('pane-closingreport').scrollTop=0;
+}
+function crBackToForm(){
+  crShowScreen('crFormScreen');
+}
+
+function crGatherPayload(){
+  var totalCents=_crStripeTipsCents+_crOtherTipsCents;
+  var activeValets=_crValets.filter(function(v){return v.name.trim();});
+  return{
+    report_date:_crBusinessDate,
+    checked_in_today:_crCheckins,
+    delivered_today:_crDelivered,
+    stripe_tips_cents:_crStripeTipsCents,
+    other_tips_cents:_crOtherTipsCents,
+    total_tips_cents:totalCents,
+    attendants:activeValets,
+    closed_at:new Date().toISOString(),
+    status:'DRAFT'
+  };
+}
+
+async function crGenerateReport(){
+  var btn=document.getElementById('crGenerateBtn');
+  var restore=btn?btn.textContent:null;
+  if(btn){btn.disabled=true;btn.innerHTML='<i class="fa-solid fa-spinner fa-spin"></i> Generating…';}
+  try{
+    var payload=crGatherPayload();
+    var existing=await dcrGetByDate(_crBusinessDate);
+    if(existing&&existing.closed_at){
+      _crSavedReport=existing;
+      crShowExistingReport(existing);
+      showMsg('Report already exists for this date.');
+      return;
+    }
+    var saved;
+    if(existing){
+      saved=await dcrPatch(existing.id,payload);
+      var rows=saved?[saved]:[];
+      if(Array.isArray(saved)) rows=saved;
+      saved=rows[0]||Object.assign({},existing,payload);
+    }else{
+      payload.created_by=typeof currentUser!=='undefined'&&currentUser?currentUser.email:'';
+      saved=await dcrInsert(payload);
+    }
+    _crSavedReport=saved;
+    _crCanvas=await crCaptureCanvas(saved);
+    crShowReadyScreen(saved);
+  }catch(e){
+    console.error('Generate report error',e);
+    showMsg('Failed to generate report: '+(e.message||'unknown'),true);
+  }finally{
+    if(btn){btn.disabled=false;btn.innerHTML=restore;}
+  }
+}
+
+function crBuildExportMarkup(report){
+  var dateLabel=crFmtDateLong(report.report_date);
+  var stripe=Number(report.stripe_tips_cents)||0;
+  var other=Number(report.other_tips_cents)||0;
+  var total=Number(report.total_tips_cents)||(stripe+other);
+  var checkins=Number(report.checked_in_today)||0;
+  var delivered=Number(report.delivered_today)||0;
+  var valets=Array.isArray(report.attendants)?report.attendants.filter(function(a){return a.name&&a.name.trim();}):[];
+  var closedTime='';
+  if(report.closed_at){
+    var cd=new Date(report.closed_at);
+    closedTime=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',hour:'numeric',minute:'2-digit',hour12:true}).format(cd);
+  }
+
+  var h='<div id="crExportRoot" style="width:390px;box-sizing:border-box;font-family:\'Inter\',\'Segoe UI\',Arial,sans-serif;background:#011532;color:#fff;padding:0">';
+  h+='<div style="padding:32px 28px 20px;text-align:center;background:linear-gradient(180deg,#0B2547 0%,#011532 100%);border-bottom:1px solid rgba(255,255,255,.08)">';
+  h+='<img src="assets/logo-icon.png" style="height:36px;margin-bottom:8px">';
+  h+='<div style="font:800 20px \'Sora\',sans-serif;letter-spacing:2px;margin-bottom:2px">CLOSING REPORT</div>';
+  h+='<div style="font:600 13px \'Sora\',sans-serif;color:#32C5E6;margin-bottom:2px">MAKERS AIR</div>';
+  h+='<div style="font:400 12px \'Inter\',sans-serif;color:rgba(255,255,255,.5)">'+escapeHTML(dateLabel)+'</div>';
+  h+='</div>';
+
+  h+='<div style="padding:20px 24px">';
+
+  h+='<div style="margin-bottom:20px">';
+  h+='<div style="font:700 10px \'Sora\',sans-serif;text-transform:uppercase;letter-spacing:2px;color:#32C5E6;margin-bottom:12px;padding-bottom:6px;border-bottom:1px solid rgba(255,255,255,.08)">DAILY ACTIVITY</div>';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">';
+  h+='<div style="text-align:center;background:rgba(255,255,255,.05);border-radius:12px;padding:16px 12px;border:1px solid rgba(255,255,255,.06)">';
+  h+='<div style="font:800 36px \'Sora\',sans-serif;line-height:1">'+checkins+'</div>';
+  h+='<div style="font:700 10px \'Sora\',sans-serif;text-transform:uppercase;letter-spacing:1.5px;color:rgba(255,255,255,.5);margin-top:4px">CHECK-INS</div>';
+  h+='</div>';
+  h+='<div style="text-align:center;background:rgba(255,255,255,.05);border-radius:12px;padding:16px 12px;border:1px solid rgba(255,255,255,.06)">';
+  h+='<div style="font:800 36px \'Sora\',sans-serif;line-height:1">'+delivered+'</div>';
+  h+='<div style="font:700 10px \'Sora\',sans-serif;text-transform:uppercase;letter-spacing:1.5px;color:rgba(255,255,255,.5);margin-top:4px">DELIVERED</div>';
+  h+='</div>';
+  h+='</div></div>';
+
+  h+='<div style="margin-bottom:20px">';
+  h+='<div style="font:700 10px \'Sora\',sans-serif;text-transform:uppercase;letter-spacing:2px;color:#32C5E6;margin-bottom:12px;padding-bottom:6px;border-bottom:1px solid rgba(255,255,255,.08)">TIPS</div>';
+  h+='<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.06)">';
+  h+='<span style="font:500 12px \'Inter\',sans-serif;color:rgba(255,255,255,.5)">Stripe Tips</span>';
+  h+='<span style="font:700 14px \'JetBrains Mono\',monospace">'+crFmtMoney(stripe)+'</span>';
+  h+='</div>';
+  h+='<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.06)">';
+  h+='<span style="font:500 12px \'Inter\',sans-serif;color:rgba(255,255,255,.5)">Other Tips</span>';
+  h+='<span style="font:700 14px \'JetBrains Mono\',monospace">'+crFmtMoney(other)+'</span>';
+  h+='</div>';
+  h+='<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0 2px;border-top:2px solid #FFC547;margin-top:6px">';
+  h+='<span style="font:700 12px \'Sora\',sans-serif;color:#FFC547">TOTAL TIPS</span>';
+  h+='<span style="font:800 20px \'Sora\',sans-serif;color:#FFC547">'+crFmtMoney(total)+'</span>';
+  h+='</div></div>';
+
+  if(valets.length>0){
+    h+='<div style="margin-bottom:0">';
+    h+='<div style="font:700 10px \'Sora\',sans-serif;text-transform:uppercase;letter-spacing:2px;color:#32C5E6;margin-bottom:12px;padding-bottom:6px;border-bottom:1px solid rgba(255,255,255,.08)">VALETS</div>';
+    for(var i=0;i<valets.length;i++){
+      var bdr=i<valets.length-1?'border-bottom:1px solid rgba(255,255,255,.06);':'';
+      h+='<div style="padding:8px 0;'+bdr+'">';
+      h+='<div style="font:700 13px \'Sora\',sans-serif">'+escapeHTML(valets[i].name)+'</div>';
+      h+='<div style="font:500 12px \'JetBrains Mono\',monospace;color:rgba(255,255,255,.5)">'+crFmtTime12(valets[i].time_in)+' — '+crFmtTime12(valets[i].time_out)+'</div>';
+      h+='</div>';
+    }
+    h+='</div>';
+  }
+
+  h+='</div>';
+  h+='<div style="text-align:center;padding:12px 24px 20px;font:400 10px \'Inter\',sans-serif;color:rgba(255,255,255,.25);border-top:1px solid rgba(255,255,255,.06)">';
+  h+='Generated at '+escapeHTML(closedTime)+' · AirValet';
+  h+='</div>';
+  h+='</div>';
+  return h;
+}
+
+async function crCaptureCanvas(report){
+  var hostId='crExportHost';
+  var rootId='crExportRoot';
+  var old=document.getElementById(hostId);
+  if(old) old.remove();
+  var host=document.createElement('div');
+  host.id=hostId;
+  host.style.cssText='position:fixed;left:-10000px;top:0;z-index:-1;width:'+CR_EXPORT_HOST_WIDTH+'px;overflow:hidden;';
+  host.innerHTML=crBuildExportMarkup(report);
+  document.body.appendChild(host);
+  await new Promise(function(r){setTimeout(r,100);});
+  var el=document.getElementById(rootId);
+  if(!el){host.remove();throw new Error('Export element not found');}
+  var scale=CR_EXPORT_TARGET_PNG_WIDTH/CR_EXPORT_HOST_WIDTH;
+  var canvas=await html2canvas(el,{
+    scale:scale,
+    useCORS:true,
+    backgroundColor:null,
+    logging:false,
+    width:CR_EXPORT_HOST_WIDTH,
+    windowWidth:CR_EXPORT_HOST_WIDTH
+  });
+  host.remove();
+  return canvas;
+}
+
+function crBuildThumbHTML(report){
+  var stripe=Number(report.stripe_tips_cents)||0;
+  var other=Number(report.other_tips_cents)||0;
+  var total=Number(report.total_tips_cents)||(stripe+other);
+  var checkins=Number(report.checked_in_today)||0;
+  var delivered=Number(report.delivered_today)||0;
+  var h='<div class="cr-ready-thumb-inner">';
+  h+='<div class="rt-title">CLOSING REPORT</div>';
+  h+='<div class="rt-loc">MAKERS AIR · '+escapeHTML(crFmtDateShort(report.report_date))+'</div>';
+  h+='<div class="rt-numbers">';
+  h+='<div class="rt-num"><div class="n">'+checkins+'</div><div class="l">CHECK-INS</div></div>';
+  h+='<div class="rt-num"><div class="n">'+delivered+'</div><div class="l">DELIVERED</div></div>';
+  h+='</div>';
+  h+='<div class="rt-tips">TOTAL TIPS '+crFmtMoney(total)+'</div>';
+  h+='</div>';
+  return h;
+}
+
+function crShowReadyScreen(report){
+  document.getElementById('crReadyThumb').innerHTML=crBuildThumbHTML(report);
+  crShowScreen('crReadyScreen');
+  document.getElementById('pane-closingreport').scrollTop=0;
+}
+
+async function crShowExistingReport(report){
+  if(!_crCanvas){
+    try{_crCanvas=await crCaptureCanvas(report);}catch(e){console.error(e);}
+  }
+  document.getElementById('crExistsThumb').innerHTML=crBuildThumbHTML(report);
+  var closedTime='';
+  if(report.closed_at){
+    var cd=new Date(report.closed_at);
+    closedTime=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',hour:'numeric',minute:'2-digit',hour12:true}).format(cd);
+  }
+  document.getElementById('crExistsSub').textContent='Closing report for '+crFmtDateLong(report.report_date)+' was generated at '+closedTime+'.';
+  crShowScreen('crExistsScreen');
+}
+
+async function crShareImage(){
+  if(!_crCanvas&&_crSavedReport){
+    try{_crCanvas=await crCaptureCanvas(_crSavedReport);}catch(e){console.error(e);showMsg('Failed to generate image.',true);return;}
+  }
+  if(!_crCanvas){showMsg('No report image to share.',true);return;}
+  try{
+    var blob=await new Promise(function(resolve){_crCanvas.toBlob(resolve,'image/png');});
+    var fname='AirValet-Closing-Report-'+_crBusinessDate+'.png';
+    var file=new File([blob],fname,{type:'image/png'});
+    if(navigator.share&&navigator.canShare&&navigator.canShare({files:[file]})){
+      await navigator.share({files:[file],title:'AirValet Closing Report',text:'Closing Report — Makers Air — '+crFmtDateLong(_crBusinessDate)});
+    }else{
+      downloadBlobAs(blob,fname);
+      showMsg('Image saved: '+fname);
+    }
+  }catch(e){
+    if(e.name==='AbortError') return;
+    console.error(e);
+    showMsg('Share failed — image saved instead.',true);
+    try{
+      var blob2=await new Promise(function(resolve){_crCanvas.toBlob(resolve,'image/png');});
+      downloadBlobAs(blob2,'AirValet-Closing-Report-'+_crBusinessDate+'.png');
+    }catch(e2){console.error(e2);}
+  }
+}
+
+async function crSaveImage(){
+  if(!_crCanvas&&_crSavedReport){
+    try{_crCanvas=await crCaptureCanvas(_crSavedReport);}catch(e){console.error(e);showMsg('Failed to generate image.',true);return;}
+  }
+  if(!_crCanvas){showMsg('No report image to save.',true);return;}
+  try{
+    var blob=await new Promise(function(resolve){_crCanvas.toBlob(resolve,'image/png');});
+    downloadBlobAs(blob,'AirValet-Closing-Report-'+_crBusinessDate+'.png');
+    showMsg('Image saved.');
+  }catch(e){
+    console.error(e);
+    showMsg('Failed to save image.',true);
+  }
+}
+// ── CLOSING REPORT END ───────────────────────────────────────
 
 // ══════════════════════════════════════════════════════════════
 // ── TV MODE ──────────────────────────────────────────────────
