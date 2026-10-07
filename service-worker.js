@@ -43,7 +43,9 @@
 // v41: End of Day → Closing Report shortcut in New Entry modal
 // (navigation only, role-gated by TAB_VISIBILITY_BY_ROLE).
 
-var CACHE_VERSION = 'v41';
+// v42: ONE LOGIN Phase 2C — "Continue with FarberOS" (new same-origin file
+// sso-client.js added to SHELL_FILES; index.html + styles.css changed).
+var CACHE_VERSION = 'v42';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 var SHELL_FILES = [
@@ -60,7 +62,8 @@ var SHELL_FILES = [
   './favicon-32x32.png',
   './vendor/supabase.js',
   './offline-auth.js',
-  './offline-db.js'
+  './offline-db.js',
+  './sso-client.js'
 ];
 
 self.addEventListener('install', function(event){

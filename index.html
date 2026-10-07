@@ -25,6 +25,7 @@
      any other production write path yet. See PROJECT.md, Offline Mode. -->
 <script src="offline-auth.js"></script>
 <script src="offline-db.js"></script>
+<script src="sso-client.js"></script>
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -37,6 +38,7 @@
     <input class="login-inp" type="text" id="loginEmail" placeholder="Username" autocomplete="username" />
     <input class="login-inp" type="password" id="loginPwd" placeholder="Password" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()" />
     <button id="loginBtn" onclick="doLogin()">Sign In</button>
+    <button id="ssoBtn" type="button" onclick="startFarberosSso()" style="display:none">Continue with FarberOS</button>
     <div class="login-err" id="loginErr"></div>
     <div class="login-dev">Developed by Matt Solutions</div>
   </div>
@@ -6663,6 +6665,19 @@ _supaClient.auth.onAuthStateChange(function(event, session) {
     if(isTvMode()) tvShowSessionExpired();
   }
 });
+
+// ONE LOGIN Phase 2C — FarberOS SSO for HUMAN ADMIN/MANAGER accounts only
+// (sso-client.js + edge function sso-exchange). Offered only on the final
+// domain. The password login and every device/offline path are unchanged.
+if (typeof farberosSsoAvailable === 'function' && farberosSsoAvailable()) {
+  var _ssoBtn = document.getElementById('ssoBtn');
+  if (_ssoBtn) _ssoBtn.style.display = 'block';
+  completeFarberosSsoIfPresent(_supaClient, SUPABASE_URL + '/functions/v1/sso-exchange', SUPABASE_KEY, function(message) {
+    showLogin();
+    var errEl = document.getElementById('loginErr');
+    if (errEl) errEl.textContent = message;
+  });
+}
 
 // Check for an existing session on page load (restores from localStorage)
 _supaClient.auth.getSession().then(function(result) {

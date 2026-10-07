@@ -679,6 +679,8 @@ input[type=checkbox]{width:17px;height:17px;accent-color:var(--gold);cursor:poin
 #loginBtn{width:100%;background:var(--navy);color:#fff;border:none;border-radius:10px;padding:13px;font-family:'Sora',sans-serif;font-weight:800;font-size:14px;cursor:pointer;margin-top:4px;letter-spacing:0.5px;}
 #loginBtn:hover{background:var(--navy2);}
 #loginBtn:disabled{opacity:0.6;cursor:default;}
+#ssoBtn{width:100%;background:transparent;color:var(--navy);border:1.5px solid var(--navy);border-radius:10px;padding:12px;font-family:'Sora',sans-serif;font-weight:800;font-size:14px;cursor:pointer;margin-top:10px;letter-spacing:0.5px;}
+#ssoBtn:hover{background:var(--s2);}
 .login-dev{font-size:10px;color:var(--mu);font-family:'Inter',sans-serif;text-align:center;margin-top:14px;opacity:0.7;}
 
 /* ── GLOBAL FOOTER ── */

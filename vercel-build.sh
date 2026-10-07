@@ -7,7 +7,7 @@ set -eu
 rm -rf dist
 mkdir -p dist/assets dist/vendor
 
-cp index.html styles.css utils.js offline-auth.js offline-db.js service-worker.js \
+cp index.html styles.css utils.js offline-auth.js offline-db.js sso-client.js service-worker.js \
    manifest.webmanifest logo.PNG apple-touch-icon.png icon-192.png icon-512.png \
    favicon-32x32.png dist/
 cp assets/*.png dist/assets/
