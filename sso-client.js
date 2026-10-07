@@ -8,7 +8,7 @@
 // Rollout switch (ONE LOGIN Phase 2): the code ships first with the button, the
 // FarberOS return handling and the revalidation watcher all OFF (rollout Step 3);
 // rollout Step 5 flips this to true together with enabling the AirValet SSO client.
-var FARBEROS_SSO_ROLLOUT_ENABLED = false;
+var FARBEROS_SSO_ROLLOUT_ENABLED = true;
 
 var FARBEROS_SSO = (function () {
   var o = window.FARBEROS_SSO_CONFIG || {};

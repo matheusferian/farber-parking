@@ -46,7 +46,8 @@
 // v42: ONE LOGIN Phase 2C — "Continue with FarberOS" (new same-origin file
 // sso-client.js added to SHELL_FILES; index.html + styles.css changed).
 // v43: SSO revalidation watcher in sso-client.js (human SSO sessions only).
-var CACHE_VERSION = 'v43';
+// v44: rollout Step 5 — FARBEROS_SSO_ROLLOUT_ENABLED = true (button + return + watcher on).
+var CACHE_VERSION = 'v44';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 var SHELL_FILES = [
