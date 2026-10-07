@@ -5,18 +5,24 @@
 // Supabase session. Holds no secrets. The username/password login is unchanged.
 // Offered only on the final domain (FARBEROS_SSO.redirectUri must match exactly).
 
+// Rollout switch (ONE LOGIN Phase 2): the code ships first with the button, the
+// FarberOS return handling and the revalidation watcher all OFF (rollout Step 3);
+// rollout Step 5 flips this to true together with enabling the AirValet SSO client.
+var FARBEROS_SSO_ROLLOUT_ENABLED = false;
+
 var FARBEROS_SSO = (function () {
   var o = window.FARBEROS_SSO_CONFIG || {};
   return {
     issuer: o.issuer || 'https://farberos.com',
     clientId: o.clientId || 'airvalet',
     redirectUri: o.redirectUri || 'https://airvalet.farberos.com/',
-    txKey: 'airvalet_sso_tx'
+    txKey: 'airvalet_sso_tx',
+    enabled: typeof o.enabled === 'boolean' ? o.enabled : FARBEROS_SSO_ROLLOUT_ENABLED
   };
 })();
 
 function farberosSsoAvailable() {
-  return location.origin + '/' === FARBEROS_SSO.redirectUri;
+  return FARBEROS_SSO.enabled && location.origin + '/' === FARBEROS_SSO.redirectUri;
 }
 
 function _ssoRandom(n) {
