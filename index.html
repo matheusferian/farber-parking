@@ -6389,7 +6389,12 @@ async function doLogin() {
   // on success onAuthStateChange fires SIGNED_IN → showApp() + loadData()
 }
 async function doLogout() {
-  await _supaClient.auth.signOut();
+  // Sign out THIS device only. supabase-js defaults to scope 'global', which ends the
+  // account's sessions on EVERY device — for the shared makers@ operational login one
+  // Logout signed out all iPads / TV Mode / desk at once (incident 2026-10-07 12:13 ET).
+  // 'local' revokes only this session server-side (its refresh token) and clears it here.
+  // Applies the same way to password, shared and personal FarberOS-SSO sessions.
+  await _supaClient.auth.signOut({ scope: 'local' });
   // onAuthStateChange fires SIGNED_OUT → showLogin()
 }
 
