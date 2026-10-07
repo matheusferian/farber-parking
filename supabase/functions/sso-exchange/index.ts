@@ -19,6 +19,7 @@
 // SUPABASE_SERVICE_ROLE_KEY are provided by the platform.
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { jwtSessionId, sealToken } from '../_shared/sso.ts';
 
 const HUMAN_ROLES = ['ADMIN', 'MANAGER'];
 
@@ -28,6 +29,7 @@ type Claims = {
   application: string;
   permissions: string[];
   external_identity: { system: string; id: string; username: string | null } | null;
+  expires_at?: string | null;
 };
 
 function env(name: string): string {
@@ -83,25 +85,31 @@ export async function handle(req: Request, fetchImpl: typeof fetch = fetch): Pro
     return reply(502, { error: 'farberos_unreachable' }, headers);
   }
   const claims = tokenJson.claims;
-  // AirValet keeps its own Supabase session; the FarberOS session is not needed after this.
-  fetchImpl(`${issuer}/api/sso/revoke`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/x-www-form-urlencoded', authorization: basic },
-    body: new URLSearchParams({ token: tokenJson.access_token }).toString(),
-  }).catch(() => undefined);
+  const farberosToken = tokenJson.access_token;
+  // The FarberOS session is KEPT (sealed below) so sso-revalidate can re-check it every
+  // ~5 minutes: FarberOS logout / IAM disable then ends this AirValet session too.
+  const revokeAtFarberos = () =>
+    fetchImpl(`${issuer}/api/sso/revoke`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded', authorization: basic },
+      body: new URLSearchParams({ token: farberosToken }).toString(),
+    }).catch(() => undefined);
 
   // 2. IAM decides (default deny) — and the mapping must be an AirValet human account.
   const link = claims.external_identity;
   if (claims.application !== 'airvalet' || !claims.permissions.some((p) => p.startsWith('airvalet.'))) {
+    await revokeAtFarberos();
     return reply(403, { error: 'access_denied' }, headers);
   }
   if (!link || link.system !== 'airvalet.user_profiles' || !link.id) {
+    await revokeAtFarberos();
     return reply(403, { error: 'not_linked' }, headers);
   }
 
   const admin = createClient(env('SUPABASE_URL'), env('SUPABASE_SERVICE_ROLE_KEY'), { auth: { persistSession: false, autoRefreshToken: false } });
   const { data: profile } = await admin.from('user_profiles').select('id, role, is_active, is_protected').eq('id', link.id).maybeSingle();
   if (!profile || !profile.is_active || profile.is_protected || !HUMAN_ROLES.includes(profile.role)) {
+    await revokeAtFarberos();
     return reply(403, { error: 'not_a_human_account' }, headers);
   }
 
@@ -122,6 +130,26 @@ export async function handle(req: Request, fetchImpl: typeof fetch = fetch): Pro
   const anon = createClient(env('SUPABASE_URL'), env('SUPABASE_ANON_KEY'), { auth: { persistSession: false, autoRefreshToken: false } });
   const { data: verified, error: verifyErr } = await anon.auth.verifyOtp({ type: 'magiclink', token_hash: tokenHash });
   if (verifyErr || !verified?.session) return reply(500, { error: 'session_error' }, headers);
+
+  // 5. Register the human SSO session for revalidation — fail closed if we cannot.
+  const sessionId = jwtSessionId(verified.session.access_token);
+  const expiresAt = claims.expires_at && Number.isFinite(Date.parse(claims.expires_at))
+    ? claims.expires_at
+    : new Date(Date.now() + 8 * 3600 * 1000).toISOString();
+  const { error: regErr } = sessionId
+    ? await admin.from('sso_sessions').insert({
+        user_id: profile.id,
+        supabase_session_id: sessionId,
+        farberos_principal_id: claims.sub,
+        farberos_token_enc: await sealToken(clientSecret, farberosToken),
+        expires_at: expiresAt,
+      })
+    : { error: { message: 'no session_id claim' } };
+  if (regErr) {
+    if (sessionId) await admin.rpc('sso_terminate_session', { p_session: sessionId, p_reason: 'registration_failed' });
+    await revokeAtFarberos();
+    return reply(500, { error: 'session_error' }, headers);
+  }
 
   console.log(`sso-exchange: signed in ${profile.id} (${desiredRole}) for FarberOS principal ${claims.sub}`);
   return reply(200, {

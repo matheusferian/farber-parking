@@ -6672,11 +6672,14 @@ _supaClient.auth.onAuthStateChange(function(event, session) {
 if (typeof farberosSsoAvailable === 'function' && farberosSsoAvailable()) {
   var _ssoBtn = document.getElementById('ssoBtn');
   if (_ssoBtn) _ssoBtn.style.display = 'block';
-  completeFarberosSsoIfPresent(_supaClient, SUPABASE_URL + '/functions/v1/sso-exchange', SUPABASE_KEY, function(message) {
+  var _ssoShowError = function(message) {
     showLogin();
     var errEl = document.getElementById('loginErr');
     if (errEl) errEl.textContent = message;
-  });
+  };
+  completeFarberosSsoIfPresent(_supaClient, SUPABASE_URL + '/functions/v1/sso-exchange', SUPABASE_KEY, _ssoShowError);
+  // Human SSO sessions only (flag set at SSO sign-in) — re-checked every minute.
+  startFarberosSsoWatcher(_supaClient, _ssoShowError);
 }
 
 // Check for an existing session on page load (restores from localStorage)

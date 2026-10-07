@@ -82,9 +82,51 @@ async function completeFarberosSsoIfPresent(supa, exchangeUrl, anonKey, showErro
     }
     // A normal Supabase session from here on: onAuthStateChange(SIGNED_IN) boots the app.
     var r = await supa.auth.setSession({ access_token: data.access_token, refresh_token: data.refresh_token });
-    if (r.error) showError('FarberOS sign-in did not complete. Please try again.');
+    if (r.error) { showError('FarberOS sign-in did not complete. Please try again.'); return true; }
+    markFarberosSsoSession();
+    startFarberosSsoWatcher(supa, showError);
   } catch (e) {
     showError('FarberOS sign-in did not complete. Please try again.');
   }
   return true;
+}
+
+// ---- Revalidation watcher (HUMAN SSO sessions only) ---------------------------------
+// The security check is server-side (current_user_role() denies a revoked SSO session;
+// sso-revalidate terminates it). This only makes the page react promptly. It starts
+// ONLY for a session created by "Continue with FarberOS" on this device — password,
+// makers@, iPad / iPhone / TV and offline sessions never start it.
+var FARBEROS_SSO_FLAG = 'airvalet_sso_session';
+var _ssoWatchTimer = null;
+
+function markFarberosSsoSession() {
+  try { localStorage.setItem(FARBEROS_SSO_FLAG, '1'); } catch (e) {}
+}
+
+function startFarberosSsoWatcher(supa, showError) {
+  var flagged = false;
+  try { flagged = localStorage.getItem(FARBEROS_SSO_FLAG) === '1'; } catch (e) {}
+  if (!flagged || _ssoWatchTimer) return;
+  supa.auth.onAuthStateChange(function (event) {
+    if (event === 'SIGNED_OUT') {
+      try { localStorage.removeItem(FARBEROS_SSO_FLAG); } catch (e) {}
+      if (_ssoWatchTimer) { clearInterval(_ssoWatchTimer); _ssoWatchTimer = null; }
+    }
+  });
+  async function check() {
+    if (!navigator.onLine) return;   // offline: nothing to ask; the server decides when back
+    var r = await supa.rpc('sso_session_status');
+    if (r.error) return;
+    if (r.data === 'not_sso') {      // not an SSO session after all → never watch it
+      try { localStorage.removeItem(FARBEROS_SSO_FLAG); } catch (e) {}
+      clearInterval(_ssoWatchTimer); _ssoWatchTimer = null;
+    } else if (r.data === 'revoked') {
+      clearInterval(_ssoWatchTimer); _ssoWatchTimer = null;
+      try { localStorage.removeItem(FARBEROS_SSO_FLAG); } catch (e) {}
+      await supa.auth.signOut({ scope: 'local' });
+      showError('Your FarberOS access has ended. Please sign in again.');
+    }
+  }
+  _ssoWatchTimer = setInterval(check, 60 * 1000);
+  check();
 }
