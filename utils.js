@@ -120,3 +120,64 @@ function fuzzyMatch(a, b) {
   ap.forEach(function(p){if(p.length>1&&bp.some(function(q){return q.indexOf(p)>=0||p.indexOf(q)>=0;}))matches++;});
   return matches>=Math.min(ap.length,bp.length)&&matches>0;
 }
+
+// ── RETURN / PICKUP MODEL (single client-side source of truth) ─────────
+// Mirrors the SQL functions in migrations/20261010_add_passenger_return_operator.sql
+// (airvalet_departure_operator / airvalet_pickup_location). Every screen,
+// print, TV view and SMS builder asks THESE helpers where the vehicle is
+// picked up — nothing reads delivery_at_customs on its own to decide it.
+//   Flying with  = departure, from the ticket prefix ('A-' = Ascend). History.
+//   Returning with (return_operator) = MAKERS | ASCEND | OTHER, editable.
+//   Pickup: MAKERS → Hangar 19 (Customs only as a staff-approved EXCEPTION,
+//           i.e. delivery_at_customs) · ASCEND → Customs · OTHER → manual.
+var RETURN_OPERATOR_LABELS = { MAKERS: 'Makers Air', ASCEND: 'Ascend', OTHER: 'Other' };
+function departureOperator(r) {
+  return /^A-/.test(String((r && r.ticket) || '')) ? 'ASCEND' : 'MAKERS';
+}
+// Rows saved before return_operator existed (delivered history) have none;
+// derive it the same way the migration backfill did.
+function returnOperator(r) {
+  if (!r) return null;
+  if (r.return_operator === 'MAKERS' || r.return_operator === 'ASCEND' || r.return_operator === 'OTHER') return r.return_operator;
+  if (r.not_returning_with_makers_air) return 'OTHER';
+  return departureOperator(r);
+}
+// 'HANGAR_19' | 'CUSTOMS' | null (null = OTHER: manual handling, no place)
+function pickupLocation(r) {
+  var op = returnOperator(r);
+  if (op === 'MAKERS') return r.delivery_at_customs ? 'CUSTOMS' : 'HANGAR_19';
+  if (op === 'ASCEND') return 'CUSTOMS';
+  return null;
+}
+function isCustomsException(r) {
+  return returnOperator(r) === 'MAKERS' && !!r.delivery_at_customs;
+}
+function isCustomsRequestPending(r) {
+  return returnOperator(r) === 'MAKERS' && !r.delivery_at_customs && !!r.customs_exception_requested_at;
+}
+function pickupLabel(r) {
+  var p = pickupLocation(r);
+  return p === 'HANGAR_19' ? 'Hangar 19' : p === 'CUSTOMS' ? 'Customs' : 'Manual (Other)';
+}
+
+// ── REQUIRED MOVE (single decision for Dashboard + TV) ────────────────
+// Where the vehicle is NOW comes from the existing `loc` field (no new
+// state); 'CUSTOMS' is a valid loc value for a vehicle staged at Customs.
+// Where it must BE comes from pickupLocation() above. The only output:
+//   'MOVE_TO_HANGAR_19' | 'MOVE_TO_CUSTOMS' | null
+// Other return → never an automatic move. A pending Customs request keeps
+// the Hangar 19 target (pickupLocation already says so) until approved.
+var CUSTOMS_LOC = 'CUSTOMS';
+function vehicleLocationKey(r) {
+  var l = String((r && r.loc) || '').trim().toUpperCase().replace(/\s+/g, ' ');
+  return l === 'HANGAR 19' ? 'HANGAR_19' : l === CUSTOMS_LOC ? 'CUSTOMS' : 'ELSEWHERE';
+}
+function requiredMove(r) {
+  if (!r || r.status === 'DELIVERED' || r.status === 'ARCHIVED' || r.isOfflinePending) return null;
+  var target = pickupLocation(r);
+  if (!target) return null;
+  return vehicleLocationKey(r) === target ? null : 'MOVE_TO_' + target;
+}
+function requiredMoveLabel(move) {
+  return move === 'MOVE_TO_CUSTOMS' ? 'MOVE TO CUSTOMS' : move === 'MOVE_TO_HANGAR_19' ? 'MOVE TO H19' : '';
+}

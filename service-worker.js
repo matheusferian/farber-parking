@@ -48,7 +48,9 @@
 // v43: SSO revalidation watcher in sso-client.js (human SSO sessions only).
 // v44: rollout Step 5 — FARBEROS_SSO_ROLLOUT_ENABLED = true (button + return + watcher on).
 // v45: Logout signs out THIS device only (scope 'local'), never every device of the account.
-var CACHE_VERSION = 'v45';
+// v46: Returning with / pickup model, Makers Customs exception, Needs Review
+//      (index.html, utils.js, styles.css changed). Same SHELL_FILES.
+var CACHE_VERSION = 'v46';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 var SHELL_FILES = [

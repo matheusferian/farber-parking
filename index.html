@@ -88,7 +88,7 @@
   <div class="tab" data-t="all" onclick="resetAllPassengersDefaults()"><i class="fa-solid fa-users"></i><span>All Passengers</span><span class="tbadge" id="ball">0</span></div>
   <div class="tab on" data-t="day"><i class="fa-solid fa-gauge-high"></i><span>Dashboard</span><span class="tbadge red" id="bday">!</span></div>
   <div class="tab" data-t="tasks"><i class="fa-solid fa-square-check"></i><span>Tasks</span><span class="tbadge red" id="btasks">0</span></div>
-  <div class="tab" data-t="messages" onclick="renderMessagesWorkspace()"><i class="fa-solid fa-message"></i><span>Messages</span></div>
+  <div class="tab" data-t="messages" onclick="renderMessagesWorkspace();loadReturnReviews()"><i class="fa-solid fa-message"></i><span>Messages</span><span id="rrTabBadge" class="rr-tab-badge" style="display:none">0</span></div>
   <div class="tab" data-t="tvmode" onclick="window.open(location.pathname+'?mode=tv','_blank')"><i class="fa-solid fa-tv"></i><span>TV Mode</span></div>
   <div class="tab-group-label">Management</div>
   <div class="tab" data-t="closingreport" onclick="crOpenTab()"><i class="fa-solid fa-file-image"></i><span>Closing Report</span></div>
@@ -212,6 +212,7 @@
      do, not a new send trigger and not a persistent history system. See
      logMessageEvent()/renderMessagesWorkspace() in the inline script. -->
 <div class="pane" id="pane-messages">
+  <div class="dsec" id="returnReviewList"></div>
   <div class="dsec">
     <div class="dtitle" style="color:var(--navy)">&#128172; Messages Workspace</div>
     <div class="dsub" style="margin-bottom:2px">Session activity only — full messaging history will be available with Twilio integration.</div>
@@ -389,12 +390,23 @@
     <div id="passengerFields">
     <div class="fr full">
       <div class="fg">
-        <label>Operation Type</label>
+        <label>Flying with</label>
         <div class="lbs">
-          <div class="ob on" onclick="selOp(this,'MAKERS')">Makers Air Valet</div>
-          <div class="ob ob-ascend" onclick="selOp(this,'ASCEND')">✈ Ascend Valet</div>
+          <div class="ob on" onclick="selOp(this,'MAKERS')">Makers Air</div>
+          <div class="ob ob-ascend" onclick="selOp(this,'ASCEND')">✈ Ascend</div>
         </div>
         <input type="hidden" id="fOperation" value="MAKERS">
+      </div>
+    </div>
+    <div class="fr full">
+      <div class="fg">
+        <label>Returning with</label>
+        <select id="fReturnOp" onchange="onReturnOpPicked()" style="width:100%">
+          <option value="MAKERS">Makers Air</option>
+          <option value="ASCEND">Ascend</option>
+          <option value="OTHER">Other</option>
+        </select>
+        <div id="fReturnHint" style="font-size:12px;color:var(--mu);margin-top:4px">Same as the flight out unless you change it. Pickup: Hangar 19.</div>
       </div>
     </div>
     <div class="fi" id="freqInfo"></div>
@@ -467,16 +479,6 @@
     </div>
     <div class="fr full">
       <div class="fg"><label>OBS</label><input type="text" id="fObs" oninput="this.value=this.value.toUpperCase()" placeholder="" style="text-transform:uppercase"></div>
-    </div>
-    <div class="fr">
-      <div class="fg" style="display:flex;align-items:flex-start;gap:10px;padding:8px 0">
-        <input type="checkbox" id="fNotReturning" style="width:18px;height:18px;accent-color:var(--red);flex-shrink:0;margin-top:2px">
-        <label for="fNotReturning" style="font-size:13px;color:var(--mu);cursor:pointer;line-height:1.35">Passenger informed they are NOT returning with Makers Air</label>
-      </div>
-      <div class="fg" style="display:flex;align-items:flex-start;gap:10px;padding:8px 0">
-        <input type="checkbox" id="fDeliveryAtCustoms" style="width:18px;height:18px;accent-color:var(--gold);flex-shrink:0;margin-top:2px">
-        <label for="fDeliveryAtCustoms" style="font-size:13px;color:var(--mu);cursor:pointer;line-height:1.35">Delivery at Customs</label>
-      </div>
     </div>
     <div class="fr full">
       <div class="fg">
@@ -916,7 +918,7 @@ https://buy.stripe.com/8x214mccK0uh9TjgIM6Vq00</div>
             <div class="sms-demo-bubble out">Welcome to Makers Air Valet! Your vehicle has been successfully checked in. Ticket #: 0804-1
               <div class="sms-demo-meta"><span class="mock-sms-status mock-sms-status-pending">Queued</span> 9:02 AM</div>
             </div>
-            <div class="sms-demo-bubble out">Your vehicle is ready at Customs. The key is located on the driver's-side tire.
+            <div class="sms-demo-bubble out">Makers Air Valet: Welcome back! Your vehicle is ready at Customs. An Ascend team member will personally hand you your key when you arrive.
               <div class="sms-demo-meta"><span class="mock-sms-status mock-sms-status-ok">Delivered</span> 4:15 PM</div>
             </div>
             <div class="sms-demo-bubble out">Thank you for choosing Makers Air Valet. We truly appreciate your business...
@@ -2006,10 +2008,13 @@ function buildCustomerTicketXml(r) {
     + '<text font="font_b">claims must be presented before vehicle&#10;</text>'
     + '<text font="font_b">is taken from facility.&#10;</text>'
     + '<text font="font_a">------------------------------------------&#10;</text>'
-    + (!isAscend(r) && !r.not_returning_with_makers_air && r.delivery_at_customs ?
+    // Pickup place from the central helper (utils.js pickupLocation): Customs
+    // for an Ascend return or an approved Makers exception, Hangar 19 for a
+    // Makers return, nothing for Other.
+    + (pickupLocation(r)==='CUSTOMS' ?
         '<text align="center" em="true" height="2" width="1">Your vehicle will be ready at Customs&#10;</text>'
         + '<text align="center" em="true" height="2" width="1">upon your return.&#10;</text>'
-      : !isAscend(r) && !r.not_returning_with_makers_air ?
+      : pickupLocation(r)==='HANGAR_19' ?
         '<text align="center" em="true" height="2" width="1">After clearing Customs, please return to&#10;</text>'
         + '<text align="center" em="true" height="2" width="1">Hangar 19 with your pilots to pick up&#10;</text>'
         + '<text align="center" em="true" height="2" width="1">your vehicle.&#10;</text>'
@@ -2043,16 +2048,18 @@ function buildKeyTicketXml(r) {
     // ── Name + Hangar + Return + Ticket ─────────────────────────
     + '<text align="center" height="4" width="2">' + (isAscend(r) ? '[A] ' : '') + (r.name || '') + '&#10;</text>'
     + '<text align="center" height="3" width="2">' + locDisp + '&#10;</text>'
-    + (r.delivery_at_customs ? '<text align="center" em="true" font="font_b">*** DELIVER TO CUSTOMS ***&#10;</text>' : '')
+    + (pickupLocation(r)==='CUSTOMS' ? '<text align="center" em="true" font="font_b">*** DELIVER TO CUSTOMS ***&#10;</text>'
+        + (isCustomsException(r) ? '<text align="center" font="font_b">MAKERS EXCEPTION - APPROVED&#10;</text>' : '') : '')
+    + (isCustomsRequestPending(r) ? '<text align="center" font="font_b">CUSTOMS REQUESTED - PENDING&#10;</text><text align="center" font="font_b">Hangar 19 until approved&#10;</text>' : '')
     + '<text align="center" height="2" width="1">' + retDisp + '&#10;</text>'
     + '<text align="center" height="2" width="2">' + r.ticket + '&#10;</text>'
     + '<text align="center">------------------------&#10;</text>'
     // ── Fields ──────────────────────────────────────────────────
     + '<text font="font_b">PHONE: ' + phoneDisp + '&#10;</text>'
     + '<text font="font_b">' + (carDisp || '') + ' / ' + (colorDisp || '') + '&#10;</text>'
-    + (r.not_returning_with_makers_air ?
+    + (returnOperator(r)==='OTHER' ?
         '<text align="center" em="true">IMPORTANT:&#10;</text>'
-        + '<text align="center" em="true">NOT RETURNING WITH MAKERS AIR&#10;</text>'
+        + '<text align="center" em="true">RETURNING WITH: OTHER&#10;</text>'
         + '<text>Confirm return details before&#10;</text>'
         + '<text>staging vehicle.&#10;</text>'
         + '<text align="center">------------------------&#10;</text>'
@@ -2287,6 +2294,9 @@ async function printTicket(r) {
 // Rotate the previously-exposed key at: https://console.anthropic.com/settings/keys
 var ANTHROPIC_KEY = null; // placeholder — do not set a real key here
 var HANGARS  = ['HANGAR 19','HANGAR 18','HANGAR 16','HANGAR 7','HH'];
+// Every place a vehicle can physically be (Move / Edit / counts): the
+// hangars plus Customs staging. Reports and TV hangar cards keep HANGARS.
+var VEHICLE_LOCATIONS = HANGARS.concat([CUSTOMS_LOC]);
 // ── PRINTER CONFIG ─────────────────────────────────────────────
 // Update PRINTER_HOST if the printer IP or hostname changes.
 // PRINTER_HOST should not include protocol or trailing slash.
@@ -2404,7 +2414,9 @@ function mapPassengerRow(r) {
     customs_gratuity_sent_at: r.customs_gratuity_sent_at||'',
     customs_gratuity_dismissed: r.customs_gratuity_dismissed||false,
     delivery_at_customs: r.delivery_at_customs||false,
-    carwash_status: r.carwash_status||null
+    carwash_status: r.carwash_status||null,
+    return_operator: r.return_operator||null,
+    customs_exception_requested_at: r.customs_exception_requested_at||null
   };
 }
 
@@ -2459,6 +2471,7 @@ async function loadData() {
     render();
     updateSyncStatus();
     if(typeof updateOfflinePendingPanel==='function') updateOfflinePendingPanel();
+    loadReturnReviews(); // Needs Review badge (non-blocking; empty if unavailable)
   } catch(e) {
     showMsg('Connection error: '+e.message, true);
     console.error(e);
@@ -2691,7 +2704,7 @@ function renderTable() {
     else if(ro){rc='late';}
     var bc=r.status==='PENDING'?'bp':r.status==='DELIVERED'?'bd':r.status==='ARCHIVED'?'ba':'bn';
     var sel=selected[r.id]?true:false;
-    var notReturning=!!r.not_returning_with_makers_air;
+    var notReturning=returnOperator(r)==='OTHER';
     // Tags/badges shared verbatim between the table row and the phone
     // card — one source of truth per row, computed once.
     var nameTags=(freq?'<span class="t-freq">x'+cnt[r.name.toLowerCase()]+'</span>':'')+
@@ -2756,19 +2769,13 @@ function renderDay() {
       // (showQuickH19), never inferred from r.ret/status here — Quick H19
       // is Leaving Today/Tomorrow only, not Arrived Today/Sunday/Forgot,
       // even though mkCards() is shared across all of them.
-      var h19Eligible=!!showQuickH19&&r.status!=='DELIVERED'&&r.loc!=='HANGAR 19'&&!r.isOfflinePending;
-      // delivery_at_customs passengers are not expected to move to Hangar
-      // 19 at all — they're going to Customs instead — so the real
-      // location-changing button is HIDDEN for them entirely (not just
-      // relabeled: quickMoveH19() always writes loc='HANGAR 19', which
-      // would be wrong to invite here). Only the non-interactive
-      // instruction badge shows. Normal passengers keep the exact same
-      // button/behavior as before this flag ever existed. See DECISIONS.md.
-      var h19IsCustomsDest = !!r.delivery_at_customs && !isAscend(r);
-      var h19CustomsNote = (h19Eligible && h19IsCustomsDest)
-        ? '<span class="dc-move-customs-note" style="display:inline-flex;align-items:center;gap:4px;background:rgba(232,197,106,.15);color:var(--gold);border:1px solid rgba(232,197,106,.4);border-radius:6px;padding:3px 8px;font-size:10px;font-weight:800;letter-spacing:.3px;white-space:nowrap">&#9888; MOVE TO CUSTOMS</span>'
+      // The MOVE decision is the central requiredMove() (utils.js): current
+      // location (loc) vs pickup location. This only renders it.
+      var move=showQuickH19?requiredMove(r):null;
+      var h19CustomsNote = move==='MOVE_TO_CUSTOMS'
+        ? '<button type="button" class="qd-btn dc-h19-btn dc-move-customs-btn" onclick="event.stopPropagation();quickMoveCustoms('+r.id+')" title="Move to Customs">&#8594; Customs</button>'
         : '';
-      var h19ButtonHtml = (h19Eligible && !h19IsCustomsDest)
+      var h19ButtonHtml = move==='MOVE_TO_HANGAR_19'
         ? '<button type="button" class="qd-btn dc-h19-btn" onclick="event.stopPropagation();quickMoveH19('+r.id+')" title="Move to Hangar 19">&#8594; H19</button>'
         : '';
       var h19Btn = h19CustomsNote + h19ButtonHtml;
@@ -3273,10 +3280,27 @@ function getNextAscendTicket(){
   var dd=String(today.getDate()).padStart(2,'0');
   return 'A-'+mm+dd+'-'+String(getSharedDailyMax()+1);
 }
+// Check-in only: Returning with starts equal to Flying with and follows it
+// until staff pick a value themselves; after that it is never overwritten.
+// (Edits after check-in never touch it — see the passenger panel.)
+var _returnOpTouched=false;
+function syncReturnOpDefault(){
+  var sel=document.getElementById('fReturnOp');
+  if(!sel) return;
+  if(!_returnOpTouched) sel.value=document.getElementById('fOperation').value==='ASCEND'?'ASCEND':'MAKERS';
+  var hint=document.getElementById('fReturnHint');
+  if(hint){
+    var p=pickupLocation({ticket:'', return_operator:sel.value});
+    hint.textContent=(_returnOpTouched?'Changed by you. ':'Same as the flight out unless you change it. ')+
+      (p==='HANGAR_19'?'Pickup: Hangar 19.':p==='CUSTOMS'?'Pickup: Customs.':'Other: no automatic pickup instructions.');
+  }
+}
+function onReturnOpPicked(){ _returnOpTouched=true; syncReturnOpDefault(); }
 function selOp(el,op){
   document.querySelectorAll('#passengerFields .ob').forEach(function(b){b.classList.remove('on');});
   el.classList.add('on');
   document.getElementById('fOperation').value=op;
+  syncReturnOpDefault();
   var ticketEl=document.getElementById('fTicket');
   if(ticketEl&&ticketEl.value===_autoTicket){
     _autoTicket=(op==='ASCEND')?getNextAscendTicket():getNextTicket();
@@ -3759,8 +3783,7 @@ function openAdd(){
   var approxRow=document.getElementById('approxRow');
   if(approxRow) approxRow.style.display='none';
   var fi=document.getElementById('freqInfo'); if(fi) fi.classList.remove('on');
-  var fnr=document.getElementById('fNotReturning'); if(fnr) fnr.checked=false;
-  var fdac=document.getElementById('fDeliveryAtCustoms'); if(fdac) fdac.checked=false;
+  _returnOpTouched=false; syncReturnOpDefault();
   var fcw=document.getElementById('fCarwash'); if(fcw) fcw.value='';
   document.querySelectorAll('.carwash-btn').forEach(function(b){b.classList.remove('on');});
   refreshHangarCountBadges();
@@ -3791,8 +3814,6 @@ function isAddFormDirty(){
   var fStatus=document.getElementById('fStatus');
   var fEstDate=document.getElementById('fEstDate');
   var fObs=document.getElementById('fObs');
-  var fNotReturning=document.getElementById('fNotReturning');
-  var fDeliveryAtCustoms=document.getElementById('fDeliveryAtCustoms');
   var fCarwash=document.getElementById('fCarwash');
   if(fName&&fName.value.trim()) return true;
   if(fPhone&&fPhone.value.trim()) return true;
@@ -3804,8 +3825,7 @@ function isAddFormDirty(){
   if(fStatus&&fStatus.value!=='PENDING') return true;
   if(fEstDate&&fEstDate.value) return true;
   if(fObs&&fObs.value.trim()) return true;
-  if(fNotReturning&&fNotReturning.checked) return true;
-  if(fDeliveryAtCustoms&&fDeliveryAtCustoms.checked) return true;
+  if(_returnOpTouched) return true;
   if(fCarwash&&fCarwash.value) return true;
   return false;
 }
@@ -4342,9 +4362,9 @@ async function continueFreeformCompose(){
 
 // ── WELCOME SMS ────────────────────────────────────────────────
 function buildWelcomeSms(r) {
-  var brand = isAscend(r) ? 'Ascend Valet' : 'Makers Air Valet';
+  var brand = 'Makers Air Valet'; // one identity for every SMS (Ascend included)
   var body = 'Welcome to ' + brand + '!\n\nYour vehicle has been successfully checked in.\n\nTicket #: ' + r.ticket + '\n\nPlease keep this ticket number for reference.';
-  if (r.not_returning_with_makers_air) {
+  if (returnOperator(r) === 'OTHER') {
     body += '\n\nNOTE:\n\nYou informed us that you will not be returning with Makers Air.\n\nIf this information changes, please reply to this message.';
   }
   if (r.ret) {
@@ -4353,10 +4373,10 @@ function buildWelcomeSms(r) {
     body += '\n\nWe currently do not have a return date on file.\n\nOnce your travel plans are confirmed, please reply to this message with your expected return date and arrival time so your vehicle will be ready upon arrival.';
   }
   body += '\n\nThank you and safe travels!';
-  // delivery_at_customs suppresses this reminder only — it must never add
-  // Customs-specific wording here (see DECISIONS.md); the passenger simply
-  // gets no premature pickup instructions until Welcome Back is sent.
-  if (!isAscend(r) && !r.not_returning_with_makers_air && !r.delivery_at_customs) {
+  // Hangar 19 reminder only when the pickup (central helper) IS Hangar 19 —
+  // never Customs wording here (see DECISIONS.md); Customs passengers get no
+  // premature pickup instructions until the Welcome Back message.
+  if (pickupLocation(r) === 'HANGAR_19') {
     body += '\n\nReminder: After clearing Customs, please return to Hangar 19 with your pilots to pick up your vehicle.';
   }
   return body;
@@ -4364,7 +4384,7 @@ function buildWelcomeSms(r) {
 
 function welcomeSmsMessageType(r){
   if(!r.ret) return SMS_MESSAGE_TYPES.WELCOME_NO_DATE;
-  if(r.not_returning_with_makers_air) return SMS_MESSAGE_TYPES.WELCOME_NOT_RETURNING;
+  if(returnOperator(r)==='OTHER') return SMS_MESSAGE_TYPES.WELCOME_NOT_RETURNING;
   return SMS_MESSAGE_TYPES.WELCOME_CONFIRMED;
 }
 function sendWelcomeSms(id) {
@@ -4417,7 +4437,9 @@ function buildWelcomeBackSms(){
 }
 
 function welcomeBackButtonHtml(r){
-  if(isAscend(r)) return '';
+  // Welcome Back belongs to a Makers Air return (Hangar 19, or an approved
+  // Customs exception). Ascend returns use the Customs flow; Other is manual.
+  if(returnOperator(r)!=='MAKERS') return '';
   // Customs deliveries use the separate Customs communication workflow
   // (Customs pickup wording) — never the Hangar 19 message, to avoid
   // sending the passenger contradictory pickup instructions.
@@ -4439,21 +4461,20 @@ function welcomeBackButtonHtml(r){
 
 async function sendWelcomeBackSms(id){
   var r = data.find(function(x){ return x.id === id; });
-  if (!r || isAscend(r)) return;
+  if (!r || returnOperator(r)!=='MAKERS') return;
   if (r.isOfflinePending) { showMsg(OFFLINE_PENDING_SYNC_MSG, true); return; }
   if (r.delivery_type==='CUSTOMS') return; // use the Customs communication workflow instead
   if (!r.phone) { showMsg('No phone number on file for ' + r.name, true); return; }
-  // delivery_at_customs is independent of the delivery_type==='CUSTOMS'
-  // post-delivery workflow above — it's a planned destination captured at
-  // check-in, still sent through this same Hangar 19 Welcome Back button.
-  // isAscend() already returned above, so buildCustomsWelcomeSms(r) here
-  // always resolves to its Makers Air branch — reused as-is, no new template.
-  var isCustomsDest = !!r.delivery_at_customs;
+  // A Customs request under review: no definitive pickup instruction yet.
+  if (isCustomsRequestPending(r)) { showMsg('Customs request is pending — approve it or keep Hangar 19 before sending pickup instructions.', true); return; }
+  // Pickup comes from the central helper: Hangar 19, or Customs only when
+  // staff approved the Makers exception.
+  var isCustomsDest = pickupLocation(r)==='CUSTOMS';
   var smsBody = isCustomsDest ? buildCustomsWelcomeSms(r) : buildWelcomeBackSms();
   var sendOpts = {
     passengerId: r.id, passengerName: r.name, phone: r.phone, ticket: r.ticket,
     vehicle: formatVehicleLine(r), brand: 'Makers Air',
-    templateKey: isCustomsDest ? 'CUSTOMS_WELCOME_MAKERS' : 'HANGAR19_WELCOME_BACK',
+    templateKey: isCustomsDest ? 'CUSTOMS_EXCEPTION' : 'HANGAR19_WELCOME_BACK',
     messageType: isCustomsDest ? SMS_MESSAGE_TYPES.CUSTOMS_WELCOME_MAKERS : SMS_MESSAGE_TYPES.HANGAR19_WELCOME_BACK,
     body: smsBody, metadata: {trigger:'Dashboard — Welcome Back button'}
   };
@@ -4483,7 +4504,7 @@ async function sendWelcomeBackSms(id){
 
 function undoWelcomeBackSms(id){
   var r = data.find(function(x){ return x.id === id; });
-  if (!r || isAscend(r)) return;
+  if (!r || returnOperator(r)!=='MAKERS') return; // same rule as welcomeBackButtonHtml()
   if (r.isOfflinePending) { showMsg(OFFLINE_PENDING_SYNC_MSG, true); return; }
   if (!r.welcome_back_sent_at) return;
   if (!confirm('Clear the Welcome Back status for this passenger?')) return;
@@ -4534,14 +4555,19 @@ function fmtSentTimestamp(iso){
   return isNaN(d.getTime())?String(iso):d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
 }
 
+// Customs pickup instruction, chosen by the RETURN operation (never the
+// departure ticket) and never stating where a key is left:
+//   Ascend return → the Ascend team hands the key over in person;
+//   Makers return with an approved Customs exception → the passenger
+//   contacts the valet team on arrival for the key.
 function buildCustomsWelcomeSms(r){
-  if(isAscend(r)){
-    return 'Welcome back!\n\nYour vehicle is ready at Customs.\n\nAn Ascend team member will personally provide your key upon your arrival.\n\nThank you for choosing Ascend Valet.';
+  if(returnOperator(r)==='ASCEND'){
+    return 'Makers Air Valet: Welcome back! Your vehicle is ready at Customs. An Ascend team member will personally hand you your key when you arrive.';
   }
-  return 'Welcome back!\n\nYour vehicle is ready at Customs.\n\nThe key is located on the driver\'s-side tire.\n\nThank you for choosing Makers Air Valet.';
+  return 'Makers Air Valet: Welcome back! As arranged, your vehicle will be at Customs. When you arrive, reply here or call (954) 352-1010 for your key.';
 }
 function buildCustomsGratuitySms(r){
-  var brand=isAscend(r)?'Ascend Valet':'Makers Air Valet';
+  var brand='Makers Air Valet'; // one identity for every SMS
   return 'Thank you for choosing '+brand+'.\n\nWe truly appreciate your business.\n\nIf we exceeded your expectations, here is our discretionary valet team gratuity link:\n\nhttps://buy.stripe.com/8x214mccK0uh9TjgIM6Vq00';
 }
 
@@ -4724,8 +4750,8 @@ async function sendCustomsWelcomeSms(id){
   var sendOpts={
     passengerId:r.id, passengerName:r.name, phone:r.phone, ticket:r.ticket,
     vehicle:formatVehicleLine(r), brand:isAscend(r)?'Ascend':'Makers Air',
-    templateKey:isAscend(r)?'CUSTOMS_WELCOME_ASCEND':'CUSTOMS_WELCOME_MAKERS',
-    messageType:isAscend(r)?SMS_MESSAGE_TYPES.CUSTOMS_WELCOME_ASCEND:SMS_MESSAGE_TYPES.CUSTOMS_WELCOME_MAKERS,
+    templateKey:returnOperator(r)==='ASCEND'?'CUSTOMS_WELCOME':'CUSTOMS_EXCEPTION',
+    messageType:returnOperator(r)==='ASCEND'?SMS_MESSAGE_TYPES.CUSTOMS_WELCOME_ASCEND:SMS_MESSAGE_TYPES.CUSTOMS_WELCOME_MAKERS,
     body:smsBody, metadata:{trigger:'Customs Communication modal — Send Welcome Back'}
   };
 
@@ -5003,8 +5029,13 @@ async function saveEntry(sendSms, printMode){
   if(finalStatus==='NO DATE'){ finalDate=hasEstDate?d2us(estDate):''; }
   else { finalDate=d2us(getReturnDate()); }
   var locVal=document.getElementById('fLoc').value;
-  var notReturning=!!(document.getElementById('fNotReturning')||{}).checked;
-  var deliveryAtCustoms=!!(document.getElementById('fDeliveryAtCustoms')||{}).checked;
+  // Returning with (source of truth). The legacy flags are derived from it
+  // here so offline/pending records look right before sync; the database
+  // trigger derives them again on insert. A Customs exception is never set
+  // at check-in — it is a separate staff decision in the passenger panel.
+  var returnOp=(document.getElementById('fReturnOp')||{}).value||(document.getElementById('fOperation').value==='ASCEND'?'ASCEND':'MAKERS');
+  var notReturning=(returnOp==='OTHER');
+  var deliveryAtCustoms=false;
   var carwashStatus=document.getElementById('fCarwash').value||null;
   var nameUpper=name.toUpperCase();
 
@@ -5023,6 +5054,7 @@ async function saveEntry(sendSms, printMode){
     obs: finalObs,
     not_returning_with_makers_air: notReturning,
     delivery_at_customs: deliveryAtCustoms,
+    return_operator: returnOp,
     carwash_status: carwashStatus,
     deldate: ''
   };
@@ -5051,7 +5083,7 @@ async function saveEntry(sendSms, printMode){
         var savedRec={ticket:ticket,name:nameUpper,phone:phoneFull,
                       ret:finalDate,car:carVal,color:colorVal,loc:locVal,
                       not_returning_with_makers_air:notReturning,
-                      delivery_at_customs:deliveryAtCustoms};
+                      delivery_at_customs:deliveryAtCustoms, return_operator:returnOp};
         if(!isAscend(savedRec)){await printCustomerTicket(savedRec);}
         await printKeyTicket(savedRec);
         await printDashboardTicket(savedRec);
@@ -5062,7 +5094,7 @@ async function saveEntry(sendSms, printMode){
         // sendPassengerSms()/opens Messages. The attendant must explicitly
         // click "Open in Messages" in the review modal. See
         // openNewEntrySmsPreview()/openReviewSmsInMessages() above.
-        var welcomeRec={ticket:ticket,ret:finalDate,not_returning_with_makers_air:notReturning,loc:locVal,delivery_at_customs:deliveryAtCustoms};
+        var welcomeRec={ticket:ticket,ret:finalDate,not_returning_with_makers_air:notReturning,loc:locVal,delivery_at_customs:deliveryAtCustoms,return_operator:returnOp};
         var smsBody=buildWelcomeSms(welcomeRec);
         openNewEntrySmsPreview({
           passengerId:_newId, passengerName:nameUpper, phone:phoneFull, ticket:ticket,
@@ -5152,7 +5184,7 @@ async function saveEntry(sendSms, printMode){
       var savedRecOff={ticket:ticket,name:nameUpper,phone:phoneFull,
                     ret:finalDate,car:carVal,color:colorVal,loc:locVal,
                     not_returning_with_makers_air:notReturning,
-                    delivery_at_customs:deliveryAtCustoms};
+                    delivery_at_customs:deliveryAtCustoms, return_operator:returnOp};
       if(!isAscend(savedRecOff)){await printCustomerTicket(savedRecOff);}
       await printKeyTicket(savedRecOff);
       await printDashboardTicket(savedRecOff);
@@ -5169,6 +5201,167 @@ async function saveEntry(sendSms, printMode){
 }
 
 // ── DETAIL PANEL ───────────────────────────────────────────────
+// ── RETURN / PICKUP PANEL + NEEDS REVIEW ─────────────────────────
+// Flying with (departure, from the ticket) is history. Returning with
+// (return_operator) is editable all trip through the normal Save Changes
+// path (saveEdits → activity_log). The pickup place is ALWAYS asked from
+// the central helpers in utils.js (pickupLocation / isCustomsException /
+// isCustomsRequestPending) — never derived here.
+// The Makers → Customs exception is an internal staff decision, never a
+// passenger choice: request (pending) / approve / deny / back to Hangar 19.
+var RETURN_FIELD_KEYS=['return_operator','delivery_at_customs','not_returning_with_makers_air','customs_exception_requested_at'];
+function pickupPlaceLabel(place){ return place==='HANGAR_19'?'Hangar 19':place==='CUSTOMS'?'Customs':'Manual (Other)'; }
+function returnPickupPanelHtml(r){
+  var ret=returnOperator(r), pk=pickupLocation(r), active=r.status!=='DELIVERED'&&r.status!=='ARCHIVED'&&!r.isOfflinePending;
+  var opts=['MAKERS','ASCEND','OTHER'].map(function(v){
+    return '<option value="'+v+'"'+(v===ret?' selected':'')+'>'+RETURN_OPERATOR_LABELS[v]+'</option>';
+  }).join('');
+  var btn=function(action,label,primary){
+    return '<button type="button" class="rp-btn'+(primary?' rp-btn-primary':'')+'" onclick="setCustomsException('+r.id+',\''+action+'\')">'+label+'</button>';
+  };
+  var pickHtml;
+  if(isCustomsException(r)){
+    pickHtml='<span class="rp-place">Customs</span> <span class="rp-tag rp-tag-exc">Exception approved</span>'+
+      (active?'<div class="rp-acts">'+btn('REVOKE','Back to Hangar 19')+'</div>':'');
+  } else if(pk==='HANGAR_19'){
+    if(isCustomsRequestPending(r)){
+      pickHtml='<span class="rp-place">Hangar 19</span> <span class="rp-tag">Default</span>'+
+        '<div class="rp-note">Customs requested — Pending. Pickup stays Hangar 19 until approved.</div>'+
+        (active?'<div class="rp-acts">'+btn('APPROVE','Approve Customs exception',true)+btn('DENY','Keep Hangar 19')+'</div>':'');
+    } else {
+      pickHtml='<span class="rp-place">Hangar 19</span> <span class="rp-tag">Default</span>'+
+        (active?'<div class="rp-acts">'+btn('REQUEST','Customs requested')+btn('APPROVE','Approve Customs exception')+'</div>':'');
+    }
+  } else if(pk==='CUSTOMS'){
+    pickHtml='<span class="rp-place">Customs</span> <span class="rp-tag rp-tag-cus">Ascend return</span>';
+  } else {
+    pickHtml='<span class="rp-manual">Manual — Returning with Other. No automatic pickup instructions.</span>';
+  }
+  return '<div class="di" style="grid-column:1/-1"><div class="di-l">Flying with</div><div class="di-v">'+RETURN_OPERATOR_LABELS[departureOperator(r)]+
+      ' <span class="rp-sub">(from the ticket)</span></div></div>'+
+    '<div class="di" style="grid-column:1/-1"><div class="di-l">Returning with ✎</div><div class="di-v">'+
+      '<select class="rp-select" '+(r.isOfflinePending?'disabled ':'')+'onchange="markDirty(\'return_operator\',this.value)">'+opts+'</select>'+
+      '<div class="rp-sub">Change anytime, then Save Changes. Future messages and the passenger page follow it.</div></div></div>'+
+    '<div class="di" style="grid-column:1/-1"><div class="di-l">Pickup</div><div class="di-v">'+pickHtml+'</div></div>';
+}
+function applyReturnFieldsFromServer(r, rows){
+  var row=Array.isArray(rows)?rows[0]:rows;
+  if(!row) return;
+  RETURN_FIELD_KEYS.forEach(function(k){ if(k in row) r[k]=row[k]; });
+}
+function returnFieldLogValue(k,v){
+  if(k==='return_operator') return v?(RETURN_OPERATOR_LABELS[v]||v):'Not set';
+  if(k==='delivery_at_customs') return v?'Approved':'No';
+  if(k==='customs_exception_requested_at') return v?'Pending':'No';
+  return v;
+}
+// Audit through the existing activity_log path (logFieldChange).
+function logReturnFieldChanges(r,before,skip){
+  var ps=[];
+  ['return_operator','delivery_at_customs','customs_exception_requested_at'].forEach(function(k){
+    if(skip&&skip.indexOf(k)!==-1) return;
+    var a=returnFieldLogValue(k,before[k]), b=returnFieldLogValue(k,r[k]);
+    if(a!==b) ps.push(logFieldChange(r,k,a,b));
+  });
+  return Promise.all(ps);
+}
+async function setCustomsException(rid, action){
+  var r=data.find(function(x){return x.id===rid;});
+  if(!r) return;
+  if(r.isOfflinePending){ showMsg(OFFLINE_PENDING_SYNC_MSG,true); return; }
+  if(returnOperator(r)!=='MAKERS'){ showMsg('The Customs exception only applies to a Makers Air return.',true); return; }
+  var upd;
+  if(action==='REQUEST'){ upd={customs_exception_requested_at:new Date().toISOString()}; }
+  else if(action==='APPROVE'){
+    if(!confirm('Approve the Customs EXCEPTION for '+r.name+'?\n\nReturning with stays Makers Air. Approve only if today\'s operation allows it.')) return;
+    upd={delivery_at_customs:true};
+  }
+  else if(action==='DENY'){ upd={customs_exception_requested_at:null}; }
+  else if(action==='REVOKE'){
+    if(!confirm('Back to Hangar 19 for '+r.name+'?')) return;
+    upd={delivery_at_customs:false};
+  } else return;
+  var before={}; RETURN_FIELD_KEYS.forEach(function(k){ before[k]=r[k]; });
+  loading(true);
+  try{
+    var rows=await sbUpdate(rid,upd);
+    applyReturnFieldsFromServer(r,rows);
+    await logReturnFieldChanges(r,before);
+    showMsg(action==='APPROVE'?'✅ Customs exception approved.':action==='REVOKE'?'✅ Back to Hangar 19.':action==='REQUEST'?'Customs request recorded (pending).':'✅ Kept at Hangar 19.',false);
+    render(); showDet(rid); loadReturnReviews();
+  }catch(e){ showMsg('Error: '+e.message,true); }
+  finally{ loading(false); }
+}
+// Needs Review: return / pickup changed after pickup instructions were
+// already given (view airvalet_return_reviews). Nothing is ever sent
+// automatically — staff choose.
+var _returnReviews=[];
+async function loadReturnReviews(){
+  try{
+    var res=await fetch(SUPABASE_URL+'/rest/v1/airvalet_return_reviews?select=*&order=instructions_at.desc',{headers:sbHeaders()});
+    _returnReviews=res.ok?await res.json():[];
+  }catch(e){ _returnReviews=[]; }
+  renderReturnReviewList();
+  return _returnReviews;
+}
+function returnReviewCardHtml(v, withOpen){
+  var when=v.instructions_at?new Date(v.instructions_at).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):'';
+  return '<div class="rr-card">'+
+    '<div class="rr-title">⚠ Return changed — passenger may have old pickup instructions</div>'+
+    '<div class="rr-body">'+(withOpen?'<b>'+escapeHTML(v.name||'')+'</b> · '+escapeHTML(v.ticket||'')+'<br>':'')+
+      'Told: <b>'+pickupPlaceLabel(v.instructions_place)+'</b> ('+escapeHTML(when)+'). Now: <b>'+pickupPlaceLabel(v.current_place)+'</b>'+
+      ' · Returning with '+escapeHTML(RETURN_OPERATOR_LABELS[v.return_operator]||'—')+'. Nothing was sent automatically.</div>'+
+    '<div class="rp-acts">'+
+      '<button type="button" class="rp-btn rp-btn-primary" onclick="sendUpdatedPickupMessage('+v.passenger_id+')">Send updated pickup message</button>'+
+      '<button type="button" class="rp-btn" onclick="ackReturnReview('+v.passenger_id+',\'NO_UPDATE_NEEDED\')">No update needed</button>'+
+      (withOpen?'<button type="button" class="rp-btn" onclick="showDet('+v.passenger_id+');document.getElementById(\'detOv\').classList.add(\'on\')">Open passenger</button>':'')+
+    '</div></div>';
+}
+function renderReturnReviewList(){
+  var badge=document.getElementById('rrTabBadge');
+  if(badge){ badge.textContent=_returnReviews.length; badge.style.display=_returnReviews.length?'':'none'; }
+  var box=document.getElementById('returnReviewList');
+  if(!box) return;
+  box.innerHTML=_returnReviews.length
+    ? '<div class="dtitle" style="color:var(--gold2)">Needs Review <span class="rr-count">'+_returnReviews.length+'</span></div>'+_returnReviews.map(function(v){return returnReviewCardHtml(v,true);}).join('')
+    : '';
+}
+function refreshReturnReviewBanner(id){
+  var el=document.getElementById('returnReviewBanner');
+  if(!el) return;
+  var v=_returnReviews.find(function(x){return x.passenger_id===id;});
+  el.innerHTML=v?returnReviewCardHtml(v,false):'';
+}
+async function sendUpdatedPickupMessage(id){
+  var r=data.find(function(x){return x.id===id;});
+  if(!r) return;
+  var pk=pickupLocation(r);
+  if(isCustomsRequestPending(r)){ showMsg('Decide the pending Customs request first.',true); return; }
+  if(!pk){ sendGenericTextSms(id); return; } // Other: staff write it, then mark the review
+  var body=pk==='HANGAR_19'?buildWelcomeBackSms():buildCustomsWelcomeSms(r);
+  var res=await sendPassengerSms({
+    passengerId:r.id, passengerName:r.name, phone:r.phone, ticket:r.ticket,
+    vehicle:formatVehicleLine(r), brand:'Makers Air',
+    templateKey:pk==='HANGAR_19'?'HANGAR19_WELCOME_BACK':(returnOperator(r)==='ASCEND'?'CUSTOMS_WELCOME':'CUSTOMS_EXCEPTION'),
+    messageType:pk==='HANGAR_19'?SMS_MESSAGE_TYPES.HANGAR19_WELCOME_BACK:SMS_MESSAGE_TYPES.CUSTOMS_WELCOME_MAKERS,
+    body:body, metadata:{trigger:'Needs Review — updated pickup message'}
+  });
+  if(res&&res.ok) await ackReturnReview(id,'UPDATE_SENT');
+}
+async function ackReturnReview(id,resolution){
+  var r=data.find(function(x){return x.id===id;})||{};
+  try{
+    var res=await fetch(SUPABASE_URL+'/rest/v1/rpc/airvalet_return_review_ack',{method:'POST',headers:sbHeaders(),
+      body:JSON.stringify({p_passenger_id:id,p_resolution:resolution})});
+    if(!res.ok) throw new Error(await res.text());
+    sbLog('EDITED',r.name||'',r.ticket||'',r.loc||'','Needs Review: '+(resolution==='UPDATE_SENT'?'updated pickup message sent':'no update needed'),
+      {passenger_id:id, field_name:'return_review', old_value:'Return changed', new_value:resolution==='UPDATE_SENT'?'Update sent':'No update needed'});
+    await loadReturnReviews();
+    refreshReturnReviewBanner(id);
+    showMsg('✅ Needs Review updated.',false);
+  }catch(e){ showMsg('Could not update Needs Review: '+e.message,true); }
+}
+
 function showDet(id){
   _editChanges={};
   var r=null;for(var i=0;i<data.length;i++){if(data[i].id===id){r=data[i];break;}}
@@ -5179,10 +5372,12 @@ function showDet(id){
   if(rt)retDisp='TODAY';if(rm)retDisp='TOMORROW';if(ro)retDisp=fmtD(r.ret)+' (LATE)';
   var retC=rt?'color:var(--acc)':ro?'color:var(--red)':rm?'color:var(--pur)':'';
   var hangCounts=computeHangarCounts();
-  var hangH=HANGARS.map(function(h){return '<div class="ho'+(r.loc===h?' on':'')+' ho-item" data-rid="'+r.id+'" data-h="'+h+'">'+h+' <span class="lb-count">('+(hangCounts[h]||0)+')</span></div>';}).join('');
+  var hangH=VEHICLE_LOCATIONS.map(function(h){return '<div class="ho'+(r.loc===h?' on':'')+' ho-item" data-rid="'+r.id+'" data-h="'+h+'">'+h+' <span class="lb-count">('+(hangCounts[h]||0)+')</span></div>';}).join('');
   var histH='';
   if(hist.length>1){histH='<div class="htitle">Visit History ('+hist.length+' visit'+(hist.length>1?'s':'')+' - all contacts)</div><div class="hlist">'+hist.map(function(h){return '<div class="hi" style="flex-direction:column;gap:3px;align-items:flex-start"><div style="display:flex;justify-content:space-between;width:100%"><span class="h-tk">'+escapeHTML(h.ticket)+'</span><span class="h-dt">'+escapeHTML(fmtA(h.ts))+'</span></div><div style="font-size:11px;color:var(--mu)">'+escapeHTML(h.car)+(h.phone?' · '+escapeHTML(fmtP(h.phone)):'')+'</div><div style="font-size:10px;color:'+(h.status==='DELIVERED'?'var(--ok)':'var(--acc)')+'">'+escapeHTML(h.status)+'</div></div>';}).join('')+'</div>';}
+  setTimeout(function(){ loadReturnReviews().then(function(){ refreshReturnReviewBanner(id); }); },0);
   document.getElementById('detPanel').innerHTML=
+    '<div id="returnReviewBanner"></div>'+
     (isAscend(r)?'<div style="background:rgba(99,179,237,0.12);border:1px solid rgba(99,179,237,0.4);border-radius:10px;padding:10px 14px;margin-bottom:12px;display:flex;align-items:center;gap:8px"><span style="font-size:13px;font-weight:800;font-family:\'JetBrains Mono\',monospace;color:#63b3ed;letter-spacing:.5px">✈ ASCEND / PRIVATE FLIGHT</span></div>':'')+
     '<div class="dname">'+escapeHTML(r.name)+'</div>'+
     '<div class="dphone" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'+escapeHTML(fmtP(r.phone))+
@@ -5206,18 +5401,7 @@ function showDet(id){
       '<div class="di editable" style="grid-column:1/-1" data-field="color" onclick="makeEditable(this,\'color\')" ><div class="di-l">Color ✎</div><div class="di-v">'+escapeHTML(r.color||'—')+'</div></div>'+
       '<div class="di editable" style="grid-column:1/-1" data-field="loc" data-raw="'+escapeHTML(r.loc||'')+'"><div class="di-l">Location ✎</div><div class="di-v">'+escapeHTML(r.loc||'—')+'</div></div>'+
       '<div class="di editable" style="grid-column:1/-1" data-field="obs"><div class="di-l">Notes ✎</div><div class="di-v" style="font-size:12px">'+escapeHTML(r.obs||'—')+'</div></div>'+
-      '<div class="di" style="grid-column:1/-1"><div class="di-l">Other Boat</div>'+
-        '<div class="di-v"><label style="display:flex;align-items:center;gap:8px;cursor:pointer">'+
-        '<input type="checkbox" '+(r.not_returning_with_makers_air?'checked':'')+
-        ' onchange="markDirty(\'not_returning_with_makers_air\',this.checked)">'+
-        '<span style="font-size:12px;color:var(--mu)">Passenger is returning with another boat company, not Makers Air</span>'+
-        '</label></div></div>'+
-      '<div class="di" style="grid-column:1/-1"><div class="di-l">Delivery at Customs</div>'+
-        '<div class="di-v"><label style="display:flex;align-items:center;gap:8px;cursor:pointer">'+
-        '<input type="checkbox" '+(r.delivery_at_customs?'checked':'')+
-        ' onchange="markDirty(\'delivery_at_customs\',this.checked)">'+
-        '<span style="font-size:12px;color:var(--mu)">Vehicle should be delivered to Customs upon return</span>'+
-        '</label></div></div>'+
+      returnPickupPanelHtml(r)+
       '<div class="di" style="grid-column:1/-1"><div class="di-l">Carwash</div>'+
         '<div class="di-v"><div class="lbs" id="editCarwashGroup" data-current="'+(r.carwash_status||'')+'">'+
           '<div class="carwash-btn'+(r.carwash_status==='CARWASH'?' on':'')+'" onclick="editSelCarwash(this,\'CARWASH\')">&#128704; Carwash</div>'+
@@ -5374,7 +5558,7 @@ async function deliverWithTip(id, deliveryType, tipReceived){
 
 // ── TIP STATUS SMS (Normal / Lockbox deliveries only) ───────────
 function buildTipSms(r, tipReceived){
-  var brand = isAscend(r) ? 'Ascend Valet' : 'Makers Air Valet';
+  var brand = 'Makers Air Valet'; // one identity for every SMS
   if(tipReceived){
     return 'Your vehicle has been delivered successfully. Thank you for choosing '+brand+'. We truly appreciate your business and your generosity. It was our pleasure assisting you, and we look forward to welcoming you again on your next trip. Have a wonderful day!';
   }
@@ -5575,11 +5759,18 @@ function quickMoveH19(id){
   if(!r) return;
   if(r.isOfflinePending){ showMsg(OFFLINE_PENDING_SYNC_MSG, true); return; }
   if(r.loc==='HANGAR 19'){ showMsg('Already in HANGAR 19', false); return; }
-  // Always the real action this control performs — see the h19CustomsNote
-  // comment in mkCards() for why delivery_at_customs never changes this
-  // wording (it surfaces as a separate non-interactive badge instead).
   if(!confirm('Move '+r.name+' to Hangar 19?')) return;
   moveHangar(id, 'HANGAR 19');
+}
+// Same pattern for a Customs pickup (Ascend return or approved Makers
+// exception) — only offered when requiredMove() says MOVE_TO_CUSTOMS.
+function quickMoveCustoms(id){
+  var r=null;for(var i=0;i<data.length;i++){if(data[i].id===id){r=data[i];break;}}
+  if(!r) return;
+  if(r.isOfflinePending){ showMsg(OFFLINE_PENDING_SYNC_MSG, true); return; }
+  if(requiredMove(r)!=='MOVE_TO_CUSTOMS'){ showMsg('No move to Customs needed for '+r.name, false); return; }
+  if(!confirm('Move '+r.name+' to Customs?')) return;
+  moveHangar(id, CUSTOMS_LOC);
 }
 
 // ── BULK H19 — Leaving Today only ────────────────────────────────
@@ -5596,8 +5787,9 @@ function quickMoveH19(id){
 // location, error retained, reported in the summary count.
 function leavingTodayEligibleForBulkH19(){
   return data.filter(function(r){
-    return isToday(r.ret) && r.status!=='ARCHIVED'
-      && r.status!=='DELIVERED' && r.loc!=='HANGAR 19' && !r.isOfflinePending;
+    // Only vehicles whose required move IS Hangar 19 (central rule) — a
+    // Customs-bound or Other-return vehicle is never bulk-moved to H19.
+    return isToday(r.ret) && requiredMove(r)==='MOVE_TO_HANGAR_19';
   });
 }
 var _lastBulkH19Failures = [];
@@ -5695,7 +5887,7 @@ function makeEditable(cell,field){
     '</select>';
   } else if(field==='loc'){
     ctrl='<select class="di-input" id="inp-'+field+'" onclick="event.stopPropagation()">'+
-      [''].concat(HANGARS).map(function(v){return '<option value="'+v+'"'+(rawVal===v?' selected':'')+'>'+(v||'— no location —')+'</option>';}).join('')+
+      [''].concat(VEHICLE_LOCATIONS).map(function(v){return '<option value="'+v+'"'+(rawVal===v?' selected':'')+'>'+(v||'— no location —')+'</option>';}).join('')+
     '</select>';
   } else if(field==='ret'||field==='ts'){
     ctrl='<input class="di-input" type="date" id="inp-'+field+'" value="'+escapeHTML(rawVal)+'" onclick="event.stopPropagation()" />';
@@ -5840,20 +6032,26 @@ async function saveEdits(rid){
       }
     }
 
-    await sbUpdate(rid,upd);
+    var _returnBefore={}; RETURN_FIELD_KEYS.forEach(function(k){ _returnBefore[k]=r[k]; });
+    var _updRows=await sbUpdate(rid,upd);
 
     // Only now, after the database confirmed the write, apply the exact
     // persisted values to the local record. `r` is already the same object
     // referenced inside `data` (found by id above), so this single
     // assignment keeps both in sync — no separate data[] pass needed.
     for(var updField in upd){ r[updField]=upd[updField]; }
+    // The database derives the Customs exception / request / Other-boat
+    // flags from Returning with (trigger); take its result, never guess.
+    if(upd.return_operator!==undefined) applyReturnFieldsFromServer(r,_updRows);
 
     var locChangedHere = (_editChanges.loc !== undefined && _editChanges.loc !== prevLoc);
 
     var logPromises=[];
     for(var field in _editChanges){
+      if(field==='return_operator'){ logPromises.push(logFieldChange(r,field,returnFieldLogValue(field,oldVals[field]),returnFieldLogValue(field,upd[field]))); continue; }
       logPromises.push(logFieldChange(r,field,oldVals[field],upd[field]));
     }
+    if(upd.return_operator!==undefined) logPromises.push(logReturnFieldChanges(r,_returnBefore,['return_operator']).then(function(rs){ return rs.every(function(x){return x!==false;}); }));
     if(_editDeliveredFromLoc!==null) logPromises.push(sbLog('DELIVERED_FROM_LOCATION',r.name,r.ticket,'HANGAR 19','Delivered as '+(upd.delivery_type||r.delivery_type||'NORMAL')+'. Previous location: '+_editDeliveredFromLoc+'. Final location automatically changed to HANGAR 19.',{passenger_id:r.id}));
     var logResults = await Promise.all(logPromises);
     var logsFailed = logResults.some(function(ok){ return ok===false; });
@@ -5874,6 +6072,7 @@ async function saveEdits(rid){
     }
     render();
     showDet(rid);
+    if(upd.return_operator!==undefined) loadReturnReviews();
 
     // One consolidated Key Copy prompt when this save changed BOTH the
     // return date and the location — never two separate prompts. The plain
@@ -6049,7 +6248,8 @@ var LOG_FIELD_LABELS={
   loc:'Location', ret:'Return date', status:'Status', obs:'Notes', ts:'Arrival date',
   not_returning_with_makers_air:'Other Boat', departure_time:'Departure Time',
   return_flight:'Return Flight', delivery_type:'Delivery Type',
-  delivery_at_customs:'Delivery at Customs', carwash_status:'Carwash Status'
+  delivery_at_customs:'Customs exception (Makers)', carwash_status:'Carwash Status',
+  return_operator:'Returning with', customs_exception_requested_at:'Customs request'
 };
 // Uppercase field badge used by the new Passenger Change History cards —
 // derived from the same label map that drives the existing sentence-style
@@ -6756,7 +6956,7 @@ function buildLeavingTomorrowExportData(){
   var totalNoLoc=rows.filter(function(r){return !r.loc||!String(r.loc).trim();}).length;
   // Delivery at Customs — destination instruction, never Ascend, never
   // r.loc (current hangar stays a separate, untouched field below).
-  var totalCustomsDest=rows.filter(function(r){return !isAscend(r)&&!!r.delivery_at_customs;}).length;
+  var totalCustomsDest=rows.filter(function(r){return !isAscend(r)&&pickupLocation(r)==='CUSTOMS';}).length;
   var times=rows.map(function(r){return getDepartureTime(r);}).filter(Boolean);
   var earliest=times.length?times[0]:'—';
   var latest=times.length?times[times.length-1]:'—';
@@ -6797,7 +6997,7 @@ function buildLeavingTomorrowExportData(){
     var obs=r.obs&&String(r.obs).trim();
     // Destination instruction only — r.loc (current hangar, above) is
     // untouched; never shown for Ascend.
-    var customsNote=(!isAscend(r)&&r.delivery_at_customs)?'<div class="pdf-customs-note">&#8594; US Customs</div>':'';
+    var customsNote=(!isAscend(r)&&pickupLocation(r)==='CUSTOMS')?'<div class="pdf-customs-note">&#8594; US Customs'+(isCustomsException(r)?' (exception)':'')+'</div>':'';
     return '<div class="pdf-passenger-card'+(isRush?' rush':'')+'">'+
       '<div class="pdf-passenger-card-header">'+
         '<div class="pdf-passenger-name">'+(isAscend(r)?'[A] ':'')+escapeHTML(r.name)+(isAscend(r)?'<span class="pdf-asc-badge">ASCEND</span>':'')+'</div>'+
@@ -7109,7 +7309,7 @@ function normalizeHangarValue(v){
   return String(v||'').trim().toUpperCase().replace(/\s+/g,' ');
 }
 function isValidOperationalHangar(v){
-  return HANGARS.indexOf(normalizeHangarValue(v)) !== -1;
+  return VEHICLE_LOCATIONS.indexOf(normalizeHangarValue(v)) !== -1;
 }
 // Single source of truth for "vehicles currently in each hangar" —
 // originally computed inline inside buildTvViewModel() (TV Mode's hangar
@@ -7119,7 +7319,7 @@ function isValidOperationalHangar(v){
 // hangars via isValidOperationalHangar/normalizeHangarValue above.
 function computeHangarCounts(){
   var counts = {};
-  HANGARS.forEach(function(h){ counts[h]=0; });
+  VEHICLE_LOCATIONS.forEach(function(h){ counts[h]=0; });
   (typeof data!=='undefined' && data ? data : []).forEach(function(r){
     if(!r || r.status==='ARCHIVED' || r.status==='DELIVERED') return;
     if(!isValidOperationalHangar(r.loc)) return;
@@ -11234,7 +11434,7 @@ function buildTvViewModel(){
   // (AT CUSTOMS or otherwise) never double-appears here — mutually
   // exclusive with atCustoms by the same status test ascendActive uses.
   var deliveryAtCustomsPending = active.filter(function(r){
-    return r.status!=='DELIVERED' && !!r.delivery_at_customs
+    return r.status!=='DELIVERED' && pickupLocation(r)==='CUSTOMS'
       && !(typeof isAscend==='function' && isAscend(r));
   });
 
@@ -11331,7 +11531,7 @@ function buildTvViewModel(){
 function tvBadges(r){
   var out='';
   if(typeof isAscend==='function' && isAscend(r)) out+='<span class="tv-badge tv-badge-ascend">&#9992; ASCEND</span>';
-  if(r.not_returning_with_makers_air) out+=OTHER_BOAT_TV_BADGE_HTML;
+  if(returnOperator(r)==='OTHER') out+=OTHER_BOAT_TV_BADGE_HTML;
   return out;
 }
 function tvFlightLine(r){
@@ -11375,14 +11575,14 @@ function tvShortName(name){
 // class is used (today = stronger/faster, tomorrow = lighter/slower);
 // the eligibility rule itself never differs by day.
 function tvNeedsH19Move(r){
-  return r.status!=='DELIVERED' && r.loc!=='HANGAR 19' && !r.isOfflinePending;
+  // Central decision (utils.js requiredMove): current loc vs pickup place.
+  return !!requiredMove(r);
 }
 function tvMoveH19Badge(day, r){
   var cls = day==='today' ? 'tv-badge-move-h19-today' : 'tv-badge-move-h19-tomorrow';
-  // Label only — delivery_at_customs never changes what tvNeedsH19Move()
-  // requires, never touches r.loc, and never applies to Ascend (isAscend()
-  // is ticket-prefix-based, entirely independent of this flag).
-  var label = (r && r.delivery_at_customs && !isAscend(r)) ? 'MOVE TO CUSTOMS' : 'MOVE TO H19';
+  // Label only — the pickup place (central pickupLocation()) never touches
+  // r.loc: Customs for an Ascend return or an approved Makers exception.
+  var label = requiredMoveLabel(requiredMove(r));
   return '<span class="tv-badge '+cls+'">&#9888; '+label+'</span>';
 }
 function tvCard(r){
@@ -11400,7 +11600,7 @@ function tvCard(r){
   // Returning) rather than crowding the name line — never hides the
   // passenger name, and coexists with whatever else is already there.
   var allBadges = tvBadges(r) + (tvNeedsH19Move(r) ? tvMoveH19Badge('tomorrow', r) : '');
-  return '<div class="tv-card'+(critical?' tv-critical':'')+(r.not_returning_with_makers_air?' tv-other-boat':'')+'">'+
+  return '<div class="tv-card'+(critical?' tv-critical':'')+(returnOperator(r)==='OTHER'?' tv-other-boat':'')+'">'+
     '<div class="tv-card-row"><div class="tv-card-name">'+escapeHTML(tvShortName(r.name))+'</div>'+timeHtml+'</div>'+
     '<div class="tv-card-meta">'+metaParts.join(' &middot; ')+'</div>'+
     tvFlightLine(r)+
@@ -11462,12 +11662,12 @@ function tvRow(r, opts){
 }
 
 // Read-only mirror of the Dashboard's Hangar 19 Welcome Back reminder.
-// Reuses getWelcomeBackEta()/isAscend()/WELCOME_BACK_REMINDER_MINUTES
-// exactly as-is — same eligibility, same threshold, no second
-// interpretation of departure time. TV Mode never sends anything; this
+// Reuses getWelcomeBackEta()/returnOperator()/WELCOME_BACK_REMINDER_MINUTES
+// — same eligibility as the Dashboard button (Makers Air return), same
+// threshold, no second interpretation of departure time. TV Mode never sends anything; this
 // only decides which badge (if any) to show on a Leaving Today row.
 function tvWelcomeBackState(r){
-  if(isAscend(r)) return null;
+  if(returnOperator(r)!=='MAKERS') return null;
   if(r.delivery_type==='CUSTOMS') return null;
   if(r.welcome_back_sent_at) return 'sent';
   var eta = getWelcomeBackEta(r);
@@ -11741,7 +11941,7 @@ function tvTodayRowHtml(r, kind){
     // below the meta/flight lines — never inline with the name, so
     // neither badge (nor both firing at once) can shrink the passenger
     // name's available width.
-    var notReturning = !!r.not_returning_with_makers_air;
+    var notReturning = returnOperator(r)==='OTHER';
     var badgeParts = [];
     if(notReturning) badgeParts.push(OTHER_BOAT_TV_BADGE_HTML);
     if(tvNeedsH19Move(r)) badgeParts.push(tvMoveH19Badge('today', r));
@@ -11766,7 +11966,7 @@ function tvTodayRowHtml(r, kind){
   }
   var d = r.checkin_date ? new Date(r.checkin_date) : null;
   var t2 = (d && !isNaN(d.getTime())) ? d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}) : '—';
-  var notReturningChecked = !!r.not_returning_with_makers_air;
+  var notReturningChecked = returnOperator(r)==='OTHER';
   var badges = r.status==='DELIVERED' ? '<span class="tv-badge tv-badge-delivered">&#10003; DELIVERED</span>' : '';
   if(notReturningChecked) badges += (badges?' ':'')+OTHER_BOAT_TV_BADGE_HTML;
   return tvRow(r,{time:t2, nameBadges:badges, notReturning:notReturningChecked});

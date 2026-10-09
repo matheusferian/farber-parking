@@ -1757,3 +1757,22 @@ body.tv-stale .tv-stale-banner{display:block;}
   .tv-card-name,.tv-row-name{font-size:19px;}
 }
 /* ── TV MODE END ── */
+
+/* ── RETURN / PICKUP PANEL + NEEDS REVIEW (Returning with) ── */
+.rp-select{width:100%;max-width:280px;background:var(--s);border:1px solid var(--b);border-radius:10px;padding:10px 12px;font-size:16px;font-weight:600;color:var(--tx);font-family:'Inter',sans-serif;min-height:44px}
+.rp-sub{font-size:11px;color:var(--mu);font-weight:400;margin-top:4px}
+.rp-place{font-weight:800;font-size:15px}
+.rp-tag{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;border-radius:6px;padding:2px 7px;background:rgba(27,102,253,.1);color:var(--blue);vertical-align:2px}
+.rp-tag-exc{background:#FFE7B8;color:#7A4A00}
+.rp-tag-cus{background:#FFF4D6;color:var(--gold2)}
+.rp-note{font-size:12px;color:#7A4A00;background:#FFF8E6;border-radius:8px;padding:7px 9px;margin-top:6px}
+.rp-manual{font-size:13px;font-weight:600;color:var(--gold2)}
+.rp-acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.rp-btn{border:1px solid var(--b);background:var(--s);color:var(--tx);border-radius:9px;padding:9px 12px;font-size:13px;font-weight:700;cursor:pointer;min-height:40px;font-family:'Inter',sans-serif}
+.rp-btn-primary{background:var(--blue);border-color:var(--blue);color:#fff}
+.rr-card{background:#FFF8E6;border:1.5px solid #F0C24B;border-radius:12px;padding:12px 14px;margin:0 0 12px}
+.rr-title{font-weight:800;font-size:14px;color:#5B4100;margin-bottom:4px}
+.rr-body{font-size:13px;color:#5B4100;line-height:1.45}
+.rr-count{display:inline-block;background:var(--red);color:#fff;border-radius:999px;font-size:11px;padding:1px 7px;margin-left:4px}
+.rr-tab-badge{background:var(--red);color:#fff;border-radius:999px;font-size:10px;font-weight:700;padding:1px 6px;margin-left:4px}
+.dc-move-customs-btn{background:rgba(255,197,71,.18)!important;color:var(--gold2)!important;border-color:rgba(255,197,71,.55)!important}
