@@ -3,12 +3,12 @@ PASS device removed by ADMIN → stays on native iPhone SMS
 PASS program paused (kill switch) → everyone back on native SMS at next load
 PASS Tip (no tip received) → plain delivery confirmation, no gratuity link  → "DELIVERED|Makers Air Valet: Your vehicle has been delivered. Thank you for choosing us, we look forward to welcoming you"
 PASS Customs gratuity is never sent by AirValet; iPhone Messages offered (one tap), as in v46  → "native_fallback_offered"
-PASS Messages shows the UNCONFIRMED alert with the passenger  → ["TEXT ALERTS 1","E2E ALERT · #1010-9 · RETURN CONFIRMATION · 4:41 PM","UNCONFIRMED · TIMEOUT"]
+PASS Messages shows the UNCONFIRMED alert with the passenger  → ["TEXT ALERTS 1","E2E ALERT · #1010-9 · RETURN CONFIRMATION · 5:11 PM","UNCONFIRMED · TIMEOUT"]
 PASS Messages tab badge counts the alert
 PASS blind resend refused while unconfirmed  → "PREVIOUS_UNCONFIRMED"
 PASS staff "Not received — allow resend" (confirm dialog) recorded
 PASS alert disappears once resolved
-PASS after an unconfirmed reply the retry reuses the SAME draft id (server dedupes)  → ["compose:cb9d73db-86c8-4c87-b763-3aec5fadcc4a","compose:cb9d73db-86c8-4c87-b763-3aec5fadcc4a"]
+PASS after an unconfirmed reply the retry reuses the SAME draft id (server dedupes)  → ["compose:d1ed1578-942a-4f72-92f0-2de1b1281fc9","compose:d1ed1578-942a-4f72-92f0-2de1b1281fc9"]
 PASS no JavaScript errors  → []
 
 TOTAL: 12 passed, 0 failed

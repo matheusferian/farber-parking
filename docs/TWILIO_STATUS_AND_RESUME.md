@@ -1,4 +1,4 @@
-# AirValet Twilio — status at end of day 2026-10-10 and how to resume
+# AirValet Twilio — status (updated 2026-10-10 evening, background session) and how to resume
 
 ## Production (verified read-only 2026-10-10 20:44 UTC)
 - App: airvalet.farberos.com = main 591ce5d, service worker v46, `SMS_PROVIDER = 'native'` (iPhone Messages). None of the Etapa 5 UI is published.
@@ -69,3 +69,26 @@ Scripts are in the session scratchpad airvalet-local (e2e_roles.mjs, e2e_etapa5.
    Then test link, reply, inbox, STOP/START, delivery and expiry.
 5. **Go live (on GO):** approve the operation iPad and phones (never the TV), set test_only OFF, START NEW CHECK-INS. Old tickets always stay on iPhone Messages.
 6. **Instant off:** Pause all texting, STOP NEW CHECK-INS, or Remove a device. The app returns to iPhone Messages.
+
+
+## Update — background session (2026-10-10 evening, local only)
+Local commits on feature/twilio-sms-local after 4ba9bb9:
+| Commit | Change |
+|---|---|
+| 72eeb6d | Admin audit trail 20261012 (local) + Twilio-rejection fallback + mock fault numbers |
+| 44941b2 | IPHONE_OPS gets Closing Report — owner decision; droppable |
+| 76e5d10 | Delivering an AirValet car asks "Send text?" (never sends by itself) |
+| 195a452 | Dark launch: staff see v46 until ADMIN turns texting on |
+
+FarberOS (separate repo): branch feature/airvalet-pass-route, commit 7eee830 (local worktree ~/Dev/worktrees/farberos-airvalet-pass, not pushed).
+
+Publication package: docs/TWILIO_PUBLISH_PLAN.md (deploy order, security checklist, Edge config, /a route, owner-phone test, gradual activation, rollback).
+
+Closing Report recommendation:
+- Production closings are filled daily (~16:30–19:30 ET) on the staff phones under the shared Admin login.
+- Give IPHONE_OPS the Closing Report (commit 44941b2; server already allows it). Keep Report / Logs / Debug hidden on phones.
+
+Decisions waiting for the owner:
+1. Approve the IPHONE_OPS Closing Report.
+2. Approve the final wording of CHECK_IN / RETURN_CONFIRMATION / VEHICLE_READY / VEHICLE_DELIVERED. They are PENDING_APPROVAL in code; allowlist/live refuse them.
+3. GO for each publication step in the plan.
