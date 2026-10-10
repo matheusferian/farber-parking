@@ -4708,6 +4708,21 @@ function openNewEntrySmsPreview(options) {
   }
   document.getElementById('reviewSmsOv').classList.add('on');
 }
+// Confirm step for an AirValet text that a workflow (not a Send button)
+// prepared — staff choose Send text or Cancel; nothing goes out otherwise.
+var DELIVERED_SMS_PREVIEW = 'Makers Air Valet: Your vehicle has been delivered. Thank you for choosing us, we look forward to welcoming you on your next trip!';
+function openServerSmsReview(options, preview) {
+  _reviewSmsPending = options;
+  document.getElementById('reviewSmsBody').innerHTML =
+    '<div class="mock-sms-badge">📋 Sent by AirValet as a normal text only if you choose Send</div>' +
+    '<div class="mock-sms-row"><span class="mock-sms-lbl">Passenger</span><span class="mock-sms-val">' + escapeHTML(options.passengerName || '—') + '</span></div>' +
+    '<div class="mock-sms-row"><span class="mock-sms-lbl">Phone</span><span class="mock-sms-val">' + escapeHTML(options.phone || '—') + '</span></div>' +
+    '<div class="mock-sms-msgbox">' + escapeHTML(preview) + '</div>';
+  var openBtn = document.getElementById('reviewSmsOpenBtn');
+  openBtn.disabled = false;
+  openBtn.textContent = '💬 Send text';
+  document.getElementById('reviewSmsOv').classList.add('on');
+}
 // Preview only — the server template (send-sms, CHECK_IN) is the source.
 var CHECK_IN_SMS_PREVIEW = 'Makers Air Valet: Your car is checked in. Tap to view your valet details: https://farberos.com/a#••••••••••••••••• Questions? Just reply to this text. Msg freq varies. Msg&data rates may apply. Reply HELP for help, STOP to opt out.';
 function closeReviewSms() {
@@ -6282,13 +6297,17 @@ function openTipSms(id, tipReceived){
     showMsg('Vehicle delivered, but no valid phone number on file — could not open the tip SMS for '+(r.name||'this passenger')+'.', true);
     return;
   }
-  sendPassengerSms({
+  var tipOpts={
     passengerId:r.id, passengerName:r.name, phone:r.phone, ticket:r.ticket,
     vehicle:formatVehicleLine(r), brand:isAscend(r)?'Ascend':'Makers Air',
     templateKey:tipReceived?'TIP_YES':'TIP_NO',
     messageType:tipReceived?SMS_MESSAGE_TYPES.TIP_YES:SMS_MESSAGE_TYPES.TIP_NO,
     body:buildTipSms(r,tipReceived), metadata:{trigger:'Post-delivery tip SMS (Normal/Lockbox only)'}
-  });
+  };
+  // AirValet-texting cars: delivering must not send by itself (in v46 the
+  // composer only opens and staff still press Send) → ask first.
+  if(smsRouteFor(r.id)==='server'){ openServerSmsReview(tipOpts, DELIVERED_SMS_PREVIEW); return; }
+  sendPassengerSms(tipOpts);
 }
 
 function deliveryMethodHtml(type){

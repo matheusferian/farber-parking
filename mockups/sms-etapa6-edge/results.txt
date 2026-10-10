@@ -1,0 +1,30 @@
+PASS ticket 301 enrolled at check-in (consent on approved device)
+PASS ticket 302 enrolled at check-in (consent on approved device)
+PASS ticket 303 enrolled at check-in (consent on approved device)
+PASS HELP reply recorded as HELP (Twilio sends the branded help text)
+PASS HELP does not opt out and AirValet sends no extra reply (no double answer)
+PASS Twilio rejects the number → nothing sent → "Send from iPhone Messages" offered  → {"status":"native_fallback_offered","code":"30006"}
+PASS staff see a plain reason (landline / carrier)
+PASS one tap → iPhone Messages once; AirValet log shows "failed (30006)"  → "RETURN_CONFIRMATION:failed:30006"
+PASS Twilio timeout → result unknown → NO iPhone fallback offered  → {"status":"send_unknown","code":"TIMEOUT"}
+PASS tapping again does not send a second text (same request, kept unconfirmed)  → {"status":"send_unknown","code":"UNCONFIRMED"}
+PASS unconfirmed text shows up as an alert in Messages for a human decision
+PASS SMS function unreachable → no row, iPhone Messages offered  → {"status":"native_fallback_offered","code":"SMS_UNAVAILABLE"}
+PASS …opened once after the tap
+PASS daily cost cap reached → not sent by AirValet, iPhone offered  → {"status":"native_fallback_offered","code":"DAILY_CAP"}
+PASS cap raised by ADMIN → the same text goes out once (blocked attempt kept in history)  → "RETURN_CONFIRMATION:blocked:DAILY_CAP,RETURN_CONFIRMATION:queued:"
+PASS delivery → passenger link expires 3 h later
+PASS delivery sends NOTHING by itself; asks "Send text?" (like v46 where staff still press Send)
+PASS Cancel → still nothing sent
+PASS undo delivery → car back to PENDING; the 3-hour deadline does not move
+PASS link still works before the deadline
+PASS after the deadline: "This valet link has expired." and nothing about the car  → "⏳\n\nThis valet link has expired.\n\nFor help, call or text the valet team at (954) "
+PASS re-delivery never revives an expired link
+PASS paused → no consent at check-in, iPhone texting
+PASS paused → even an enrolled car opens iPhone Messages directly (no AirValet call)  → {"status":"composer_opened"}
+PASS paused → v46 Messages workspace back, AirValet inbox hidden
+PASS server switched OFF → nothing recorded or sent → iPhone offered  → {"status":"native_fallback_offered","code":"SMS_DISABLED"}
+PASS …opened once
+PASS no JavaScript errors  → []
+
+TOTAL: 28 passed, 0 failed
