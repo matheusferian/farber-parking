@@ -4284,6 +4284,10 @@ function renderSmsDeviceCard(){
   var el = document.getElementById('smsDeviceCard'); if (!el) return;
   if (isTvMode() || !_smsDev) { el.style.display = 'none'; return; }
   var d = _smsDev, cls = '', ic = '', t = '', sub = '', acts = '';
+  // Dark launch: while AirValet texting is OFF, operational logins see
+  // nothing new (Messages tab exactly as v46); only an already-approved
+  // device shows "paused". ADMIN always sees it, to set devices up first.
+  if (!d.sending_enabled && d.status !== 'approved' && _currentUserRole !== 'ADMIN') { el.style.display = 'none'; return; }
   var staff = smsStaffName();
   if (d.status === 'approved' && d.sending_enabled) {
     cls = 'ok'; ic = '&#9989;'; t = 'This device is authorized for AirValet texts';

@@ -1,0 +1,11 @@
+PASS farberos/a#TOKEN shows the Makers Air Valet page with the ticket (through FarberOS)  → ["MA","Makers Air Valet","FORT LAUDERDALE EXECUTIVE (FXE)","Hi E2ef!"]
+PASS the page calls same-origin POST /a/api (FarberOS rewrite → valet-pass)
+PASS the token never appears in any request URL or Referer
+PASS no CSP / blocked-resource errors  → []
+PASS open recorded once
+PASS unknown token → "This valet link has expired." (same answer as expired)
+PASS delivered more than 3 h ago → expired
+PASS no FarberOS session cookie is created on /a (proxy skipped)  → []
+PASS token absent from the FarberOS server log and the page host access log
+
+TOTAL: 9 passed, 0 failed

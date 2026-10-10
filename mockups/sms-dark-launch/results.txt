@@ -1,0 +1,14 @@
+PASS localiphone: Messages tab exactly as v46 (no texting card, no inbox)
+PASS localiphone: check-in form as v46 (no consent box)
+PASS localiphone: texts open iPhone Messages, as v46  → "sync"
+PASS localiphone: no device key created (nothing requested)
+PASS localiphone: no JavaScript errors  → []
+PASS localipad: Messages tab exactly as v46 (no texting card, no inbox)
+PASS localipad: check-in form as v46 (no consent box)
+PASS localipad: texts open iPhone Messages, as v46  → "sync"
+PASS localipad: no device key created (nothing requested)
+PASS localipad: no JavaScript errors  → []
+PASS ADMIN still sees the card (to set devices up before turning texting on)
+PASS no text recorded by AirValet during the run
+
+TOTAL: 12 passed, 0 failed
