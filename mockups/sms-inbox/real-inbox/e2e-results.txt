@@ -1,0 +1,30 @@
+PASS 01 server SMS mode active; inbox shown, session workspace hidden
+PASS 02 consent checkbox visible at check-in and NOT pre-checked
+PASS 03 consent recorded server-side (who/when/version) for the new passenger
+PASS 04 first SMS sent by the server (mock provider): CHECK_IN, 2 segments, queued  → ["queued","CHECK_IN","mock","2"]
+PASS 05 SMS carries the passenger link farberos.com/a#<17>; the SMS log keeps it masked, DB keeps only the hash
+PASS 06 double "Send" on the preview → still exactly one check-in SMS
+PASS 07 carrier status callback (signed) → delivered
+PASS 08 passenger page shows the ticket number big at the top  → ["Hi E2e!","YOUR VALET TICKET","1010-1",""]
+PASS 09 passenger page shows vehicle + pickup (Makers → Hangar 19)
+PASS 10 link open recorded (engagement)
+PASS 11 reply appears in the AirValet inbox as UNREAD with tab badge  → {"badge":"2"}
+PASS 12 inbound linked to the right passenger (last outbound to that phone)
+PASS 13 opening the conversation records read (when + who)
+PASS 14 thread shows Delivered + Link opened on the check-in text
+PASS 15 staff reply double-tapped → exactly one SMS
+PASS 16 reply stores who answered (staff name snapshot)
+PASS 17 reply delivered (mock carrier callback)
+PASS 18 STOP recorded → opted out
+PASS 19 composer replaced by "blocked until START" after STOP
+PASS 20 any new send after STOP is blocked server-side (OPTED_OUT), nothing reaches the provider  → ["OPTED_OUT","OPTED_OUT"]
+PASS 21 after START the same message type is allowed again  → "queued"
+PASS 22 the blocked attempt stays in history
+PASS 23 shared phone → ambiguous; unknown phone → unmatched (both kept, unlinked)
+PASS 24 staff links the ambiguous reply to the right passenger (Gia)
+PASS 25 unmatched message marked read (stays unlinked)
+PASS 26 cannot link a message to a passenger with a different phone  → "passenger phone does not match sender"
+PASS 27 iPhone: one column, thread with Back
+PASS 28 no JavaScript errors in the app during the whole run  → []
+
+TOTAL: 28 passed, 0 failed

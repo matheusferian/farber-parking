@@ -1,0 +1,49 @@
+{
+  "results": {
+    "old_load": {
+      "passengers": 9,
+      "hasReturnCols": false,
+      "version": "OLD APP origin/main 6c3f56d · local DB"
+    },
+    "old_other_boat_on": [
+      {
+        "return_operator": "OTHER",
+        "not_returning_with_makers_air": true,
+        "delivery_at_customs": false
+      }
+    ],
+    "old_other_boat_off": [
+      {
+        "return_operator": "MAKERS",
+        "not_returning_with_makers_air": false,
+        "delivery_at_customs": false
+      }
+    ],
+    "old_customs_flag_makers": {
+      "on": [
+        {
+          "return_operator": "MAKERS",
+          "delivery_at_customs": true,
+          "customs_exception_requested_at": null
+        }
+      ],
+      "off": [
+        {
+          "return_operator": "MAKERS",
+          "delivery_at_customs": false,
+          "customs_exception_requested_at": null
+        }
+      ]
+    },
+    "old_print_builders": {
+      "key": true,
+      "cust": true
+    },
+    "old_tv": {
+      "rows": 12,
+      "stale": false,
+      "err": null
+    }
+  },
+  "logs": []
+}

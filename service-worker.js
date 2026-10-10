@@ -50,7 +50,8 @@
 // v45: Logout signs out THIS device only (scope 'local'), never every device of the account.
 // v46: Returning with / pickup model, Makers Customs exception, Needs Review
 //      (index.html, utils.js, styles.css changed). Same SHELL_FILES.
-var CACHE_VERSION = 'v46';
+// v47: AirValet SMS inbox + server-side texts (only when SMS_PROVIDER = 'twilio').
+var CACHE_VERSION = 'v47';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 var SHELL_FILES = [

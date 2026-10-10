@@ -1,0 +1,22 @@
+<!doctype html><html><head><meta charset="utf-8"><title>AirValet SMS mockup — devices</title>
+<style>body{margin:0;background:#E9EDF4;font:13px -apple-system,Inter,sans-serif;color:#4E5D78}
+.row{display:flex;gap:28px;padding:24px;align-items:flex-start}
+figure{margin:0}figcaption{padding:6px 2px;font-weight:600}
+iframe{border:0;border-radius:28px;background:#fff;box-shadow:0 8px 30px rgba(1,21,50,.18)}</style></head>
+<body><div class="row" id="row"></div>
+<script>
+// Local screenshot helper: ?set=iphone|ipad (the dev server's clean URLs
+// drop query strings on .html redirects, so presets are hard-coded here).
+var SETS={iphone:{w:390,h:844,u:['./','./?c=ana','./?c=dan','./?disc=1#s-checkin']},
+          ipad:{w:820,h:1180,u:['./?c=ana','./?optin=1&ret=MAKERS#s-checkin']},
+          pass:{w:390,h:844,u:['../../pass?demo=h19','../../pass?demo=customs','../../pass?demo=other','../../pass?demo=delivered']},
+          retA:{w:390,h:844,u:['return-change?state=view','return-change?state=sheet','return-change?state=review','return-change?state=updated']},
+          retB:{w:390,h:844,u:['return-change?state=quiet','return-change?state=other','./?fly=ASCEND#s-checkin','./?fly=ASCEND&ret=MAKERS#s-checkin']},
+          exc:{w:390,h:844,u:['return-change?p=makers&state=view','return-change?p=makers&state=exc-sheet','return-change?p=makers&state=exc-pending','return-change?p=makers&state=exc-approved']},
+          passExc:{w:390,h:844,u:['../../pass?demo=h19','../../pass?demo=pending','../../pass?demo=exception','../../pass?demo=customs']},
+          retIpad:{w:820,h:1180,u:['return-change?state=sheet','return-change?state=review']},
+          reviewIpad:{w:820,h:1180,u:['./#s-review','./?c=bo']}};
+var s=SETS[new URLSearchParams(location.search).get('set')]||SETS.iphone;
+s.u.forEach(function(u){var f=document.createElement('figure');
+f.innerHTML='<figcaption>'+u.replace('./','')+'</figcaption><iframe width="'+s.w+'" height="'+s.h+'" src="'+u+'"></iframe>';document.getElementById('row').appendChild(f);});
+</script></body></html>

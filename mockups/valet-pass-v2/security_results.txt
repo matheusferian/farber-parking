@@ -1,0 +1,44 @@
+PASS no link for a ticket outside AirValet texting
+PASS token = 17 base62 chars (≈101 bits)  → 17
+PASS SMS link is exactly 40 characters  → "https://farberos.com/a#•••••••••••••••••"
+PASS DB stores SHA-256(token) only
+PASS no plaintext token column
+PASS GET /a → 200
+PASS page headers: Referrer-Policy no-referrer, X-Robots-Tag noindex
+PASS no third-party scripts, fonts, styles or analytics in the page
+PASS CSP: default-src none, script pinned by SHA-256, connect only to same origin
+PASS page branded Makers Air Valet; no old /p/ links
+PASS no demo mode in the production page
+PASS valid token → ok  → "ok"
+PASS response has ONLY display fields (no phone, id, passenger_id, key location, notes)  → ["color","customs_exception","customs_request_pending","delivered","expires_at","first_name","return_date","return_location","return_other","status","ticket","vehicle"]
+PASS shows first name, ticket (display), pickup place
+PASS no phone digits, no last name in the response
+PASS API headers: no-store, no-referrer, nosniff
+PASS each token shows ONLY its own passenger
+PASS unknown / truncated / altered / ticket / SQLi / XSS inputs → identical {"state":"expired"}  → ["200:expired","200:expired","200:expired","200:expired","200:expired","200:expired","200:expired","200:expired","200:expired","200:expired"]
+PASS malformed JSON / wrong types → same answer (no error details)
+PASS GET /a/api → 405 (token never in a URL)
+PASS oversized body → 413
+PASS 8 wrong guesses per client, then 429 for that client  → [200,200,200,200,200,200,200,200,429,429]
+PASS blocked client stays blocked even with a valid token (10-minute window)
+PASS real passengers on other addresses unaffected
+PASS throttle table never stores raw IPs (salted hash only)
+PASS enumeration math: 1M IPs × 8 guesses/10 min for a year still leaves > 2^60 work per hit
+PASS delivered 2h59m ago → still available (delivered view)
+PASS delivered 3h + 1s ago → expired
+PASS undo delivery after the window → stays expired (no renewal)
+PASS undo + re-deliver keeps the ORIGINAL 3-hour deadline
+PASS phone changed → old link dead immediately
+PASS browser: branded page with big ticket number and pickup  → ["MA","Makers Air Valet","FORT LAUDERDALE EXECUTIVE (FXE)","Hi Ana!"]
+PASS ticket number rendered large  → "57.8px"
+PASS browser: zero requests to any third party  → ["localhost:8766"]
+PASS browser: token never appears in any request URL
+PASS browser: token sent only in the POST body; Referer empty (never carries the link)
+PASS browser: expired link shows "This valet link has expired."
+PASS browser: unknown link shows the same expired page
+PASS browser: no CSP violations / JS errors  → ["Failed to load resource: the server responded with a status of 404 (File not found)"]
+PASS server access log (paths) never contains a token  → ["GET /a","POST /a/api","POST /a/api"]
+PASS Edge Function log never contains a token
+PASS SMS log + throttle table never contain a token
+
+TOTAL: 42 passed, 0 failed

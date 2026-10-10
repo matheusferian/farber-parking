@@ -1,0 +1,15 @@
+{
+  "results": {
+    "dashboard": {
+      "T1 MAKERS AT H19": "(no move)",
+      "T2 ASCEND RETURN AT H19": "→ Customs",
+      "T3 ASCEND RETURN AT CUSTOMS✈ ASCEND": "(no move)",
+      "T4 MAKERS RETURN AT CUSTOMS✈ ASCEND": "→ H19",
+      "T5 CUSTOMS PENDING AT H19": "(no move)",
+      "T6 EXCEPTION APPROVED AT H19": "→ Customs",
+      "T7 EXCEPTION REVOKED AT CUSTOMS": "→ H19",
+      "T8 OTHER RETURN": "(no move)"
+    }
+  },
+  "logs": []
+}

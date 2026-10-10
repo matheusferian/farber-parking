@@ -1,0 +1,26 @@
+{
+  "results": {
+    "(()=>{function _st(){var p=document.getE": true,
+    "ui_change_108": {
+      "ret": "ASCEND",
+      "dac": false,
+      "pickup": "CUSTOMS",
+      "reviews": [
+        108
+      ],
+      "autoSent": 0
+    },
+    "(()=>{document.getElementById('detOv').c": true,
+    "checkin_default": "ASCEND",
+    "checkin_manual_kept": "MAKERS",
+    "(()=>{document.getElementById('addOv').c": true,
+    "ascend_to_makers_welcome_back": {
+      "button": true,
+      "sent": true,
+      "undone": true,
+      "tvStateFollowsReturn": "overdue"
+    },
+    "(()=>{window.scrollTo(0,0);return true})": true
+  },
+  "logs": []
+}

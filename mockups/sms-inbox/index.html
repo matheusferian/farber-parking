@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AirValet SMS Inbox — mockup v3</title>
+<!-- MOCKUP ONLY — static data, no network, no Supabase, no Twilio.
+     v2 (2026-10-09): single sender "Makers Air Valet", pickup place from the
+     RETURN flight, link-opened status, larger type for iPhone/iPad.
+     v3: Flying with / Returning with (Makers Air · Ascend · Other), return
+     changes after instructions land in Needs Review. See return-change.html.
+     Deep links: ?c=ana|bo|cy|dan|rev  #s-review #s-checkin #s-pass  ?fly=ASCEND&ret=MAKERS -->
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@700;800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+:root{--navy:#011532;--navy2:#0B2547;--blue:#1B66FD;--gold:#FFC547;--ok:#1A9E6A;--red:#C0392E;--bg:#F4F6FB;--s:#fff;--s2:#F8FAFD;--b:#E1E7F2;--tx:#011532;--mu:#4E5D78}
+*{box-sizing:border-box;margin:0;padding:0}
+html{font-size:16px}
+body{background:var(--bg);color:var(--tx);font-family:Inter,sans-serif;font-size:1rem}
+.mock-banner{background:#FFF6DC;border-bottom:1px solid #F0D98A;color:#6B4E00;font-size:.8rem;padding:6px 16px;text-align:center}
+header{background:linear-gradient(90deg,#0B2547,#1B66FD);color:#fff;padding:14px 20px;display:flex;align-items:center;gap:14px;overflow:hidden}
+header .bn{font-family:Sora;font-weight:800;font-size:1.3rem}
+header .sep{width:1px;height:26px;background:rgba(255,255,255,.45)}
+header .hsys{font-family:Sora;font-weight:700;font-size:1rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.shell{display:flex;min-height:calc(100vh - 92px)}
+nav.side{width:210px;background:var(--navy);color:#C9D6EE;padding:14px 10px;flex-shrink:0}
+nav.side a{display:flex;align-items:center;justify-content:space-between;padding:11px 12px;border-radius:10px;color:inherit;text-decoration:none;font-weight:500;margin-bottom:2px}
+nav.side a.on{background:rgba(255,255,255,.12);color:#fff}
+.badge{background:var(--red);color:#fff;border-radius:999px;font-size:.75rem;font-weight:700;padding:2px 8px;min-width:22px;text-align:center;display:inline-block}
+main{flex:1;min-width:0;padding:16px}
+.screen{display:none}.screen.on{display:block}
+.tabs{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.tabs button{border:1px solid var(--b);background:var(--s);border-radius:999px;padding:7px 14px;font:600 .8rem Inter;color:var(--mu);cursor:pointer}
+.tabs button.on{background:var(--navy);color:#fff;border-color:var(--navy)}
+.inbox{display:grid;grid-template-columns:340px 1fr;background:var(--s);border:1px solid var(--b);border-radius:14px;overflow:hidden;height:calc(100vh - 170px);min-height:560px}
+.list{border-right:1px solid var(--b);overflow:auto}
+.list h4{font:700 .72rem 'JetBrains Mono';letter-spacing:.6px;color:var(--mu);text-transform:uppercase;padding:12px 14px 6px;display:flex;gap:6px;align-items:center}
+.search{margin:12px 12px 4px;border:1px solid var(--b);border-radius:10px;padding:9px 11px;color:var(--mu);font-size:.95rem}
+.conv{display:flex;gap:11px;padding:12px 14px;border-bottom:1px solid #EEF2F8;cursor:pointer}
+.conv:hover{background:var(--s2)}.conv.on{background:#EAF1FF}
+.av{width:40px;height:40px;border-radius:50%;background:#DCE6F8;color:var(--navy2);display:flex;align-items:center;justify-content:center;font:700 .9rem Sora;flex-shrink:0}
+.av.q{background:#FDE7E5;color:var(--red)}
+.cm{flex:1;min-width:0}
+.cr{display:flex;justify-content:space-between;gap:6px}
+.cn{font-weight:700;font-size:1rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ct{font-size:.8rem;color:var(--mu);white-space:nowrap}
+.cp{font-size:.92rem;color:var(--mu);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
+.conv.unread .cp{color:var(--tx);font-weight:600}
+.tags{margin-top:5px;display:flex;gap:5px;flex-wrap:wrap;align-items:center}
+.tag{font:700 .66rem 'JetBrains Mono';padding:3px 7px;border-radius:6px;letter-spacing:.3px;white-space:nowrap}
+.tag.stop{background:#FDE7E5;color:var(--red)}.tag.tk{background:#EEF2F8;color:var(--navy2)}.tag.h19{background:#E7F0FF;color:#1846B5}.tag.cus{background:#FFF0C7;color:#7A5A00}.tag.unk{background:#F1F1F1;color:#555}
+.thread{display:flex;flex-direction:column;min-width:0}
+.th-head{padding:12px 16px;border-bottom:1px solid var(--b);display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.th-head .nm{font:800 1.1rem Sora}
+.th-head .meta{font-size:.88rem;color:var(--mu)}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-left:auto}
+.chip{font-size:.8rem;border:1px solid var(--b);border-radius:999px;padding:4px 10px;color:var(--mu);background:var(--s2);white-space:nowrap}
+.chip.ok{color:var(--ok);border-color:#BFE6D5;background:#EEFAF4}
+.chip.h19{color:#1846B5;border-color:#C9D9FF;background:#EEF4FF}.chip.cus{color:#7A5A00;border-color:#F0D98A;background:#FFF8E3}.chip.unk{color:#555;background:#F4F4F4}
+.actions{display:flex;gap:8px;padding:8px 16px;border-bottom:1px solid var(--b);flex-wrap:wrap;background:#fff}
+.act{border:1px solid var(--b);background:#fff;border-radius:9px;padding:7px 11px;font:600 .85rem Inter;color:var(--navy2);cursor:pointer;text-align:left}
+.act[disabled]{opacity:.5;cursor:not-allowed}
+.act .why{display:block;font:500 .7rem Inter;color:var(--mu)}
+.msgs{flex:1;overflow:auto;padding:16px;background:#F7F9FD;display:flex;flex-direction:column;gap:10px}
+.day{align-self:center;font:600 .78rem Inter;color:var(--mu);background:#E9EEF7;border-radius:999px;padding:3px 10px}
+.b{max-width:74%;padding:10px 13px;border-radius:15px;font-size:1rem;line-height:1.42;white-space:pre-wrap;word-break:break-word}
+.b.in{align-self:flex-start;background:#fff;border:1px solid var(--b);border-bottom-left-radius:4px}
+.b.out{align-self:flex-end;background:var(--navy2);color:#fff;border-bottom-right-radius:4px}
+.b.out.tpl{background:#123A73}
+.b a{color:#BFD3FF;text-decoration:underline}
+.bm{font-size:.74rem;margin-top:6px;opacity:.9;display:flex;gap:7px;justify-content:flex-end;flex-wrap:wrap}
+.b.in .bm{justify-content:flex-start;color:var(--mu)}
+.st{font-weight:700}.st.del{color:#7FE3B6}.st.sent{color:#BFD3FF}.st.fail{color:#FFB4AC}.st.q{color:#FFE29A}
+.lk{color:#FFE29A;font-weight:700}
+.fail-note{align-self:flex-end;font-size:.82rem;color:var(--red);margin-top:-6px;max-width:80%;text-align:right}
+.sys{align-self:center;font-size:.85rem;color:var(--mu);background:#fff;border:1px dashed var(--b);border-radius:10px;padding:7px 11px;text-align:center;max-width:92%}
+.compose{border-top:1px solid var(--b);padding:10px 12px;background:#fff}
+.compose textarea{width:100%;border:1px solid var(--b);border-radius:12px;padding:11px 12px;font:1rem Inter;resize:none;height:66px;outline:none}
+.compose textarea:focus{border-color:var(--blue)}
+.crow{display:flex;align-items:center;gap:10px;margin-top:8px;flex-wrap:wrap}
+.counter{font:500 .78rem 'JetBrains Mono';color:var(--mu);margin-left:auto}
+.qr{display:flex;gap:6px;flex-wrap:wrap}
+.qr button{border:1px solid var(--b);background:var(--s2);border-radius:999px;padding:6px 11px;font-size:.85rem;color:var(--navy2);cursor:pointer}
+.send{background:var(--blue);color:#fff;border:0;border-radius:10px;padding:11px 20px;font:700 .95rem Inter;cursor:pointer;min-width:100px}
+.send[disabled]{background:#9DB7EE;cursor:not-allowed}
+.bar{border-top:1px solid #F5C3BD;background:#FDE7E5;color:#8E2A21;padding:12px 14px;font-size:.92rem}
+.bar.y{background:#FFF6DC;color:#6B4E00;border-color:#F0D98A}
+.review{padding:16px;display:grid;gap:12px}
+.rcard{background:#fff;border:1px solid var(--b);border-radius:12px;padding:12px 14px}
+.rh{display:flex;justify-content:space-between;gap:8px;font-size:.85rem;color:var(--mu);flex-wrap:wrap}
+.rb{margin:8px 0;font-size:1.02rem}
+.cand{display:flex;gap:8px;flex-wrap:wrap}
+.cand button{border:1px solid var(--blue);color:var(--blue);background:#fff;border-radius:9px;padding:8px 11px;font:600 .88rem Inter;cursor:pointer}
+.form{background:#fff;border:1px solid var(--b);border-radius:14px;padding:18px;max-width:780px}
+.form h3{font:800 1.15rem Sora;margin-bottom:12px}
+.fr{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.fg{display:flex;flex-direction:column;gap:5px}
+.fg label{font:500 .72rem 'JetBrains Mono';color:var(--mu);text-transform:uppercase;letter-spacing:.5px}
+.fg input{border:1px solid var(--b);border-radius:10px;padding:11px 12px;font:1rem Inter;background:var(--s2)}
+.seg{display:flex;border:1px solid var(--b);border-radius:12px;overflow:hidden;flex-wrap:wrap}
+.seg button{flex:1 1 30%;padding:11px 8px;border:0;background:#fff;font:600 .92rem Inter;color:var(--navy2);cursor:pointer;border-right:1px solid var(--b)}
+.seg button:last-child{border-right:0}
+.seg button.on{background:var(--navy);color:#fff}
+.hint{font-size:.82rem;color:var(--mu);margin-top:5px}
+.rsel{appearance:none;-webkit-appearance:none;border:1px solid var(--b);border-radius:12px;padding:11px 38px 11px 12px;font:600 1rem Inter;color:var(--navy2);background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%230B2547' stroke-width='2.5'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 12px center}
+.optin{border:1.5px solid #CFE0FF;background:#F3F7FF;border-radius:12px;padding:13px 14px;margin:10px 0 14px}
+.optin .row{display:flex;gap:11px;align-items:flex-start}
+.optin input[type=checkbox]{width:24px;height:24px;accent-color:var(--blue);margin-top:1px;flex-shrink:0}
+.optin .q{font-weight:700;font-size:1rem}
+.disc{margin-top:10px;background:#fff;border:1px solid var(--b);border-radius:10px;padding:11px 12px;font-size:.88rem;line-height:1.5;color:#22324F;display:none}
+.disc.on{display:block}
+.link{color:var(--blue);font-weight:600;font-size:.85rem;cursor:pointer;background:none;border:0;padding:0;margin-top:6px}
+.mact{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end;margin-top:6px}
+.btn{border-radius:10px;padding:12px 16px;font:700 .92rem Inter;border:1px solid var(--b);background:#fff;color:var(--navy);cursor:pointer}
+.btn.g{background:linear-gradient(135deg,#1a5c3a,#1a9e6a);color:#fff;border-color:var(--ok)}
+.btn.n{background:var(--navy);color:#fff;border-color:var(--navy)}
+.btn.p{background:#1a3d7c;color:#fff;border-color:var(--gold)}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+.note{font-size:.82rem;color:var(--mu);margin-top:8px;text-align:right}
+.passwrap{display:flex;gap:18px;flex-wrap:wrap}
+.passwrap figure{background:#fff;border:1px solid var(--b);border-radius:18px;padding:10px;width:342px}
+.passwrap iframe{width:320px;height:600px;border:0;border-radius:12px}
+.passwrap figcaption{font-size:.82rem;color:var(--mu);padding:6px 4px 2px}
+.small{font-size:.85rem;color:var(--mu)}
+@media (max-width:900px){nav.side{display:none}main{padding:10px}.inbox{grid-template-columns:1fr;height:auto;min-height:0}.thread{display:none}.inbox.open .list{display:none}.inbox.open .thread{display:flex;min-height:78vh}.fr{grid-template-columns:1fr}.b{max-width:88%}.chips{margin-left:0}header .hsys{font-size:.9rem}}
+</style>
+</head>
+<body>
+<div class="mock-banner">MOCKUP v3 for approval: fictional sample data. Nothing is sent or saved.</div>
+<header><span class="bn">AirValet</span><span class="sep"></span><span class="hsys">Makers Air · Valet Operations</span></header>
+<div class="shell">
+  <nav class="side">
+    <a>Dashboard</a><a>Add Entry</a><a>Tasks</a>
+    <a class="on">Messages <span class="badge" id="navBadge">3</span></a>
+    <a>Report</a><a>Closing Report</a>
+  </nav>
+  <main>
+    <div class="tabs">
+      <button class="on" data-s="s-inbox">1 · Inbox</button>
+      <button data-s="s-review">2 · Needs review</button>
+      <button data-s="s-checkin">3 · Check-in (return + opt-in)</button>
+      <button data-s="s-pass">4 · Passenger link page</button>
+    </div>
+
+    <section class="screen on" id="s-inbox">
+      <div class="inbox" id="inbox">
+        <div class="list">
+          <div class="search">🔎&nbsp; Search name, ticket, phone…</div>
+          <h4>Conversations</h4>
+          <div class="conv on unread" data-c="ana"><div class="av">AS</div><div class="cm"><div class="cr"><span class="cn">Ana Souza</span><span class="ct">2:41 PM</span></div><div class="cp">Landing around 5pm instead of 3, is that ok?</div><div class="tags"><span class="tag tk">#0714-3</span><span class="tag h19">BACK: MAKERS · H19</span><span class="badge">1</span></div></div></div>
+          <div class="conv unread" data-c="bo"><div class="av">BR</div><div class="cm"><div class="cr"><span class="cn">Bo Ramirez</span><span class="ct">1:12 PM</span></div><div class="cp">Thank you!!</div><div class="tags"><span class="tag tk">#A-0714-1</span><span class="tag h19">BACK: MAKERS · H19</span><span class="tag cus">⚠ RETURN CHANGED</span><span class="badge">1</span></div></div></div>
+          <div class="conv" data-c="cy"><div class="av">CY</div><div class="cm"><div class="cr"><span class="cn">Cy Young</span><span class="ct">Yesterday</span></div><div class="cp">You: Hi Cy, just checking you got…</div><div class="tags"><span class="tag tk">#A-0712-2</span><span class="tag h19">OUT: ASCEND · BACK: MAKERS</span></div></div></div>
+          <div class="conv" data-c="dan"><div class="av">DM</div><div class="cm"><div class="cr"><span class="cn">Dan Miller</span><span class="ct">Oct 7</span></div><div class="cp">STOP</div><div class="tags"><span class="tag stop">OPTED OUT</span><span class="tag cus" style="border:1px dashed #E8C96A">BACK: OTHER</span></div></div></div>
+          <h4>Needs review <span class="badge">2</span></h4>
+          <div class="conv unread" data-c="rev"><div class="av q">?</div><div class="cm"><div class="cr"><span class="cn">+1 •••-•••-0808</span><span class="ct">12:05 PM</span></div><div class="cp">Hi it's Gia, can you pull the car around?</div><div class="tags"><span class="tag cus">2 PASSENGERS · SAME PHONE</span></div></div></div>
+        </div>
+        <div class="thread" id="thread"></div>
+      </div>
+    </section>
+
+    <section class="screen" id="s-review">
+      <div class="inbox" style="grid-template-columns:1fr;height:auto;min-height:0"><div class="review">
+        <div style="font:800 1.05rem Sora">Needs review</div>
+        <div class="small">Return changes after pickup instructions were sent, and replies that can't be linked to exactly one passenger. Linking is only allowed to a passenger whose phone is the sender's, so a reply always goes back to the same phone. Conversations of different passengers are never merged.</div>
+        <div class="rcard" style="border-color:#F0C24B;background:#FFFBEE"><div class="rh"><span>Bo Ramirez · #A-0714-1 · changed 2:20 PM by Maria</span><span class="tag cus">RETURN CHANGED</span></div>
+          <div class="rb"><b>Return changed: passenger may have old instructions.</b><br>Told: pick up at <u>Customs</u> (Vehicle Ready, 1:58 PM). Now: returning with <u>Makers Air</u> → Hangar 19.</div>
+          <div class="cand"><button style="background:var(--blue);color:#fff">Send updated pickup message</button><button>No update needed</button><button>Open passenger</button></div></div>
+        <div class="rcard"><div class="rh"><span>From +1 •••-•••-0808 · Today 12:05 PM</span><span class="tag cus">AMBIGUOUS</span></div>
+          <div class="rb">"Hi it's Gia, can you pull the car around?"</div>
+          <div class="cand"><span class="small" style="align-self:center">Link to:</span><button>Gia Lopez · #0806-2 · Tahoe</button><button>Gil Lopez · #0806-1 · Escalade</button></div></div>
+        <div class="rcard"><div class="rh"><span>From +1 •••-•••-0000 · Oct 8, 9:14 PM</span><span class="tag unk">UNMATCHED</span></div>
+          <div class="rb">"who is this?"</div>
+          <div class="small">No passenger on file with this number. Can be marked as read; staff cannot start a conversation with an unknown number.</div>
+          <div class="cand" style="margin-top:8px"><button>Mark as read</button></div></div>
+      </div></div>
+    </section>
+
+    <section class="screen" id="s-checkin">
+      <div class="form">
+        <h3>New Entry</h3>
+        <div class="fr"><div class="fg"><label>Full name *</label><input value="ANA SOUZA"></div><div class="fg"><label>Phone *</label><input value="(305) 555-0101"></div></div>
+        <div class="fr"><div class="fg"><label>Ticket # *</label><input value="0714-3" style="font-family:'JetBrains Mono'"></div><div class="fg"><label>Return date *</label><input value="10/15/2026"></div></div>
+        <div class="fr">
+          <div class="fg"><label>Flying with</label>
+            <div class="seg" id="flySeg"><button data-v="MAKERS" class="on">Makers Air</button><button data-v="ASCEND">Ascend</button></div></div>
+          <div class="fg"><label>Returning with</label>
+            <select id="retSel" class="rsel"><option value="MAKERS">Makers Air</option><option value="ASCEND">Ascend</option><option value="OTHER">Other</option></select>
+            <div class="hint" id="retHint">Same as Flying with unless you change it. Pickup: Hangar 19.</div></div>
+        </div>
+        <div class="small" style="margin:8px 0 6px">… vehicle, color, location, status, OBS, Carwash (unchanged) …</div>
+        <div class="optin">
+          <div class="row"><input type="checkbox" id="optin"><div><label for="optin" class="q">Passenger agreed to receive text updates</label>
+            <div class="hint">Ask: <b>"Can we text you updates about your vehicle at this number?"</b> Tick only if they say yes. Optional: the valet works the same without it.</div>
+            <button class="link" id="discBtn">Show disclosure to passenger ▾</button></div></div>
+          <div class="disc" id="disc">By agreeing, you'll receive text messages from <b>Makers Air Valet</b> (operated by Farber Parking) about this valet visit: check-in confirmation, return-date questions, vehicle-ready and delivery updates, and replies from our team. Message frequency varies. Msg &amp; data rates may apply. Reply <b>STOP</b> to opt out, <b>HELP</b> for help. Consent is not a condition of service. Privacy Policy: airvalet.farberos.com/privacy.html · Terms: airvalet.farberos.com/terms.html</div>
+        </div>
+        <div class="mact">
+          <button class="btn">Cancel</button>
+          <button class="btn n">Save Only</button>
+          <button class="btn g" id="saveText" disabled>💬 Save + Text</button>
+          <button class="btn p" id="savePrint">🖨 Save + Print</button>
+        </div>
+        <div class="note" id="optNote">"Save + Text" unlocks after the passenger agrees. Without consent nothing is blocked: Save Only / Save + Print work as today.</div>
+      </div>
+    </section>
+
+    <section class="screen" id="s-pass">
+      <div class="small" style="margin-bottom:10px">The real page (<b>pass.html</b>, served at airvalet.farberos.com/p/&lt;token&gt;), read-only, with sample data. No ticket number, phone or internal ID is shown.</div>
+      <div class="passwrap">
+        <figure><iframe src="../../pass?demo=parked" title="not confirmed"></iframe><figcaption>Return not confirmed: no pickup place</figcaption></figure>
+        <figure><iframe src="../../pass?demo=h19" title="h19"></iframe><figcaption>Return with Makers Air → Hangar 19</figcaption></figure>
+        <figure><iframe src="../../pass?demo=customs" title="customs"></iframe><figcaption>Return with Ascend → Customs</figcaption></figure>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+var LINK='https://airvalet.farberos.com/p/Ab3dE6gH9jK2';
+var CHECKIN='Makers Air Valet: Your vehicle is checked in! Your valet details are here: '+LINK+' Questions? Just reply. Msg freq varies. Msg&data rates may apply. Reply HELP for help, STOP to opt out.';
+var C={
+ ana:{name:'Ana Souza',meta:'#0714-3 · Black Escalade · Hangar 19 · returns 10/15',ret:'h19',chips:['<span class="chip ok">✓ SMS consent</span>'],
+  msgs:[['day','Today'],['out tpl',CHECKIN,'9:03 AM','del','Delivered','CHECK-IN · Carlos','🔗 Link opened 9:10 AM'],['in','Landing around 5pm instead of 3, is that ok?','2:41 PM']],compose:true},
+ bo:{name:'Bo Ramirez',meta:'#A-0714-1 · Suburban · flying with Ascend · returning with Makers Air (changed 2:20 PM)',ret:'h19',warn:'⚠ Return changed: passenger may have old instructions (told Customs at 1:58 PM). Send update or mark "No update needed".',chips:['<span class="chip ok">✓ SMS consent</span>'],
+  msgs:[['day','Today'],['out tpl','Makers Air Valet: Welcome back! Your vehicle is ready at Customs. An Ascend team member will personally hand you your key when you arrive.','12:58 PM','sent','Sent','VEHICLE READY · Maria'],['in','Thank you!!','1:12 PM']],compose:true},
+ cy:{name:'Cy Young',meta:'#A-0712-2 · Tahoe · out Ascend, back Makers · DELIVERED',ret:'h19',chips:['<span class="chip ok">✓ SMS consent</span>'],
+  msgs:[['day','Yesterday'],['out tpl','Makers Air Valet: Welcome back! After clearing U.S. Customs, please stay with your pilots and return to Makers Air at Hangar 19, where your vehicle will be ready and waiting. Please don\'t exit through the U.S. Customs terminal, as there is no transportation back to Makers Air from there.','3:40 PM','del','Delivered','VEHICLE READY · Carlos'],
+   ['out tpl','Makers Air Valet: Your vehicle has been delivered. Thank you for choosing us! Optional valet team gratuity: https://…','4:20 PM','fail','Failed','DELIVERED · Carlos'],['fail','Not delivered: carrier rejected (30007). Logged; the delivery itself was saved normally. Not retried automatically.'],
+   ['out','Hi Cy, just checking you got your vehicle ok. Thanks again!','4:31 PM','del','Delivered','Reply · Maria']],compose:true},
+ dan:{name:'Dan Miller',meta:'#0801-1 · F-150 · flying with Makers Air · returning: Other',ret:'oth',chips:['<span class="chip" style="color:var(--red);border-color:#F5C3BD;background:#FDE7E5">OPTED OUT · STOP Oct 7</span>'],
+  msgs:[['day','Oct 7'],['out','Hi Dan, can you confirm your return date? Thanks!','10:02 AM','del','Delivered','Reply · Carlos'],['in','STOP','10:15 AM'],['sys','Twilio sent the standard opt-out confirmation. No more texts to this number until the passenger texts START.']],compose:false,bar:'🚫 Opted out (STOP). Replying is disabled. The passenger can text START to resubscribe.'},
+ rev:{name:'+1 •••-•••-0808',meta:'Same phone as 2 active passengers',ret:null,chips:['<span class="chip">Needs review</span>'],
+  msgs:[['day','Today'],['in','Hi it\'s Gia, can you pull the car around?','12:05 PM'],['sys','Link this message to the right passenger in "Needs review" before replying.']],compose:false,bar:'Link to a passenger first (Needs review), then reply here.',barY:true}
+};
+var RET={h19:'<span class="chip h19">Returning with Makers Air · Hangar 19</span>',cus:'<span class="chip cus">Returning with Ascend · Customs</span>',oth:'<span class="chip cus" style="border-style:dashed">Returning: Other · manual handling</span>'};
+function esc(s){return String(s).replace(/[&<>]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c]})}
+function linkify(s){return esc(s).replace(/(https:\/\/[^\s]+)/g,'<a>$1</a>')}
+function seg(t){var n=t.length;return n===0?0:(n<=160?1:Math.ceil(n/153))}
+function render(k){
+  var c=C[k],h='<div class="th-head"><button class="link" style="margin:0;font-size:1.3rem" onclick="document.getElementById(\'inbox\').classList.remove(\'open\')">‹</button><div><div class="nm">'+esc(c.name)+'</div><div class="meta">'+esc(c.meta)+'</div></div><div class="chips">'+(c.ret?RET[c.ret]:'')+c.chips.join('')+'</div></div>';
+  if(c.warn) h+='<div class="bar y" style="border-top:0;border-bottom:1px solid #F0D98A">'+esc(c.warn)+'</div>';
+  if(c.compose){
+    var ready=c.ret==='h19'||c.ret==='cus';
+    h+='<div class="actions"><button class="act">Edit Returning with</button><button class="act">Ask return date</button><button class="act"'+(ready?'':' disabled')+'>Send Vehicle Ready'+(ready?'':'<span class="why">Other: no automatic pickup text</span>')+'</button></div>';
+  }
+  h+='<div class="msgs">';
+  c.msgs.forEach(function(m){
+    if(m[0]==='day') h+='<div class="day">'+m[1]+'</div>';
+    else if(m[0]==='sys') h+='<div class="sys">'+esc(m[1])+'</div>';
+    else if(m[0]==='fail') h+='<div class="fail-note">⚠ '+esc(m[1])+'</div>';
+    else if(m[0]==='in') h+='<div class="b in">'+esc(m[1])+'<div class="bm">'+m[2]+'</div></div>';
+    else h+='<div class="b '+m[0]+'">'+linkify(m[1])+'<div class="bm"><span>'+esc(m[5])+'</span><span>'+m[2]+'</span><span class="st '+m[3]+'">'+(m[3]==='del'?'✓✓ ':m[3]==='sent'?'✓ ':m[3]==='fail'?'✕ ':'… ')+m[4]+'</span>'+(m[6]?'<span class="lk">'+m[6]+'</span>':'')+'</div></div>';
+  });
+  h+='</div>';
+  if(c.compose){
+    h+='<div class="compose"><textarea id="ta" placeholder="Reply to '+esc(c.name.split(' ')[0])+'… (sent as a normal SMS)"></textarea><div class="crow"><div class="qr"><button>No problem, see you then!</button><button>Noted, thank you!</button></div><span class="counter" id="cnt">0/480 · 0 seg</span><button class="send" id="send" disabled>Send</button></div></div>';
+  } else h+='<div class="bar'+(c.barY?' y':'')+'">'+esc(c.bar)+'</div>';
+  var th=document.getElementById('thread');th.innerHTML=h;
+  var m=th.querySelector('.msgs');m.scrollTop=m.scrollHeight;
+  var ta=document.getElementById('ta');
+  if(ta){
+    var send=document.getElementById('send');
+    th.querySelectorAll('.qr button').forEach(function(b){b.onclick=function(){ta.value=b.textContent;ta.oninput();}});
+    ta.oninput=function(){var v=ta.value.trim();document.getElementById('cnt').textContent=v.length+'/480 · '+seg(v)+' seg';send.disabled=!v||v.length>480;};
+    send.onclick=function(){
+      // One compose id per message; button locks on first tap; the server
+      // also dedups on the id, so a double tap or retry never sends twice.
+      send.disabled=true;send.textContent='Sending…';var body=ta.value.trim();ta.value='';ta.oninput();
+      var msgs=th.querySelector('.msgs');msgs.insertAdjacentHTML('beforeend','<div class="b out">'+esc(body)+'<div class="bm"><span>Reply · You</span><span>now</span><span class="st q">… Queued</span></div></div>');msgs.scrollTop=msgs.scrollHeight;
+      setTimeout(function(){var s=msgs.querySelector('.b.out:last-child .st');s.className='st sent';s.textContent='✓ Sent';send.textContent='Send';},900);
+      setTimeout(function(){var s=msgs.querySelector('.b.out:last-child .st');s.className='st del';s.textContent='✓✓ Delivered';},2200);
+    };
+  }
+}
+document.querySelectorAll('.conv').forEach(function(el){el.onclick=function(){
+  document.querySelectorAll('.conv').forEach(function(x){x.classList.remove('on')});el.classList.add('on');
+  if(el.classList.contains('unread')){el.classList.remove('unread');var bd=el.querySelector('.tags .badge');if(bd)bd.remove();var nb=document.getElementById('navBadge');var n=Math.max(0,+nb.textContent-1);nb.textContent=n;if(!n)nb.style.display='none';}
+  render(el.dataset.c);document.getElementById('inbox').classList.add('open');}});
+document.querySelectorAll('.tabs button').forEach(function(b){b.onclick=function(){
+  document.querySelectorAll('.tabs button').forEach(function(x){x.classList.remove('on')});b.classList.add('on');
+  document.querySelectorAll('.screen').forEach(function(s){s.classList.remove('on')});document.getElementById(b.dataset.s).classList.add('on');}});
+// Returning with follows Flying with only until staff touch it.
+var retTouched=false,retSel=document.getElementById('retSel');
+function retHint(){var v=retSel.value;document.getElementById('retHint').textContent=(retTouched?'Changed by you. ':'Same as Flying with unless you change it. ')+(v==='MAKERS'?'Pickup: Hangar 19.':v==='ASCEND'?'Pickup: Customs.':'Other: no automatic pickup instructions.');}
+retSel.onchange=function(){retTouched=true;retHint();};
+document.querySelectorAll('#flySeg button').forEach(function(b){b.onclick=function(){
+  document.querySelectorAll('#flySeg button').forEach(function(x){x.classList.remove('on')});b.classList.add('on');
+  if(!retTouched){retSel.value=b.dataset.v;}retHint();}});
+var opt=document.getElementById('optin');
+opt.onchange=function(){document.getElementById('saveText').disabled=!opt.checked;document.getElementById('savePrint').textContent=opt.checked?'🖨 Save + Print + Text':'🖨 Save + Print';
+  document.getElementById('optNote').textContent=opt.checked?'Consent is recorded with your name, the time and disclosure version airvalet-optin-v1.':'"Save + Text" unlocks after the passenger agrees. Without consent nothing is blocked: Save Only / Save + Print work as today.';};
+document.getElementById('discBtn').onclick=function(){var d=document.getElementById('disc');d.classList.toggle('on');this.textContent=d.classList.contains('on')?'Hide disclosure ▴':'Show disclosure to passenger ▾';};
+render('ana');
+(function(){var q=new URLSearchParams(location.search);
+  if(location.hash){var t=document.querySelector('.tabs button[data-s="'+location.hash.slice(1)+'"]');if(t)t.click();}
+  if(q.get('c')){var el=document.querySelector('.conv[data-c="'+q.get('c')+'"]');if(el)el.click();}
+  if(q.get('optin')){opt.checked=true;opt.onchange();}
+  if(q.get('disc')){document.getElementById('discBtn').click();}
+  if(q.get('fly')){var f=document.querySelector('#flySeg button[data-v="'+q.get('fly')+'"]');if(f)f.click();}
+  if(q.get('ret')){retSel.value=q.get('ret');retSel.onchange();}
+})();
+</script>
+</body>
+</html>

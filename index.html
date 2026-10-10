@@ -88,7 +88,7 @@
   <div class="tab" data-t="all" onclick="resetAllPassengersDefaults()"><i class="fa-solid fa-users"></i><span>All Passengers</span><span class="tbadge" id="ball">0</span></div>
   <div class="tab on" data-t="day"><i class="fa-solid fa-gauge-high"></i><span>Dashboard</span><span class="tbadge red" id="bday">!</span></div>
   <div class="tab" data-t="tasks"><i class="fa-solid fa-square-check"></i><span>Tasks</span><span class="tbadge red" id="btasks">0</span></div>
-  <div class="tab" data-t="messages" onclick="renderMessagesWorkspace();loadReturnReviews()"><i class="fa-solid fa-message"></i><span>Messages</span><span id="rrTabBadge" class="rr-tab-badge" style="display:none">0</span></div>
+  <div class="tab" data-t="messages" onclick="renderMessagesWorkspace();loadReturnReviews();if(isServerSms())loadInbox()"><i class="fa-solid fa-message"></i><span>Messages</span><span id="rrTabBadge" class="rr-tab-badge" style="display:none">0</span></div>
   <div class="tab" data-t="tvmode" onclick="window.open(location.pathname+'?mode=tv','_blank')"><i class="fa-solid fa-tv"></i><span>TV Mode</span></div>
   <div class="tab-group-label">Management</div>
   <div class="tab" data-t="closingreport" onclick="crOpenTab()"><i class="fa-solid fa-file-image"></i><span>Closing Report</span></div>
@@ -96,7 +96,7 @@
   <div class="tab" data-t="logs"><i class="fa-solid fa-clipboard-list"></i><span>Logs</span></div>
   <div class="tab-group-label">Administration</div>
   <div class="tab" data-t="debug"><i class="fa-solid fa-screwdriver-wrench"></i><span>Debug</span></div>
-  <div class="tab" data-t="useraccess" onclick="loadUserAccessList()"><i class="fa-solid fa-user-shield"></i><span>User Access</span></div>
+  <div class="tab" data-t="useraccess" onclick="loadUserAccessList();loadSmsAdmin()"><i class="fa-solid fa-user-shield"></i><span>User Access</span></div>
 </div>
 <div class="nav-backdrop" id="navBackdrop" onclick="closeSidebarDrawer()"></div>
 <div class="pane" id="pane-all">
@@ -212,8 +212,22 @@
      do, not a new send trigger and not a persistent history system. See
      logMessageEvent()/renderMessagesWorkspace() in the inline script. -->
 <div class="pane" id="pane-messages">
+  <!-- THIS DEVICE — AirValet texting status (device approval, staff). Hidden
+       on the TV. See renderSmsDeviceCard(). -->
+  <div id="smsDeviceCard" class="smsdev" style="display:none"></div>
   <div class="dsec" id="returnReviewList"></div>
-  <div class="dsec">
+  <!-- AIRVALET SMS INBOX — only when SMS_PROVIDER === 'twilio' (server-side
+       sending through the send-sms Edge Function). See initSmsInbox(). -->
+  <div id="smsInbox" class="ibx" style="display:none">
+    <div class="ibx-list">
+      <div class="ibx-search"><input id="ibxSearch" type="text" placeholder="Search name, ticket, phone..." autocomplete="off" oninput="renderInboxList()"></div>
+      <div id="ibxReview"></div>
+      <div class="ibx-sec-t">Conversations</div>
+      <div id="ibxConvs"></div>
+    </div>
+    <div class="ibx-thread" id="ibxThread"><div class="ibx-empty">Select a conversation</div></div>
+  </div>
+  <div class="dsec" id="msgWorkspaceSec">
     <div class="dtitle" style="color:var(--navy)">&#128172; Messages Workspace</div>
     <div class="dsub" style="margin-bottom:2px">Session activity only — full messaging history will be available with Twilio integration.</div>
     <div style="font-size:11px;color:var(--mu);margin-bottom:14px;">Shows what was prepared/opened via the existing Welcome, Welcome Back, Customs, Tip, Tasks, and New Entry actions this session, plus historical entries where a real saved timestamp exists on the passenger record. Reloading the page clears session entries — they are not saved anywhere.</div>
@@ -490,6 +504,20 @@
         <input type="hidden" id="fCarwash">
       </div>
     </div>
+    <div class="fr full" id="fSmsConsentRow" style="display:none">
+      <div class="fg">
+        <label class="sms-consent">
+          <input type="checkbox" id="fSmsConsent">
+          <span><b>Passenger agreed to receive texts</b> from Makers Air Valet about this vehicle.
+          <span class="sms-consent-script">Read to the passenger: &ldquo;Can we text you about your vehicle at this number? Makers Air Valet, operated by Farber Parking, will send check-in, return-date, pickup and delivery updates, and reply when you text us. Message frequency varies. Msg &amp; data rates may apply. Reply HELP for help or STOP to opt out. Consent is not a condition of service. Terms and Privacy: airvalet.farberos.com/terms.html.&rdquo; Check only if they say yes.</span></span>
+        </label>
+        <div class="sms-by">
+          <span class="sms-by-dev">&#9989; AirValet texting on this device</span>
+          <label for="fSmsStaff">Texted by</label>
+          <select id="fSmsStaff" onchange="smsSetStaff(this.value)"><option value="">Choose staff&hellip;</option></select>
+        </div>
+      </div>
+    </div>
     <div class="mact">
       <button class="btnc" onclick="tryCloseAdd()">Cancel</button>
       <button class="btnp" id="saveBtnSms" onclick="saveEntry(true)" style="background:linear-gradient(135deg,#1a5c3a,#1a9e6a);border-color:var(--ok);">&#128172; Save + Review SMS</button>
@@ -666,6 +694,31 @@
      Cancel is the only action — there is no send here. No network call,
      no Twilio, no window.open('sms:...'). The real Confirm & Send gateway
      is Phase 3. -->
+<!-- AIRVALET TEXTING — device request / staff picker / iPhone fallback -->
+<div class="ov" id="smsDevOv" onclick="if(event.target===this)closeSmsDevModal()">
+  <div class="modal smsm">
+    <h2>Use AirValet texting on this device</h2>
+    <div class="msub">Name this device so the admin knows which one it is. Nothing changes until an admin approves it &mdash; until then texts keep opening in iPhone Messages.</div>
+    <div class="fg" style="margin-top:12px"><label>Device name</label><input type="text" id="smsDevName" maxlength="40" placeholder="e.g. Front desk iPad" autocomplete="off"></div>
+    <div id="smsDevErr" class="smsm-err" style="display:none"></div>
+    <div class="mact"><button class="btnc" onclick="closeSmsDevModal()">Cancel</button><button class="btnp" id="smsDevBtn" onclick="submitSmsDeviceRequest()">Send request</button></div>
+  </div>
+</div>
+<div class="ov" id="smsStaffOv">
+  <div class="modal smsm">
+    <h2>Who is texting?</h2>
+    <div class="msub">Pick your name (from today&rsquo;s Clock In). It is saved with the texts sent from this device today.</div>
+    <div id="smsStaffList" class="smsm-names"></div>
+    <div class="mact"><button class="btnc" onclick="closeSmsStaffPicker(null)">Skip</button></div>
+  </div>
+</div>
+<div class="ov" id="smsFallbackOv" onclick="if(event.target===this)closeSmsFallback()">
+  <div class="modal smsm">
+    <h2>Send from iPhone Messages</h2>
+    <div id="smsFallbackMsg" class="smsm-msg"></div>
+    <div class="mact"><button class="btnc" onclick="closeSmsFallback()">Cancel</button><button class="btnp" id="smsFallbackBtn" onclick="openSmsFallbackInMessages()">&#128241; Open in Messages</button></div>
+  </div>
+</div>
 <div class="ov" id="reviewSmsOv" onclick="if(event.target===this)closeReviewSms()">
   <div class="modal" style="max-width:440px">
     <h2>📋 Review SMS (Not Sent)</h2>
@@ -1087,6 +1140,15 @@ https://buy.stripe.com/8x214mccK0uh9TjgIM6Vq00</div>
         <tr><td colspan="5" style="text-align:center;color:var(--mu);padding:16px;">Loading…</td></tr>
       </tbody>
     </table>
+  </div>
+  <!-- AIRVALET TEXTING — ADMIN ONLY (this tab is ADMIN-only; every action is
+       re-checked by the server: device_decide / set_cutover / set_settings). -->
+  <div class="smsadm" id="smsAdminSec">
+    <div class="smsadm-t">&#128172; AirValet Texting</div>
+    <div class="smsadm-sub">Which devices may send AirValet texts, and whether NEW check-ins use them. Cars already checked in always stay on iPhone texting.</div>
+    <div id="smsAdmErr" class="smsm-err" style="display:none"></div>
+    <div id="smsAdmProgram"></div>
+    <div id="smsAdmDevices"></div>
   </div>
 </div>
 
@@ -2472,6 +2534,10 @@ async function loadData() {
     updateSyncStatus();
     if(typeof updateOfflinePendingPanel==='function') updateOfflinePendingPanel();
     loadReturnReviews(); // Needs Review badge (non-blocking; empty if unavailable)
+    // AirValet texting only on a device an ADMIN approved while the program
+    // is on, and only for tickets enrolled at check-in; everything else (and
+    // any error) stays on native iPhone SMS.
+    resolveSmsProvider(); // device check → inbox / check-in consent only on an approved device
   } catch(e) {
     showMsg('Connection error: '+e.message, true);
     console.error(e);
@@ -3784,6 +3850,9 @@ function openAdd(){
   if(approxRow) approxRow.style.display='none';
   var fi=document.getElementById('freqInfo'); if(fi) fi.classList.remove('on');
   _returnOpTouched=false; syncReturnOpDefault();
+  var fsc=document.getElementById('fSmsConsent'); if(fsc) fsc.checked=false;
+  var fscr=document.getElementById('fSmsConsentRow'); if(fscr) fscr.style.display=smsProgramOpen()?'':'none';
+  if(smsProgramOpen()) smsFillStaffSelect();
   var fcw=document.getElementById('fCarwash'); if(fcw) fcw.value='';
   document.querySelectorAll('.carwash-btn').forEach(function(b){b.classList.remove('on');});
   refreshHangarCountBadges();
@@ -3964,29 +4033,634 @@ async function sendPassengerSms(options) {
     logMessageEvent(options, 'Error', phoneCheck.reason || 'Invalid phone number');
     return { ok: false, status: 'invalid_phone', sid: null, provider: SMS_PROVIDER, error: { code: 'INVALID_PHONE', message: phoneCheck.reason || 'Invalid phone number' } };
   }
-  if (SMS_PROVIDER === 'native') {
-    var cleanPhone = String(options.phone || '').replace(/\D/g, '');
-    try {
-      window.open('sms:' + cleanPhone + '&body=' + encodeURIComponent(options.body || ''), '_self');
-    } catch (openErr) {
-      logMessageEvent(options, 'Error', 'Could not open Messages: ' + openErr.message);
-      return { ok: false, status: 'composer_open_failed', sid: null, provider: 'native', error: { code: 'COMPOSER_OPEN_FAILED', message: openErr.message } };
-    }
-    // Logged only here, only after window.open() above did not throw —
-    // never claims Sent/Delivered, only that the composer was opened.
-    logMessageEvent(options, 'Opened in Messages');
-    return { ok: true, status: 'composer_opened', sid: null, provider: 'native' };
-  }
   if (SMS_PROVIDER === 'mock_twilio') {
     return openMockSmsModal(options);
   }
-  if (SMS_PROVIDER === 'twilio') {
-    // Placeholder only — intentionally not implemented. No Account SID,
-    // Auth Token, API Key, Messaging Service SID, Twilio number, Edge
-    // Function URL, or Twilio API call exists anywhere in this codebase.
-    throw new Error('Real Twilio provider is not configured.');
+  // Per ticket: tickets enrolled at check-in go through the server; old
+  // tickets (and everything while this device/program is off) stay on iPhone
+  // SMS exactly as before. Decided synchronously so the native composer
+  // still opens inside the tap.
+  if (smsRouteFor(options.passengerId) === 'native') return sendNativeSms(options);
+  // Server-side AirValet SMS (send-sms Edge Function). The server renders
+  // the approved wording from the passenger record; options.body is only
+  // the local preview. Free text goes through the inbox composer.
+  var serverType = SMS_SERVER_TYPES[options.messageType];
+  var whoS = options.passengerName ? (' to ' + options.passengerName) : '';
+  if (!serverType) {
+    openSmsFallback(options, 'UNSUPPORTED');
+    return { ok: false, status: 'native_fallback_offered', sid: null, provider: 'twilio', error: { code: 'UNSUPPORTED', message: 'no server message type' } };
   }
-  throw new Error('Unknown SMS_PROVIDER: ' + SMS_PROVIDER);
+  if (serverType === 'REPLY') {
+    openInboxThread(options.passengerId);
+    return { ok: false, status: 'compose_in_inbox', sid: null, provider: 'twilio' };
+  }
+  var sres = await sendServerSms(options.passengerId, serverType);
+  if (sres && sres.ok) {
+    showMsg(sres.duplicate ? ('Already sent' + whoS + ' — not sent again.') : ('✓ Text sent' + whoS + '.'), false);
+    if (typeof loadInbox === 'function') loadInbox();
+    return { ok: true, status: sres.status, sid: sres.sid || null, provider: 'twilio' };
+  }
+  var scode = sres && sres.error ? sres.error.code : '';
+  if (typeof loadInbox === 'function') loadInbox();
+  if (SMS_NATIVE_FALLBACK[scode]) {
+    // The server confirmed NOTHING went out → offer iPhone Messages (one
+    // tap, like today). Never offered when a text may have gone out.
+    openSmsFallback(options, scode);
+    return { ok: false, status: 'native_fallback_offered', sid: null, provider: 'twilio', error: sres && sres.error };
+  }
+  showMsg('Text not sent' + whoS + ': ' + smsBlockText(scode) + '.', true);
+  return { ok: false, status: (sres && sres.status) || 'error', sid: null, provider: 'twilio', error: sres && sres.error };
+}
+// iPhone Messages composer — the v46 behaviour, unchanged.
+function sendNativeSms(options) {
+  var cleanPhone = String(options.phone || '').replace(/\D/g, '');
+  try {
+    window.open('sms:' + cleanPhone + '&body=' + encodeURIComponent(options.body || ''), '_self');
+  } catch (openErr) {
+    logMessageEvent(options, 'Error', 'Could not open Messages: ' + openErr.message);
+    return { ok: false, status: 'composer_open_failed', sid: null, provider: 'native', error: { code: 'COMPOSER_OPEN_FAILED', message: openErr.message } };
+  }
+  // Logged only here, only after window.open() above did not throw —
+  // never claims Sent/Delivered, only that the composer was opened.
+  logMessageEvent(options, 'Opened in Messages');
+  return { ok: true, status: 'composer_opened', sid: null, provider: 'native' };
+}
+// Codes where the server guarantees no text was sent AND iPhone texting is
+// acceptable: program/device/ticket not in AirValet texting, cost caps, or
+// the SMS function unreachable. NOT here (no fallback → no double text):
+// STOP, per-passenger limits, duplicates, unconfirmed/unknown results and
+// network errors (a retry is deduplicated by the server instead).
+var SMS_NATIVE_FALLBACK = {
+  SMS_PAUSED: 1, SMS_DISABLED: 1, DEVICE_NOT_AUTHORIZED: 1, TICKET_NOT_ELIGIBLE: 1, TEST_MODE_NUMBER: 1,
+  NOT_ALLOWLISTED: 1, NO_CONSENT: 1, DAILY_CAP: 1, DEVICE_RATE_LIMIT: 1, TEMPLATE_NOT_APPROVED: 1,
+  SMS_UNAVAILABLE: 1, UNSUPPORTED: 1
+};
+var _smsFallbackPending = null;
+function openSmsFallback(options, code){
+  _smsFallbackPending = options;
+  document.getElementById('smsFallbackMsg').innerHTML = 'AirValet did not send this text: ' + escapeHTML(smsBlockText(code)) + '.<br><b>Nothing was sent.</b> You can send it from iPhone Messages as usual.';
+  var b = document.getElementById('smsFallbackBtn'); b.disabled = false;
+  document.getElementById('smsFallbackOv').classList.add('on');
+}
+function closeSmsFallback(){ document.getElementById('smsFallbackOv').classList.remove('on'); _smsFallbackPending = null; }
+function openSmsFallbackInMessages(){
+  var o = _smsFallbackPending; if (!o) return;
+  document.getElementById('smsFallbackBtn').disabled = true; // one composer per tap
+  closeSmsFallback();
+  if (document.getElementById('reviewSmsOv').classList.contains('on')) closeReviewSms();
+  sendNativeSms(o);
+}
+
+// ── AIRVALET SMS — SERVER MODE + INBOX (SMS_PROVIDER === 'twilio') ─────
+// Real two-way SMS through the send-sms Edge Function. The server picks the
+// phone number and the wording (templates), enforces opt-in, STOP, rate
+// limits and idempotency; this file only asks and renders. Whether the
+// server talks to Twilio or to its mock is a server setting
+// (AIRVALET_SMS_MODE) — nothing here knows any Twilio credential.
+// With SMS_PROVIDER at its default ('native') none of this runs.
+var SMS_SERVER_TYPES = {
+  WELCOME_CONFIRMED: 'CHECK_IN', WELCOME_NO_DATE: 'CHECK_IN', WELCOME_NOT_RETURNING: 'CHECK_IN',
+  RETURN_CONFIRMATION: 'RETURN_CONFIRMATION', TASK_CONFIRMATION: 'RETURN_CONFIRMATION',
+  HANGAR19_WELCOME_BACK: 'VEHICLE_READY', CUSTOMS_WELCOME_MAKERS: 'VEHICLE_READY', CUSTOMS_WELCOME_ASCEND: 'VEHICLE_READY',
+  // No gratuity in the A2P program: both tip outcomes get the same plain
+  // delivery confirmation; the Customs gratuity text is not available.
+  TIP_YES: 'VEHICLE_DELIVERED', TIP_NO: 'VEHICLE_DELIVERED',
+  GENERIC: 'REPLY', FREEFORM: 'REPLY'
+};
+var SMS_CONSENT_VERSION = 'checkin-verbal-2026-10';
+var SMS_BLOCK_TEXT = {
+  OPTED_OUT: 'the passenger replied STOP — texts are blocked until they reply START',
+  NO_CONSENT: 'no SMS consent on file for this passenger',
+  RATE_LIMIT_HOUR: 'too many texts to this number in the last hour',
+  RATE_LIMIT_DAY: 'too many texts to this number today',
+  TEMPLATE_NOT_APPROVED: 'this message wording is not approved yet',
+  SMS_DISABLED: 'SMS sending is turned off on the server',
+  NOT_ALLOWLISTED: 'test mode — this number is not on the test list',
+  CUSTOMS_REQUEST_PENDING: 'decide the pending Customs request first',
+  RETURN_OTHER_MANUAL: 'returning with Other — no automatic pickup text',
+  INVALID_PHONE: 'the phone number on file is not valid',
+  SMS_PAUSED: 'texting is paused by the administrator',
+  DEVICE_NOT_AUTHORIZED: 'this device is not approved for AirValet texting',
+  TICKET_NOT_ELIGIBLE: 'this car was not checked in with AirValet texting',
+  TEST_MODE_NUMBER: 'test mode — only test numbers get AirValet texts',
+  CHECKIN_WINDOW_CLOSED: 'AirValet texting can only be turned on at check-in',
+  PASSENGER_NOT_FOUND: 'passenger not found',
+  SMS_UNAVAILABLE: 'AirValet texting is not available right now',
+  NETWORK: 'no connection to AirValet — try again (it will not be sent twice)',
+  UNSUPPORTED: 'this message is not available as an AirValet text',
+  TOO_LONG: 'the message is too long (max 3 text segments)',
+  BODY_TOO_LONG: 'the message is too long (max 3 text segments; emoji count extra)',
+  LINK_NOT_ALLOWED: 'links to other websites are not allowed in texts',
+  PREVIOUS_UNCONFIRMED: 'an earlier text of this kind is still unconfirmed — resolve it in Messages first',
+  UNCONFIRMED: 'not confirmed yet — check Messages before sending again',
+  DUPLICATE_RECENT: 'the same text was just sent to this number',
+  DEVICE_RATE_LIMIT: 'too many texts from this device in the last hour',
+  DAILY_CAP: 'the daily text limit was reached',
+  RESEND_NOT_ALLOWED: 'only a manager can resend this message',
+  PASS_LINK_UNAVAILABLE: 'the passenger link is not available (service already closed)'
+};
+// ── AirValet texting by DEVICE (logins are shared, so the server trusts an
+// ADMIN-approved device, never a login or anything the browser claims). The
+// device keeps a random key in localStorage; the server stores only its
+// SHA-256 and re-checks it on every consent and every send. The key is never
+// shown, logged or put in a URL.
+var SMS_DEVICE_KEY_LS = 'airvalet_sms_device_key';
+var SMS_STAFF_LS = 'airvalet_sms_staff';
+var _smsDev = null;        // {status,label,sending_enabled,test_only,cutover_at} from airvalet_sms_device_status
+var _smsEnrolled = {};     // passenger id → true: ticket joined AirValet texting at check-in
+// Device-level: this device is approved AND the program is on.
+function isServerSms(){ return SMS_PROVIDER === 'twilio'; }
+// New check-ins can join (ADMIN pressed START NEW CHECK-INS).
+function smsProgramOpen(){ return isServerSms() && !!(_smsDev && _smsDev.cutover_at); }
+// Per ticket: only tickets enrolled at check-in go through the server.
+// Old tickets, and everything when the device/program is off: iPhone SMS.
+function smsRouteFor(passengerId){
+  return (isServerSms() && passengerId != null && _smsEnrolled[passengerId]) ? 'server' : 'native';
+}
+function smsDeviceKey(create){
+  try {
+    var k = localStorage.getItem(SMS_DEVICE_KEY_LS);
+    if (k && /^[A-Za-z0-9_-]{43,128}$/.test(k)) return k;
+    if (!create || !window.crypto || !crypto.getRandomValues) return null;
+    var b = new Uint8Array(32); crypto.getRandomValues(b);
+    k = btoa(String.fromCharCode.apply(null, b)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    localStorage.setItem(SMS_DEVICE_KEY_LS, k);
+    return localStorage.getItem(SMS_DEVICE_KEY_LS) === k ? k : null;
+  } catch(e) { return null; }
+}
+// Re-evaluated on every data load: approve/revoke/pause take effect without
+// a reload. A debug override (mock_twilio) is left alone. Any error, the
+// TV, or offline → native iPhone SMS. Never throws.
+async function resolveSmsProvider(){
+  if (SMS_PROVIDER === 'mock_twilio') return;
+  var dev = null;
+  if (!isTvMode() && _authToken && !(typeof navigator !== 'undefined' && navigator.onLine === false)) {
+    var key = smsDeviceKey(false);
+    if (!key) dev = { status: 'unknown' };
+    else {
+      try {
+        var rows = await smsApi('/rest/v1/rpc/airvalet_sms_device_status', { method: 'POST', body: JSON.stringify({ p_device_key: key }) });
+        dev = (Array.isArray(rows) ? rows[0] : rows) || { status: 'unknown' };
+      } catch(e) { dev = null; }
+    }
+  }
+  _smsDev = dev;
+  SMS_PROVIDER = (dev && dev.status === 'approved' && dev.sending_enabled === true) ? 'twilio' : 'native';
+  if (isServerSms()) await loadSmsEnrollments();
+  renderSmsDeviceCard();
+  initSmsInbox(); // consent row / inbox follow the new state right away
+}
+async function loadSmsEnrollments(){
+  try {
+    var since = new Date(Date.now() - 60 * 86400000).toISOString();
+    var rows = await smsApi('/rest/v1/airvalet_sms_enrollments?select=passenger_id&passenger_id=not.is.null&enrolled_at=gte.' + encodeURIComponent(since) + '&limit=5000');
+    (rows || []).forEach(function(r){ _smsEnrolled[r.passenger_id] = true; });
+  } catch(e) { /* unknown → native for those tickets (never a double text) */ }
+}
+// ── Staff picked in the UI ("who is texting") — a label for the audit
+// trail, from today's Clock In. Kept per device for the business day.
+function smsStaffName(){
+  try {
+    var v = JSON.parse(localStorage.getItem(SMS_STAFF_LS) || 'null');
+    return v && v.date === vsBusinessDateET() && v.name ? v.name : null;
+  } catch(e) { return null; }
+}
+function smsSetStaff(name){
+  try {
+    if (name) localStorage.setItem(SMS_STAFF_LS, JSON.stringify({ name: String(name).slice(0, 60), date: vsBusinessDateET() }));
+    else localStorage.removeItem(SMS_STAFF_LS);
+  } catch(e) {}
+  var sel = document.getElementById('fSmsStaff'); if (sel && sel.value !== (name || '')) sel.value = name || '';
+  renderSmsDeviceCard();
+}
+async function smsTodayStaff(){
+  try {
+    var rows = await smsApi('/rest/v1/valet_shifts?select=valet_name,clock_out_at&business_date=eq.' + vsBusinessDateET() + '&order=clock_in_at.asc');
+    var on = [], off = [];
+    (rows || []).forEach(function(r){
+      var n = String(r.valet_name || '').trim(); if (!n) return;
+      var list = r.clock_out_at ? off : on;
+      if (on.indexOf(n) === -1 && off.indexOf(n) === -1) list.push(n);
+    });
+    return on.concat(off.filter(function(n){ return on.indexOf(n) === -1; }));
+  } catch(e) { return []; }
+}
+var _smsStaffResolve = null;
+// Resolves to the chosen name, or null (Skip). Asked only when nobody is
+// selected on this device today.
+async function smsEnsureStaff(){
+  var cur = smsStaffName(); if (cur) return cur;
+  var names = await smsTodayStaff();
+  var box = document.getElementById('smsStaffList');
+  box.innerHTML = names.length
+    ? names.map(function(n){ return '<button type="button" onclick="closeSmsStaffPicker(' + escapeHTML(JSON.stringify(n)) + ')">' + escapeHTML(n) + '</button>'; }).join('')
+    : '<div class="smsm-none">Nobody is clocked in today. Use Clock In, or tap Skip.</div>';
+  document.getElementById('smsStaffOv').classList.add('on');
+  return new Promise(function(res){ _smsStaffResolve = res; });
+}
+function closeSmsStaffPicker(name){
+  document.getElementById('smsStaffOv').classList.remove('on');
+  if (name) smsSetStaff(name);
+  var r = _smsStaffResolve; _smsStaffResolve = null; if (r) r(name || null);
+}
+async function smsFillStaffSelect(){
+  var sel = document.getElementById('fSmsStaff'); if (!sel) return;
+  var names = await smsTodayStaff(), cur = smsStaffName();
+  if (cur && names.indexOf(cur) === -1) names.unshift(cur);
+  sel.innerHTML = '<option value="">Choose staff&hellip;</option>' + names.map(function(n){ return '<option>' + escapeHTML(n) + '</option>'; }).join('');
+  sel.value = cur || '';
+}
+// ── This device card (Messages tab). Short, one state at a time. ──
+function renderSmsDeviceCard(){
+  var el = document.getElementById('smsDeviceCard'); if (!el) return;
+  if (isTvMode() || !_smsDev) { el.style.display = 'none'; return; }
+  var d = _smsDev, cls = '', ic = '', t = '', sub = '', acts = '';
+  var staff = smsStaffName();
+  if (d.status === 'approved' && d.sending_enabled) {
+    cls = 'ok'; ic = '&#9989;'; t = 'This device is authorized for AirValet texts';
+    sub = (d.cutover_at ? 'New check-ins: texts are sent by AirValet.' : 'New check-ins are not using AirValet texts yet.')
+        + ' Cars checked in before keep using iPhone Messages.'
+        + (d.test_only ? ' <b>Test mode</b> — only test numbers.' : '');
+    acts = '<button class="smsbtn" onclick="smsPickStaffFromCard()">' + (staff ? ('Texting as: <b>' + escapeHTML(staff) + '</b>') : 'Choose who is texting') + '</button>';
+  } else if (d.status === 'approved') {
+    cls = 'wait'; ic = '&#9208;'; t = 'Authorized — AirValet texting is paused';
+    sub = 'Texts open in iPhone Messages as usual.';
+  } else if (d.status === 'pending') {
+    cls = 'wait'; ic = '&#9203;'; t = 'Waiting for admin approval';
+    sub = 'Requested as &ldquo;' + escapeHTML(d.label || '') + '&rdquo;. Texts open in iPhone Messages until it is approved.';
+  } else if (d.status === 'revoked') {
+    cls = 'off'; ic = '&#9940;'; t = 'AirValet texting removed for this device';
+    sub = 'Texts open in iPhone Messages. Ask an admin if this is a mistake.';
+  } else {
+    ic = '&#128241;'; t = 'Texts open in iPhone Messages';
+    sub = 'This device is not set up for AirValet texts.';
+    acts = '<button class="smsbtn pri" onclick="openSmsDevModal()">Request AirValet texting</button>';
+  }
+  el.className = 'smsdev ' + cls;
+  el.innerHTML = '<div class="smsdev-ic">' + ic + '</div><div class="smsdev-main"><div class="smsdev-t">' + t + '</div><div class="smsdev-s">' + sub + '</div></div>'
+    + (acts ? '<div class="smsdev-acts">' + acts + '</div>' : '');
+  el.style.display = '';
+}
+async function smsPickStaffFromCard(){ smsSetStaff(null); await smsEnsureStaff(); }
+function openSmsDevModal(){
+  if (isTvMode()) return;
+  document.getElementById('smsDevName').value = '';
+  var e = document.getElementById('smsDevErr'); e.style.display = 'none';
+  var b = document.getElementById('smsDevBtn'); b.disabled = false; b.textContent = 'Send request';
+  document.getElementById('smsDevOv').classList.add('on');
+  setTimeout(function(){ document.getElementById('smsDevName').focus(); }, 50);
+}
+function closeSmsDevModal(){ document.getElementById('smsDevOv').classList.remove('on'); }
+async function submitSmsDeviceRequest(){
+  var name = document.getElementById('smsDevName').value.trim();
+  var err = document.getElementById('smsDevErr'), btn = document.getElementById('smsDevBtn');
+  if (name.length < 2) { err.textContent = 'Type a name with at least 2 letters.'; err.style.display = ''; return; }
+  var key = smsDeviceKey(true);
+  if (!key) { err.textContent = 'This browser cannot keep a device key (private mode?). AirValet texting is not available here.'; err.style.display = ''; return; }
+  btn.disabled = true; btn.textContent = 'Sending…';
+  try {
+    await smsApi('/rest/v1/rpc/airvalet_sms_device_request', { method: 'POST', body: JSON.stringify({ p_device_key: key, p_label: name, p_user_agent: navigator.userAgent }) });
+    closeSmsDevModal();
+    showMsg('Request sent — an admin must approve this device.', false);
+    await resolveSmsProvider();
+  } catch(e) {
+    err.textContent = 'Could not send the request: ' + e.message; err.style.display = '';
+    btn.disabled = false; btn.textContent = 'Send request';
+  }
+}
+function smsBlockText(code){ return SMS_BLOCK_TEXT[code] || ('not sent (' + (code || 'error') + ')'); }
+function newComposeId(){
+  return 'compose:' + (window.crypto && crypto.randomUUID ? crypto.randomUUID() : (Date.now().toString(36) + Math.random().toString(36).slice(2)));
+}
+async function smsApi(path, opts){
+  var res = await fetch(SUPABASE_URL + path, Object.assign({ headers: sbHeaders() }, opts || {}));
+  var txt = await res.text(); var body = null;
+  try { body = txt ? JSON.parse(txt) : null; } catch(e) { body = null; }
+  if (!res.ok) { var err = new Error((body && (body.message || (body.error && body.error.code))) || ('HTTP ' + res.status)); err.status = res.status; throw err; }
+  return body;
+}
+// One server send. Never throws: resolves to the Edge Function result.
+async function sendServerSms(passengerId, type, extra){
+  extra = extra || {};
+  try {
+    var body = { passenger_id: passengerId, message_type: type };
+    if (extra.eventRef) body.event_ref = extra.eventRef;
+    if (extra.customBody != null) body.custom_body = extra.customBody;
+    var staff = smsStaffName() || await smsEnsureStaff();
+    if (staff) body.staff_name = staff;
+    var key = smsDeviceKey(false);
+    var headers = sbHeaders(); if (key) headers['x-airvalet-device'] = key;
+    return await smsApi('/functions/v1/send-sms', { method: 'POST', headers: headers, body: JSON.stringify(body) });
+  } catch(e) {
+    // 404/401/403: the request never reached the SMS function → nothing sent.
+    var code = e.status === 404 ? 'SMS_UNAVAILABLE' : (e.status === 401 || e.status === 403) ? 'UNAUTHENTICATED' : 'NETWORK';
+    return { ok: false, status: 'error', error: { code: code, message: e.message } };
+  }
+}
+// Check-in only: records the passenger's consent AND enrolls the ticket in
+// AirValet texting, from this approved device. The server refuses old
+// tickets, unapproved devices and anything outside the check-in window.
+// Resolves to true only when the ticket is enrolled. Never throws.
+async function recordSmsConsent(passengerId){
+  try {
+    var rows = await smsApi('/rest/v1/rpc/airvalet_sms_record_consent', { method: 'POST', body: JSON.stringify({
+      p_passenger_id: passengerId, p_disclosure_version: SMS_CONSENT_VERSION,
+      p_device_key: smsDeviceKey(false), p_staff_name: smsStaffName() }) });
+    var row = Array.isArray(rows) ? rows[0] : rows;
+    if (row && row.enrolled) {
+      _smsEnrolled[passengerId] = true;
+      if (row.opted_out) showMsg('Consent saved, but this number replied STOP before — texts stay blocked until the passenger replies START.', true);
+      return true;
+    }
+    showMsg('Saved. Texts for this car will open in iPhone Messages (' + smsBlockText(row && row.reason) + ').', true);
+    return false;
+  } catch(e) { showMsg('Saved. Could not turn on AirValet texts for this car — iPhone Messages will be used.', true); return false; }
+}
+
+// ── Inbox state ───────────────────────────────────────────────────────
+var _ibx = { convs: [], review: [], alerts: [], opened: {}, open: null, thread: [], compose: {}, sending: false, timer: null, loading: false, loadError: false };
+function smsStatusHtml(m){
+  var st = m.status;
+  if (st === 'delivered') return '<span class="ibx-st ok">&#10003;&#10003; Delivered</span>';
+  if (st === 'sent') return '<span class="ibx-st">&#10003; Sent</span>';
+  if (st === 'failed' || st === 'undelivered') return '<span class="ibx-st bad">&#9888; Not delivered' + (m.error_code ? ' (' + escapeHTML(m.error_code) + ')' : '') + '</span>';
+  if (st === 'blocked') return '<span class="ibx-st bad">&#9940; Not sent — ' + escapeHTML(smsBlockText(m.error_code)) + '</span>';
+  if (st === 'send_unknown') return '<span class="ibx-st warn">? Unconfirmed — check before resending</span>';
+  return '<span class="ibx-st">Sending…</span>';
+}
+function ibxTime(iso){
+  if (!iso) return '';
+  var d = new Date(iso), now = new Date();
+  var t = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  return d.toDateString() === now.toDateString() ? t : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' ' + t;
+}
+function ibxTypeLabel(m){
+  var t = m.message_type || '';
+  if (t === 'CHECK_IN') return 'CHECK-IN';
+  if (t === 'VEHICLE_READY') return 'VEHICLE READY';
+  if (t === 'RETURN_CONFIRMATION') return 'RETURN DATE';
+  if (t === 'VEHICLE_DELIVERED') return 'DELIVERED';
+  if (t === 'CUSTOMS_GRATUITY') return 'GRATUITY';
+  if (t === 'REPLY') return 'REPLY';
+  return t.replace(/_/g, ' ');
+}
+function updateMessagesBadge(){
+  var unread = _ibx.convs.reduce(function(s, c){ return s + (Number(c.unread_count) || 0); }, 0);
+  var review = _ibx.review.filter(function(m){ return !m.read_at; }).length;
+  var n = unread + review + _ibx.alerts.length + (typeof _returnReviews !== 'undefined' ? _returnReviews.length : 0);
+  var badge = document.getElementById('rrTabBadge');
+  if (badge){ badge.textContent = n; badge.style.display = n ? '' : 'none'; }
+}
+async function loadInbox(){
+  if (!isServerSms() || _ibx.loading) return;
+  _ibx.loading = true;
+  try {
+    // Flag sends that never got a provider answer (UNCONFIRMED) before listing alerts.
+    try { await smsApi('/rest/v1/rpc/airvalet_sms_reconcile', { method: 'POST', body: '{}' }); } catch(e) {}
+    var convs = await smsApi('/rest/v1/airvalet_sms_conversations?select=*&order=last_message_at.desc&limit=200');
+    var review = await smsApi('/rest/v1/airvalet_sms_review_queue?select=*&limit=100');
+    var alerts = await smsApi('/rest/v1/airvalet_sms_alerts?select=*&limit=50');
+    var ids = convs.map(function(c){ return c.passenger_id; });
+    var opened = {};
+    if (ids.length){
+      var ps = await smsApi('/rest/v1/airvalet_sms_pass_status?select=*&passenger_id=in.(' + ids.join(',') + ')');
+      ps.forEach(function(p){ opened[p.passenger_id] = p; });
+    }
+    _ibx.convs = convs; _ibx.review = review; _ibx.alerts = alerts || []; _ibx.opened = opened; _ibx.loadError = false;
+  } catch(e) {
+    _ibx.loadError = true; // keep the last data on screen; say it could not refresh
+  } finally { _ibx.loading = false; }
+  renderInboxList(); updateMessagesBadge();
+  if (_ibx.open != null) await loadThread(_ibx.open, true);
+}
+function paxById(id){ for (var i = 0; i < data.length; i++) if (data[i].id === id) return data[i]; return null; }
+function renderInboxList(){
+  var box = document.getElementById('ibxConvs'); if (!box) return;
+  var q = ((document.getElementById('ibxSearch') || {}).value || '').trim().toLowerCase();
+  var rows = _ibx.convs.filter(function(c){
+    if (!q) return true;
+    return [c.passenger_name, c.ticket, c.phone_e164, c.last_body].some(function(v){ return String(v || '').toLowerCase().indexOf(q) !== -1; });
+  });
+  box.innerHTML = rows.length ? rows.map(function(c){
+    var p = paxById(c.passenger_id) || {};
+    var ret = returnOperator(Object.assign({}, p, { ticket: c.ticket }));
+    var tags = '<span class="ibx-tag">#' + escapeHTML(c.ticket || '—') + '</span>' +
+      (ret ? '<span class="ibx-tag">BACK: ' + escapeHTML(RETURN_OPERATOR_LABELS[ret] || ret) + (pickupLocation(p) ? ' · ' + (pickupLocation(p) === 'HANGAR_19' ? 'H19' : 'CUSTOMS') : '') + '</span>' : '') +
+      (c.opted_out ? '<span class="ibx-tag bad">OPTED OUT</span>' : '') +
+      (_returnReviews.some(function(v){ return v.passenger_id === c.passenger_id; }) ? '<span class="ibx-tag warn">&#9888; RETURN CHANGED</span>' : '') +
+      (c.unread_count > 0 ? '<span class="ibx-unread">' + c.unread_count + '</span>' : '');
+    var initials = String(c.passenger_name || '?').split(/\s+/).map(function(w){ return w.charAt(0); }).join('').slice(0, 2);
+    return '<div class="ibx-row' + (c.unread_count > 0 ? ' unread' : '') + (_ibx.open === c.passenger_id ? ' on' : '') + '" onclick="openInboxThread(' + c.passenger_id + ')">' +
+      '<div class="ibx-av">' + escapeHTML(initials) + '</div>' +
+      '<div class="ibx-row-main"><div class="ibx-row-top"><span class="ibx-name">' + escapeHTML(c.passenger_name || '') + '</span><span class="ibx-when">' + escapeHTML(ibxTime(c.last_message_at)) + '</span></div>' +
+      '<div class="ibx-last">' + (c.last_direction === 'outbound' ? 'You: ' : '') + escapeHTML(c.last_body || '') + '</div>' +
+      '<div class="ibx-tags">' + tags + '</div></div></div>';
+  }).join('') : '<div class="ibx-empty">' + (_ibx.loadError ? 'Could not load texts — retrying.' : q ? 'No conversation matches.' : 'No text conversations yet.') + '</div>';
+  if (_ibx.loadError && rows.length) box.insertAdjacentHTML('afterbegin', '<div class="ibx-rv-note">Could not refresh texts — showing the last loaded list, retrying.</div>');
+  renderInboxReview();
+}
+// Ambiguous (several passengers share the sender's phone) and unmatched
+// (no passenger with that phone) replies. Linking is only allowed to a
+// passenger whose phone IS the sender's (server rule), so a reply always
+// goes back to the same phone.
+var SMS_ALERT_TEXT = {
+  UNCONFIRMED: 'Not confirmed — we never got an answer from the carrier. It may or may not have been delivered.',
+  UNREACHABLE: 'Not delivered — the number cannot receive texts.',
+  CARRIER_FILTERED: 'Blocked by the carrier.',
+  FAILED: 'Not delivered.'
+};
+function renderSmsAlerts(){
+  if (!_ibx.alerts.length) return '';
+  return '<div class="ibx-sec-t">Text alerts <span class="ibx-unread">' + _ibx.alerts.length + '</span></div>' +
+    _ibx.alerts.map(function(a){
+      var acts = a.attention === 'UNCONFIRMED'
+        ? '<button class="rp-btn" onclick="resolveSmsAlert(\'' + a.id + '\',\'confirmed_received\')">Passenger got it</button>' +
+          '<button class="rp-btn" onclick="resolveSmsAlert(\'' + a.id + '\',\'marked_not_sent\')">Not received — allow resend</button>'
+        : '<button class="rp-btn" onclick="resolveSmsAlert(\'' + a.id + '\',\'acknowledged\')">OK</button>';
+      return '<div class="ibx-rv"><div class="ibx-rv-top"><span>' + escapeHTML(a.passenger_name || 'Passenger') + (a.ticket_snapshot ? ' · #' + escapeHTML(a.ticket_snapshot) : '') +
+        ' · ' + escapeHTML(String(a.message_type || '').replace(/_/g, ' ')) + ' · ' + escapeHTML(ibxTime(a.attention_at || a.created_at)) + '</span>' +
+        '<span class="ibx-tag ' + (a.attention === 'UNCONFIRMED' ? 'warn' : 'bad') + '">' + escapeHTML(a.attention) + (a.error_code ? ' · ' + escapeHTML(a.error_code) : '') + '</span></div>' +
+        '<div class="ibx-rv-note">' + escapeHTML(SMS_ALERT_TEXT[a.attention] || 'Check this text.') + '</div><div class="ibx-rv-acts">' + acts + '</div></div>';
+    }).join('');
+}
+async function resolveSmsAlert(messageId, resolution){
+  if (resolution === 'marked_not_sent' && !confirm('Only if the passenger did NOT receive it: this allows the same text to be sent again. Continue?')) return;
+  try {
+    await smsApi('/rest/v1/rpc/airvalet_sms_resolve_alert', { method: 'POST', body: JSON.stringify({ p_message_id: messageId, p_resolution: resolution }) });
+  } catch(e) { showMsg('Could not update the alert: ' + e.message, true); }
+  await loadInbox();
+}
+function renderInboxReview(){
+  var box = document.getElementById('ibxReview'); if (!box) return;
+  var alertsHtml = renderSmsAlerts();
+  if (!_ibx.review.length){ box.innerHTML = alertsHtml; return; }
+  var unread = _ibx.review.filter(function(m){ return !m.read_at; }).length;
+  box.innerHTML = alertsHtml + '<div class="ibx-sec-t">Needs review' + (unread ? ' <span class="ibx-unread">' + unread + '</span>' : '') + '</div>' +
+    _ibx.review.map(function(m){
+      var phone = String(m.phone_e164 || '');
+      var masked = phone.length > 4 ? '+1 •••-•••-' + phone.slice(-4) : phone;
+      var cands = Array.isArray(m.match_candidates) ? m.match_candidates : [];
+      var actions;
+      if (m.match_method === 'ambiguous' && cands.length){
+        actions = '<div class="ibx-rv-acts"><span class="ibx-rv-l">Link to:</span>' + cands.map(function(id){
+          var p = paxById(id) || { name: 'Passenger ' + id, ticket: '' };
+          return '<button class="rp-btn" onclick="assignInboundToPassenger(\'' + m.id + '\',' + id + ')">' + escapeHTML(p.name) + ' · #' + escapeHTML(p.ticket || '') + '</button>';
+        }).join('') + '</div>';
+      } else {
+        actions = '<div class="ibx-rv-note">No passenger on file with this number. A reply can only be linked to a passenger whose phone is this number.</div>' +
+          (m.read_at ? '<div class="ibx-rv-note">Read ' + escapeHTML(ibxTime(m.read_at)) + '</div>' : '<div class="ibx-rv-acts"><button class="rp-btn" onclick="markInboundRead(\'' + m.id + '\')">Mark as read</button></div>');
+      }
+      return '<div class="ibx-rv' + (m.read_at ? ' read' : '') + '"><div class="ibx-rv-top"><span>From ' + escapeHTML(masked) + ' · ' + escapeHTML(ibxTime(m.received_at)) + '</span>' +
+        '<span class="ibx-tag ' + (m.match_method === 'ambiguous' ? 'warn' : '') + '">' + (m.match_method === 'ambiguous' ? cands.length + ' PASSENGERS · SAME PHONE' : 'UNMATCHED') + '</span></div>' +
+        '<div class="ibx-rv-body">&ldquo;' + escapeHTML(m.body || '') + '&rdquo;</div>' + actions + '</div>';
+    }).join('');
+}
+async function assignInboundToPassenger(messageId, passengerId){
+  try {
+    await smsApi('/rest/v1/rpc/airvalet_sms_assign_inbound', { method: 'POST', body: JSON.stringify({ p_message_id: messageId, p_passenger_id: passengerId }) });
+    showMsg('✅ Message linked to the passenger.', false);
+    await loadInbox(); openInboxThread(passengerId);
+  } catch(e) { showMsg('Could not link: ' + e.message, true); }
+}
+async function markInboundRead(messageId){
+  try { await smsApi('/rest/v1/rpc/airvalet_sms_mark_read', { method: 'POST', body: JSON.stringify({ p_message_id: messageId }) }); await loadInbox(); }
+  catch(e) { showMsg('Could not mark as read: ' + e.message, true); }
+}
+// Detail-panel "Text" button and Needs Review jump here in server mode.
+function openInboxThread(passengerId){
+  var tab = document.querySelector('.tab[data-t="messages"]');
+  if (tab && !tab.classList.contains('on')) tab.click();
+  _ibx.open = passengerId;
+  var el = document.getElementById('smsInbox'); if (el) el.classList.add('thread-open');
+  renderInboxList();
+  loadThread(passengerId, false);
+}
+function closeInboxThread(){
+  _ibx.open = null;
+  var el = document.getElementById('smsInbox'); if (el) el.classList.remove('thread-open');
+  renderInboxList();
+  document.getElementById('ibxThread').innerHTML = '<div class="ibx-empty">Select a conversation</div>';
+}
+async function loadThread(passengerId, quiet){
+  try {
+    _ibx.thread = await smsApi('/rest/v1/airvalet_sms_messages?passenger_id=eq.' + passengerId + '&select=id,direction,message_type,template_key,body,status,error_code,sent_by_name,created_at,sent_at,delivered_at,read_at,received_at,segments&order=created_at.asc&limit=300');
+  } catch(e) { _ibx.thread = []; }
+  if (_ibx.open !== passengerId) return;
+  // Opening the conversation registers the read (who + when, server-side).
+  if (_ibx.thread.some(function(m){ return m.direction === 'inbound' && !m.read_at; })){
+    try {
+      await smsApi('/rest/v1/rpc/airvalet_sms_mark_read', { method: 'POST', body: JSON.stringify({ p_passenger_id: passengerId }) });
+      var now = new Date().toISOString();
+      _ibx.thread.forEach(function(m){ if (m.direction === 'inbound' && !m.read_at) m.read_at = now; });
+      _ibx.convs.forEach(function(c){ if (c.passenger_id === passengerId) c.unread_count = 0; });
+      renderInboxList(); updateMessagesBadge();
+    } catch(e) { /* read state stays unread; shown as such */ }
+  }
+  renderThread(passengerId, quiet);
+}
+function renderThread(passengerId, keepComposer){
+  var box = document.getElementById('ibxThread'); if (!box) return;
+  var p = paxById(passengerId) || {};
+  var conv = _ibx.convs.find(function(c){ return c.passenger_id === passengerId; }) || {};
+  var opened = _ibx.opened[passengerId];
+  var lastCheckin = null; _ibx.thread.forEach(function(m){ if (m.direction === 'outbound' && m.message_type === 'CHECK_IN' && m.status !== 'blocked') lastCheckin = m.id; });
+  var msgs = _ibx.thread.map(function(m){
+    if (m.direction === 'inbound'){
+      var kw = (m.message_type || '').replace('INBOUND_', '');
+      var sys = (kw === 'STOP' || kw === 'START' || kw === 'HELP')
+        ? '<div class="ibx-sys">' + (kw === 'STOP' ? 'Passenger replied STOP — opted out. Texts are blocked.' : kw === 'START' ? 'Passenger replied START — texts allowed again.' : 'Passenger asked for HELP — automatic help reply sent by the carrier service.') + '</div>' : '';
+      return '<div class="ibx-msg in"><div class="ibx-bub">' + escapeHTML(m.body || '') + '</div>' +
+        '<div class="ibx-meta">' + escapeHTML(ibxTime(m.received_at || m.created_at)) + ' · ' + (m.read_at ? 'Read ' + escapeHTML(ibxTime(m.read_at)) : '<b>Unread</b>') + '</div></div>' + sys;
+    }
+    var openInfo = (m.id === lastCheckin && opened && opened.first_opened_at)
+      ? ' · <span class="ibx-st ok">&#128279; Link opened ' + escapeHTML(ibxTime(opened.last_opened_at)) + (opened.open_count > 1 ? ' (' + opened.open_count + '×)' : '') + '</span>' : '';
+    return '<div class="ibx-msg out' + (m.status === 'blocked' ? ' blocked' : '') + '"><div class="ibx-bub">' + escapeHTML(m.body || '') + '</div>' +
+      '<div class="ibx-meta">' + escapeHTML(ibxTypeLabel(m)) + ' · ' + escapeHTML(m.sent_by_name || 'AirValet') + ' · ' + escapeHTML(ibxTime(m.created_at)) + ' · ' + smsStatusHtml(m) + openInfo + '</div></div>';
+  }).join('');
+  var optedOut = !!conv.opted_out;
+  var header = '<div class="ibx-th-h"><button class="ibx-back" onclick="closeInboxThread()" aria-label="Back">&#8249;</button>' +
+    '<div class="ibx-th-who"><div class="ibx-th-name">' + escapeHTML(p.name || conv.passenger_name || '') + '</div>' +
+    '<div class="ibx-th-sub">#' + escapeHTML(p.ticket || conv.ticket || '') + (p.car ? ' · ' + escapeHTML(p.car) : '') + (p.loc ? ' · ' + escapeHTML(p.loc) : '') + (p.ret ? ' · returns ' + escapeHTML(p.ret) : '') + '</div>' +
+    '<div class="ibx-tags">' + (p.id ? '<span class="ibx-tag">Returning with ' + escapeHTML(RETURN_OPERATOR_LABELS[returnOperator(p)] || '—') + ' · ' + escapeHTML(pickupLabel(p)) + '</span>' : '') +
+      (optedOut ? '<span class="ibx-tag bad">OPTED OUT (STOP)</span>' : conv.has_consent ? '<span class="ibx-tag ok">&#10003; SMS consent</span>' : '<span class="ibx-tag warn">No SMS consent</span>') + '</div></div>' +
+    (p.id ? '<button class="rp-btn" onclick="showDet(' + p.id + ');document.getElementById(\'detOv\').classList.add(\'on\')">Open passenger</button>' : '') + '</div>';
+  var draft = (_ibx.compose[passengerId] && _ibx.compose[passengerId].text) || '';
+  var composer = optedOut
+    ? '<div class="ibx-blocked">Passenger replied STOP. Texts are blocked until they reply START.</div>'
+    : '<div class="ibx-comp"><textarea id="ibxText" rows="2" maxlength="480" placeholder="Reply to ' + escapeHTML(String(p.name || '').split(' ')[0] || 'passenger') + '… (sent as a normal SMS)" oninput="onInboxDraft(' + passengerId + ')">' + escapeHTML(draft) + '</textarea>' +
+      '<div class="ibx-comp-row"><span class="ibx-quick" onclick="useQuickReply(' + passengerId + ',\'No problem, see you then!\')">No problem, see you then!</span><span class="ibx-quick" onclick="useQuickReply(' + passengerId + ',\'Noted, thank you!\')">Noted, thank you!</span>' +
+      '<span class="ibx-count" id="ibxCount"></span><button class="rp-btn rp-btn-primary" id="ibxSendBtn" onclick="sendInboxReply(' + passengerId + ')"' + (_ibx.sending ? ' disabled' : '') + '>' + (_ibx.sending ? 'Sending…' : 'Send') + '</button></div></div>';
+  if (keepComposer && document.getElementById('ibxText') && !optedOut){
+    var list = box.querySelector('.ibx-msgs'); if (list){ list.innerHTML = msgs || '<div class="ibx-empty">No texts yet.</div>'; }
+    var h = box.querySelector('.ibx-th-h'); if (h) h.outerHTML = header;
+    return;
+  }
+  box.innerHTML = header + '<div class="ibx-msgs">' + (msgs || '<div class="ibx-empty">No texts yet.</div>') + '</div>' + composer;
+  var ml = box.querySelector('.ibx-msgs'); if (ml) ml.scrollTop = ml.scrollHeight;
+  onInboxDraft(passengerId);
+}
+function smsSegmentsEstimate(t){
+  var gsm = /^[A-Za-z0-9 \r\n@£$¥èéùìòÇØøÅåΔ_ΦΓΛΩΠΨΣΘΞÆæßÉ!"#¤%&'()*+,\-.\/:;<=>?¡ÄÖÑÜ§¿äöñüà]*$/.test(t);
+  var n = t.length; if (!n) return 0;
+  return gsm ? (n <= 160 ? 1 : Math.ceil(n / 153)) : (n <= 70 ? 1 : Math.ceil(n / 67));
+}
+function onInboxDraft(passengerId){
+  var ta = document.getElementById('ibxText'); if (!ta) return;
+  var c = _ibx.compose[passengerId] || (_ibx.compose[passengerId] = { id: newComposeId(), text: '' });
+  if (c.text !== ta.value){ c.text = ta.value; }
+  var cnt = document.getElementById('ibxCount'); if (cnt) cnt.textContent = ta.value.length + '/480 · ' + smsSegmentsEstimate(ta.value) + ' seg';
+}
+function useQuickReply(passengerId, text){
+  var ta = document.getElementById('ibxText'); if (!ta) return;
+  ta.value = text; onInboxDraft(passengerId); ta.focus();
+}
+// Double-send protection: the button is disabled while a send is in flight
+// and every draft carries one compose id — a double tap or a retry after a
+// network error reuses it, so the server sends at most once per draft.
+async function sendInboxReply(passengerId){
+  if (_ibx.sending) return;
+  var ta = document.getElementById('ibxText'); if (!ta) return;
+  var text = ta.value.trim(); if (!text) return;
+  var c = _ibx.compose[passengerId] || (_ibx.compose[passengerId] = { id: newComposeId(), text: text });
+  _ibx.sending = true;
+  var btn = document.getElementById('ibxSendBtn'); if (btn){ btn.disabled = true; btn.textContent = 'Sending…'; }
+  var res = await sendServerSms(passengerId, 'REPLY', { eventRef: c.id, customBody: text });
+  _ibx.sending = false;
+  if (res && res.ok){
+    _ibx.compose[passengerId] = { id: newComposeId(), text: '' };
+    var p = paxById(passengerId) || {};
+    sbLog('EDITED', p.name || '', p.ticket || '', p.loc || '', 'Text reply sent from the AirValet inbox', { passenger_id: passengerId, field_name: 'sms_reply', old_value: '', new_value: 'sent' });
+    await loadInbox();
+    renderThread(passengerId, false);
+  } else {
+    var code = res && res.error ? res.error.code : '';
+    showMsg('Not sent: ' + smsBlockText(code), true);
+    // Keep the SAME compose id whenever the text may already have gone out
+    // (timeout, unconfirmed, network, session) — a retry is then a no-op on
+    // the server instead of a second SMS. A new id only after a definite
+    // "not sent" (blocked / rejected / failed).
+    var mayHaveSent = code === 'NETWORK' || code === 'UNAUTHENTICATED' || code === 'UNCONFIRMED'
+      || (res && (res.status === 'send_unknown' || res.status === 'error' || res.status === 'pending'));
+    if (!mayHaveSent) _ibx.compose[passengerId] = { id: newComposeId(), text: text };
+    await loadInbox();
+    renderThread(passengerId, false);
+  }
+}
+function initSmsInbox(){
+  // Consent at check-in only while NEW check-ins can join AirValet texting.
+  var cr = document.getElementById('fSmsConsentRow'); if (cr) cr.style.display = smsProgramOpen() ? '' : 'none';
+  var ib = document.getElementById('smsInbox'), ws = document.getElementById('msgWorkspaceSec');
+  if (!isServerSms()) {
+    // Device not approved / program paused: iPhone texting UI, as in v46.
+    if (ib) ib.style.display = 'none';
+    if (ws) ws.style.display = '';
+    if (_ibx.timer) { clearInterval(_ibx.timer); _ibx.timer = null; }
+    return;
+  }
+  if (ib) ib.style.display = '';
+  if (ws) ws.style.display = 'none';
+  if (!_ibx.timer) _ibx.timer = setInterval(function(){ if (!document.hidden && _authToken) loadInbox(); }, 15000);
+  loadInbox();
 }
 
 // ── NEW ENTRY SMS REVIEW ──────────────────────────────────────────
@@ -4012,8 +4686,21 @@ function openNewEntrySmsPreview(options) {
   var openBtn = document.getElementById('reviewSmsOpenBtn');
   openBtn.disabled = false;
   openBtn.textContent = '📱 Open in Messages';
+  if (smsRouteFor(options.passengerId) === 'server') {
+    // Server mode: the check-in text (with the passenger's personal link)
+    // is rendered by the server; this shows the approved wording.
+    document.getElementById('reviewSmsBody').innerHTML =
+      '<div class="mock-sms-badge">📋 Sent by AirValet as a normal text after you choose Send</div>' +
+      '<div class="mock-sms-row"><span class="mock-sms-lbl">Passenger</span><span class="mock-sms-val">' + escapeHTML(options.passengerName || '—') + '</span></div>' +
+      '<div class="mock-sms-row"><span class="mock-sms-lbl">Phone</span><span class="mock-sms-val">' + escapeHTML(options.phone || '—') + '</span></div>' +
+      '<div class="mock-sms-row"><span class="mock-sms-lbl">SMS consent</span><span class="mock-sms-val">' + (options.consent ? '✓ Recorded at check-in' : '✗ Not recorded — the text will be refused') + '</span></div>' +
+      '<div class="mock-sms-msgbox">' + escapeHTML(CHECK_IN_SMS_PREVIEW) + '</div>';
+    openBtn.textContent = '💬 Send text';
+  }
   document.getElementById('reviewSmsOv').classList.add('on');
 }
+// Preview only — the server template (send-sms, CHECK_IN) is the source.
+var CHECK_IN_SMS_PREVIEW = 'Makers Air Valet: Your car is checked in. Tap to view your valet details: https://farberos.com/a#••••••••••••••••• Questions? Just reply to this text. Msg freq varies. Msg&data rates may apply. Reply HELP for help, STOP to opt out.';
 function closeReviewSms() {
   document.getElementById('reviewSmsOv').classList.remove('on');
   _reviewSmsPending = null;
@@ -4026,6 +4713,14 @@ function openReviewSmsInMessages() {
   if (!_reviewSmsPending) return;
   var openBtn = document.getElementById('reviewSmsOpenBtn');
   openBtn.disabled = true;
+  if (smsRouteFor(_reviewSmsPending.passengerId) === 'server') {
+    openBtn.textContent = 'Sending…';
+    sendPassengerSms(_reviewSmsPending).then(function(res){
+      openBtn.textContent = res && res.ok ? '✓ Sent' : 'Not sent';
+      if (res && res.ok) setTimeout(closeReviewSms, 700);
+    });
+    return;
+  }
   openBtn.textContent = 'Opened in Messages';
   sendPassengerSms(_reviewSmsPending);
 }
@@ -4320,6 +5015,7 @@ var _freeformPendingRecord = null;
 function sendGenericTextSms(id){
   var r=data.find(function(x){return x.id===id;});
   if(!r || !r.phone) return;
+  if(smsRouteFor(r.id)==='server'){ closeAll(); openInboxThread(r.id); return; }
   if(SMS_PROVIDER==='mock_twilio'){
     openFreeformComposeModal(r);
     return;
@@ -5076,6 +5772,10 @@ async function saveEntry(sendSms, printMode){
       if (_newId) vlhInsert({passenger_id:_newId, ticket:ticket, passenger_name:nameUpper, from_location:'', to_location:locVal, action:'CHECK-IN', note:'Vehicle checked in at '+locVal, created_by:_currentUserEmail});
       maybeAddVehicle(carVal);
 
+      // SMS opt-in (server mode only): recorded from the passenger's own
+      // record, never pre-checked, before any text can go out.
+      var _smsConsent = smsProgramOpen() && _newId && !!(document.getElementById('fSmsConsent')||{}).checked;
+      if (_smsConsent) _smsConsent = await recordSmsConsent(_newId);
       resetFormFields();
       showMsg('✓ Saved!', false);
 
@@ -5100,7 +5800,7 @@ async function saveEntry(sendSms, printMode){
           passengerId:_newId, passengerName:nameUpper, phone:phoneFull, ticket:ticket,
           vehicle:formatVehicleLine({car:carVal,color:colorVal}), brand:isAscend(welcomeRec)?'Ascend':'Makers Air',
           templateKey:'WELCOME', messageType:welcomeSmsMessageType(welcomeRec),
-          body:smsBody, metadata:{trigger:'Check-in — Save + Review SMS / Save + Print + Review SMS'}
+          body:smsBody, consent:_smsConsent, metadata:{trigger:'Check-in — Save + Review SMS / Save + Print + Review SMS'}
         });
       }
       await loadData();
@@ -5319,7 +6019,8 @@ function returnReviewCardHtml(v, withOpen){
 }
 function renderReturnReviewList(){
   var badge=document.getElementById('rrTabBadge');
-  if(badge){ badge.textContent=_returnReviews.length; badge.style.display=_returnReviews.length?'':'none'; }
+  if(isServerSms()) updateMessagesBadge(); // unread texts + review queue + return reviews
+  else if(badge){ badge.textContent=_returnReviews.length; badge.style.display=_returnReviews.length?'':'none'; }
   var box=document.getElementById('returnReviewList');
   if(!box) return;
   box.innerHTML=_returnReviews.length
@@ -6683,6 +7384,101 @@ async function callAdminManageUser(payload){
     uaShowError(json.warning);
   }
   return json;
+}
+// ── AirValet Texting — ADMIN panel (User Access tab). The tab is hidden for
+// other roles, but the real boundary is the server: device_decide,
+// set_cutover and set_settings refuse anyone who is not ADMIN.
+var _smsAdm = { settings: null, devices: [] };
+function smsAdmErr(msg){ var e = document.getElementById('smsAdmErr'); if (!e) return; e.textContent = msg || ''; e.style.display = msg ? '' : 'none'; }
+function smsFmtTime(iso){
+  if (!iso) return '—';
+  var d = new Date(iso);
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/New_York' }) + ' ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' });
+}
+function smsDevKind(ua){
+  ua = String(ua || '');
+  return /iPad/.test(ua) ? 'iPad' : /iPhone/.test(ua) ? 'iPhone' : /Macintosh/.test(ua) ? 'Mac / iPad' : /Windows/.test(ua) ? 'Windows' : /Android/.test(ua) ? 'Android' : 'Device';
+}
+async function loadSmsAdmin(){
+  var box = document.getElementById('smsAdminSec'); if (!box) return;
+  // Defence in depth: only ADMIN ever sees these controls (the server
+  // refuses every one of them for any other role anyway).
+  box.style.display = _currentUserRole === 'ADMIN' ? '' : 'none';
+  if (_currentUserRole !== 'ADMIN') return;
+  smsAdmErr('');
+  try {
+    var st = await smsApi('/rest/v1/airvalet_sms_settings?select=sending_enabled,test_only,cutover_at,updated_at');
+    var dv = await smsApi('/rest/v1/airvalet_sms_devices?select=id,label,status,requested_at,user_agent,decided_at,last_seen_at&order=requested_at.desc&limit=100');
+    _smsAdm.settings = (st && st[0]) || null; _smsAdm.devices = dv || [];
+  } catch(e) {
+    _smsAdm.settings = null; _smsAdm.devices = [];
+    smsAdmErr('AirValet texting is not available: ' + e.message);
+  }
+  renderSmsAdmin();
+}
+function renderSmsAdmin(){
+  var pg = document.getElementById('smsAdmProgram'), dl = document.getElementById('smsAdmDevices');
+  if (!pg || !dl) return;
+  var st = _smsAdm.settings;
+  if (!st) { pg.innerHTML = ''; dl.innerHTML = ''; return; }
+  var open = !!st.cutover_at;
+  pg.innerHTML = '<div class="smsadm-prog"><div class="smsadm-state">'
+    + 'Texting: ' + (st.sending_enabled ? '<span class="smschip ok">ON</span>' : '<span class="smschip off">OFF</span>')
+    + (st.test_only ? ' &nbsp;<span class="smschip wait">TEST MODE</span>' : '') + '<br>'
+    + 'New check-ins: ' + (open ? '<b>using AirValet texts</b> since ' + escapeHTML(smsFmtTime(st.cutover_at)) : '<b>iPhone texts</b> (not started)')
+    + '</div><div class="smsdev-acts">'
+    + (open ? '<button class="smsbtn stop" onclick="smsAdmCutover(false)">STOP NEW CHECK-INS</button>'
+            : '<button class="smsbtn go" onclick="smsAdmCutover(true)">START NEW CHECK-INS</button>')
+    + (st.sending_enabled ? '<button class="smsbtn stop" onclick="smsAdmPause()">Pause all texting</button>' : '')
+    + '</div></div>';
+  var devs = _smsAdm.devices;
+  var order = { pending: 0, approved: 1, revoked: 2 };
+  devs = devs.slice().sort(function(a, b){ return (order[a.status] - order[b.status]) || String(b.requested_at).localeCompare(String(a.requested_at)); });
+  var mine = _smsDev && _smsDev.device_id;
+  dl.innerHTML = '<div class="smsadm-t" style="font-size:14px;margin-bottom:8px">Devices</div>' + (devs.length ? devs.map(function(d){
+    var chip = d.status === 'approved' ? '<span class="smschip ok">AUTHORIZED</span>' : d.status === 'pending' ? '<span class="smschip wait">WAITING</span>' : '<span class="smschip off">REMOVED</span>';
+    var acts = d.status === 'pending'
+      ? '<button class="smsbtn go" onclick="smsAdmDecide(\'' + d.id + '\',\'approved\')">Approve</button><button class="smsbtn stop" onclick="smsAdmDecide(\'' + d.id + '\',\'revoked\')">Reject</button>'
+      : d.status === 'approved' ? '<button class="smsbtn stop" onclick="smsAdmDecide(\'' + d.id + '\',\'revoked\')">Remove</button>'
+      : '<button class="smsbtn" onclick="smsAdmDecide(\'' + d.id + '\',\'approved\')">Approve again</button>';
+    return '<div class="smsadm-dev"><div class="smsadm-dev-main"><div class="smsadm-dev-n">' + escapeHTML(d.label) + ' ' + chip + (mine === d.id ? ' <span class="smschip mu">THIS DEVICE</span>' : '') + '</div>'
+      + '<div class="smsadm-dev-m">' + escapeHTML(smsDevKind(d.user_agent)) + ' · requested ' + escapeHTML(smsFmtTime(d.requested_at))
+      + (d.last_seen_at ? ' · last used ' + escapeHTML(smsFmtTime(d.last_seen_at)) : '') + '</div></div>'
+      + '<div class="smsdev-acts">' + acts + '</div></div>';
+  }).join('') : '<div class="smsadm-empty">No device has asked for AirValet texting yet. On the iPad/iPhone: Messages tab → “Request AirValet texting”.</div>');
+}
+async function smsAdmDecide(id, status){
+  var d = _smsAdm.devices.find(function(x){ return x.id === id; }); if (!d) return;
+  var q = status === 'approved'
+    ? 'Allow “' + d.label + '” to send AirValet texts?\n\nOnly approve a device you recognize. Never approve the TV.'
+    : 'Remove AirValet texting from “' + d.label + '”? It goes back to iPhone Messages right away.';
+  if (!confirm(q)) return;
+  try {
+    await smsApi('/rest/v1/rpc/airvalet_sms_device_decide', { method: 'POST', body: JSON.stringify({ p_device_id: id, p_status: status }) });
+    showMsg(status === 'approved' ? '✓ Device approved.' : 'Device removed from AirValet texting.', false);
+  } catch(e) { smsAdmErr('Could not update the device: ' + e.message); }
+  await loadSmsAdmin(); resolveSmsProvider();
+}
+async function smsAdmCutover(start){
+  var phrase = start ? 'START NEW CHECK-INS' : 'STOP NEW CHECK-INS';
+  if (start) {
+    var t = prompt('From now on, NEW check-ins on approved devices will use AirValet texts.\nCars already checked in stay on iPhone texting.\n\nType START to confirm:');
+    if (t === null) return;
+    if (String(t).trim().toUpperCase() !== 'START') { smsAdmErr('Not started — you must type START.'); return; }
+  } else if (!confirm('Stop using AirValet texts for NEW check-ins?\n\nCars already enrolled keep their AirValet texts; new check-ins go back to iPhone texting.')) return;
+  try {
+    await smsApi('/rest/v1/rpc/airvalet_sms_set_cutover', { method: 'POST', body: JSON.stringify({ p_confirm: phrase }) });
+    showMsg(start ? '✓ New check-ins now use AirValet texts.' : 'New check-ins are back on iPhone texting.', false);
+  } catch(e) { smsAdmErr('Could not change new check-ins: ' + e.message); }
+  await loadSmsAdmin(); resolveSmsProvider();
+}
+async function smsAdmPause(){
+  if (!confirm('Pause ALL AirValet texting now?\n\nEvery device goes back to iPhone Messages immediately. Nothing already sent is affected.')) return;
+  try {
+    await smsApi('/rest/v1/rpc/airvalet_sms_set_settings', { method: 'POST', body: JSON.stringify({ p_sending_enabled: false }) });
+    showMsg('AirValet texting paused.', false);
+  } catch(e) { smsAdmErr('Could not pause: ' + e.message); }
+  await loadSmsAdmin(); resolveSmsProvider();
 }
 async function loadUserAccessList(){
   uaShowError('');

@@ -1,0 +1,42 @@
+PASS A1 new device → iPhone texting, card says so, with "Request AirValet texting"
+PASS A2 no AirValet inbox on a device that is not approved
+PASS A3 check-in: no AirValet consent on a device that is not approved
+PASS A4 device key created on this device (random, 256-bit)
+PASS A5 request stored as WAITING (pending) with the device name
+PASS A6 server keeps ONLY the SHA-256 of the key
+PASS A7 card: waiting for approval; still iPhone texting
+PASS B1 admin panel: device WAITING (marked THIS DEVICE), START NEW CHECK-INS button  → ["💬 AirValet Texting","Which devices may send AirValet texts, and whether NEW check-ins use them. Cars already checked in always stay on iPhone texting.","Texting: ON","New check-ins: iPhone texts (not started)","START NEW CHECK-INS","Pause all texting"]
+PASS B2 approve (confirmation dialog) → AUTHORIZED, who/when recorded
+PASS B3 approval asked for confirmation first  → ["confirm: Allow “Front desk iPad” to send AirValet texts?"]
+PASS B4 this device is now authorized; new check-ins not started yet
+PASS C1 START without typing START → nothing changes
+PASS C2 START NEW CHECK-INS → switch time + last ticket id recorded
+PASS C3 device sees new check-ins open
+PASS D1 "Texted by" lists today's Clock In (working first)  → ["E2E Ana","E2E Bruno","E2E Diego"]
+PASS D2 consent visible and NOT pre-checked
+PASS D3 new ticket enrolled: device + staff picked in the UI recorded
+PASS D4 review shows "Send text" (AirValet) for the new ticket
+PASS D5 exactly ONE text sent by AirValet, with device + staff in the audit
+PASS D6 iPhone Messages NOT opened for the AirValet ticket (no double text)
+PASS E1 car checked in BEFORE the switch → iPhone Messages (native), as today
+PASS E2 …and AirValet was not even asked (no server text, no row)
+PASS E3 an old ticket cannot be moved to AirValet texting (server refuses)
+PASS F1 texting paused → server says nothing sent → "Send from iPhone Messages" offered
+PASS F2 server recorded "not sent (paused)"; nothing went out
+PASS F3 one tap → iPhone Messages opened exactly once (second tap ignored)
+PASS F4 connection lost mid-send (outcome unknown) → NO iPhone fallback offered (could double-text); "try again" shown  → ["NETWORK",0,false]
+PASS F5 "try again" twice → still exactly one text (server de-duplicates)  → ["queued:undefined","queued:undefined"]
+PASS G1 nobody selected today → "Who is texting?" with Clock In names
+PASS G2 reply sent with the picked name; name kept for today on this device  → "queued"
+PASS H1 STOP NEW CHECK-INS → new check-ins back to iPhone texting
+PASS H2 consent hidden for new check-ins; Carla (already enrolled) keeps AirValet texts
+PASS I1 admin removes the device → this device back to iPhone texting
+PASS I2 a removed device is refused by the server even if the page tries  → {"code":"DEVICE_NOT_AUTHORIZED","message":"not sent (no opt-in, opt-out or rate limit)"}
+PASS I3 card says AirValet texting was removed
+PASS J1 device key (and its hash) never appear in the page
+PASS J2 device key not stored in any AirValet table (only its hash)
+PASS J3 device key never in a URL / server access log
+PASS K1 TV Mode: no device check, no texting, no device card  → 0
+PASS Z no JavaScript errors during the whole run  → []
+
+TOTAL: 40 passed, 0 failed

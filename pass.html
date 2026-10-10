@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-Z/Ez1dudyp4EwvegbLQOzgU7glHlsC0n+zK51wgFGKY='; style-src 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'">
+<title>Makers Air Valet</title>
+<!-- Makers Air Valet passenger link: https://farberos.com/a#<token> (served
+     at /a by a same-origin rewrite; data from /a/api → valet-pass).
+     The token is in the #fragment: browsers never send it to a server, log
+     or Referer. This page does NOT validate it — it posts it to the server,
+     which alone decides ok / expired / limited. Read-only; no third-party
+     scripts, fonts or images. The ticket number is display only. -->
+<style>
+:root{--navy:#0B2547;--blue:#1F4FBF;--green:#0E6A4C;--ink:#0B1A33;--mu:#4E5D78;--soft:#F3F5F8;--line:#E3E8F0}
+*{box-sizing:border-box}
+html{font-size:17px}
+body{margin:0;background:#fff;color:var(--ink);font:1rem/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;-webkit-text-size-adjust:100%}
+main{max-width:30rem;margin:0 auto;padding:1.25rem 1.1rem 2.5rem}
+.brand{display:flex;align-items:center;gap:.55rem;font-weight:800;letter-spacing:.2px;font-size:1.05rem;color:var(--navy);margin-bottom:1.1rem}
+.brand .mk{width:2rem;height:2rem;border-radius:.6rem;background:var(--navy);color:#fff;display:grid;place-items:center;font-size:.8rem;letter-spacing:.02em}
+.brand small{display:block;font-weight:600;font-size:.72rem;color:var(--mu);letter-spacing:.06em;text-transform:uppercase}
+h1{font-size:1.6rem;line-height:1.2;margin:0 0 1rem}
+.pass{border-radius:1.25rem;color:#fff;padding:1.2rem 1.2rem 1.3rem;background:var(--navy)}
+.pass.done{background:var(--green)}
+.pass .lbl{font-size:.8rem;text-transform:uppercase;letter-spacing:.08em;opacity:.8}
+.pass .car{font-size:1.45rem;font-weight:800;margin:.15rem 0 .6rem}
+.pass .st{font-size:1.05rem;font-weight:600}
+.sec{background:var(--soft);border-radius:1rem;padding:1rem 1.1rem;margin-top:.9rem}
+.sec h2{font-size:.82rem;text-transform:uppercase;letter-spacing:.08em;color:var(--mu);margin:0 0 .35rem}
+.big{font-size:1.25rem;font-weight:800;margin:0 0 .25rem}
+.sec p{margin:.25rem 0}
+.warn{font-size:.92rem;color:var(--mu)}
+a.btn{display:block;text-align:center;text-decoration:none;font-weight:700;border-radius:.9rem;padding:.9rem 1rem;margin-top:.6rem;border:1.5px solid var(--line);color:var(--blue);background:#fff}
+footer{margin-top:1.6rem;font-size:.82rem;color:var(--mu);text-align:center}
+footer a{color:var(--mu)}
+.empty{padding:2rem 0;text-align:center;color:var(--mu)}
+.ticket{border:2px solid var(--navy);border-radius:1.25rem;padding:1rem 1.1rem 1.1rem;margin-bottom:.9rem;text-align:center}
+.ticket .lbl{font-size:.8rem;text-transform:uppercase;letter-spacing:.12em;color:var(--mu);font-weight:700}
+.ticket .num{font:800 3.4rem/1.05 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--navy);letter-spacing:.04em;margin:.3rem 0 .45rem;word-break:break-all}
+.ticket .hint{font-size:.95rem;color:var(--ink);margin:0}
+.showtk{font-weight:700;margin-top:.5rem}
+.gone{text-align:center;padding:1.6rem 1.1rem}
+.gone .ic{font-size:2rem;line-height:1;margin-bottom:.4rem}
+.sec a{color:var(--blue);font-weight:700}
+</style>
+</head>
+<body>
+<main>
+  <div class="brand"><span class="mk">MA</span><span>Makers Air Valet<small>Fort Lauderdale Executive (FXE)</small></span></div>
+  <div id="app"><p class="empty">Loading…</p></div>
+  <footer>Reply STOP to our texts to opt out.<br><a href="https://airvalet.farberos.com/sms.html" rel="noreferrer">SMS Program</a> · <a href="https://airvalet.farberos.com/privacy.html" rel="noreferrer">Privacy</a> · <a href="https://airvalet.farberos.com/terms.html" rel="noreferrer">Terms</a></footer>
+</main>
+<script>
+(function(){
+  var API = '/a/api';
+  var VALET_PHONE = '(954) 352-1010';
+  var VALET_TEL = '+19543521010';
+  var app = document.getElementById('app');
+  function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  function help(){ return '<p>For help, call or text the valet team at <a href="tel:' + VALET_TEL + '">' + VALET_PHONE + '</a>.</p>'; }
+
+  function render(p){
+    var vehicle = [p.color, p.vehicle].filter(Boolean).join(' ') || 'Your vehicle';
+    var tk = p.ticket ? esc(p.ticket) : '';
+    function showTicket(text){ return tk ? '<p class="showtk">' + text.replace('#T', 'Ticket #' + tk) + '</p>' : ''; }
+    var h = '<h1>Hi' + (p.first_name ? ' ' + esc(p.first_name) : '') + '!</h1>';
+    if (tk) {
+      h += '<div class="ticket"><div class="lbl">Your valet ticket</div><div class="num">' + tk + '</div>' +
+           '<p class="hint">' + (p.delivered ? 'Your ticket number for reference.' : 'Show this ticket number to our valet team when picking up your vehicle.') + '</p></div>';
+    }
+    h += '<div class="pass' + (p.delivered ? ' done' : '') + '"><div class="lbl">Your vehicle</div><div class="car">' + esc(vehicle) + '</div>' +
+         '<div class="st">' + (p.delivered ? 'Delivered. Thank you for choosing Makers Air Valet!' : 'Parked safely with our valet team.') + '</div></div>';
+    if (!p.delivered) {
+      h += '<div class="sec"><h2>Return date on file</h2>' + (p.return_date
+            ? '<p class="big">' + esc(p.return_date) + '</p>'
+            : '<p class="big">Not on file yet</p>') + '</div>';
+      h += '<div class="sec"><h2>Vehicle pickup</h2>';
+      if (p.return_location === 'HANGAR_19') {
+        h += '<p class="big">Makers Air, Hangar 19</p><p>After clearing U.S. Customs, please stay with your pilots and return to Makers Air at Hangar 19. Your vehicle will be ready there.</p>' +
+             '<p class="warn">Please do not exit through the U.S. Customs terminal: there is no transportation back to Makers Air from there.</p>' +
+             showTicket('When you arrive at Hangar 19, show #T to our valet team.');
+        if (p.customs_request_pending) {
+          h += '<p class="warn">We received your message about pickup. Our team will confirm with you; until then your pickup stays at Hangar 19.</p>';
+        }
+      } else if (p.return_location === 'CUSTOMS' && p.customs_exception) {
+        h += '<p class="big">At Customs</p><p>As arranged with our team, your vehicle will be at Customs. When you arrive, reply to our text or call ' + VALET_PHONE + ' for your key.</p>' +
+             showTicket('Have #T ready to show our valet team.');
+      } else if (p.return_location === 'CUSTOMS') {
+        h += '<p class="big">At Customs</p><p>You are returning with Ascend. Your vehicle will be brought to you at Customs.</p>' +
+             showTicket('When you arrive at Customs, show #T to the team.');
+      } else if (p.return_other) {
+        h += '<p class="big">We will coordinate with you</p><p>Our valet team will arrange your vehicle pickup with you directly. Reply to our text with your return plans anytime.</p>' +
+             showTicket('At pickup, show #T to our valet team.');
+      } else {
+        h += '<p class="big">Return plans not set yet</p><p>Reply to our text with your return date, arrival time and how you are flying back.</p>';
+      }
+      h += '</div>';
+    }
+    h += '<div class="sec"><h2>Plans changed or questions?</h2><p>Just reply to our text message, or call or text the valet team.</p>' +
+         '<a class="btn" href="tel:' + VALET_TEL + '">Call ' + VALET_PHONE + '</a></div>';
+    app.innerHTML = h;
+  }
+  function gone(title){
+    app.innerHTML = '<div class="sec gone"><div class="ic">&#9203;</div><p class="big">' + esc(title) + '</p>' + help() + '</div>';
+  }
+
+  var token = (location.hash || '').slice(1);
+  fetch(API, {
+    method: 'POST', cache: 'no-store', credentials: 'omit', referrerPolicy: 'no-referrer',
+    headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ t: token })
+  })
+    .then(function(r){ return r.json().catch(function(){ return { state: 'error' }; }); })
+    .then(function(j){
+      if (j && j.state === 'ok' && j.pass) render(j.pass);
+      else if (j && j.state === 'limited') gone('Too many attempts. Please wait a few minutes and try again.');
+      else if (j && j.state === 'expired') gone('This valet link has expired.');
+      else gone('We could not load your details right now.');
+    })
+    .catch(function(){ gone('We could not load your details right now.'); });
+})();
+</script>
+</body>
+</html>

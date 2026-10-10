@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AirValet — change Returning with (mockup)</title>
+<!-- MOCKUP ONLY — static, no network. Staff flow to change the return
+     operator in the middle of a trip. Deep links (?state=):
+       view      ticket view, return = Ascend, Customs instructions already sent
+       sheet     Edit open (iPhone bottom sheet / iPad centered card)
+       review    saved Ascend → Makers after instructions: Needs Review banner
+       updated   staff sent the updated pickup message
+       quiet     change BEFORE any pickup instruction: just saved, nothing sent
+       other     return = Other: discreet "manual handling" highlight
+     With ?p=makers (Makers → Makers passenger):
+       view / exc-sheet / exc-pending / exc-approved   Customs EXCEPTION flow -->
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@700;800&display=swap" rel="stylesheet">
+<style>
+:root{--navy:#011532;--navy2:#0B2547;--blue:#1B66FD;--ok:#1A9E6A;--red:#C0392E;--amber:#9A6B00;--bg:#F4F6FB;--b:#E1E7F2;--mu:#4E5D78}
+*{box-sizing:border-box;margin:0;padding:0}
+html{font-size:16px}
+body{background:var(--bg);color:var(--navy);font-family:Inter,sans-serif}
+.mock{background:#FFF6DC;color:#6B4E00;font-size:.78rem;text-align:center;padding:5px 10px;border-bottom:1px solid #F0D98A}
+header{background:linear-gradient(90deg,#0B2547,#1B66FD);color:#fff;padding:13px 16px;display:flex;align-items:center;gap:12px}
+header b{font:800 1.2rem Sora}
+header span{font:700 .95rem Sora;opacity:.95;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+main{max-width:720px;margin:0 auto;padding:14px}
+.card{background:#fff;border:1px solid var(--b);border-radius:16px;padding:16px;margin-bottom:12px}
+.top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.nm{font:800 1.25rem Sora}
+.sub{color:var(--mu);font-size:.92rem;margin-top:2px}
+.tk{font:700 .8rem 'JetBrains Mono',monospace;background:#EEF2F8;border-radius:7px;padding:4px 8px;white-space:nowrap}
+.rows{margin-top:12px;border-top:1px solid #EEF2F8}
+.row{display:flex;align-items:center;gap:10px;padding:13px 0;border-bottom:1px solid #EEF2F8}
+.row .lbl{width:122px;flex-shrink:0;font-size:.82rem;color:var(--mu);text-transform:uppercase;letter-spacing:.04em;font-weight:600}
+.row .val{flex:1;font-size:1.05rem;font-weight:700}
+.row .val small{display:block;font-weight:500;color:var(--mu);font-size:.85rem;margin-top:2px}
+.edit{border:1.5px solid var(--blue);color:var(--blue);background:#fff;border-radius:10px;padding:9px 16px;font:700 .95rem Inter;cursor:pointer;min-height:44px}
+.pill{display:inline-block;font-size:.78rem;font-weight:700;border-radius:999px;padding:3px 10px;margin-left:6px;vertical-align:2px}
+.pill.h19{background:#EEF4FF;color:#1846B5}.pill.cus{background:#FFF4D6;color:var(--amber)}.pill.oth{background:#FFF4D6;color:var(--amber);border:1px dashed #E8C96A}
+.ro{color:var(--mu);font-weight:600}
+.banner{border-radius:14px;padding:14px;margin-bottom:12px;font-size:.95rem;line-height:1.45}
+.banner.warn{background:#FFF6DC;border:1.5px solid #F0C24B;color:#5B4100}
+.banner.ok{background:#EEFAF4;border:1px solid #BFE6D5;color:#145C40}
+.banner.info{background:#F3F7FF;border:1px solid #CFE0FF;color:#1A3A7A}
+.banner b{display:block;font-size:1rem;margin-bottom:4px}
+.banner .acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.btn{border-radius:11px;padding:12px 14px;font:700 .95rem Inter;border:1px solid var(--b);background:#fff;color:var(--navy);cursor:pointer;min-height:46px}
+.btn.p{background:var(--blue);color:#fff;border-color:var(--blue)}
+.msgs{font-size:.9rem}
+.msg{background:#F7F9FD;border:1px solid #EEF2F8;border-radius:12px;padding:10px 12px;margin-top:8px}
+.msg .meta{font-size:.78rem;color:var(--mu);margin-top:5px}
+.msg.strike{opacity:.6}
+.msg .old{font-size:.72rem;font-weight:700;color:var(--amber);background:#FFF4D6;border-radius:6px;padding:2px 6px;margin-left:6px}
+.h{font:700 .8rem Inter;text-transform:uppercase;letter-spacing:.05em;color:var(--mu);margin:4px 0 2px}
+.audit{font-size:.85rem;color:var(--mu)}
+.audit div{padding:7px 0;border-bottom:1px solid #EEF2F8}
+/* edit sheet */
+.scrim{position:fixed;inset:0;background:rgba(1,21,50,.45);display:none;align-items:flex-end;justify-content:center;z-index:10}
+.scrim.on{display:flex}
+.sheet{background:#fff;width:100%;max-width:520px;border-radius:22px 22px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom))}
+@media (min-width:700px){.scrim{align-items:center}.sheet{border-radius:22px}}
+.sheet h3{font:800 1.2rem Sora}
+.sheet .why{color:var(--mu);font-size:.9rem;margin:4px 0 14px}
+.opt{display:flex;align-items:center;gap:12px;width:100%;text-align:left;border:1.5px solid var(--b);border-radius:14px;padding:15px 14px;margin-bottom:10px;background:#fff;cursor:pointer;font:inherit}
+.opt.on{border-color:var(--blue);background:#F3F7FF}
+.opt .dot{width:22px;height:22px;border-radius:50%;border:2px solid #9AA8C2;flex-shrink:0}
+.opt.on .dot{border:7px solid var(--blue)}
+.opt b{font-size:1.08rem;display:block}
+.opt small{color:var(--mu);font-size:.88rem}
+.sheet .acts{display:flex;gap:10px;margin-top:6px}
+.sheet .acts .btn{flex:1}
+.exc{display:inline-block;font:800 .7rem Inter;letter-spacing:.06em;background:#FFE7B8;color:#7A4A00;border-radius:6px;padding:3px 7px;margin-left:6px;vertical-align:2px}
+.pickacts{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.lnk{border:1px solid var(--b);background:#fff;border-radius:10px;padding:9px 12px;font:600 .9rem Inter;color:var(--navy2);cursor:pointer;min-height:44px}
+.lnk.warn{border-color:#E8C96A;color:#7A4A00;background:#FFFBEE}
+.note{font-size:.84rem;color:var(--amber);background:#FFF8E6;border-radius:10px;padding:8px 10px;margin-top:8px}
+.toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--navy);color:#fff;border-radius:12px;padding:12px 16px;font-size:.92rem;max-width:92%;box-shadow:0 8px 24px rgba(0,0,0,.2);display:none}
+.toast.on{display:block}
+</style>
+</head>
+<body>
+<div class="mock">MOCKUP: staff changes "Returning with" mid-trip. Fictional data; nothing is sent.</div>
+<header><b>AirValet</b><span>Passenger</span></header>
+<main>
+  <div id="banner"></div>
+  <div class="card">
+    <div class="top"><div><div class="nm" id="pNm">Bo Ramirez</div><div class="sub" id="pSub">Black Suburban · Hangar 18 · returns Fri 10/16 · 3:30 PM</div></div><span class="tk" id="pTk">A-0714-1</span></div>
+    <div class="rows">
+      <div class="row"><div class="lbl">Flying with</div><div class="val ro" id="flyVal">Ascend<small>From the ticket. Never changes.</small></div></div>
+      <div class="row"><div class="lbl">Returning with</div><div class="val" id="retVal"></div><button class="edit" id="editBtn">Edit</button></div>
+      <div class="row"><div class="lbl">Pickup</div><div class="val" id="pickVal"></div></div>
+    </div>
+  </div>
+  <div class="card msgs"><div class="h">Messages to passenger</div><div id="msgs"></div></div>
+  <div class="card audit"><div class="h">Change history (activity log)</div><div id="audit"></div></div>
+</main>
+
+<div class="scrim" id="scrim"><div class="sheet" role="dialog" aria-label="Returning with">
+  <h3>Returning with</h3>
+  <div class="why">Pick how Bo is coming back. Future messages and the passenger page update right away.</div>
+  <button class="opt" data-v="MAKERS"><span class="dot"></span><span><b>Makers Air</b><small>Pickup at Hangar 19</small></span></button>
+  <button class="opt" data-v="ASCEND"><span class="dot"></span><span><b>Ascend</b><small>Vehicle goes to Customs</small></span></button>
+  <button class="opt" data-v="OTHER"><span class="dot"></span><span><b>Other</b><small>No automatic pickup instructions; team handles it</small></span></button>
+  <div class="acts"><button class="btn" id="cancel">Cancel</button><button class="btn p" id="save">Save</button></div>
+</div></div>
+<div class="scrim" id="excScrim"><div class="sheet" role="dialog" aria-label="Customs exception">
+  <h3>Customs exception</h3>
+  <div class="why"><b>Makers Air return.</b> Customs pickup is an exception, not a service we offer. Approve only if today's operation allows it. Returning with stays <b>Makers Air</b>.</div>
+  <button class="opt" data-x="REQUESTED"><span class="dot"></span><span><b>Passenger asked, decide later</b><small>Pickup stays Hangar 19; shows as pending in Needs Review</small></span></button>
+  <button class="opt" data-x="APPROVED"><span class="dot"></span><span><b>Approve Customs exception</b><small>Pickup becomes Customs; recorded with your name and time</small></span></button>
+  <div class="acts"><button class="btn" id="excCancel">Cancel</button><button class="btn p" id="excSave">Save</button></div>
+</div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+var LABEL={MAKERS:'Makers Air',ASCEND:'Ascend',OTHER:'Other'};
+var Q=new URLSearchParams(location.search);
+var MAKERS_P=Q.get('p')==='makers';
+var S={ret:MAKERS_P?'MAKERS':'ASCEND',exc:null,pick:null,instructions:MAKERS_P?null:'CUSTOMS',sentUpdate:false,
+  audit:[['Oct 9 · 9:02 AM','Check-in · Carlos','Returning with: Ascend (default from Flying with)']],
+  msgs:[['CHECK-IN · Carlos · Oct 9 9:03 AM · ✓✓ Delivered','Makers Air Valet: Your vehicle is checked in! Your valet details are here: https://airvalet.farberos.com/p/… (link opened 9:10 AM)',false],
+        ['VEHICLE READY · Maria · Oct 9 1:58 PM · ✓✓ Delivered','Makers Air Valet: Welcome back! Your vehicle is ready at Customs. An Ascend team member will personally hand you your key when you arrive.',true]]};
+function place(r){return r==='MAKERS'?(S.exc==='APPROVED'?'CUSTOMS':'HANGAR_19'):r==='ASCEND'?'CUSTOMS':null}
+function render(){
+  var r=S.ret,p=place(r);
+  document.getElementById('retVal').innerHTML=LABEL[r]+(r==='OTHER'?'<span class="pill oth">needs manual handling</span>':'');
+  var pk;
+  if(r==='MAKERS'&&S.exc==='APPROVED'){
+    pk='Customs<span class="exc">EXCEPTION</span><small>Approved by You · just now · Returning with stays Makers Air</small><div class="pickacts"><button class="lnk" id="backH19">Back to Hangar 19</button></div>';
+  } else if(r==='MAKERS'){
+    pk='Hangar 19 <span class="pill h19">Default</span>'+(S.exc==='REQUESTED'?'<div class="note">Passenger asked for Customs. Pending your decision; pickup stays Hangar 19.</div>':'')+
+       '<div class="pickacts"><button class="lnk warn" id="excBtn">'+(S.exc==='REQUESTED'?'Decide Customs request':'Customs exception…')+'</button></div>';
+  } else if(r==='ASCEND'){ pk='Customs<span class="pill cus">Ascend</span>'; }
+  else pk='<span style="color:var(--amber)">Not automatic: team coordinates with the passenger</span>';
+  document.getElementById('pickVal').innerHTML=pk;
+  var eb=document.getElementById('excBtn');if(eb)eb.onclick=openExc;
+  var bh=document.getElementById('backH19');if(bh)bh.onclick=function(){S.exc=null;S.audit.push(['now','You','Delivery at Customs: Yes → No (back to Hangar 19)']);render();};
+  var conflict=S.instructions&&S.instructions!==p&&!S.sentUpdate;
+  var b='';
+  if(conflict){
+    b='<div class="banner warn"><b>⚠ Return changed: passenger may have old instructions</b>Bo was told to pick up at <u>'+(S.instructions==='CUSTOMS'?'Customs':'Hangar 19')+'</u>. Return is now <u>'+LABEL[r]+'</u>. Nothing was sent automatically. This ticket is in <strong>Needs Review</strong>.'+
+      '<div class="acts">'+(p?'<button class="btn p" id="sendUpd">Send updated pickup message</button>':'<button class="btn p">Write a reply</button>')+'<button class="btn" id="noUpd">No update needed</button></div></div>';
+  } else if(S.sentUpdate){
+    b='<div class="banner ok"><b>✓ Updated pickup message sent</b>Review cleared. The passenger page shows Hangar 19.</div>';
+  } else if(S.quiet){
+    b='<div class="banner info"><b>Return updated</b>No pickup instructions had been sent yet, so nothing needs to go out now. The next messages and the passenger page use the new return.</div>';
+  } else if(r==='OTHER'){
+    b='<div class="banner info"><b>Return: Other</b>No automatic pickup instructions will be sent. Coordinate with the passenger directly (reply in Messages).</div>';
+  }
+  document.getElementById('banner').innerHTML=b;
+  var m='';S.msgs.forEach(function(x){m+='<div class="msg'+(conflict&&x[2]?' strike':'')+'">'+x[1]+'<div class="meta">'+x[0]+(conflict&&x[2]?'<span class="old">OLD PICKUP INFO</span>':'')+'</div></div>';});
+  document.getElementById('msgs').innerHTML=m;
+  document.getElementById('audit').innerHTML=S.audit.map(function(a){return '<div><b>'+a[0]+'</b> · '+a[1]+'<br>'+a[2]+'</div>';}).join('');
+  var su=document.getElementById('sendUpd');if(su)su.onclick=function(){
+    S.msgs.push(['VEHICLE READY · You · now · ✓ Sent','Makers Air Valet: Welcome back! After clearing U.S. Customs, please stay with your pilots and return to Makers Air at Hangar 19, where your vehicle will be ready and waiting. Please don\'t exit through the U.S. Customs terminal, as there is no transportation back to Makers Air from there.',true]);
+    S.instructions=p;S.sentUpdate=true;render();};
+  var nu=document.getElementById('noUpd');if(nu)nu.onclick=function(){S.instructions=p;S.audit.push(['now','You','Needs Review: no update needed']);render();};
+}
+var sel=null,scrim=document.getElementById('scrim');
+function openSheet(){sel=S.ret;document.querySelectorAll('.opt').forEach(function(o){o.classList.toggle('on',o.dataset.v===sel)});scrim.classList.add('on');}
+document.getElementById('editBtn').onclick=openSheet;
+document.querySelectorAll('.opt').forEach(function(o){o.onclick=function(){sel=o.dataset.v;document.querySelectorAll('.opt').forEach(function(x){x.classList.toggle('on',x===o)});}});
+document.getElementById('cancel').onclick=function(){scrim.classList.remove('on')};
+function save(v,silent){
+  if(v===S.ret){scrim.classList.remove('on');return;}
+  S.audit.push(['now','You','Returning with: '+LABEL[S.ret]+' → '+LABEL[v]]);
+  if(S.ret==='MAKERS'&&v!=='MAKERS'&&S.exc){S.audit.push(['now','System','Customs exception cleared (return no longer Makers Air)']);}
+  S.ret=v;S.exc=null;S.sentUpdate=false;scrim.classList.remove('on');render();
+  if(!silent){var t=document.getElementById('toast');t.textContent='Saved. Returning with '+LABEL[v]+'.';t.classList.add('on');setTimeout(function(){t.classList.remove('on')},2200);}
+}
+document.getElementById('save').onclick=function(){save(sel)};
+var xsel=null,xs=document.getElementById('excScrim');
+function openExc(){xsel=S.exc==='REQUESTED'?'APPROVED':'REQUESTED';document.querySelectorAll('[data-x]').forEach(function(o){o.classList.toggle('on',o.dataset.x===xsel)});xs.classList.add('on');}
+document.querySelectorAll('[data-x]').forEach(function(o){o.onclick=function(){xsel=o.dataset.x;document.querySelectorAll('[data-x]').forEach(function(x){x.classList.toggle('on',x===o)});}});
+document.getElementById('excCancel').onclick=function(){xs.classList.remove('on')};
+document.getElementById('excSave').onclick=function(){xs.classList.remove('on');
+  if(xsel==='APPROVED'){S.audit.push(['now','You','Delivery at Customs: No → Yes (Customs exception approved)']);}
+  else{S.audit.push(['now','You','Customs exception requested by passenger (pending)']);}
+  S.exc=xsel;render();};
+if(MAKERS_P){
+  document.getElementById('pNm').textContent='Ana Souza';document.getElementById('pSub').textContent='Black Escalade · Hangar 19 · returns Thu 10/15 · 5:00 PM';
+  document.getElementById('pTk').textContent='0714-3';document.getElementById('flyVal').innerHTML='Makers Air<small>From the ticket. Never changes.</small>';
+  S.audit=[['Oct 9 · 9:02 AM','Check-in · Carlos','Returning with: Makers Air (default from Flying with)']];
+  S.msgs=[S.msgs[0]];
+}
+var st=Q.get('state')||'view';
+if(st==='quiet'){S.instructions=null;S.msgs.pop();save('MAKERS',true);S.quiet=true;}
+render();
+if(st==='sheet'){openSheet();sel='MAKERS';document.querySelectorAll('.opt').forEach(function(x){x.classList.toggle('on',x.dataset.v==='MAKERS')});}
+if(st==='review'){save('MAKERS',true);}
+if(st==='updated'){save('MAKERS',true);document.getElementById('sendUpd').click();}
+if(st==='other'){S.instructions=null;S.msgs.pop();save('OTHER',true);}
+if(st==='exc-sheet'){openExc();}
+if(st==='exc-pending'){S.exc='REQUESTED';S.audit.push(['2:25 PM','Maria','Customs exception requested by passenger (pending)']);render();}
+if(st==='exc-approved'){S.exc='APPROVED';S.audit.push(['2:31 PM','Maria','Delivery at Customs: No → Yes (Customs exception approved)']);render();}
+</script>
+</body>
+</html>

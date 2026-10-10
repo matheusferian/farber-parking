@@ -1,0 +1,53 @@
+PASS 0 local logins for ADMIN, IPAD_OPS, IPHONE_OPS, TV_ONLY
+
+── ADMIN
+PASS ADMIN may change texting settings (server)
+
+── IPAD_OPS (iPad)
+PASS IPAD_OPS sees every work tab (no User Access)  → ["all","day","tasks","messages","tvmode","closingreport","report","logs","debug"]
+PASS IPAD_OPS: AirValet Texting admin controls hidden
+PASS IPAD_OPS can REQUEST texting for its device (pending)
+PASS IPAD_OPS refused by the server: airvalet_sms_device_decide  → 403
+PASS IPAD_OPS refused by the server: airvalet_sms_set_settings  → 403
+PASS IPAD_OPS refused by the server: airvalet_sms_set_cutover  → 403
+PASS IPAD_OPS cannot list devices (ADMIN-only rows)
+PASS device still pending after IPAD_OPS attempts
+PASS ADMIN approves the iPad
+PASS ADMIN: START NEW CHECK-INS
+PASS iPad sees: authorized + new check-ins on
+PASS IPAD_OPS check-in enrolled the new ticket (staff recorded)
+PASS Customer Copy + Key Copy + Dashboard printed, same order as v46  → ["Customer","Key","Dashboard"]
+PASS IPAD_OPS: one AirValet text, iPhone Messages not opened
+PASS Customer/Key/Dashboard XML identical with and without AirValet texting (only name/ticket/phone/time differ)
+PASS no consent → not enrolled → iPhone texting for that car
+PASS IPAD_OPS: old ticket → iPhone Messages, nothing via AirValet
+PASS Customs gratuity: not sent by AirValet; iPhone Messages offered  → "native_fallback_offered"
+PASS gratuity opened in iPhone Messages once (after the tap)
+
+── IPHONE_OPS (iPhone)
+PASS IPHONE_OPS tabs: All, Dashboard, Tasks, Messages, TV Mode  → ["all","day","tasks","messages","tvmode"]
+PASS IPHONE_OPS: Closing Report hidden on phones (see decision)  → {"eodSection":"none"}
+PASS IPHONE_OPS can REQUEST texting for its device
+PASS each device has its own key
+PASS IPHONE_OPS refused by the server: airvalet_sms_device_decide  → 403
+PASS IPHONE_OPS refused by the server: airvalet_sms_set_settings  → 403
+PASS IPHONE_OPS refused by the server: airvalet_sms_set_cutover  → 403
+PASS settings unchanged after IPHONE_OPS attempts (texting on, check-ins still open)
+PASS pending iPhone cannot send (server: DEVICE_NOT_AUTHORIZED)  → {"code":"DEVICE_NOT_AUTHORIZED","message":"not sent (no opt-in, opt-out or rate limit)"}
+PASS ADMIN approves the iPhone
+PASS iPhone asks "Who is texting?" (nobody picked today on this phone)
+PASS approved IPHONE_OPS sends for the enrolled car (device + staff recorded)  → "queued"
+PASS IPHONE_OPS cannot force a resend (ADMIN/MANAGER only)  → {"code":"RESEND_NOT_ALLOWED","message":"only a manager can resend this message"}
+PASS IPHONE_OPS: old ticket → iPhone Messages
+PASS uncertain result (connection lost) → NO automatic or offered iPhone fallback
+PASS retries after the drop → still exactly one text
+
+── TV
+PASS TV_ONLY login cannot even request texting (server)  → 403
+PASS TV_ONLY cannot send even with a stolen approved device key  → {"code":"FORBIDDEN","message":"role not allowed for this message type"}
+PASS TV_ONLY sees no texts and no enrollments
+PASS TV screen (TV_ONLY login): no texting calls at all  → 0
+PASS TV Mode from an approved iPad session: no texting, no device card  → 0
+PASS no JavaScript errors (iPad, iPhone, TV)  → []
+
+TOTAL: 43 passed, 0 failed
