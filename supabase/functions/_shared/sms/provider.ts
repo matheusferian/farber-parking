@@ -97,6 +97,14 @@ export class TwilioProvider implements SmsProvider {
 
 // Deterministic provider for tests and for AIRVALET_SMS_MODE=mock. Never
 // touches the network. `script` lets tests queue specific outcomes.
+// Local / staging tests only: two reserved fictional numbers (NANP 555-01xx)
+// make the MOCK provider fail like Twilio would. MockProvider is never used in
+// allowlist/live (see send-sms), so these can never affect a real send.
+export const MOCK_FAULTS: Record<string, SendOutcome> = {
+  '+13055550198': { kind: 'unknown', errorCode: 'TIMEOUT', errorMessage: 'simulated: no answer from the provider' },
+  '+13055550199': { kind: 'rejected', errorCode: '30006', errorMessage: 'simulated: landline or unreachable carrier' },
+};
+
 export class MockProvider implements SmsProvider {
   readonly name = 'mock' as const;
   readonly calls: SendRequest[] = [];
@@ -105,6 +113,7 @@ export class MockProvider implements SmsProvider {
 
   async send(req: SendRequest): Promise<SendOutcome> {
     this.calls.push(req);
+    if (MOCK_FAULTS[req.to]) return MOCK_FAULTS[req.to];
     const next = this.script.shift();
     if (typeof next === 'function') return await next(req);
     if (next) return next;

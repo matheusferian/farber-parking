@@ -12,8 +12,8 @@ cd "$(dirname "$0")/../.."
 IMAGE=public.ecr.aws/supabase/postgres:17.11.0.004
 REL_MIGS="migrations/20261010_add_passenger_return_operator.sql migrations/20261010_tv_mode_rpc_return_operator.sql"
 REL_RBS="migrations/20261010_tv_mode_rpc_return_operator_rollback.sql migrations/20261010_add_passenger_return_operator_rollback.sql"
-MIGS="migrations/20261010_add_passenger_return_operator.sql migrations/20261010_tv_mode_rpc_return_operator.sql migrations/20261009_create_airvalet_sms_messages.sql migrations/20261010_create_airvalet_pass_links.sql migrations/20261011_return_reviews_include_sms.sql"
-RBS="migrations/20261011_return_reviews_include_sms_rollback.sql migrations/20261010_create_airvalet_pass_links_rollback.sql migrations/20261009_create_airvalet_sms_messages_rollback.sql migrations/20261010_tv_mode_rpc_return_operator_rollback.sql migrations/20261010_add_passenger_return_operator_rollback.sql"
+MIGS="migrations/20261010_add_passenger_return_operator.sql migrations/20261010_tv_mode_rpc_return_operator.sql migrations/20261009_create_airvalet_sms_messages.sql migrations/20261010_create_airvalet_pass_links.sql migrations/20261011_return_reviews_include_sms.sql migrations/20261012_airvalet_sms_audit.sql"
+RBS="migrations/20261012_airvalet_sms_audit_rollback.sql migrations/20261011_return_reviews_include_sms_rollback.sql migrations/20261010_create_airvalet_pass_links_rollback.sql migrations/20261009_create_airvalet_sms_messages_rollback.sql migrations/20261010_tv_mode_rpc_return_operator_rollback.sql migrations/20261010_add_passenger_return_operator_rollback.sql"
 
 NAME=""
 cleanup() { [ -n "$NAME" ] && docker rm -f "$NAME" >/dev/null 2>&1 || true; }
@@ -63,8 +63,8 @@ ctab=$(pg -tA -c "select relname from pg_class c join pg_namespace n on n.oid = 
 kept=$(pg -tA -c "select count(*) from airvalet_archive.\"$ctab\" where disclosure_version = 'keep-v1'")
 tables=$(pg -tA -c "select count(*) from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='airvalet_archive' and c.relkind='r' and (relname like 'airvalet_sms_%__rb_%' or relname like 'airvalet_pass_links__rb_%')")
 anon=$(pg -tA -c "select count(*) from information_schema.role_table_grants where table_schema='airvalet_archive' and grantee in ('anon','authenticated','PUBLIC')")
-[ "$kept" = 1 ] && [ "$tables" = 8 ] && [ "$anon" = 0 ] || { echo "FAIL: rollback did not preserve data (consent=$kept tables=$tables anon_grants=$anon)"; exit 1; }
-echo 'ok  rollback preserves consents, opt-outs, messages, status audit, devices, enrollments, settings, link audit (8 archived tables, no anon/authenticated access)'
+[ "$kept" = 1 ] && [ "$tables" = 9 ] && [ "$anon" = 0 ] || { echo "FAIL: rollback did not preserve data (consent=$kept tables=$tables anon_grants=$anon)"; exit 1; }
+echo 'ok  rollback preserves consents, opt-outs, messages, status audit, devices, enrollments, settings, admin audit trail, link audit (9 archived tables, no anon/authenticated access)'
 for m in $MIGS; do pg < "$m"; done
 [ "$(pg -tA -c "select count(*) from public.airvalet_sms_messages")" = 0 ] || { echo 'FAIL: re-apply not clean'; exit 1; }
 pg -q -c "delete from public.passengers where id = 4401"   # a v46 delete after the rollback…
@@ -73,7 +73,7 @@ mtab=$(pg -tA -c "select relname from pg_class c join pg_namespace n on n.oid = 
 [ "$(pg -tA -c "select count(*) from airvalet_archive.\"$ltab\" where passenger_id = 4401")" = 1 ] && [ "$(pg -tA -c "select count(*) from airvalet_archive.\"$mtab\" where passenger_id = 4401")" = 1 ] \
   || { echo 'FAIL: deleting a passenger altered the archive'; exit 1; }
 echo 'ok  archive independent of live tables: deleting the passenger kept its archived link + message (no FK cascade / set null)'
-echo 'migrations (5): apply → rollback (reverse, data archived) → re-apply OK'
+echo 'migrations (6): apply → rollback (reverse, data archived) → re-apply OK'
 
 out=$(pg < tests/sms/sql_tests.sql 2>&1 || true)
 printf '%s\n' "$out" | grep -E 'NOTICE|ERROR|ALL_SQL' | sed -e 's/^psql:<stdin>:[0-9]*: //' -e 's/^NOTICE:  //'

@@ -4062,7 +4062,10 @@ async function sendPassengerSms(options) {
   }
   var scode = sres && sres.error ? sres.error.code : '';
   if (typeof loadInbox === 'function') loadInbox();
-  if (SMS_NATIVE_FALLBACK[scode]) {
+  // Twilio refused it outright (status failed, nothing sent) also counts —
+  // except a carrier opt-out (21610 = the passenger blocked texts).
+  var definitelyNotSent = SMS_NATIVE_FALLBACK[scode] || (sres && sres.status === 'failed' && scode !== '21610');
+  if (definitelyNotSent) {
     // The server confirmed NOTHING went out → offer iPhone Messages (one
     // tap, like today). Never offered when a text may have gone out.
     openSmsFallback(options, scode);
@@ -4155,6 +4158,12 @@ var SMS_BLOCK_TEXT = {
   UNCONFIRMED: 'not confirmed yet — check Messages before sending again',
   DUPLICATE_RECENT: 'the same text was just sent to this number',
   DEVICE_RATE_LIMIT: 'too many texts from this device in the last hour',
+  '21211': 'the phone number is not valid for texting',
+  '21610': 'the passenger blocked texts from AirValet (STOP)',
+  '21614': 'this number cannot receive texts (not a mobile phone)',
+  '30003': 'the phone is unreachable right now',
+  '30006': 'this number cannot receive texts (landline or carrier)',
+  '30007': 'the carrier blocked this text',
   DAILY_CAP: 'the daily text limit was reached',
   RESEND_NOT_ALLOWED: 'only a manager can resend this message',
   PASS_LINK_UNAVAILABLE: 'the passenger link is not available (service already closed)'
@@ -7388,7 +7397,7 @@ async function callAdminManageUser(payload){
 // ── AirValet Texting — ADMIN panel (User Access tab). The tab is hidden for
 // other roles, but the real boundary is the server: device_decide,
 // set_cutover and set_settings refuse anyone who is not ADMIN.
-var _smsAdm = { settings: null, devices: [] };
+var _smsAdm = { settings: null, devices: [], usage: null, audit: null };
 function smsAdmErr(msg){ var e = document.getElementById('smsAdmErr'); if (!e) return; e.textContent = msg || ''; e.style.display = msg ? '' : 'none'; }
 function smsFmtTime(iso){
   if (!iso) return '—';
@@ -7407,11 +7416,20 @@ async function loadSmsAdmin(){
   if (_currentUserRole !== 'ADMIN') return;
   smsAdmErr('');
   try {
-    var st = await smsApi('/rest/v1/airvalet_sms_settings?select=sending_enabled,test_only,cutover_at,updated_at');
+    var st = await smsApi('/rest/v1/airvalet_sms_settings?select=sending_enabled,test_only,cutover_at,updated_at,max_messages_day,max_segments_day');
     var dv = await smsApi('/rest/v1/airvalet_sms_devices?select=id,label,status,requested_at,user_agent,decided_at,last_seen_at&order=requested_at.desc&limit=100');
     _smsAdm.settings = (st && st[0]) || null; _smsAdm.devices = dv || [];
+    // Last 24 h — the same window the server's daily caps use.
+    try {
+      var since = new Date(Date.now() - 86400000).toISOString();
+      var um = await smsApi('/rest/v1/airvalet_sms_messages?select=segments&direction=eq.outbound&status=neq.blocked&created_at=gte.' + encodeURIComponent(since) + '&limit=10000');
+      _smsAdm.usage = { texts: (um || []).length, segments: (um || []).reduce(function(a, m){ return a + (m.segments || 0); }, 0) };
+    } catch(e) { _smsAdm.usage = null; }
+    // Audit trail (migration 20261012); absent → section hidden.
+    try { _smsAdm.audit = await smsApi('/rest/v1/airvalet_sms_audit?select=at,action,device_label,actor_role,details&order=id.desc&limit=12'); }
+    catch(e) { _smsAdm.audit = null; }
   } catch(e) {
-    _smsAdm.settings = null; _smsAdm.devices = [];
+    _smsAdm.settings = null; _smsAdm.devices = []; _smsAdm.usage = null; _smsAdm.audit = null;
     smsAdmErr('AirValet texting is not available: ' + e.message);
   }
   renderSmsAdmin();
@@ -7426,6 +7444,7 @@ function renderSmsAdmin(){
     + 'Texting: ' + (st.sending_enabled ? '<span class="smschip ok">ON</span>' : '<span class="smschip off">OFF</span>')
     + (st.test_only ? ' &nbsp;<span class="smschip wait">TEST MODE</span>' : '') + '<br>'
     + 'New check-ins: ' + (open ? '<b>using AirValet texts</b> since ' + escapeHTML(smsFmtTime(st.cutover_at)) : '<b>iPhone texts</b> (not started)')
+    + (_smsAdm.usage ? '<br>Last 24 h: <b>' + _smsAdm.usage.texts + '</b> of ' + st.max_messages_day + ' texts · ' + _smsAdm.usage.segments + ' of ' + st.max_segments_day + ' segments' : '')
     + '</div><div class="smsdev-acts">'
     + (open ? '<button class="smsbtn stop" onclick="smsAdmCutover(false)">STOP NEW CHECK-INS</button>'
             : '<button class="smsbtn go" onclick="smsAdmCutover(true)">START NEW CHECK-INS</button>')
@@ -7445,7 +7464,24 @@ function renderSmsAdmin(){
       + '<div class="smsadm-dev-m">' + escapeHTML(smsDevKind(d.user_agent)) + ' · requested ' + escapeHTML(smsFmtTime(d.requested_at))
       + (d.last_seen_at ? ' · last used ' + escapeHTML(smsFmtTime(d.last_seen_at)) : '') + '</div></div>'
       + '<div class="smsdev-acts">' + acts + '</div></div>';
-  }).join('') : '<div class="smsadm-empty">No device has asked for AirValet texting yet. On the iPad/iPhone: Messages tab → “Request AirValet texting”.</div>');
+  }).join('') : '<div class="smsadm-empty">No device has asked for AirValet texting yet. On the iPad/iPhone: Messages tab → “Request AirValet texting”.</div>')
+    + smsAdmAuditHtml();
+}
+var SMS_AUDIT_TEXT = {
+  DEVICE_REQUESTED: 'Device asked for texting', DEVICE_APPROVED: 'Device approved', DEVICE_REVOKED: 'Device removed',
+  DEVICE_RENAMED: 'Device renamed', TEXTING_ON: 'Texting turned ON', TEXTING_OFF: 'Texting paused',
+  TEST_MODE_ON: 'Test mode ON', TEST_MODE_OFF: 'Test mode OFF', TEST_PHONES_CHANGED: 'Test numbers changed',
+  LIMITS_CHANGED: 'Limits changed', CHECKINS_STARTED: 'START new check-ins', CHECKINS_STOPPED: 'STOP new check-ins'
+};
+function smsAdmAuditHtml(){
+  var a = _smsAdm.audit;
+  if (!Array.isArray(a)) return '';
+  return '<div class="smsadm-t" style="font-size:14px;margin:18px 0 8px">Recent activity</div>' + (a.length
+    ? '<div class="smsadm-log">' + a.map(function(r){
+        return '<div class="smsadm-log-r"><span class="smsadm-log-t">' + escapeHTML(smsFmtTime(r.at)) + '</span><span><b>' + escapeHTML(SMS_AUDIT_TEXT[r.action] || r.action) + '</b>'
+          + (r.device_label ? ' — ' + escapeHTML(r.device_label) : '') + (r.actor_role ? ' <span class="smsadm-log-by">by ' + escapeHTML(r.actor_role) + '</span>' : '') + '</span></div>';
+      }).join('') + '</div>'
+    : '<div class="smsadm-empty">No activity yet.</div>');
 }
 async function smsAdmDecide(id, status){
   var d = _smsAdm.devices.find(function(x){ return x.id === id; }); if (!d) return;

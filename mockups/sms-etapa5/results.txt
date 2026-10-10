@@ -5,7 +5,7 @@ PASS A4 device key created on this device (random, 256-bit)
 PASS A5 request stored as WAITING (pending) with the device name
 PASS A6 server keeps ONLY the SHA-256 of the key
 PASS A7 card: waiting for approval; still iPhone texting
-PASS B1 admin panel: device WAITING (marked THIS DEVICE), START NEW CHECK-INS button  → ["💬 AirValet Texting","Which devices may send AirValet texts, and whether NEW check-ins use them. Cars already checked in always stay on iPhone texting.","Texting: ON","New check-ins: iPhone texts (not started)","START NEW CHECK-INS","Pause all texting"]
+PASS B1 admin panel: device WAITING (marked THIS DEVICE), START NEW CHECK-INS button  → ["💬 AirValet Texting","Which devices may send AirValet texts, and whether NEW check-ins use them. Cars already checked in always stay on iPhone texting.","Texting: ON","New check-ins: iPhone texts (not started)","Last 24 h: 0 of 300 texts · 0 of 600 segments","START NEW CHECK-INS"]
 PASS B2 approve (confirmation dialog) → AUTHORIZED, who/when recorded
 PASS B3 approval asked for confirmation first  → ["confirm: Allow “Front desk iPad” to send AirValet texts?"]
 PASS B4 this device is now authorized; new check-ins not started yet

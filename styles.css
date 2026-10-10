@@ -1884,3 +1884,8 @@ body.tv-stale .tv-stale-banner{display:block;}
 .smsm-names button{min-height:54px;border-radius:12px;border:1px solid var(--b);background:var(--s);font:700 16px 'Sora',sans-serif;color:var(--navy);cursor:pointer}
 .smsm-names .smsm-none{grid-column:1/-1;color:var(--mu);font-size:14px}
 @media (max-width:760px){ .smsdev-acts,.smsdev-acts .smsbtn{width:100%} .smsadm-dev .smsbtn{flex:1 1 auto} }
+.smsadm-log{border:1px solid var(--b);border-radius:12px;background:var(--s);overflow:hidden}
+.smsadm-log-r{display:flex;gap:12px;padding:9px 14px;border-bottom:1px solid var(--b);font-size:14px;line-height:1.35}
+.smsadm-log-r:last-child{border-bottom:none}
+.smsadm-log-t{flex:0 0 118px;color:var(--mu);font-size:12.5px;padding-top:1px}
+.smsadm-log-by{color:var(--mu);font-size:12.5px}

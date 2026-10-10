@@ -7,7 +7,7 @@ import twilio from 'npm:twilio@5'; // reference oracle for the signature algorit
 import { maskPhone, normalizePhoneE164 } from './phone.ts';
 import { countSegments, departureOperator, firstName, PassengerCtx, pickupPlace, renderMessage, returnLocation, Template, TemplateError, TEMPLATES } from './templates.ts';
 import { computeTwilioSignature, isValidTwilioSignature } from './twilio-signature.ts';
-import { MockProvider, SendOutcome, TwilioProvider } from './provider.ts';
+import { MOCK_FAULTS, MockProvider, SendOutcome, TwilioProvider } from './provider.ts';
 import { makeRedactor, sanitizeProviderText } from './sanitize.ts';
 import { readSmsConfig } from './config.ts';
 import { buildIdempotencyKey, PASS_TOKEN_MASK, ClaimArgs, ClaimRow, Passenger, ResultArgs, sendAirValetSms, SendDeps, SmsStore } from './service.ts';
@@ -771,4 +771,21 @@ Deno.test('device: the device hash and the UI-picked name reach the claim unchan
   assertEquals(store.claims.at(-1)!.sentByName, 'Picked Bo');
   await sendAirValetSms(deps, { passengerId: 1002, type: 'CHECK_IN', actor: ops });
   assertEquals(store.claims.at(-1)!.deviceKeyHash, null); // no device → the DB refuses (DEVICE_NOT_AUTHORIZED)
+});
+
+Deno.test('mock provider: reserved fictional numbers simulate Twilio failures (mock only)', async () => {
+  const m = new MockProvider();
+  assertEquals((await m.send({ to: '+13055550199', body: 'x' })).kind, 'rejected');
+  assertEquals((await m.send({ to: '+13055550198', body: 'x' })).kind, 'unknown');
+  assertEquals((await m.send({ to: '+13055550101', body: 'x' })).kind, 'accepted');
+  assertEquals(Object.keys(MOCK_FAULTS).every((n) => /^\+1305555019[89]$/.test(n)), true);
+});
+Deno.test('service: Twilio rejection → failed (definitely not sent); timeout → send_unknown (never "failed")', async () => {
+  const { deps, store } = setup();
+  store.passengers.set(1099, { id: 1099, phone: '(305) 555-0199', ...P({ name: 'REJ', ticket: 'R-1' }) });
+  store.passengers.set(1098, { id: 1098, phone: '(305) 555-0198', ...P({ name: 'TMO', ticket: 'T-1' }) });
+  const r1 = await sendAirValetSms(deps, { passengerId: 1099, type: 'CHECK_IN', actor: ops });
+  const r2 = await sendAirValetSms(deps, { passengerId: 1098, type: 'CHECK_IN', actor: ops });
+  assertEquals([r1.status, r1.error?.code], ['failed', '30006']);
+  assertEquals(r2.status, 'send_unknown');
 });

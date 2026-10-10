@@ -919,6 +919,52 @@ select pg_temp.check(not exists (
   select 1 from information_schema.columns
    where table_name like 'airvalet_sms_%' and column_name ~* '(token|secret|password|api_key|auth)'), 'no credential-like columns');
 
+-- ── Admin audit trail (20261012): device decisions + program settings ──
+reset role;
+create temp table aud0 as select coalesce(max(id), 0) m from public.airvalet_sms_audit;
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"00000000-0000-0000-0000-0000000000c1","role":"authenticated"}';
+create temp table adr as select * from public.airvalet_sms_device_request('audit_device_key_' || repeat('u', 40), 'Audit iPhone');
+set local request.jwt.claims = '{"sub":"00000000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select public.airvalet_sms_device_decide((select device_id from adr), 'approved');
+select public.airvalet_sms_device_decide((select device_id from adr), 'revoked', 'Audit iPhone (lost)');
+select 1 from public.airvalet_sms_set_settings(p_sending_enabled => false, p_test_phones => array['+13055550123'], p_max_messages_day => 250);
+select 1 from public.airvalet_sms_set_cutover('STOP NEW CHECK-INS');
+select 1 from public.airvalet_sms_set_cutover('START NEW CHECK-INS');
+reset role;
+select pg_temp.check((select string_agg(action, ',' order by id) from public.airvalet_sms_audit where id > (select m from aud0)) =
+  'DEVICE_REQUESTED,DEVICE_APPROVED,DEVICE_REVOKED,DEVICE_RENAMED,TEXTING_OFF,TEST_PHONES_CHANGED,LIMITS_CHANGED,CHECKINS_STOPPED,CHECKINS_STARTED',
+  'audit trail records every device decision and program change, in order');
+select pg_temp.check((select actor = '00000000-0000-0000-0000-0000000000a1' and actor_role = 'ADMIN' from public.airvalet_sms_audit where id > (select m from aud0) and action = 'DEVICE_APPROVED'), 'audit: who approved (login + role)');
+select pg_temp.check((select actor_role = 'IPAD_OPS' and device_label = 'Audit iPhone' from public.airvalet_sms_audit where id > (select m from aud0) and action = 'DEVICE_REQUESTED'), 'audit: who requested, which device');
+select pg_temp.check((select details = '{"last4": ["0123"], "count": 1}'::jsonb from public.airvalet_sms_audit where id > (select m from aud0) and action = 'TEST_PHONES_CHANGED'), 'audit: test numbers only as count + last 4 digits');
+select pg_temp.check((select (details -> 'max_messages_day' ->> 1) = '250' and (details -> 'max_messages_day' ->> 0) <> '250' from public.airvalet_sms_audit where id > (select m from aud0) and action = 'LIMITS_CHANGED'), 'audit: limit changes keep old → new');
+select pg_temp.check(not exists (select 1 from public.airvalet_sms_audit a, public.airvalet_sms_devices d where position(encode(d.key_hash, 'hex') in a.details::text) > 0 or position('audit_device_key_' in a.details::text) > 0), 'audit never contains a device key or its hash');
+update public.airvalet_sms_settings set sending_enabled = true, test_phones = '{}', max_messages_day = 5000;
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"00000000-0000-0000-0000-0000000000c1","role":"authenticated"}';
+select pg_temp.check((select count(*) from public.airvalet_sms_audit) = 0, 'IPAD_OPS cannot read the audit trail (ADMIN only)');
+do $$ begin
+  insert into public.airvalet_sms_audit (action) values ('TEXTING_ON');
+  raise exception 'FAIL: audit writable';
+exception when insufficient_privilege then raise notice 'ok  nobody can write the audit trail directly (append-only via triggers)';
+end $$;
+do $$ begin
+  perform public.airvalet_sms_audit_write('TEXTING_ON', null, null, '{}');
+  raise exception 'FAIL: audit writer callable';
+exception when insufficient_privilege then raise notice 'ok  audit writer function not callable by users';
+end $$;
+set local request.jwt.claims = '{"sub":"00000000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select pg_temp.check((select count(*) from public.airvalet_sms_audit) > 0, 'ADMIN reads the audit trail');
+reset role;
+set local role anon;
+do $$ begin
+  perform 1 from public.airvalet_sms_audit;
+  raise exception 'FAIL: anon reads audit';
+exception when insufficient_privilege then raise notice 'ok  anon cannot read the audit trail';
+end $$;
+reset role;
+
 select pg_temp.check(pg_temp.flags_consistent(), 'invariant holds at the end of the whole suite');
 \echo ALL_SQL_TESTS_PASSED
 rollback;
