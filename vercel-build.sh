@@ -12,3 +12,6 @@ cp index.html styles.css utils.js offline-auth.js offline-db.js sso-client.js se
    favicon-32x32.png dist/
 cp assets/*.png dist/assets/
 cp vendor/supabase.js dist/vendor/
+# Public A2P compliance pages (SMS program, privacy, terms). Static only,
+# not app-shell files: not in SHELL_FILES, never cached by the service worker.
+cp sms.html privacy.html terms.html dist/
