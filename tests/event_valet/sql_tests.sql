@@ -104,6 +104,11 @@ begin
   insert into _r(name, ok, info) values ('21st car: slots_full, slot NULL, still gets ticket',
     (r->>'slots_full')::boolean and r#>>'{ticket,slot_no}' is null and (r#>>'{ticket,ticket_no}')::int = 23, r::text);
 
+  -- delete a mistaken ticket: gone from board, slot freed, snapshot in audit
+  r := public.event_valet_checkin('makers-halloween-2026', '9545550999', 'WRONG CAR', 'del1');
+  perform public.event_valet_delete_ticket((r#>>'{ticket,id}')::uuid);
+  insert into _r(name, ok, info) values ('delete ticket removes it from the board',
+    not (public.event_valet_board('makers-halloween-2026')->'tickets' @> jsonb_build_array(jsonb_build_object('id', r#>>'{ticket,id}'))), null);
   -- internal functions are not callable by staff directly
   begin perform public.event_valet_apply_status(t2, 'DELIVERED', 'SMS');
         insert into _r(name, ok) values ('apply_status not executable by authenticated', false);
@@ -194,6 +199,9 @@ begin
   update public.event_valet_events set is_open = true where id = 'makers-halloween-2026';
 end $$;
 reset role;
+
+insert into _r(name, ok, info)
+select 'delete leaves an audit snapshot', count(*) = 1, count(*)::text from public.event_valet_audit where action = 'DELETE';
 
 -- audit trail exists
 insert into _r(name, ok, info)

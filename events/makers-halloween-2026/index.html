@@ -518,9 +518,10 @@ function cardHtml(t, flash){
   if (t.status === 'READY') act = '<button class="btn btn-gold full" data-a="DELIVERED">DELIVERED</button>';
   var mini = t.status === 'DELIVERED'
     ? (Date.now() - new Date(t.delivered_at).getTime() < 15 * 60000 ? '<button data-m="undo">UNDO DELIVERED</button>' : '')
-      + '<button data-m="tip">RESEND THANK-YOU</button>'
+      + '<button data-m="tip">RESEND THANK-YOU</button><button data-m="del" style="color:var(--red)">DELETE</button>'
     : '<button data-m="reprint">REPRINT</button><button data-m="resend">RESEND SMS</button><button data-m="slot">EDIT SLOT</button>'
-      + (t.status !== 'PARKED' ? '<button data-m="park">BACK TO PARKED</button>' : '');
+      + (t.status !== 'PARKED' ? '<button data-m="park">BACK TO PARKED</button>' : '')
+      + '<button data-m="del" style="color:var(--red)">DELETE</button>';
   var src = t.request_source === 'SMS' ? ' · via SMS' : t.request_source === 'GUEST_LINK' ? ' · via link' : t.request_source === 'STAFF' ? ' · by valet' : '';
   var when = t.status === 'REQUESTED' ? 'Requested ' + timeOf(t.requested_at) + src
     : t.status === 'READY' ? 'Ready ' + timeOf(t.ready_at)
@@ -593,6 +594,13 @@ $('board').addEventListener('click', function(e){
   if (m === 'tip') sendSms(t, 'TIP', true, null, btn);
   if (m === 'slot') editSlot(t);
   if (m === 'park') confirmModal('Back to PARKED?', 'Ticket #' + t.ticket_code + ' returns to the parked list.', 'BACK TO PARKED', 'btn-dark', function(){ setStatus(t, 'PARKED', btn); });
+  if (m === 'del') confirmModal('Delete ticket #' + t.ticket_code + '?', esc(t.vehicle) + ' — removes it from the board and frees key slot ' + (t.slot_no ? pad2(t.slot_no) : '—') + '. Use for mistakes or tests.', 'DELETE TICKET', 'btn-orange',
+    async function(){
+      var r = await sb.rpc('event_valet_delete_ticket', { p_ticket: t.id });
+      if (r.error) { toast(errText(r.error), 4000); return; }
+      if (state.last && state.last.id === t.id) $('dNext').click();
+      toast('Ticket #' + t.ticket_code + ' deleted'); refresh();
+    });
   if (m === 'undo') confirmModal('Undo delivery?', 'Ticket #' + t.ticket_code + ' goes back to READY. If its slot was reused, assign a new slot.', 'UNDO', 'btn-dark', function(){ setStatus(t, 'READY', btn); });
 });
 
