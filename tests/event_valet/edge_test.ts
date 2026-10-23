@@ -331,3 +331,66 @@ Deno.test('staff alert SMS when a guest requests (READY or link), once per reque
   assertEquals(tw.sent.filter((x) => x.to === '+19545558385').length, 1);
   await reset({ sms_enabled: false, sms_test_only: true, tip_enabled: false, tip_links: {}, staff_alert_phones: [] });
 });
+
+Deno.test('Web Push: guest READY → encrypted push to the subscribed operator device (decrypts OK); 410 disables the device', async () => {
+  const { b64u, unb64u } = await import('../../supabase/functions/event-valet/webpush.ts');
+  await reset({});
+  await rest(`event_valet_push_subs?event_id=eq.${EVENT}`, { method: 'DELETE' });
+  // fake operator device (what the iPhone browser would create)
+  const ua = await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveBits']) as CryptoKeyPair;
+  const uaPub = new Uint8Array(await crypto.subtle.exportKey('raw', ua.publicKey));
+  const authSecret = crypto.getRandomValues(new Uint8Array(16));
+  const jwt = await login('localipad@airvalet.local');
+  const s1 = await staffRpc(jwt, 'event_valet_push_subscribe', { p_event: EVENT, p_endpoint: 'https://web.push.apple.com/dev1', p_p256dh: b64u(uaPub), p_auth: b64u(authSecret), p_label: 'test' });
+  assertEquals(s1.ok, true);
+  const tv = await login('localtv@airvalet.local');
+  const denied = await staffRpc(tv, 'event_valet_push_subscribe', { p_event: EVENT, p_endpoint: 'https://web.push.apple.com/x', p_p256dh: b64u(uaPub), p_auth: b64u(authSecret) });
+  assert(String(denied.message ?? '').includes('NOT_AUTHORIZED'));
+  const vk = await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify']) as CryptoKeyPair;
+  const vPub = b64u(new Uint8Array(await crypto.subtle.exportKey('raw', vk.publicKey)));
+  const pushes: { url: string; auth: string; body: Uint8Array }[] = [];
+  let status = 201;
+  const tw = fakeTwilio();
+  const f: typeof fetch = async (input, init) => {
+    const url = String(input instanceof Request ? input.url : input);
+    if (url.startsWith('https://web.push.apple.com/')) {
+      pushes.push({ url, auth: String((init?.headers as any).Authorization), body: new Uint8Array(init?.body as ArrayBuffer) });
+      return new Response(null, { status });
+    }
+    return tw.f(input, init);
+  };
+  const h = makeHandler(env({ EVENT_VALET_VAPID_PRIVATE_JWK: JSON.stringify(await crypto.subtle.exportKey('jwk', vk.privateKey)), EVENT_VALET_VAPID_PUBLIC: vPub }), f);
+  const c = await staffRpc(jwt, 'event_valet_checkin', { p_event: EVENT, p_phone: '9545551501', p_vehicle: 'Nissan', p_client_key: 'wp1' });
+  await staffRpc(jwt, 'event_valet_set_location', { p_ticket: c.ticket.id, p_location: 'HANGAR 18' });
+  await twilioPost(h, '/inbound', inbound('+19545551501', 'READY'));
+  assertEquals(pushes.length, 1);
+  assert(pushes[0].auth.startsWith('vapid t=') && pushes[0].auth.endsWith(`k=${vPub}`));
+  // decrypt as the device would (RFC 8291)
+  const body = pushes[0].body;
+  const salt = body.slice(0, 16), idlen = body[20], asPub = body.slice(21, 21 + idlen), ct = body.slice(21 + idlen);
+  const asKey = await crypto.subtle.importKey('raw', asPub, { name: 'ECDH', namedCurve: 'P-256' }, false, []);
+  const shared = new Uint8Array(await crypto.subtle.deriveBits({ name: 'ECDH', public: asKey }, ua.privateKey, 256));
+  const hk = async (s: Uint8Array, i: Uint8Array, info: Uint8Array, n: number) => new Uint8Array(await crypto.subtle.deriveBits({ name: 'HKDF', hash: 'SHA-256', salt: s, info }, await crypto.subtle.importKey('raw', i, 'HKDF', false, ['deriveBits']), n * 8));
+  const te = new TextEncoder();
+  const keyInfo = new Uint8Array([...te.encode('WebPush: info\0'), ...uaPub, ...asPub]);
+  const ikm = await hk(authSecret, shared, keyInfo, 32);
+  const cek = await hk(salt, ikm, te.encode('Content-Encoding: aes128gcm\0'), 16);
+  const nonce = await hk(salt, ikm, te.encode('Content-Encoding: nonce\0'), 12);
+  const pt = new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: nonce }, await crypto.subtle.importKey('raw', cek, 'AES-GCM', false, ['decrypt']), ct));
+  const msg = JSON.parse(new TextDecoder().decode(pt.slice(0, pt.lastIndexOf(2))));
+  assertEquals(msg.title, '🚗 #1501 REQUESTED');
+  assert(msg.body.includes('NISSAN') && msg.body.includes('HANGAR 18') && msg.body.includes('KEY SLOT 01'));
+  // test button
+  const tr = await (await h(new Request('http://x/event-valet/push-test', { method: 'POST', headers: { Authorization: `Bearer ${jwt}` }, body: JSON.stringify({ event_id: EVENT }) }))).json();
+  assertEquals(tr, { devices: 1, ok: 1 });
+  assertEquals((await (await h(new Request('http://x/event-valet/push-test', { method: 'POST', headers: { Authorization: `Bearer ${tv}` }, body: '{}' }))).status), 403);
+  // expired subscription (410) → disabled, not retried
+  status = 410;
+  await h(new Request('http://x/event-valet/push-test', { method: 'POST', headers: { Authorization: `Bearer ${jwt}` }, body: JSON.stringify({ event_id: EVENT }) }));
+  assertEquals((await rest(`event_valet_push_subs?event_id=eq.${EVENT}`))[0].failures, 99);
+  const n = pushes.length;
+  await h(new Request('http://x/event-valet/push-test', { method: 'POST', headers: { Authorization: `Bearer ${jwt}` }, body: JSON.stringify({ event_id: EVENT }) }));
+  assertEquals(pushes.length, n);
+  await rest(`event_valet_push_subs?event_id=eq.${EVENT}`, { method: 'DELETE' });
+  await reset({ sms_enabled: false, sms_test_only: true, tip_enabled: false, tip_links: {}, staff_alert_phones: [] });
+});

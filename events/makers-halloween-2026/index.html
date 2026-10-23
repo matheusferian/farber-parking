@@ -11,6 +11,7 @@
 <title>Halloween Valet</title>
 <link rel="icon" href="/favicon-32x32.png">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="manifest" href="/events/makers-halloween-2026/manifest.webmanifest">
 <style>
 :root{
   --bg:#0b0b0e; --panel:#141418; --panel2:#1b1b21; --line:#2a2a33; --text:#f4f1ea; --muted:#9a968c;
@@ -167,7 +168,7 @@ main{padding:16px;max-width:1280px;margin:0 auto}
         <h1>🎃 MAKERS AIR <span>·</span> HALLOWEEN VALET</h1>
         <div class="sub">Fall Trunk or Treat · Hangar 19 · Oct 24, 2026</div>
       </div>
-      <div class="badges"><span id="bPrinter" class="badge">PRINTER …</span><span id="bSms" class="badge">SMS …</span></div>
+      <div class="badges"><span id="bAlerts" class="badge">🔔 …</span><span id="bPrinter" class="badge">PRINTER …</span><span id="bSms" class="badge">SMS …</span></div>
     </div>
     <div class="counts">
       <div class="count"><b id="cP">0</b><small>PARKED</small></div>
@@ -734,6 +735,77 @@ function beep(){
 }
 $('soundBtn').onclick = function(){ unlockAudio(); state.sound = !state.sound; $('soundBtn').textContent = state.sound ? '🔔 SOUND ON' : '🔕 SOUND OFF'; if (state.sound) beep(); };
 
+// ── PUSH ALERTS (installed app on the operator's phone) ────────────────
+// iPhone: works only when the page is opened from the Home Screen icon
+// (Share → Add to Home Screen), iOS 16.4+. The service worker is scoped to
+// this event folder and is separate from the main AirValet worker.
+var VAPID_PUBLIC = 'BJm_nXgr-rTu9ZWO3eVf8EGXCFDxVSWuOGII1WYd6WWDnoFnBJtAdCDqNqCkWCdGwzM13OI_x211Bn9eU1uuipI';
+var SW_SCOPE = '/events/makers-halloween-2026/';
+function isIOS(){ return /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1); }
+function isStandalone(){ return window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches; }
+function pushSupported(){ return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window; }
+function keyBytes(b){ var s = atob(b.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((b.length + 3) % 4)); var u = new Uint8Array(s.length); for (var i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return u; }
+function setAlerts(text, cls){ var b = $('bAlerts'); b.textContent = text; b.className = 'badge ' + cls; }
+async function activeReg(){
+  var reg = await navigator.serviceWorker.register(SW_SCOPE + 'sw.js', { scope: SW_SCOPE });
+  if (!reg.active) await new Promise(function(res){
+    var w = reg.installing || reg.waiting; if (!w) return res();
+    w.addEventListener('statechange', function(){ if (w.state === 'activated') res(); });
+    setTimeout(res, 6000);
+  });
+  return reg;
+}
+async function saveSub(sub){
+  var j = sub.toJSON();
+  var r = await sb.rpc('event_valet_push_subscribe', { p_event: EVENT_ID, p_endpoint: j.endpoint, p_p256dh: j.keys.p256dh, p_auth: j.keys.auth,
+    p_label: (isIOS() ? 'iPhone/iPad' : 'browser') + (isStandalone() ? ' app' : '') });
+  if (r.error) throw r.error;
+  return r.data;
+}
+async function refreshAlerts(){
+  if (!pushSupported()) { setAlerts(isIOS() && !isStandalone() ? '🔔 INSTALL APP' : '🔕 NO PUSH', isIOS() ? 'warn' : 'bad'); return; }
+  try {
+    var reg = await navigator.serviceWorker.getRegistration(SW_SCOPE);
+    var sub = reg && await reg.pushManager.getSubscription();
+    if (sub && Notification.permission === 'granted') { setAlerts('🔔 ALERTS ON', 'ok'); saveSub(sub).catch(function(){}); }
+    else setAlerts('🔕 ALERTS OFF', 'warn');
+  } catch (e) { setAlerts('🔕 ALERTS OFF', 'warn'); }
+}
+async function enableAlerts(){
+  if (!pushSupported()) {
+    openModal('<h3>Turn on alerts</h3><p>' + (isIOS()
+      ? 'On iPhone, alerts work only from the installed app:<br>1. Open this page in <b>Safari</b><br>2. Tap <b>Share</b> → <b>Add to Home Screen</b><br>3. Open <b>Halloween Valet</b> from the Home Screen and tap 🔔 again.'
+      : 'This browser does not support push alerts.') + '</p><button class="btn btn-dark btn-sm" id="mClose">OK</button>');
+    $('mClose').onclick = closeModal; return;
+  }
+  var perm = await Notification.requestPermission();   // must run inside the tap
+  if (perm !== 'granted') { toast('Notifications are blocked — allow them in Settings → Notifications → Halloween Valet.', 5000); setAlerts('🔕 ALERTS OFF', 'warn'); return; }
+  try {
+    setAlerts('🔔 …', 'warn');
+    var reg = await activeReg();
+    var sub = await reg.pushManager.getSubscription() || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(VAPID_PUBLIC) });
+    var d = await saveSub(sub);
+    setAlerts('🔔 ALERTS ON', 'ok');
+    toast('Alerts on for this phone (' + d.devices + ' device' + (d.devices === 1 ? '' : 's') + ').', 3500);
+  } catch (e) { setAlerts('🔕 ALERTS OFF', 'warn'); toast('Could not turn on alerts: ' + errText(e), 5000); }
+}
+async function testAlert(){
+  try {
+    var r = await fetch(FN_URL + '/push-test', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (await jwt()), 'apikey': SB_KEY },
+      body: JSON.stringify({ event_id: EVENT_ID }) });
+    var j = await r.json();
+    toast(j.ok ? 'Test alert sent to ' + j.ok + ' device(s) — check the notification.' : 'No device received it (' + (j.error || j.devices + ' devices') + ').', 5000);
+  } catch (e) { toast('Test failed: ' + errText(e), 4000); }
+}
+$('bAlerts').onclick = function(){
+  if ($('bAlerts').textContent.indexOf('ON') >= 0) {
+    openModal('<h3>🔔 Alerts are on</h3><p>This phone gets a notification when a guest asks for a car (SMS READY or link), even with the app closed.</p>'
+      + '<button class="btn btn-gold" id="mTest">SEND TEST ALERT</button><button class="btn btn-dark btn-sm" style="margin-top:8px" id="mClose">CLOSE</button>');
+    $('mTest').onclick = function(){ closeModal(); testAlert(); };
+    $('mClose').onclick = closeModal;
+  } else enableAlerts();
+};
+
 // ── START ──────────────────────────────────────────────────────────────
 var pollTimer = null;
 function showNotAllowed(){
@@ -745,6 +817,7 @@ async function start(){
   $('viewLogin').classList.add('hidden'); $('app').classList.remove('hidden');
   await refresh();
   checkPrinter();
+  refreshAlerts();
   if (pollTimer) clearInterval(pollTimer);
   pollTimer = setInterval(function(){ if (!document.hidden) refresh(); }, POLL_MS);
   if (window.matchMedia('(min-width:900px)').matches) $('ciPhone').focus();

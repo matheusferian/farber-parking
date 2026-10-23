@@ -12,6 +12,7 @@
 // sms_test_only = true only sms_test_phones receive texts. Secrets are
 // never logged or returned.
 
+import { sendPush } from './webpush.ts';
 import { CarOption, composeSms, composeStaffAlert, Kind, maskLink, maskPhone, normalizePhone, parseInbound, timingSafeEqualStr, twilioSend, TwilioCfg, validSignature } from './lib.ts';
 
 export type Env = (k: string) => string | undefined;
@@ -42,7 +43,12 @@ export function makeHandler(env: Env, fetchImpl: typeof fetch = fetch) {
       from: env('TWILIO_PHONE_NUMBER'),
     }
     : null;
-  const secrets = [SERVICE, AUTH_TOKEN, env('TWILIO_API_KEY_SECRET'), INBOUND_KEY].filter(Boolean) as string[];
+  const secrets = [SERVICE, AUTH_TOKEN, env('TWILIO_API_KEY_SECRET'), INBOUND_KEY, env('EVENT_VALET_VAPID_PRIVATE_JWK')].filter(Boolean) as string[];
+  let VAPID: { privateJwk: JsonWebKey; publicKey: string; subject: string } | null = null;
+  try {
+    const jwk = env('EVENT_VALET_VAPID_PRIVATE_JWK'), pub = env('EVENT_VALET_VAPID_PUBLIC');
+    if (jwk && pub) VAPID = { privateJwk: JSON.parse(jwk), publicKey: pub, subject: env('EVENT_VALET_VAPID_SUBJECT') ?? 'mailto:info@farberparking.com' };
+  } catch { VAPID = null; }
   const webhookReady = !!PUBLIC_URL && !!ACCOUNT && (!!AUTH_TOKEN || INBOUND_KEY.length >= 32);
   const kq = INBOUND_KEY ? `&k=${encodeURIComponent(INBOUND_KEY)}` : '';
   const log = (event: string, data: Json = {}) => {
@@ -138,6 +144,7 @@ export function makeHandler(env: Env, fetchImpl: typeof fetch = fetch) {
 
   // ── Operator alert: a guest asked for the car (SMS READY / guest link) ──
   async function alertStaff(t: Json, ev: Json, via: string) {
+    await pushStaff(t, ev).catch((e) => log('push_error', { msg: String(e).slice(0, 120) }));
     const phones: string[] = (ev.staff_alert_phones ?? []).filter((p: string) => /^\+[1-9]\d{7,14}$/.test(p));
     if (!ev.sms_enabled || !phones.length) return;
     const body = composeStaffAlert(t as any, via);
@@ -151,6 +158,29 @@ export function makeHandler(env: Env, fetchImpl: typeof fetch = fetch) {
       await patchMessage(row.id, r.ok ? { status: r.status.toUpperCase(), twilio_sid: r.sid } : { status: r.maybeSent ? 'UNCONFIRMED' : 'FAILED', error_code: r.code, error_message: r.message });
       log('staff_alert', { ticket: t.ticket_code, ok: r.ok });
     }
+  }
+
+  // Web Push to every operator device that enabled alerts (installed app).
+  async function pushStaff(t: Json, ev: Json): Promise<{ devices: number; ok: number }> {
+    if (!VAPID) return { devices: 0, ok: 0 };
+    const r = await db(`event_valet_push_subs?event_id=eq.${encodeURIComponent(ev.id)}&failures=lt.5&select=id,endpoint,p256dh,auth,failures`);
+    const subs: Json[] = r.ok ? await r.json() : [];
+    const slot = t.slot_no ? String(t.slot_no).padStart(2, '0') : '--';
+    const data = {
+      title: `🚗 #${t.ticket_code} REQUESTED`,
+      body: `${t.vehicle} · KEY SLOT ${slot} · ${t.parking_location || 'NO LOCATION'}`,
+      tag: `req-${t.id}`,
+      url: `/events/${ev.id}/`,
+    };
+    let ok = 0;
+    await Promise.all(subs.map(async (s) => {
+      const res = await sendPush({ endpoint: s.endpoint, p256dh: s.p256dh, auth: s.auth }, data, VAPID!, fetchImpl);
+      if (res.ok) ok++;
+      const patch = res.ok ? { last_ok_at: new Date().toISOString(), failures: 0 } : { failures: res.gone ? 99 : (s.failures ?? 0) + 1 };
+      await db(`event_valet_push_subs?id=eq.${s.id}`, { method: 'PATCH', body: JSON.stringify(patch) });
+      log('push', { ok: res.ok, status: res.status, host: new URL(s.endpoint).host });
+    }));
+    return { devices: subs.length, ok };
   }
 
   // ── CORS ──
@@ -182,6 +212,19 @@ export function makeHandler(env: Env, fetchImpl: typeof fetch = fetch) {
     if (kind === 'TIP' && x.t.status !== 'DELIVERED') return json(req, 409, { error: 'NOT_DELIVERED' });
     const out = await sendFor(x.t, x.ev, kind, { resend: b.resend === true });
     return json(req, 200, MODE === 'mock' ? out : { status: out.status, error_code: out.error_code });
+  }
+
+  // Staff "SEND TEST ALERT" button: one push to every enabled device.
+  async function routePushTest(req: Request) {
+    const jwt = (req.headers.get('authorization') ?? '').replace(/^Bearer\s+/i, '');
+    let staff = false;
+    try { staff = !!jwt && (await rpc('event_valet_is_staff', {}, jwt)) === true; } catch { staff = false; }
+    if (!staff) return json(req, 403, { error: 'NOT_AUTHORIZED' });
+    if (!VAPID) return json(req, 200, { devices: 0, ok: 0, error: 'PUSH_NOT_CONFIGURED' });
+    const b = await req.json().catch(() => ({}));
+    const evId = typeof b.event_id === 'string' ? b.event_id : '';
+    const r = await pushStaff({ id: 'test', ticket_code: 'TEST', vehicle: 'TEST ALERT', slot_no: null, parking_location: 'HANGAR 19' }, { id: evId });
+    return json(req, 200, r);
   }
 
   async function routeGuest(req: Request) {
@@ -278,6 +321,7 @@ export function makeHandler(env: Env, fetchImpl: typeof fetch = fetch) {
     try {
       if (path.endsWith('/send')) return await routeSend(req);
       if (path.endsWith('/guest')) return await routeGuest(req);
+      if (path.endsWith('/push-test')) return await routePushTest(req);
       if (path.endsWith('/inbound')) return await routeInbound(req);
       if (path.endsWith('/status')) return await routeStatus(req);
       return new Response('not found', { status: 404 });
