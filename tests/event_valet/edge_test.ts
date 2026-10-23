@@ -105,6 +105,8 @@ Deno.test('templates: dynamic number, opt-out, link masked in storage', () => {
   assert(composeSms('REQUESTED', '10101', null).includes('Ticket #10101'));
   assert(composeSms('AMBIGUOUS', null, null, [{ code: '0500', vehicle: 'BMW' }]).includes('READY 0500 — BMW'));
   assert(composeSms('TIP', '0101', 'L').includes('optional tip'));
+  assert(b.includes('complimentary') && b.includes('nothing to pay'));
+  assert(composeSms('TIP', '0101', 'L').includes('enjoyed the Halloween fun') && !composeSms('TIP', '0101', 'L').includes('complimentary'));
 });
 
 // ── integration ──

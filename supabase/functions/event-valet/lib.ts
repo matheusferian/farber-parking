@@ -29,6 +29,7 @@ export function composeSms(kind: Kind, code: string | null, link: string | null,
       return [
         '🎃 Welcome to Makers Air Halloween!',
         'Your vehicle has been checked in.',
+        'Our valet service is complimentary — there is nothing to pay.',
         `🎟️ VALET TICKET: #${no}`,
         'When you’re ready to leave, simply reply READY to this message.',
         'Please keep your ticket number handy for pickup.',
@@ -48,7 +49,7 @@ export function composeSms(kind: Kind, code: string | null, link: string | null,
     case 'TIP':
       return [
         '🚗 Thank you for celebrating Halloween with Makers Air!',
-        'We hope you enjoyed our complimentary valet service.',
+        'We hope you enjoyed the Halloween fun! 🎃',
         'If you’d like to thank our valet team, you can leave an optional tip here:',
         link ?? '',
         'Have a wonderful night!',
