@@ -107,7 +107,12 @@ export function makeHandler(env: Env, fetchImpl: typeof fetch = fetch) {
     if (!row) return { status: 'DUPLICATE' };
 
     let link: string | null = null;
-    if (kind === 'TIP' || (kind === 'CHECKIN' && ev.include_ticket_link)) {
+    // Tip SMS: a direct Stripe (Matt Solutions) Payment Link when configured —
+    // short, and the guest goes straight to the optional tip.
+    const tipSms = String(ev.tip_links?.sms ?? '');
+    if (kind === 'TIP' && /^https:\/\/buy\.stripe\.com\/[A-Za-z0-9]+$/.test(tipSms)) {
+      link = tipSms;
+    } else if (kind === 'TIP' || (kind === 'CHECKIN' && ev.include_ticket_link)) {
       const tok = await rpc('event_valet_mint_guest_token', { p_ticket: t.id });
       link = `${SITE}/events/${ev.id}/t#${tok}`;
     }

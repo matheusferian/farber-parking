@@ -300,3 +300,16 @@ Deno.test('webhook URL key (no Auth Token): right key accepted, wrong/missing ke
   assertEquals((await twilioPost(h2, '/inbound', inbound('+19545551201', 'READY'), { query: '?k=short' })).status, 503);
   await reset({ sms_enabled: false, sms_test_only: true, tip_enabled: false, tip_links: {} });
 });
+
+Deno.test('tip SMS uses the direct Stripe link when tip_links.sms is set; check-in without link', async () => {
+  await reset({ include_ticket_link: false, tip_links: { sms: 'https://buy.stripe.com/8x214mccK0uh9TjgIM6Vq00', other: 'https://buy.stripe.com/8x214mccK0uh9TjgIM6Vq00' } });
+  const jwt = await login('localipad@airvalet.local');
+  const tw = fakeTwilio(); const h = makeHandler(env(), tw.f);
+  const c = await staffRpc(jwt, 'event_valet_checkin', { p_event: EVENT, p_phone: '9545551301', p_vehicle: 'Mini', p_client_key: 'tl1' });
+  await send(h, jwt, { ticket_id: c.ticket.id, kind: 'CHECKIN' });
+  assert(!tw.sent[0].body.includes('http'));
+  await staffRpc(jwt, 'event_valet_set_status', { p_ticket: c.ticket.id, p_status: 'DELIVERED' });
+  await send(h, jwt, { ticket_id: c.ticket.id, kind: 'TIP' });
+  assert(tw.sent[1].body.includes('\nhttps://buy.stripe.com/8x214mccK0uh9TjgIM6Vq00\n'));
+  await reset({ sms_enabled: false, sms_test_only: true, tip_enabled: false, tip_links: {} });
+});
