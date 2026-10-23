@@ -8,8 +8,8 @@ const enc = new TextEncoder();
 export type Kind = 'CHECKIN' | 'REQUESTED' | 'TIP' | 'AMBIGUOUS' | 'NO_MATCH';
 export type CarOption = { code: string; vehicle: string };
 
-// Ticket code = last 4 digits of the guest's phone ("0101", or "0101-B" for a
-// second car with the same last 4).
+// Ticket code = last 4 digits of the guest's phone ("0101"; a repeated last 4
+// becomes "10101", "20101"…).
 export function composeSms(kind: Kind, code: string | null, link: string | null, options: CarOption[] = []): string {
   const no = code ?? '';
   const pick = options.map((o) => `READY ${o.code} — ${o.vehicle}`);
@@ -74,8 +74,8 @@ export function parseInbound(raw: string): Parsed {
   const text = String(raw ?? '').toUpperCase().replace(/[^A-Z0-9# ]/g, ' ').replace(/\s+/g, ' ').trim();
   if (KEYWORDS.has(text)) return { type: 'keyword' };
   if (!/\bREADY\b/.test(text)) return { type: 'other' };
-  // "READY 0101", "ready #0101-b", "0101 B ready" → "0101" / "0101B"
-  const m = text.match(/(?:^|\s)#?(\d{1,4})(?:\s?([B-Z]))?(?=\s|$)/);
+  // "READY 0101", "ready #10101", "0101 ready" → "0101" / "10101"
+  const m = text.match(/(?:^|\s)#?(\d{1,5})(?:\s?([B-Z]))?(?=\s|$)/);
   return { type: 'ready', ticketRef: m ? m[1] + (m[2] ?? '') : null };
 }
 

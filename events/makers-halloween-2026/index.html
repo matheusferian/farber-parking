@@ -92,7 +92,7 @@ main{padding:16px;max-width:1280px;margin:0 auto}
 .toolbar{display:flex;gap:8px;margin-bottom:12px}
 .search{flex:1;padding:13px 14px;font-size:17px;color:var(--text);background:var(--panel);border:1px solid var(--line);border-radius:12px;outline:none}
 .sound{white-space:nowrap}
-.section-title{font-size:12px;letter-spacing:.18em;color:var(--muted);font-weight:800;margin:18px 2px 8px}
+.section-title{scroll-margin-top:230px;font-size:12px;letter-spacing:.18em;color:var(--muted);font-weight:800;margin:18px 2px 8px}
 .cards{display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(270px,1fr))}
 .card{background:var(--panel);border:1px solid var(--line);border-left:6px solid var(--line);border-radius:16px;padding:14px}
 .card.PARKED{border-left-color:#8b8676}
@@ -543,7 +543,7 @@ function renderBoard(flashIds){
   var list = state.board.tickets.filter(function(t){
     if (!q) return true;
     var qc = q.replace(/[\s-]/g, '');
-    if (/^\d{1,4}[B-Z]?$/.test(qc)) {
+    if (/^\d{1,5}$/.test(qc)) {
       return t.ticket_code.replace('-', '').indexOf(qc) === 0 || t.ticket_no === parseInt(qc, 10)
         || (/^\d+$/.test(qc) && qc.length >= 3 && t.phone_e164.slice(-qc.length) === qc);
     }
@@ -558,12 +558,22 @@ function renderBoard(flashIds){
     else if (g[0] === 'DELIVERED') items.sort(function(a, b){ return new Date(b.delivered_at) - new Date(a.delivered_at); });
     else items.sort(function(a, b){ return a.ticket_no - b.ticket_no; });
     if (!items.length) return;
-    html += '<div class="section-title">' + g[1] + ' · ' + items.length + '</div><div class="cards">'
+    html += '<div class="section-title" id="sec-' + g[0] + '">' + g[1] + ' · ' + items.length + '</div><div class="cards">'
       + items.map(function(t){ return cardHtml(t, flashIds.indexOf(t.id) >= 0); }).join('') + '</div>';
   });
   $('board').innerHTML = html || '<div class="empty">No cars yet. Check in the first guest.</div>';
 }
 $('q').addEventListener('input', function(){ renderBoard(); });
+// Tap a counter → board, scrolled to that list (e.g. DELIVERED cars).
+[['cP','PARKED'],['cReqBox','REQUESTED'],['cY','READY'],['cD','DELIVERED']].forEach(function(x){
+  var box = $(x[0]).closest('.count'); box.style.cursor = 'pointer';
+  box.onclick = function(){
+    $('q').value = '';
+    if (!window.matchMedia('(min-width:900px)').matches) showTab('board'); else renderBoard();
+    var sec = $('sec-' + x[1]);
+    if (sec) sec.scrollIntoView({ behavior: 'smooth', block: 'start' }); else toast('No ' + x[1].toLowerCase() + ' cars yet');
+  };
+});
 function findT(id){ return state.board.tickets.filter(function(t){ return t.id === id; })[0]; }
 
 $('board').addEventListener('click', function(e){

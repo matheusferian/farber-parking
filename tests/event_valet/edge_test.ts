@@ -84,7 +84,7 @@ Deno.test('parseInbound', () => {
   assertEquals(parseInbound('READY'), { type: 'ready', ticketRef: null });
   assertEquals(parseInbound(' ready! '), { type: 'ready', ticketRef: null });
   assertEquals(parseInbound('Ready 0101'), { type: 'ready', ticketRef: '0101' });
-  assertEquals(parseInbound('ready #0101-b'), { type: 'ready', ticketRef: '0101B' });
+  assertEquals(parseInbound('ready #10101'), { type: 'ready', ticketRef: '10101' });
   assertEquals(parseInbound('READY 0101 please'), { type: 'ready', ticketRef: '0101' });
   assertEquals(parseInbound('#0101 ready'), { type: 'ready', ticketRef: '0101' });
   assertEquals(parseInbound('STOP'), { type: 'keyword' });
@@ -102,7 +102,7 @@ Deno.test('templates: dynamic number, opt-out, link masked in storage', () => {
   const b = composeSms('CHECKIN', '0101', 'https://airvalet.farberos.com/events/x/t#abc');
   assert(b.includes('VALET TICKET: #0101') && b.includes('reply READY') && b.includes('Reply STOP to opt out.'));
   assert(!maskLink(b, 'https://airvalet.farberos.com/events/x/t#abc').includes('#abc'));
-  assert(composeSms('REQUESTED', '0101-B', null).includes('Ticket #0101-B'));
+  assert(composeSms('REQUESTED', '10101', null).includes('Ticket #10101'));
   assert(composeSms('AMBIGUOUS', null, null, [{ code: '0500', vehicle: 'BMW' }]).includes('READY 0500 — BMW'));
   assert(composeSms('TIP', '0101', 'L').includes('optional tip'));
 });
@@ -196,7 +196,7 @@ Deno.test('two cars on one phone: READY asks for ticket number; READY <n> reques
   const a = await staffRpc(jwt, 'event_valet_checkin', { p_event: EVENT, p_phone: '9545550500', p_vehicle: 'BMW', p_client_key: 'm1' });
   const b = await staffRpc(jwt, 'event_valet_checkin', { p_event: EVENT, p_phone: '9545550500', p_vehicle: 'Audi', p_client_key: 'm2' });
   await twilioPost(h, '/inbound', inbound('+19545550500', 'READY'));
-  assertEquals(tw.sent.length, 1); assert(tw.sent[0].body.includes('more than one vehicle') && tw.sent[0].body.includes('READY 0500-B — AUDI'));
+  assertEquals(tw.sent.length, 1); assert(tw.sent[0].body.includes('more than one vehicle') && tw.sent[0].body.includes('READY 10500 — AUDI'));
   for (const id of [a.ticket.id, b.ticket.id]) assertEquals((await rest(`event_valet_tickets?id=eq.${id}`))[0].status, 'PARKED');
   await twilioPost(h, '/inbound', inbound('+19545550500', `ready ${b.ticket.ticket_code}`));
   assertEquals((await rest(`event_valet_tickets?id=eq.${b.ticket.id}`))[0].status, 'REQUESTED');
