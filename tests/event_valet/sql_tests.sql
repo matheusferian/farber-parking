@@ -23,6 +23,7 @@ begin
   insert into _r(name, ok, info) values ('phone E.164', r#>>'{ticket,phone_e164}' = '+19545550101', r#>>'{ticket,phone_e164}');
   insert into _r(name, ok, info) values ('vehicle upper/trim', r#>>'{ticket,vehicle}' = 'HONDA CIVIC', r#>>'{ticket,vehicle}');
   insert into _r(name, ok, info) values ('status PARKED', r#>>'{ticket,status}' = 'PARKED', r#>>'{ticket,status}');
+  insert into _r(name, ok, info) values ('ticket code = last 4 of phone', r#>>'{ticket,ticket_code}' = '0101', r#>>'{ticket,ticket_code}');
   t1 := (r#>>'{ticket,id}')::uuid;
 
   -- double tap: same client key → same ticket, no new number
@@ -59,6 +60,13 @@ begin
   r := public.event_valet_checkin('makers-halloween-2026', '9545550103', 'Camry', 'k3');
   t3 := (r#>>'{ticket,id}')::uuid;
   insert into _r(name, ok, info) values ('ticket #3 reuses freed slot 1', (r#>>'{ticket,ticket_no}')::int = 3 and (r#>>'{ticket,slot_no}')::int = 1, r::text);
+  -- same last 4 again (other phone, and returning guest after delivery) → -B, -C; never reused
+  r := public.event_valet_checkin('makers-halloween-2026', '3055550101', 'Audi', 'k3b');
+  insert into _r(name, ok, info) values ('same last 4, other phone → 0101-B', r#>>'{ticket,ticket_code}' = '0101-B', r::text);
+  perform public.event_valet_set_status((r#>>'{ticket,id}')::uuid, 'DELIVERED');
+  r := public.event_valet_checkin('makers-halloween-2026', '9545550101', 'Honda Civic', 'k3c');
+  insert into _r(name, ok, info) values ('returning guest → 0101-C (codes never reused)', r#>>'{ticket,ticket_code}' = '0101-C', r::text);
+  perform public.event_valet_set_status((r#>>'{ticket,id}')::uuid, 'DELIVERED');
 
   -- undo delivered when its slot was reused → READY without slot
   r := public.event_valet_set_status(t1, 'READY');
@@ -85,7 +93,7 @@ begin
 
   -- board
   r := public.event_valet_board('makers-halloween-2026');
-  insert into _r(name, ok, info) values ('board counts', (r#>>'{counts,PARKED}')::int = 3 and jsonb_array_length(r->'tickets') = 3, r->>'counts');
+  insert into _r(name, ok, info) values ('board counts', (r#>>'{counts,PARKED}')::int = 3 and jsonb_array_length(r->'tickets') = 5, r->>'counts');
   insert into _r(name, ok, info) values ('board has no token hash', position('guest_token' in r::text) = 0, null);
 
   -- fill all 20 slots → 21st gets slot NULL + slots_full
@@ -94,7 +102,7 @@ begin
   end loop;
   r := public.event_valet_checkin('makers-halloween-2026', '9545550300', 'OVERFLOW', 'fill-x');
   insert into _r(name, ok, info) values ('21st car: slots_full, slot NULL, still gets ticket',
-    (r->>'slots_full')::boolean and r#>>'{ticket,slot_no}' is null and (r#>>'{ticket,ticket_no}')::int = 21, r::text);
+    (r->>'slots_full')::boolean and r#>>'{ticket,slot_no}' is null and (r#>>'{ticket,ticket_no}')::int = 23, r::text);
 
   -- internal functions are not callable by staff directly
   begin perform public.event_valet_apply_status(t2, 'DELIVERED', 'SMS');
@@ -156,21 +164,22 @@ begin
 
   -- inbound READY: single active ticket (#3, +19545550103)
   r := public.event_valet_inbound_ready('+19545550103', null);
-  insert into _r(name, ok, info) values ('SMS READY requests the one active ticket', r->>'result' = 'REQUESTED' and (r#>>'{ticket,ticket_no}')::int = 3, r::text);
+  insert into _r(name, ok, info) values ('SMS READY requests the one active ticket', r->>'result' = 'REQUESTED' and r#>>'{ticket,ticket_code}' = '0103', r::text);
   r := public.event_valet_inbound_ready('+19545550103', null);
   insert into _r(name, ok, info) values ('SMS READY duplicate → ALREADY', r->>'result' = 'ALREADY', r::text);
   r := public.event_valet_inbound_ready('+19545559999', null);
   insert into _r(name, ok, info) values ('unknown phone → NONE', r->>'result' = 'NONE', r::text);
 
   -- two cars on the same phone → AMBIGUOUS; with number → that ticket only
-  insert into public.event_valet_tickets (event_id, ticket_no, slot_no, phone_e164, vehicle)
-    values ('makers-halloween-2026', 50, null, '+19545550500', 'BMW'), ('makers-halloween-2026', 51, null, '+19545550500', 'AUDI');
+  insert into public.event_valet_tickets (event_id, ticket_no, ticket_code, slot_no, phone_e164, vehicle)
+    values ('makers-halloween-2026', 50, '0500', null, '+19545550500', 'BMW'), ('makers-halloween-2026', 51, '0500-B', null, '+19545550500', 'AUDI');
   r := public.event_valet_inbound_ready('+19545550500', null);
-  insert into _r(name, ok, info) values ('two cars same phone → AMBIGUOUS', r->>'result' = 'AMBIGUOUS', r::text);
-  r := public.event_valet_inbound_ready('+19545550500', 2);
-  insert into _r(name, ok, info) values ('other person''s ticket number → NO_MATCH', r->>'result' = 'NO_MATCH', r::text);
-  r := public.event_valet_inbound_ready('+19545550500', 51);
-  insert into _r(name, ok, info) values ('READY 51 requests only #51', r->>'result' = 'REQUESTED' and (r#>>'{ticket,ticket_no}')::int = 51, r::text);
+  insert into _r(name, ok, info) values ('two cars same phone → AMBIGUOUS + options', r->>'result' = 'AMBIGUOUS'
+    and r->'options' = '[{"code":"0500","vehicle":"BMW"},{"code":"0500-B","vehicle":"AUDI"}]'::jsonb, r::text);
+  r := public.event_valet_inbound_ready('+19545550500', '0102');
+  insert into _r(name, ok, info) values ('other person''s ticket code → NO_MATCH', r->>'result' = 'NO_MATCH', r::text);
+  r := public.event_valet_inbound_ready('+19545550500', '0500B');
+  insert into _r(name, ok, info) values ('READY 0500B requests only 0500-B', r->>'result' = 'REQUESTED' and r#>>'{ticket,ticket_code}' = '0500-B', r::text);
   insert into _r(name, ok, info) values ('#50 untouched', (select status from public.event_valet_tickets where ticket_no = 50) = 'PARKED', null);
 
   -- delivered-only phone → DELIVERED (never re-requests)

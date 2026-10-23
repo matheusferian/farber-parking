@@ -81,10 +81,12 @@ const outMsgs = async (ticketId: string) => await rest(`event_valet_messages?tic
 
 // ── pure helpers ──
 Deno.test('parseInbound', () => {
-  assertEquals(parseInbound('READY'), { type: 'ready', ticketNo: null });
-  assertEquals(parseInbound(' ready! '), { type: 'ready', ticketNo: null });
-  assertEquals(parseInbound('Ready 016'), { type: 'ready', ticketNo: 16 });
-  assertEquals(parseInbound('#7 ready'), { type: 'ready', ticketNo: 7 });
+  assertEquals(parseInbound('READY'), { type: 'ready', ticketRef: null });
+  assertEquals(parseInbound(' ready! '), { type: 'ready', ticketRef: null });
+  assertEquals(parseInbound('Ready 0101'), { type: 'ready', ticketRef: '0101' });
+  assertEquals(parseInbound('ready #0101-b'), { type: 'ready', ticketRef: '0101B' });
+  assertEquals(parseInbound('READY 0101 please'), { type: 'ready', ticketRef: '0101' });
+  assertEquals(parseInbound('#0101 ready'), { type: 'ready', ticketRef: '0101' });
   assertEquals(parseInbound('STOP'), { type: 'keyword' });
   assertEquals(parseInbound('help'), { type: 'keyword' });
   assertEquals(parseInbound('already there?'), { type: 'other' });
@@ -97,11 +99,12 @@ Deno.test('normalizePhone', () => {
   assertEquals(normalizePhone('(054) 555-0101'), null);
 });
 Deno.test('templates: dynamic number, opt-out, link masked in storage', () => {
-  const b = composeSms('CHECKIN', 1, 'https://airvalet.farberos.com/events/x/t#abc');
-  assert(b.includes('VALET TICKET: #001') && b.includes('reply READY') && b.includes('Reply STOP to opt out.'));
+  const b = composeSms('CHECKIN', '0101', 'https://airvalet.farberos.com/events/x/t#abc');
+  assert(b.includes('VALET TICKET: #0101') && b.includes('reply READY') && b.includes('Reply STOP to opt out.'));
   assert(!maskLink(b, 'https://airvalet.farberos.com/events/x/t#abc').includes('#abc'));
-  assert(composeSms('REQUESTED', 16, null).includes('Ticket #016'));
-  assert(composeSms('TIP', 2, 'L').includes('optional tip'));
+  assert(composeSms('REQUESTED', '0101-B', null).includes('Ticket #0101-B'));
+  assert(composeSms('AMBIGUOUS', null, null, [{ code: '0500', vehicle: 'BMW' }]).includes('READY 0500 — BMW'));
+  assert(composeSms('TIP', '0101', 'L').includes('optional tip'));
 });
 
 // ── integration ──
@@ -116,7 +119,7 @@ Deno.test('end-to-end: check-in SMS, READY, duplicate, delivered tip (once), gue
   let s = await send(h, jwt, { ticket_id: tid, kind: 'CHECKIN' });
   assertEquals(s.code, 200); assertEquals(s.body.status, 'ACCEPTED');
   assertEquals(tw.sent.length, 1);
-  assert(tw.sent[0].body.includes('#001') && tw.sent[0].to === '+19545550101');
+  assert(tw.sent[0].body.includes('#0101') && tw.sent[0].to === '+19545550101');
   assert(tw.sent[0].cb!.startsWith(`${PUBLIC}/status?mid=`));
   const link = tw.sent[0].body.match(/https:\/\/\S+#([0-9a-f]{64})/)!;
   // second CHECKIN for same ticket is deduped; RESEND sends
@@ -129,7 +132,7 @@ Deno.test('end-to-end: check-in SMS, READY, duplicate, delivered tip (once), gue
   let g = await (await h(new Request('http://x/event-valet/guest', { method: 'POST', body: JSON.stringify({ token: link[1], action: 'view' }) }))).json();
   assertEquals(g.state, 'invalid');
   g = await (await h(new Request('http://x/event-valet/guest', { method: 'POST', body: JSON.stringify({ token: newTok, action: 'view' }) }))).json();
-  assertEquals(g.state, 'ok'); assertEquals(g.ticket_no, 1); assertEquals(g.status, 'PARKED');
+  assertEquals(g.state, 'ok'); assertEquals(g.ticket_code, '0101'); assertEquals(g.status, 'PARKED');
   assert(!('slot_no' in g) && !('phone_e164' in g) && !('ticket_id' in g));
   // stored body never has the live token
   const stored = await outMsgs(tid);
@@ -147,7 +150,7 @@ Deno.test('end-to-end: check-in SMS, READY, duplicate, delivered tip (once), gue
   assertEquals(r.status, 200); assert((await r.text()).includes('<Response>'));
   let t = (await rest(`event_valet_tickets?id=eq.${tid}`))[0];
   assertEquals(t.status, 'REQUESTED'); assertEquals(t.request_source, 'SMS');
-  assertEquals(tw.sent.length, 3); assert(tw.sent[2].body.includes('Your vehicle has been requested') && tw.sent[2].body.includes('#001'));
+  assertEquals(tw.sent.length, 3); assert(tw.sent[2].body.includes('Your vehicle has been requested') && tw.sent[2].body.includes('#0101'));
   await twilioPost(h, '/inbound', msg);
   await twilioPost(h, '/inbound', inbound('+19545550101', 'READY'));   // new SID, already requested
   assertEquals(tw.sent.length, 3);
@@ -193,14 +196,14 @@ Deno.test('two cars on one phone: READY asks for ticket number; READY <n> reques
   const a = await staffRpc(jwt, 'event_valet_checkin', { p_event: EVENT, p_phone: '9545550500', p_vehicle: 'BMW', p_client_key: 'm1' });
   const b = await staffRpc(jwt, 'event_valet_checkin', { p_event: EVENT, p_phone: '9545550500', p_vehicle: 'Audi', p_client_key: 'm2' });
   await twilioPost(h, '/inbound', inbound('+19545550500', 'READY'));
-  assertEquals(tw.sent.length, 1); assert(tw.sent[0].body.includes('more than one vehicle'));
+  assertEquals(tw.sent.length, 1); assert(tw.sent[0].body.includes('more than one vehicle') && tw.sent[0].body.includes('READY 0500-B — AUDI'));
   for (const id of [a.ticket.id, b.ticket.id]) assertEquals((await rest(`event_valet_tickets?id=eq.${id}`))[0].status, 'PARKED');
-  await twilioPost(h, '/inbound', inbound('+19545550500', `READY ${b.ticket.ticket_no}`));
+  await twilioPost(h, '/inbound', inbound('+19545550500', `ready ${b.ticket.ticket_code}`));
   assertEquals((await rest(`event_valet_tickets?id=eq.${b.ticket.id}`))[0].status, 'REQUESTED');
   assertEquals((await rest(`event_valet_tickets?id=eq.${a.ticket.id}`))[0].status, 'PARKED');
   // another person's ticket number from this phone → NO_MATCH, nothing changes
   const other = await staffRpc(jwt, 'event_valet_checkin', { p_event: EVENT, p_phone: '9545550600', p_vehicle: 'Kia', p_client_key: 'm3' });
-  await twilioPost(h, '/inbound', inbound('+19545550500', `READY ${other.ticket.ticket_no}`));
+  await twilioPost(h, '/inbound', inbound('+19545550500', `READY ${other.ticket.ticket_code}`));
   assertEquals((await rest(`event_valet_tickets?id=eq.${other.ticket.id}`))[0].status, 'PARKED');
   assert(tw.sent.at(-1)!.body.includes('could not match'));
 });
@@ -269,5 +272,31 @@ Deno.test('Twilio failure: rejected → FAILED, timeout → UNCONFIRMED; ticket 
   const ok = fakeTwilio();
   s = await send(makeHandler(env(), ok.f), jwt, { ticket_id: c.ticket.id, kind: 'CHECKIN', resend: true });
   assertEquals(s.body.status, 'ACCEPTED'); assertEquals(ok.sent.length, 1);
+  await reset({ sms_enabled: false, sms_test_only: true, tip_enabled: false, tip_links: {} });
+});
+
+Deno.test('webhook URL key (no Auth Token): right key accepted, wrong/missing key refused', async () => {
+  await reset({});
+  const KEY = 'k'.repeat(20) + crypto.randomUUID().replace(/-/g, '');
+  const tw = fakeTwilio();
+  const h = makeHandler(env({ TWILIO_AUTH_TOKEN: '', TWILIO_API_KEY_SID: 'SKtest', TWILIO_API_KEY_SECRET: 'secret', EVENT_VALET_INBOUND_KEY: KEY }), tw.f);
+  const jwt = await login('localipad@airvalet.local');
+  const c = await staffRpc(jwt, 'event_valet_checkin', { p_event: EVENT, p_phone: '9545551201', p_vehicle: 'Lexus', p_client_key: 'uk1' });
+  const s = await send(h, jwt, { ticket_id: c.ticket.id, kind: 'CHECKIN' });
+  assertEquals(s.body.status, 'ACCEPTED');
+  assert(tw.sent[0].cb!.includes(`&k=${KEY}`));
+  let r = await twilioPost(h, '/inbound', inbound('+19545551201', 'READY'), { query: '?k=wrong' });
+  assertEquals(r.status, 403);
+  r = await twilioPost(h, '/inbound', inbound('+19545551201', 'READY'));
+  assertEquals(r.status, 403);
+  assertEquals((await rest(`event_valet_tickets?id=eq.${c.ticket.id}`))[0].status, 'PARKED');
+  r = await twilioPost(h, '/inbound', { ...inbound('+19545551201', 'READY'), AccountSid: 'ACother' }, { query: `?k=${KEY}` });
+  assertEquals(r.status, 403);
+  r = await twilioPost(h, '/inbound', inbound('+19545551201', 'Ready'), { query: `?k=${KEY}` });
+  assertEquals(r.status, 200);
+  assertEquals((await rest(`event_valet_tickets?id=eq.${c.ticket.id}`))[0].status, 'REQUESTED');
+  // short key is never accepted
+  const h2 = makeHandler(env({ TWILIO_AUTH_TOKEN: '', EVENT_VALET_INBOUND_KEY: 'short' }), tw.f);
+  assertEquals((await twilioPost(h2, '/inbound', inbound('+19545551201', 'READY'), { query: '?k=short' })).status, 503);
   await reset({ sms_enabled: false, sms_test_only: true, tip_enabled: false, tip_links: {} });
 });

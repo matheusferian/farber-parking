@@ -5,12 +5,14 @@
 const enc = new TextEncoder();
 
 // ── Messages ────────────────────────────────────────────────────────────
-export const pad3 = (n: number) => String(n).padStart(3, '0');
-
 export type Kind = 'CHECKIN' | 'REQUESTED' | 'TIP' | 'AMBIGUOUS' | 'NO_MATCH';
+export type CarOption = { code: string; vehicle: string };
 
-export function composeSms(kind: Kind, ticketNo: number | null, link: string | null): string {
-  const no = ticketNo == null ? '' : pad3(ticketNo);
+// Ticket code = last 4 digits of the guest's phone ("0101", or "0101-B" for a
+// second car with the same last 4).
+export function composeSms(kind: Kind, code: string | null, link: string | null, options: CarOption[] = []): string {
+  const no = code ?? '';
+  const pick = options.map((o) => `READY ${o.code} — ${o.vehicle}`);
   switch (kind) {
     case 'CHECKIN':
       return [
@@ -44,13 +46,14 @@ export function composeSms(kind: Kind, ticketNo: number | null, link: string | n
     case 'AMBIGUOUS':
       return [
         '🎟️ We found more than one vehicle for this number.',
-        'Please reply READY followed by your ticket number (example: READY 016).',
+        'Please reply with the one you want:',
+        ...(pick.length ? pick : ['READY followed by your ticket number']),
         '— Makers Air Valet',
       ].join('\n');
     case 'NO_MATCH':
       return [
         'We could not match that ticket number to this phone.',
-        'Please reply READY followed by your ticket number, or see a valet.',
+        ...(pick.length ? ['Please reply with:', ...pick] : ['Please reply READY, or see a valet.']),
         '— Makers Air Valet',
       ].join('\n');
   }
@@ -65,14 +68,15 @@ export const maskLink = (body: string, link: string | null) =>
 const KEYWORDS = new Set(['STOP', 'STOPALL', 'UNSUBSCRIBE', 'CANCEL', 'END', 'QUIT', 'OPTOUT', 'REVOKE',
   'START', 'UNSTOP', 'YES', 'HELP', 'INFO']);
 
-export type Parsed = { type: 'ready'; ticketNo: number | null } | { type: 'keyword' } | { type: 'other' };
+export type Parsed = { type: 'ready'; ticketRef: string | null } | { type: 'keyword' } | { type: 'other' };
 
 export function parseInbound(raw: string): Parsed {
   const text = String(raw ?? '').toUpperCase().replace(/[^A-Z0-9# ]/g, ' ').replace(/\s+/g, ' ').trim();
   if (KEYWORDS.has(text)) return { type: 'keyword' };
   if (!/\bREADY\b/.test(text)) return { type: 'other' };
-  const m = text.match(/(?:^|\s)#?(\d{1,4})(?:\s|$)/);
-  return { type: 'ready', ticketNo: m ? parseInt(m[1], 10) : null };
+  // "READY 0101", "ready #0101-b", "0101 B ready" → "0101" / "0101B"
+  const m = text.match(/(?:^|\s)#?(\d{1,4})(?:\s?([B-Z]))?(?=\s|$)/);
+  return { type: 'ready', ticketRef: m ? m[1] + (m[2] ?? '') : null };
 }
 
 // ── Phone ───────────────────────────────────────────────────────────────
@@ -98,6 +102,12 @@ export async function computeSignature(authToken: string, url: string, params: I
   const key = await crypto.subtle.importKey('raw', enc.encode(authToken), { name: 'HMAC', hash: 'SHA-1' }, false, ['sign']);
   const mac = await crypto.subtle.sign('HMAC', key, enc.encode(signatureData(url, params)));
   return btoa(String.fromCharCode(...new Uint8Array(mac)));
+}
+export function timingSafeEqualStr(x: string, y: string): boolean {
+  const a = enc.encode(x), b = enc.encode(y);
+  let diff = a.length ^ b.length;
+  for (let i = 0; i < Math.max(a.length, b.length); i++) diff |= (a[i] ?? 0) ^ (b[i] ?? 0);
+  return diff === 0;
 }
 export async function validSignature(authToken: string | undefined, url: string, params: Iterable<[string, string]>, sig: string | null) {
   if (!authToken || !sig) return false; // fail closed when unconfigured

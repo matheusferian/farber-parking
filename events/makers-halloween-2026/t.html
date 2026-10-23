@@ -50,7 +50,7 @@ body{min-height:100vh;display:flex;justify-content:center;padding:max(24px,env(s
 
   <div id="ticket" class="card hidden">
     <div class="lbl">YOUR TICKET</div>
-    <div class="tno" id="tNo">#000</div>
+    <div class="tno" id="tNo">#0000</div>
     <div class="row"><span class="lbl">VEHICLE</span><b id="tVeh">—</b></div>
     <div class="row"><span class="lbl">STATUS</span><span id="tSt" class="st">—</span></div>
     <button id="reqBtn" class="btn btn-gold hidden">REQUEST MY CAR</button>
@@ -61,7 +61,7 @@ body{min-height:100vh;display:flex;justify-content:center;padding:max(24px,env(s
       <div class="muted">Tips are 100% optional. Valet service is complimentary.</div>
     </div>
   </div>
-  <div class="muted">Show this ticket number to the valet at pickup.</div>
+  <div class="muted">Your ticket number is the last 4 digits of your phone. Show it to the valet at pickup.</div>
 </div>
 <script>
 'use strict';
@@ -84,7 +84,8 @@ function render(d){
   $('loading').classList.add('hidden');
   if (!d || d.state !== 'ok') { $('invalid').classList.remove('hidden'); $('ticket').classList.add('hidden'); return false; }
   $('ticket').classList.remove('hidden');
-  $('tNo').textContent = '#' + pad3(d.ticket_no);
+  $('tNo').textContent = '#' + d.ticket_code;
+  $('tNo').style.fontSize = d.ticket_code.length > 4 ? '64px' : '';
   $('tVeh').textContent = d.vehicle;
   $('tSt').textContent = d.status; $('tSt').className = 'st ' + d.status;
   $('reqBtn').classList.toggle('hidden', d.status !== 'PARKED');

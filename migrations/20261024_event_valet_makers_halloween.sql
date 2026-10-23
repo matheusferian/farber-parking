@@ -48,6 +48,11 @@ create table public.event_valet_tickets (
   id               uuid primary key default gen_random_uuid(),
   event_id         text not null references public.event_valet_events(id),
   ticket_no        int  not null check (ticket_no > 0),
+  -- What the guest and the valet use: last 4 digits of the phone ("0101").
+  -- A second car / second visit from the same last 4 gets "0101-B", "0101-C"…
+  -- Unique for the whole event, never reused. ticket_no stays as the
+  -- internal sequential reference (#001, #002…).
+  ticket_code      text not null check (ticket_code ~ '^[0-9]{4}(-[B-Z])?$'),
   slot_no          int  check (slot_no > 0),
   phone_e164       text not null check (phone_e164 ~ '^\+[1-9][0-9]{7,14}$'),
   vehicle          text not null check (length(btrim(vehicle)) between 1 and 60),
@@ -65,6 +70,7 @@ create table public.event_valet_tickets (
   created_by       uuid default auth.uid(),
   updated_at       timestamptz not null default now(),
   unique (event_id, ticket_no),
+  unique (event_id, ticket_code),
   unique (event_id, client_key)
 );
 -- A slot is held only while the car is not delivered. slot_no stays on the
@@ -139,7 +145,7 @@ end $$;
 create or replace function public.event_valet_ticket_json(t public.event_valet_tickets)
 returns jsonb language sql stable set search_path = public as $$
   select jsonb_build_object(
-    'id', t.id, 'event_id', t.event_id, 'ticket_no', t.ticket_no, 'slot_no', t.slot_no,
+    'id', t.id, 'event_id', t.event_id, 'ticket_no', t.ticket_no, 'ticket_code', t.ticket_code, 'slot_no', t.slot_no,
     'phone_e164', t.phone_e164, 'vehicle', t.vehicle, 'status', t.status,
     'checked_in_at', t.checked_in_at, 'requested_at', t.requested_at,
     'request_source', t.request_source, 'ready_at', t.ready_at,
@@ -152,7 +158,7 @@ create or replace function public.event_valet_checkin(
   p_event text, p_phone text, p_vehicle text, p_client_key text default null)
 returns jsonb language plpgsql security definer set search_path = public as $$
 declare ev public.event_valet_events; t public.event_valet_tickets;
-        v_phone text; v_vehicle text; v_no int; v_slot int;
+        v_phone text; v_vehicle text; v_no int; v_slot int; v_code text; v_n int := 0;
 begin
   if not public.event_valet_is_staff() then raise exception 'NOT_AUTHORIZED' using errcode = '42501'; end if;
   v_phone := public.event_valet_normalize_phone(p_phone);
@@ -171,16 +177,22 @@ begin
   end if;
 
   select coalesce(max(ticket_no), 0) + 1 into v_no from public.event_valet_tickets where event_id = p_event;
+  v_code := right(v_phone, 4);
+  while exists (select 1 from public.event_valet_tickets where event_id = p_event and ticket_code = v_code) loop
+    v_n := v_n + 1;
+    if v_n > 24 then raise exception 'TOO_MANY_TICKETS_FOR_PHONE' using errcode = '54000'; end if;
+    v_code := right(v_phone, 4) || '-' || chr(65 + v_n);   -- -B, -C, …
+  end loop;
   select s into v_slot from generate_series(1, ev.slot_capacity) s
    where not exists (select 1 from public.event_valet_tickets x
                       where x.event_id = p_event and x.slot_no = s and x.status <> 'DELIVERED')
    order by s limit 1;  -- NULL when every slot is taken (operator assigns manually)
 
-  insert into public.event_valet_tickets (event_id, ticket_no, slot_no, phone_e164, vehicle, client_key)
-  values (p_event, v_no, v_slot, v_phone, v_vehicle, p_client_key)
+  insert into public.event_valet_tickets (event_id, ticket_no, ticket_code, slot_no, phone_e164, vehicle, client_key)
+  values (p_event, v_no, v_code, v_slot, v_phone, v_vehicle, p_client_key)
   returning * into t;
   insert into public.event_valet_audit (event_id, ticket_id, action, detail)
-  values (p_event, t.id, 'CHECK_IN', jsonb_build_object('ticket_no', v_no, 'slot_no', v_slot));
+  values (p_event, t.id, 'CHECK_IN', jsonb_build_object('ticket_no', v_no, 'ticket_code', v_code, 'slot_no', v_slot));
   return jsonb_build_object('created', true, 'slots_full', v_slot is null, 'ticket', public.event_valet_ticket_json(t));
 end $$;
 
@@ -335,16 +347,22 @@ begin
     end if;
   end if;
   return jsonb_build_object('state', 'ok', 'changed', v_changed, 'ticket_id', t.id,
-    'title', ev.title, 'event_date', ev.event_date, 'ticket_no', t.ticket_no,
+    'title', ev.title, 'event_date', ev.event_date, 'ticket_no', t.ticket_no, 'ticket_code', t.ticket_code,
     'vehicle', t.vehicle, 'status', t.status,
     'tip_links', case when ev.tip_enabled and t.status = 'DELIVERED' then ev.tip_links else null end);
 end $$;
 
+create or replace function public.event_valet_options(p_ids uuid[])
+returns jsonb language sql stable security definer set search_path = public as $$
+  select coalesce(jsonb_agg(jsonb_build_object('code', t.ticket_code, 'vehicle', t.vehicle) order by t.ticket_no), '[]'::jsonb)
+    from public.event_valet_tickets t where t.id = any (p_ids);
+$$;
+
 -- Inbound SMS "READY" (optionally with a ticket number). The phone alone
 -- is never enough when it has more than one active ticket.
-create or replace function public.event_valet_inbound_ready(p_phone text, p_ticket_no int)
+create or replace function public.event_valet_inbound_ready(p_phone text, p_ref text)
 returns jsonb language plpgsql security definer set search_path = public as $$
-declare v_active uuid[]; v_match uuid[]; v_id uuid; r jsonb; v_any int;
+declare v_active uuid[]; v_match uuid[]; v_id uuid; r jsonb; v_any int; v_ref text;
 begin
   select array_agg(t.id order by t.ticket_no) into v_active
     from public.event_valet_tickets t join public.event_valet_events e on e.id = t.event_id
@@ -354,13 +372,20 @@ begin
      where e.is_open and t.phone_e164 = p_phone;
     return jsonb_build_object('result', case when v_any > 0 then 'DELIVERED' else 'NONE' end);
   end if;
-  if p_ticket_no is not null then
+  v_ref := upper(regexp_replace(coalesce(p_ref, ''), '[^0-9A-Za-z]', '', 'g'));
+  if v_ref <> '' then
+    -- only among THIS phone's active tickets: the phone alone never reaches another car
     select array_agg(t.id) into v_match from public.event_valet_tickets t
-     where t.id = any (v_active) and t.ticket_no = p_ticket_no;
-    if v_match is null then return jsonb_build_object('result', 'NO_MATCH', 'active', array_length(v_active, 1)); end if;
+     where t.id = any (v_active)
+       and (replace(t.ticket_code, '-', '') = v_ref
+            or (v_ref ~ '^[0-9]{1,3}$' and t.ticket_no = v_ref::int));
+    if v_match is null or array_length(v_match, 1) > 1 then
+      return jsonb_build_object('result', case when v_match is null then 'NO_MATCH' else 'AMBIGUOUS' end,
+        'options', public.event_valet_options(v_active));
+    end if;
     v_id := v_match[1];
   elsif array_length(v_active, 1) > 1 then
-    return jsonb_build_object('result', 'AMBIGUOUS', 'active', array_length(v_active, 1));
+    return jsonb_build_object('result', 'AMBIGUOUS', 'options', public.event_valet_options(v_active));
   else
     v_id := v_active[1];
   end if;
@@ -385,7 +410,8 @@ revoke all on function public.event_valet_mark_printed(uuid, text)           fro
 revoke all on function public.event_valet_board(text)                        from public, anon;
 revoke all on function public.event_valet_mint_guest_token(uuid)             from public, anon, authenticated;
 revoke all on function public.event_valet_guest(text, text)                  from public, anon, authenticated;
-revoke all on function public.event_valet_inbound_ready(text, int)           from public, anon, authenticated;
+revoke all on function public.event_valet_inbound_ready(text, text)          from public, anon, authenticated;
+revoke all on function public.event_valet_options(uuid[])                    from public, anon, authenticated;
 
 grant execute on function public.event_valet_is_staff()                      to authenticated;
 grant execute on function public.event_valet_checkin(text, text, text, text) to authenticated;
@@ -401,6 +427,7 @@ grant execute on function public.event_valet_ticket_json(public.event_valet_tick
 grant execute on function public.event_valet_apply_status(uuid, text, text) to service_role;
 grant execute on function public.event_valet_mint_guest_token(uuid)         to service_role;
 grant execute on function public.event_valet_guest(text, text)              to service_role;
-grant execute on function public.event_valet_inbound_ready(text, int)       to service_role;
+grant execute on function public.event_valet_inbound_ready(text, text)      to service_role;
+grant execute on function public.event_valet_options(uuid[])                to service_role;
 
 commit;

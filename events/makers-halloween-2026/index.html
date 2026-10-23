@@ -196,7 +196,7 @@ main{padding:16px;max-width:1280px;margin:0 auto}
       <div id="ciDone" class="panel confirm hidden">
         <div class="ok">✓ CHECKED IN</div>
         <div class="bigrow">
-          <div class="big"><small>TICKET</small><b id="dTicket">#000</b></div>
+          <div class="big"><small>TICKET</small><b id="dTicket">#0000</b><small id="dRef" style="margin-top:4px;letter-spacing:.08em"></small></div>
           <div class="big slot"><small>KEY SLOT</small><b id="dSlot">00</b></div>
         </div>
         <div class="veh" id="dVeh">—</div>
@@ -212,7 +212,7 @@ main{padding:16px;max-width:1280px;margin:0 auto}
 
     <section id="viewBoard" class="hidden">
       <div class="toolbar">
-        <input id="q" class="search" placeholder="Search ticket #, vehicle, last 4 of phone" autocomplete="off" inputmode="search">
+        <input id="q" class="search" placeholder="🔎 Last 4 or vehicle" autocomplete="off" inputmode="search">
         <button id="soundBtn" class="btn btn-dark btn-sm sound" style="width:auto">🔔 SOUND ON</button>
       </div>
       <div id="board"></div>
@@ -350,7 +350,9 @@ $('ciBtn').onclick = doCheckin;
 
 function showConfirmation(t, slotsFull){
   state.last = t;
-  $('dTicket').textContent = '#' + pad3(t.ticket_no);
+  $('dTicket').textContent = '#' + t.ticket_code;
+  $('dTicket').style.fontSize = t.ticket_code.length > 4 ? '36px' : '';
+  $('dRef').textContent = 'REF #' + pad3(t.ticket_no);
   $('dSlot').textContent = t.slot_no ? pad2(t.slot_no) : '—';
   $('dVeh').textContent = t.vehicle;
   $('ciForm').classList.add('hidden'); $('ciDone').classList.remove('hidden');
@@ -377,7 +379,8 @@ function keyTicketXml(t){
     + '<text align="center" em="true" width="1" height="1">HALLOWEEN VALET&#10;</text>'
     + '<text align="center" em="false">------------------------&#10;</text>'
     + '<text align="center">TICKET&#10;</text>'
-    + '<text align="center" em="true" width="4" height="4">#' + pad3(t.ticket_no) + '&#10;</text>'
+    + '<text align="center" em="true" width="' + (t.ticket_code.length > 4 ? 3 : 4) + '" height="4">#' + xmlEsc(t.ticket_code) + '&#10;</text>'
+    + '<text align="center" em="false" width="1" height="1">REF #' + pad3(t.ticket_no) + '&#10;</text>'
     + '<feed line="1"/>'
     + '<text align="center" em="false" width="1" height="1">KEY SLOT&#10;</text>'
     + '<text align="center" em="true" width="4" height="4">' + slot + '&#10;</text>'
@@ -501,7 +504,7 @@ function onBoard(){
   state.firstLoad = false;
   if (fresh.length) {
     beep();
-    toast('🚗 REQUESTED: ' + fresh.map(function(t){ return '#' + pad3(t.ticket_no) + ' · SLOT ' + (t.slot_no ? pad2(t.slot_no) : '—'); }).join('  '), 6000);
+    toast('🚗 REQUESTED: ' + fresh.map(function(t){ return '#' + t.ticket_code + ' · SLOT ' + (t.slot_no ? pad2(t.slot_no) : '—'); }).join('  '), 6000);
     if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
   }
   renderBoard(fresh.map(function(t){ return t.id; }));
@@ -523,10 +526,10 @@ function cardHtml(t, flash){
     : t.status === 'READY' ? 'Ready ' + timeOf(t.ready_at)
     : t.status === 'DELIVERED' ? 'Delivered ' + timeOf(t.delivered_at) : 'In ' + timeOf(t.checked_in_at);
   return '<div class="card ' + t.status + (flash ? ' flash' : '') + '" data-id="' + t.id + '">'
-    + '<div class="ctop"><div class="tno"><small>TICKET</small>#' + pad3(t.ticket_no) + '</div>'
+    + '<div class="ctop"><div class="tno"><small>TICKET · REF #' + pad3(t.ticket_no) + '</small>#' + esc(t.ticket_code) + '</div>'
     + '<div class="slotbox"><small>KEY SLOT</small>' + slot + '</div></div>'
     + '<div class="cveh">' + esc(t.vehicle) + '</div>'
-    + '<div class="meta"><span>' + esc(when) + '</span><span>☎ …' + esc(t.phone_e164.slice(-4)) + '</span>'
+    + '<div class="meta"><span>' + esc(when) + '</span>'
     + (t.print_count ? '<span>🖨 ' + t.print_count + '</span>' : '<span style="color:var(--red)">🖨 not printed</span>') + '</div>'
     + '<span class="pill ' + t.status + '">' + t.status + '</span>'
     + (ls ? '<div class="smsline">💬 ' + esc(ls.kind) + ': ' + esc(SMS_LABEL[ls.status] || ls.status) + (ls.error_code ? ' (' + esc(ls.error_code) + ')' : '') + '</div>' : '')
@@ -539,7 +542,11 @@ function renderBoard(flashIds){
   var q = $('q').value.trim().toUpperCase().replace(/^#/, '');
   var list = state.board.tickets.filter(function(t){
     if (!q) return true;
-    if (/^\d+$/.test(q)) return t.ticket_no === parseInt(q, 10) || (q.length === 4 && t.phone_e164.slice(-4) === q);
+    var qc = q.replace(/[\s-]/g, '');
+    if (/^\d{1,4}[B-Z]?$/.test(qc)) {
+      return t.ticket_code.replace('-', '').indexOf(qc) === 0 || t.ticket_no === parseInt(qc, 10)
+        || (/^\d+$/.test(qc) && qc.length >= 3 && t.phone_e164.slice(-qc.length) === qc);
+    }
     return t.vehicle.indexOf(q) >= 0;
   });
   var groups = [['REQUESTED', 'REQUESTED — GET THESE CARS'], ['READY', 'READY AT THE STAND'], ['PARKED', 'PARKED'], ['DELIVERED', 'DELIVERED']];
@@ -565,7 +572,7 @@ $('board').addEventListener('click', function(e){
   if (btn.dataset.a) {
     var to = btn.dataset.a;
     if (to === 'DELIVERED') {
-      confirmModal('Deliver #' + pad3(t.ticket_no) + '?', esc(t.vehicle) + ' · key slot ' + (t.slot_no ? pad2(t.slot_no) : '—') + ' will be freed.', 'DELIVERED', 'btn-gold',
+      confirmModal('Deliver #' + t.ticket_code + '?', esc(t.vehicle) + ' · key slot ' + (t.slot_no ? pad2(t.slot_no) : '—') + ' will be freed.', 'DELIVERED', 'btn-gold',
         function(){ setStatus(t, to, btn); });
     } else setStatus(t, to, btn);
     return;
@@ -575,8 +582,8 @@ $('board').addEventListener('click', function(e){
   if (m === 'resend') sendSms(t, 'CHECKIN', true, null, btn);
   if (m === 'tip') sendSms(t, 'TIP', true, null, btn);
   if (m === 'slot') editSlot(t);
-  if (m === 'park') confirmModal('Back to PARKED?', 'Ticket #' + pad3(t.ticket_no) + ' returns to the parked list.', 'BACK TO PARKED', 'btn-dark', function(){ setStatus(t, 'PARKED', btn); });
-  if (m === 'undo') confirmModal('Undo delivery?', 'Ticket #' + pad3(t.ticket_no) + ' goes back to READY. If its slot was reused, assign a new slot.', 'UNDO', 'btn-dark', function(){ setStatus(t, 'READY', btn); });
+  if (m === 'park') confirmModal('Back to PARKED?', 'Ticket #' + t.ticket_code + ' returns to the parked list.', 'BACK TO PARKED', 'btn-dark', function(){ setStatus(t, 'PARKED', btn); });
+  if (m === 'undo') confirmModal('Undo delivery?', 'Ticket #' + t.ticket_code + ' goes back to READY. If its slot was reused, assign a new slot.', 'UNDO', 'btn-dark', function(){ setStatus(t, 'READY', btn); });
 });
 
 async function setStatus(t, to, btn){
@@ -588,7 +595,7 @@ async function setStatus(t, to, btn){
     var res = r.data;
     if (res.changed && to === 'REQUESTED') sendSms(res.ticket, 'REQUESTED', false, null);
     if (res.changed && to === 'DELIVERED') sendSms(res.ticket, 'TIP', false, null);
-    if (res.changed) toast('#' + pad3(t.ticket_no) + ' → ' + res.ticket.status);
+    if (res.changed) toast('#' + t.ticket_code + ' → ' + res.ticket.status);
     await refresh();
   } catch (e) { toast(errText(e), 4000); }
   finally { state.busy[key] = false; if (btn) btn.disabled = false; }
@@ -596,13 +603,13 @@ async function setStatus(t, to, btn){
 
 function editSlot(t){
   var cap = state.board.event.slot_capacity, used = {};
-  state.board.tickets.forEach(function(x){ if (x.status !== 'DELIVERED' && x.slot_no && x.id !== t.id) used[x.slot_no] = '#' + pad3(x.ticket_no); });
+  state.board.tickets.forEach(function(x){ if (x.status !== 'DELIVERED' && x.slot_no && x.id !== t.id) used[x.slot_no] = '#' + x.ticket_code; });
   var grid = '';
   for (var i = 1; i <= cap; i++) {
     grid += '<button class="btn btn-sm ' + (used[i] ? 'btn-dark' : (t.slot_no === i ? 'btn-gold' : 'btn-dark')) + '" data-slot="' + i + '"' + (used[i] ? ' disabled' : '') + ' style="padding:10px 4px">'
       + pad2(i) + (used[i] ? '<br><small style="font-size:10px">' + used[i] + '</small>' : '') + '</button>';
   }
-  openModal('<h3>Key slot · #' + pad3(t.ticket_no) + '</h3><p>' + esc(t.vehicle) + ' · now ' + (t.slot_no ? pad2(t.slot_no) : 'none') + '. Pick a free slot.</p>'
+  openModal('<h3>Key slot · #' + t.ticket_code + '</h3><p>' + esc(t.vehicle) + ' · now ' + (t.slot_no ? pad2(t.slot_no) : 'none') + '. Pick a free slot.</p>'
     + '<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px">' + grid + '</div>'
     + '<button class="btn btn-dark btn-sm" style="margin-top:12px" id="mClose">CANCEL</button>');
   $('mClose').onclick = closeModal;
@@ -610,7 +617,7 @@ function editSlot(t){
     b.onclick = async function(){
       var r = await sb.rpc('event_valet_set_slot', { p_ticket: t.id, p_slot: parseInt(b.dataset.slot, 10) });
       if (r.error) { toast(errText(r.error), 4000); return; }
-      closeModal(); toast('#' + pad3(t.ticket_no) + ' → KEY SLOT ' + pad2(r.data.ticket.slot_no) + ' — reprint the key ticket', 4500);
+      closeModal(); toast('#' + t.ticket_code + ' → KEY SLOT ' + pad2(r.data.ticket.slot_no) + ' — reprint the key ticket', 4500);
       refresh();
     };
   });

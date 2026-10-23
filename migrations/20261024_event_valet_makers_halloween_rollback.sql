@@ -11,7 +11,8 @@ create table airvalet_archive.event_valet_messages_20261024 as table public.even
 create table airvalet_archive.event_valet_audit_20261024    as table public.event_valet_audit;
 revoke all on all tables in schema airvalet_archive from anon, authenticated;
 
-drop function if exists public.event_valet_inbound_ready(text, int);
+drop function if exists public.event_valet_inbound_ready(text, text);
+drop function if exists public.event_valet_options(uuid[]);
 drop function if exists public.event_valet_guest(text, text);
 drop function if exists public.event_valet_mint_guest_token(uuid);
 drop function if exists public.event_valet_board(text);

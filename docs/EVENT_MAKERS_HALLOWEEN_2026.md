@@ -17,15 +17,16 @@ and `vercel-build.sh` (+copy of the 2 pages) change.
 
 ## Behaviour
 
-- Check-in: phone (US, E.164) + vehicle → ticket `#001…` (never reused) + first free key slot `01–20`
+- Check-in: phone (US, E.164) + vehicle → ticket **= last 4 digits of the phone** (`#0101`; same last 4 again → `#0101-B`, `-C`; never reused; internal `REF #001` kept)  + first free key slot `01–20`
   (freed on DELIVERED). Allocation locks the event row → no duplicate numbers/slots (20 parallel check-ins tested).
   Double tap / retry returns the same ticket (client key). 21st car with all slots taken still gets a ticket, slot assigned by hand.
 - Print: Epson TM-m30II via HTTPS ePOS (same `printer_host` as the main app). Auto-print once after check-in; REPRINT never changes number/slot; 4 s guard against double print. Failure never blocks check-in.
 - SMS (server side only): CHECK-IN, REQUESTED, TIP (after DELIVERED, once per ticket). RESEND ≤ 1 per 30 s.
-- Guest replies `READY` (any case, optional ticket number). One active car → REQUESTED + confirmation.
-  Two active cars on one phone → asks for `READY <ticket #>`; a number that is not theirs → no change.
+- Guest replies `READY` (any case, optional ticket code, e.g. `READY 0101-B`). One active car → REQUESTED + confirmation.
+  Two active cars on one phone → replies with the options (`READY 0101 — BMW`, `READY 0101-B — AUDI`); a number that is not theirs → no change.
   Unknown numbers: never stored, never answered. STOP/HELP handled by Twilio Advanced Opt-Out.
 - Guest link: random 256-bit token, only SHA-256 stored; a new SMS link replaces the old one. Never shows key slot or phone.
+- Guest without SMS: valet types the last 4 digits or the vehicle in the board search.
 - Board: polls every 3 s; REQUESTED first (orange), READY (green), PARKED, DELIVERED (grey). Sound + toast on new request. DELIVERED asks for confirmation; UNDO within 15 min.
 
 ## Safety switches (row `event_valet_events`, id `makers-halloween-2026`)
@@ -44,12 +45,12 @@ and `vercel-build.sh` (+copy of the 2 pages) change.
 1. **DB**: apply `migrations/20261024_event_valet_makers_halloween.sql` to prod (additive only).
 2. **Function**: `supabase functions deploy event-valet --no-verify-jwt --project-ref sfewtirvqhrpanwhbchd`
 3. **Secrets** (Supabase → Edge Functions → Secrets):
-   `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` (owner pastes; needed to validate inbound webhooks),
+   `TWILIO_ACCOUNT_SID`, `TWILIO_API_KEY_SID` + `TWILIO_API_KEY_SECRET` (send), `EVENT_VALET_INBOUND_KEY` (random ≥32 chars, webhook URL key `?k=`) — or `TWILIO_AUTH_TOKEN` for X-Twilio-Signature (when set, the URL key is no longer accepted),
    `TWILIO_MESSAGING_SERVICE_SID` = AirValet SMS (MG9f8e…281f; number +1 954-526-9800, A2P campaign approved),
    `EVENT_VALET_PUBLIC_URL=https://sfewtirvqhrpanwhbchd.supabase.co/functions/v1/event-valet`.
    Optional: `TWILIO_API_KEY_SID` / `TWILIO_API_KEY_SECRET` (send with an API key instead of the Auth Token).
 4. **Twilio**: AirValet SMS service → Integration → Incoming messages webhook →
-   `https://sfewtirvqhrpanwhbchd.supabase.co/functions/v1/event-valet/inbound` (today it points to the never-deployed
+   `https://sfewtirvqhrpanwhbchd.supabase.co/functions/v1/event-valet/inbound?k=<EVENT_VALET_INBOUND_KEY>` (before it points to the never-deployed
    `twilio-inbound`; FarberOS service/number untouched). Restore after the event.
 5. **App**: merge branch → Vercel prod deploy (pages only).
 6. **Test (test-only mode)**: `sms_enabled=true`, `sms_test_phones={owner phone}` → check-in, READY, deliver.
@@ -61,7 +62,7 @@ and `vercel-build.sh` (+copy of the 2 pages) change.
 - Close the event: `… set is_open=false …`
 - Pages: redeploy the previous Vercel deployment (main app unaffected either way).
 - Twilio: set the AirValet SMS inbound URL back to `…/functions/v1/twilio-inbound`.
-- Function: `supabase functions delete event-valet`.
+- Function: `supabase functions delete event-valet`; then unset `EVENT_VALET_INBOUND_KEY` (rotate after the event).
 - DB: `migrations/20261024_event_valet_makers_halloween_rollback.sql` (archives the data in `airvalet_archive`, drops only `event_valet_*`).
 
 ## Tests

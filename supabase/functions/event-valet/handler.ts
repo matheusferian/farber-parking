@@ -12,7 +12,7 @@
 // sms_test_only = true only sms_test_phones receive texts. Secrets are
 // never logged or returned.
 
-import { composeSms, Kind, maskLink, maskPhone, normalizePhone, parseInbound, twilioSend, TwilioCfg, validSignature } from './lib.ts';
+import { CarOption, composeSms, Kind, maskLink, maskPhone, normalizePhone, parseInbound, timingSafeEqualStr, twilioSend, TwilioCfg, validSignature } from './lib.ts';
 
 export type Env = (k: string) => string | undefined;
 type Json = Record<string, any>;
@@ -28,6 +28,9 @@ export function makeHandler(env: Env, fetchImpl: typeof fetch = fetch) {
   const SITE = (env('EVENT_VALET_SITE_URL') ?? 'https://airvalet.farberos.com').replace(/\/$/, '');
   const ORIGINS = (env('EVENT_VALET_ALLOWED_ORIGINS') ?? 'https://airvalet.farberos.com').split(',').map((s) => s.trim()).filter(Boolean);
   const AUTH_TOKEN = env('TWILIO_AUTH_TOKEN');
+  // Webhook auth: X-Twilio-Signature (needs the Auth Token) OR, when the Auth
+  // Token is not configured, a random key in the webhook URL (?k=…).
+  const INBOUND_KEY = env('EVENT_VALET_INBOUND_KEY') ?? '';
   const ACCOUNT = env('TWILIO_ACCOUNT_SID') ?? '';
   const MG = env('TWILIO_MESSAGING_SERVICE_SID');
   const twilio: TwilioCfg | null = ACCOUNT && (AUTH_TOKEN || (env('TWILIO_API_KEY_SID') && env('TWILIO_API_KEY_SECRET')))
@@ -39,7 +42,9 @@ export function makeHandler(env: Env, fetchImpl: typeof fetch = fetch) {
       from: env('TWILIO_PHONE_NUMBER'),
     }
     : null;
-  const secrets = [SERVICE, AUTH_TOKEN, env('TWILIO_API_KEY_SECRET')].filter(Boolean) as string[];
+  const secrets = [SERVICE, AUTH_TOKEN, env('TWILIO_API_KEY_SECRET'), INBOUND_KEY].filter(Boolean) as string[];
+  const webhookReady = !!PUBLIC_URL && !!ACCOUNT && (!!AUTH_TOKEN || INBOUND_KEY.length >= 32);
+  const kq = INBOUND_KEY ? `&k=${encodeURIComponent(INBOUND_KEY)}` : '';
   const log = (event: string, data: Json = {}) => {
     let s = JSON.stringify({ fn: 'event-valet', event, ...data });
     for (const x of secrets) s = s.split(x).join('[redacted]');
@@ -81,11 +86,11 @@ export function makeHandler(env: Env, fetchImpl: typeof fetch = fetch) {
   }
 
   // ── Send one SMS for a ticket (idempotent per ticket+kind) ──
-  async function sendFor(t: Json, ev: Json, kind: Kind, opts: { resend?: boolean; dedupe?: string } = {}): Promise<Json> {
+  async function sendFor(t: Json, ev: Json, kind: Kind, opts: { resend?: boolean; dedupe?: string; options?: CarOption[] } = {}): Promise<Json> {
     const base = { event_id: ev.id, ticket_id: t.id, direction: 'OUT', kind, phone_e164: t.phone_e164 };
     const skip = async (status: string) => {
       await insertMessage({ ...base, status, body: null });
-      log('sms_skipped', { kind, status, ticket_no: t.ticket_no });
+      log('sms_skipped', { kind, status, ticket: t.ticket_code });
       return { status };
     };
     if (!ev.sms_enabled) return await skip('SKIPPED_SMS_OFF');
@@ -106,23 +111,23 @@ export function makeHandler(env: Env, fetchImpl: typeof fetch = fetch) {
       const tok = await rpc('event_valet_mint_guest_token', { p_ticket: t.id });
       link = `${SITE}/events/${ev.id}/t#${tok}`;
     }
-    const body = composeSms(kind, t.ticket_no, link);
+    const body = composeSms(kind, t.ticket_code, link, opts.options ?? []);
     const stored = maskLink(body, link);
     if (MODE === 'mock') {
       const sid = 'SMMOCK' + crypto.randomUUID().replace(/-/g, '').slice(0, 26);
       await patchMessage(row.id, { status: 'MOCK_SENT', twilio_sid: sid, body: stored });
-      log('sms_mock', { kind, ticket_no: t.ticket_no, to: maskPhone(t.phone_e164) });
+      log('sms_mock', { kind, ticket: t.ticket_code, to: maskPhone(t.phone_e164) });
       return { status: 'MOCK_SENT', sid, mock_body: body };
     }
-    const res = await twilioSend(twilio!, t.phone_e164, body, `${PUBLIC_URL}/status?mid=${row.id}`, fetchImpl);
+    const res = await twilioSend(twilio!, t.phone_e164, body, `${PUBLIC_URL}/status?mid=${row.id}${kq}`, fetchImpl);
     if (res.ok) {
       await patchMessage(row.id, { status: res.status.toUpperCase(), twilio_sid: res.sid, body: stored });
-      log('sms_sent', { kind, ticket_no: t.ticket_no, to: maskPhone(t.phone_e164) });
+      log('sms_sent', { kind, ticket: t.ticket_code, to: maskPhone(t.phone_e164) });
       return { status: res.status.toUpperCase() };
     }
     const status = res.maybeSent ? 'UNCONFIRMED' : 'FAILED';
     await patchMessage(row.id, { status, error_code: res.code, error_message: res.message, body: stored });
-    log('sms_failed', { kind, ticket_no: t.ticket_no, code: res.code });
+    log('sms_failed', { kind, ticket: t.ticket_code, code: res.code });
     return { status, error_code: res.code };
   }
 
@@ -174,15 +179,17 @@ export function makeHandler(env: Env, fetchImpl: typeof fetch = fetch) {
     const raw = await req.text();
     const params = new URLSearchParams(raw);
     const q = new URL(req.url).search;
-    const ok = await validSignature(AUTH_TOKEN, `${PUBLIC_URL}${path}${q}`, params.entries(), req.headers.get('x-twilio-signature'));
-    if (!ok) { log('bad_signature', { path }); return null; }
-    if (ACCOUNT && params.get('AccountSid') !== ACCOUNT) return null;
+    const k = new URL(req.url).searchParams.get('k') ?? '';
+    const ok = (AUTH_TOKEN && await validSignature(AUTH_TOKEN, `${PUBLIC_URL}${path}${q}`, params.entries(), req.headers.get('x-twilio-signature')))
+      || (!AUTH_TOKEN && INBOUND_KEY.length >= 32 && timingSafeEqualStr(k, INBOUND_KEY));
+    if (!ok) { log('bad_webhook_auth', { path }); return null; }
+    if (params.get('AccountSid') !== ACCOUNT) return null;
     if (MG && params.get('MessagingServiceSid') && params.get('MessagingServiceSid') !== MG) return null;
     return params;
   }
 
   async function routeInbound(req: Request) {
-    if (!AUTH_TOKEN || !PUBLIC_URL) return new Response('not configured', { status: 503 });
+    if (!webhookReady) return new Response('not configured', { status: 503 });
     const p = await verifyTwilio(req, '/inbound');
     if (!p) return new Response('forbidden', { status: 403 });
     const sid = p.get('MessageSid') ?? p.get('SmsSid') ?? '';
@@ -203,7 +210,7 @@ export function makeHandler(env: Env, fetchImpl: typeof fetch = fetch) {
       return twiml();
     }
 
-    const r = await rpc('event_valet_inbound_ready', { p_phone: phone, p_ticket_no: parsed.ticketNo });
+    const r = await rpc('event_valet_inbound_ready', { p_phone: phone, p_ref: parsed.ticketRef });
     const t = r.ticket;
     await insertMessage({ event_id: t?.event_id ?? rows[0].event_id, ticket_id: t?.id ?? null, direction: 'IN', kind: 'READY',
       phone_e164: phone, body: String(p.get('Body') ?? '').slice(0, 500), twilio_sid: sid, status: r.result, dedupe_key: `IN:${sid}` });
@@ -215,13 +222,13 @@ export function makeHandler(env: Env, fetchImpl: typeof fetch = fetch) {
     } else if (r.result === 'AMBIGUOUS' || r.result === 'NO_MATCH') {
       const x = await loadTicket((rows.find((y) => y.status !== 'DELIVERED') ?? rows[0]).id);
       // one clarification per inbound message (Twilio retries reuse the SID)
-      if (x) await sendFor(x.t, x.ev, r.result, { dedupe: `${r.result}:${sid}` });
+      if (x) await sendFor(x.t, x.ev, r.result, { dedupe: `${r.result}:${sid}`, options: r.options ?? [] });
     }
     return twiml();
   }
 
   async function routeStatus(req: Request) {
-    if (!AUTH_TOKEN || !PUBLIC_URL) return new Response('not configured', { status: 503 });
+    if (!webhookReady) return new Response('not configured', { status: 503 });
     const p = await verifyTwilio(req, '/status');
     if (!p) return new Response('forbidden', { status: 403 });
     const mid = new URL(req.url).searchParams.get('mid');
