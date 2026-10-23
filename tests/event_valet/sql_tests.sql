@@ -104,6 +104,17 @@ begin
   insert into _r(name, ok, info) values ('21st car: slots_full, slot NULL, still gets ticket',
     (r->>'slots_full')::boolean and r#>>'{ticket,slot_no}' is null and (r#>>'{ticket,ticket_no}')::int = 23, r::text);
 
+  -- parking location: chosen after parking; validated; audited
+  begin perform public.event_valet_set_location(t2, 'ROOF');
+        insert into _r(name, ok) values ('invalid location rejected', false);
+  exception when others then insert into _r(name, ok, info) values ('invalid location rejected', sqlerrm = 'INVALID_LOCATION', sqlerrm); end;
+  r := public.event_valet_set_location(t2, 'HANGAR 19');
+  insert into _r(name, ok, info) values ('first location set (first=true)', (r->>'first')::boolean and r#>>'{ticket,parking_location}' = 'HANGAR 19', r::text);
+  r := public.event_valet_set_location(t2, 'GRASS');
+  insert into _r(name, ok, info) values ('location change (first=false)', (r->>'changed')::boolean and not (r->>'first')::boolean and r#>>'{ticket,parking_location}' = 'GRASS', r::text);
+  r := public.event_valet_set_location(t2, 'GRASS');
+  insert into _r(name, ok, info) values ('same location no-op', not (r->>'changed')::boolean, r::text);
+
   -- delete a mistaken ticket: gone from board, slot freed, snapshot in audit
   r := public.event_valet_checkin('makers-halloween-2026', '9545550999', 'WRONG CAR', 'del1');
   perform public.event_valet_delete_ticket((r#>>'{ticket,id}')::uuid);
