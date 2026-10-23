@@ -50,6 +50,21 @@ header{position:sticky;top:0;z-index:20;background:rgba(11,11,14,.94);backdrop-f
 .tab .dot{display:inline-block;min-width:22px;padding:2px 6px;margin-left:6px;border-radius:999px;background:var(--orange);color:#111;font-size:12px}
 
 main{padding:16px;max-width:1280px;margin:0 auto}
+@media (max-width:600px){
+  header{padding:10px 12px 8px}
+  .brand{flex-direction:column;align-items:flex-start;gap:6px}
+  .brand h1{font-size:16px;letter-spacing:.04em;white-space:nowrap}
+  .brand .sub{font-size:10px;letter-spacing:.1em}
+  .badges{justify-content:flex-start}
+  .badge{font-size:10px;padding:4px 8px}
+  .counts{gap:6px;margin-top:8px}
+  .count{padding:6px 4px}
+  .count b{font-size:22px}
+  .count small{font-size:9px;letter-spacing:.08em}
+  .tab{padding:10px}
+  main{padding:12px}
+  .field{font-size:24px;padding:14px}
+}
 .layout{display:grid;gap:16px}
 @media (min-width:900px){
   .tabs{display:none}
@@ -64,6 +79,12 @@ main{padding:16px;max-width:1280px;margin:0 auto}
 .field:focus{border-color:var(--gold)}
 .field.err{border-color:var(--red)}
 .fgroup{margin-bottom:16px}
+.label .tag{font-size:10px;letter-spacing:.12em;padding:2px 6px;border-radius:6px;background:rgba(214,178,94,.16);color:var(--gold2);margin-left:6px;vertical-align:2px}
+.label .tag.opt{background:#22222a;color:var(--muted)}
+.sugg{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.sugg:empty{display:none}
+.sugg button{padding:11px 12px;border-radius:10px;border:1px solid var(--line);background:var(--panel2);color:var(--text);font-weight:800;font-size:15px;letter-spacing:.03em}
+.sugg button:active{border-color:var(--gold);color:var(--gold2)}
 .hint{font-size:13px;color:var(--muted);margin:-4px 0 14px;line-height:1.4}
 .err-msg{color:var(--red);font-weight:700;font-size:15px;min-height:20px;margin:4px 0 10px}
 .btn{display:block;width:100%;border:0;border-radius:14px;padding:18px;font-size:20px;font-weight:900;letter-spacing:.1em;cursor:pointer}
@@ -123,8 +144,8 @@ main{padding:16px;max-width:1280px;margin:0 auto}
 .actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
 .actions .btn{padding:14px 8px;font-size:15px;letter-spacing:.06em}
 .actions .full{grid-column:1/-1}
-.mini{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
-.mini button{flex:1;min-width:0;padding:9px 6px;font-size:12px;font-weight:800;letter-spacing:.04em;border-radius:10px;
+.mini{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:10px}
+.mini button{min-width:0;padding:10px 4px;font-size:12px;font-weight:800;letter-spacing:.04em;border-radius:10px;
   background:transparent;color:var(--muted);border:1px solid var(--line)}
 .smsline{font-size:12px;margin-top:8px;color:var(--muted)}
 .inb{font-size:12px;margin-top:6px;color:var(--gold2)}
@@ -144,7 +165,7 @@ main{padding:16px;max-width:1280px;margin:0 auto}
 </style>
 </head>
 <body>
-<div id="offline" class="offline hidden">NO CONNECTION — ACTIONS WILL NOT SAVE</div>
+<div id="offline" class="offline hidden">WEAK / NO SIGNAL — retrying… (actions are not lost: tap again)</div>
 
 <!-- LOGIN -->
 <section id="viewLogin" class="center hidden">
@@ -188,12 +209,17 @@ main{padding:16px;max-width:1280px;margin:0 auto}
       <div id="ciForm" class="panel">
         <div class="fgroup">
           <label class="label" for="ciPhone">PHONE NUMBER</label>
-          <input id="ciPhone" class="field" type="tel" inputmode="tel" autocomplete="off" placeholder="(954) 555-0123" maxlength="16">
+          <input id="ciPhone" class="field" type="tel" inputmode="tel" autocomplete="off" placeholder="(954) 555-0123" maxlength="16" enterkeyhint="next">
         </div>
         <div class="fgroup">
-          <label class="label" for="ciVeh">VEHICLE</label>
-          <input id="ciVeh" class="field" list="makes" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="BMW, Tesla, Civic…" maxlength="40">
-          <datalist id="makes"><option>TESLA</option><option>BMW</option><option>MERCEDES</option><option>TOYOTA CAMRY</option><option>HONDA CIVIC</option><option>HONDA ACCORD</option><option>LEXUS</option><option>AUDI</option><option>PORSCHE</option><option>JEEP</option><option>FORD F-150</option><option>CHEVROLET</option><option>NISSAN</option><option>HYUNDAI</option><option>KIA</option><option>RANGE ROVER</option></datalist>
+          <label class="label" for="ciMake">MAKE <span class="tag">REQUIRED</span></label>
+          <input id="ciMake" class="field" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" placeholder="BMW, Tesla, Honda…" maxlength="24" enterkeyhint="next">
+          <div class="sugg" id="sgMake"></div>
+        </div>
+        <div class="fgroup">
+          <label class="label" for="ciModel">MODEL <span class="tag opt">OPTIONAL</span></label>
+          <input id="ciModel" class="field" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" placeholder="X5, Model Y, Civic…" maxlength="30" enterkeyhint="go">
+          <div class="sugg" id="sgModel"></div>
         </div>
         <p class="hint">Say: “We’ll text your valet ticket — reply READY when you want your car.”</p>
         <div id="ciErr" class="err-msg"></div>
@@ -259,8 +285,32 @@ if (typeof lc !== 'undefined' && lc && lc.printer) PRINTER_URL = lc.printer;  //
 var TZ = 'America/New_York';
 var POLL_MS = 3000;
 
-var sb = supabase.createClient(SB_URL, SB_KEY);
-var state = { board: null, seenRequested: {}, firstLoad: true, sound: true, last: null, busy: {} };
+// Weak / oscillating signal: every request gives up after 12 s instead of
+// hanging, and safe operations retry automatically (the server makes them
+// idempotent: same check-in key → same ticket, same status/location → no-op).
+function fetchWithTimeout(url, opts){
+  opts = opts || {};
+  if (!opts.signal) {
+    var c = new AbortController(); setTimeout(function(){ c.abort(); }, 12000);
+    opts = Object.assign({}, opts, { signal: c.signal });
+  }
+  return fetch(url, opts);
+}
+var sb = supabase.createClient(SB_URL, SB_KEY, { global: { fetch: fetchWithTimeout } });
+function isNetErr(e){
+  var m = (e && (e.message || e.details || e.hint)) || String(e || '');
+  return !e || /Failed to fetch|Load failed|NetworkError|network|abort|timed? ?out|connection/i.test(m) || e.name === 'AbortError';
+}
+async function rpcRetry(name, args, tries){
+  tries = tries || 4;
+  for (var i = 1; ; i++) {
+    var r;
+    try { r = await sb.rpc(name, args); } catch (e) { r = { error: e }; }
+    if (!r.error || !isNetErr(r.error) || i >= tries) return r;
+    await new Promise(function(res){ setTimeout(res, 600 * i); });
+  }
+}
+var state = { board: null, seenRequested: {}, firstLoad: true, sound: true, last: null, busy: {}, fails: 0 };
 
 function $(id){ return document.getElementById(id); }
 function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
@@ -323,35 +373,103 @@ function fmtPhone(d){
 }
 function validPhone(d){ return d.length === 10 && !/[01]/.test(d[0]) && !/[01]/.test(d[3]); }
 $('ciPhone').addEventListener('input', function(){
-  var el = $('ciPhone'); el.value = fmtPhone(phoneDigits(el.value)); el.classList.remove('err');
+  var el = $('ciPhone'); el.value = fmtPhone(phoneDigits(el.value)); el.classList.remove('err'); clientKey = null;
 });
-$('ciVeh').addEventListener('input', function(){ $('ciVeh').classList.remove('err'); });
-$('ciPhone').addEventListener('keydown', function(e){ if (e.key === 'Enter') $('ciVeh').focus(); });
-$('ciVeh').addEventListener('keydown', function(e){ if (e.key === 'Enter') doCheckin(); });
+$('ciPhone').addEventListener('keydown', function(e){ if (e.key === 'Enter') $('ciMake').focus(); });
+
+// ── VEHICLE: make (required) + model (optional), suggestions while typing ─
+var CARS = {
+  'ACURA':['MDX','RDX','TLX','INTEGRA'], 'ALFA ROMEO':['GIULIA','STELVIO','TONALE'], 'ASTON MARTIN':['DBX','DB12','VANTAGE'],
+  'AUDI':['Q5','Q7','Q3','Q8','A4','A6','A5','A3','A8','E-TRON','RS6','R8'], 'BENTLEY':['BENTAYGA','CONTINENTAL GT','FLYING SPUR'],
+  'BMW':['X5','X3','X7','X6','X1','3 SERIES','5 SERIES','7 SERIES','4 SERIES','M3','M4','M5','I4','I7','IX'],
+  'BUICK':['ENCLAVE','ENCORE','ENVISION'], 'CADILLAC':['ESCALADE','XT5','XT6','XT4','CT5','LYRIQ'],
+  'CHEVROLET':['TAHOE','SILVERADO','SUBURBAN','EQUINOX','TRAVERSE','MALIBU','CORVETTE','CAMARO','BLAZER','TRAX'],
+  'CHRYSLER':['PACIFICA','300'], 'DODGE':['DURANGO','CHARGER','CHALLENGER','HORNET'],
+  'FERRARI':['PUROSANGUE','ROMA','296','SF90','F8','812'], 'FIAT':['500'],
+  'FORD':['F-150','EXPLORER','EXPEDITION','BRONCO','MUSTANG','ESCAPE','EDGE','MAVERICK','RANGER','F-250','TRANSIT'],
+  'GENESIS':['GV80','GV70','G80','G90','G70'], 'GMC':['YUKON','SIERRA','ACADIA','TERRAIN','CANYON'],
+  'HONDA':['CIVIC','ACCORD','CR-V','PILOT','HR-V','ODYSSEY','PASSPORT','RIDGELINE'],
+  'HYUNDAI':['TUCSON','SANTA FE','PALISADE','ELANTRA','SONATA','KONA','IONIQ 5'], 'INFINITI':['QX60','QX80','QX50','Q50'],
+  'JAGUAR':['F-PACE','E-PACE','F-TYPE','XF'], 'JEEP':['GRAND CHEROKEE','WRANGLER','CHEROKEE','COMPASS','GLADIATOR','WAGONEER'],
+  'KIA':['TELLURIDE','SORENTO','SPORTAGE','K5','FORTE','SOUL','CARNIVAL','EV6','EV9'], 'LAMBORGHINI':['URUS','HURACAN','REVUELTO'],
+  'LAND ROVER':['RANGE ROVER','RANGE ROVER SPORT','DEFENDER','RANGE ROVER VELAR','RANGE ROVER EVOQUE','DISCOVERY'],
+  'LEXUS':['RX','NX','ES','GX','LX','IS','UX','TX'], 'LINCOLN':['NAVIGATOR','AVIATOR','NAUTILUS','CORSAIR'], 'LUCID':['AIR','GRAVITY'],
+  'MASERATI':['LEVANTE','GRECALE','GHIBLI','QUATTROPORTE','MC20'], 'MAZDA':['CX-5','CX-90','CX-50','CX-30','MAZDA3','MX-5'],
+  'MCLAREN':['750S','720S','ARTURA','GT'],
+  'MERCEDES-BENZ':['GLE','GLC','C-CLASS','E-CLASS','S-CLASS','G-CLASS','GLS','GLA','GLB','CLA','AMG GT','EQS','SPRINTER','MAYBACH'],
+  'MINI':['COOPER','COUNTRYMAN'], 'MITSUBISHI':['OUTLANDER','ECLIPSE CROSS','MIRAGE'],
+  'NISSAN':['ROGUE','ALTIMA','PATHFINDER','SENTRA','MURANO','FRONTIER','ARMADA','KICKS','VERSA','LEAF'], 'POLESTAR':['2','3'],
+  'PORSCHE':['CAYENNE','MACAN','911','PANAMERA','TAYCAN','718'], 'RAM':['1500','2500','PROMASTER'], 'RIVIAN':['R1S','R1T'],
+  'ROLLS-ROYCE':['CULLINAN','GHOST','PHANTOM','SPECTRE','WRAITH'], 'SUBARU':['OUTBACK','FORESTER','CROSSTREK','ASCENT','WRX'],
+  'TESLA':['MODEL Y','MODEL 3','MODEL X','MODEL S','CYBERTRUCK'],
+  'TOYOTA':['CAMRY','RAV4','COROLLA','HIGHLANDER','TACOMA','TUNDRA','4RUNNER','SIENNA','GRAND HIGHLANDER','SEQUOIA','PRIUS'],
+  'VOLKSWAGEN':['TIGUAN','ATLAS','JETTA','PASSAT','GOLF','ID.4','TAOS'], 'VOLVO':['XC90','XC60','XC40','S60','S90','V60']
+};
+// What people say → make (+ model)
+var ALIASES = { 'MERCEDES': ['MERCEDES-BENZ'], 'BENZ': ['MERCEDES-BENZ'], 'CHEVY': ['CHEVROLET'], 'VW': ['VOLKSWAGEN'],
+  'RANGE ROVER': ['LAND ROVER', 'RANGE ROVER'], 'ROLLS': ['ROLLS-ROYCE'], 'G WAGON': ['MERCEDES-BENZ', 'G-CLASS'], 'MAYBACH': ['MERCEDES-BENZ', 'MAYBACH'] };
+var POPULAR = ['TESLA', 'BMW', 'MERCEDES-BENZ', 'TOYOTA', 'HONDA', 'LEXUS', 'PORSCHE', 'LAND ROVER'];
+function norm(v){ return String(v || '').toUpperCase().replace(/\s+/g, ' ').replace(/^\s/, ''); }
+function wordStart(name, q){ return name.indexOf(q) === 0 || name.split(/[ -]/).some(function(w){ return w.indexOf(q) === 0; }); }
+function chips(el, items){
+  el.innerHTML = items.map(function(it){ return '<button type="button" data-v="' + esc(it.v) + '"' + (it.m ? ' data-m="' + esc(it.m) + '"' : '') + '>' + esc(it.label) + '</button>'; }).join('');
+}
+function suggestMake(){
+  var q = norm($('ciMake').value).trim(), out = [];
+  if (!q) { chips($('sgMake'), POPULAR.map(function(m){ return { v: m, label: m }; })); return; }
+  if (CARS[q]) { $('sgMake').innerHTML = ''; return; }            // exact make typed
+  Object.keys(ALIASES).forEach(function(a){ if (a.indexOf(q) === 0) out.push({ v: ALIASES[a][0], m: ALIASES[a][1], label: ALIASES[a][1] ? a : ALIASES[a][0] }); });
+  Object.keys(CARS).forEach(function(m){ if (wordStart(m, q) && !out.some(function(o){ return o.v === m && !o.m; })) out.push({ v: m, label: m }); });
+  chips($('sgMake'), out.slice(0, 8));
+}
+function suggestModel(){
+  var make = norm($('ciMake').value).trim(), q = norm($('ciModel').value).trim(), list = CARS[make] || [];
+  if (list.indexOf(q) >= 0) { $('sgModel').innerHTML = ''; return; }
+  chips($('sgModel'), list.filter(function(m){ return !q || wordStart(m, q); }).slice(0, 10).map(function(m){ return { v: m, label: m }; }));
+}
+$('ciMake').addEventListener('input', function(){ $('ciMake').classList.remove('err'); suggestMake(); suggestModel(); });
+$('ciMake').addEventListener('focus', suggestMake);
+$('ciModel').addEventListener('input', suggestModel);
+$('ciModel').addEventListener('focus', suggestModel);
+$('sgMake').addEventListener('click', function(e){
+  var b = e.target.closest('button'); if (!b) return;
+  $('ciMake').value = b.dataset.v; $('ciMake').classList.remove('err'); $('sgMake').innerHTML = '';
+  if (b.dataset.m) { $('ciModel').value = b.dataset.m; $('sgModel').innerHTML = ''; $('ciModel').focus(); }
+  else { $('ciModel').value = ''; $('ciModel').focus(); suggestModel(); }
+});
+$('sgModel').addEventListener('click', function(e){
+  var b = e.target.closest('button'); if (!b) return;
+  $('ciModel').value = b.dataset.v; $('sgModel').innerHTML = ''; $('ciModel').blur();
+});
+$('ciMake').addEventListener('keydown', function(e){ if (e.key === 'Enter') { e.preventDefault(); $('ciModel').focus(); } });
+$('ciModel').addEventListener('keydown', function(e){ if (e.key === 'Enter') { e.preventDefault(); $('ciModel').blur(); doCheckin(); } });
+function vehicleText(){ return (norm($('ciMake').value).trim() + ' ' + norm($('ciModel').value).trim()).trim().slice(0, 60); }
 
 // ── CHECK-IN ───────────────────────────────────────────────────────────
 var clientKey = null;
 async function doCheckin(){
-  var d = phoneDigits($('ciPhone').value), veh = $('ciVeh').value.trim().replace(/\s+/g, ' ');
+  var d = phoneDigits($('ciPhone').value), veh = vehicleText();
   $('ciErr').textContent = '';
   if (!validPhone(d)) { $('ciPhone').classList.add('err'); $('ciErr').textContent = 'Enter a valid 10-digit US phone number.'; $('ciPhone').focus(); return; }
-  if (!veh) { $('ciVeh').classList.add('err'); $('ciErr').textContent = 'Enter the vehicle (make or model).'; $('ciVeh').focus(); return; }
+  if (!norm($('ciMake').value).trim()) { $('ciMake').classList.add('err'); $('ciErr').textContent = 'Enter the car make (BMW, Tesla, Honda…).'; $('ciMake').focus(); return; }
   if ($('ciBtn').disabled) return;
   $('ciBtn').disabled = true; $('ciBtn').textContent = 'CHECKING IN…';
   // one key per form submission: a retry after a timeout returns the same ticket
   clientKey = clientKey || (Date.now().toString(36) + Math.random().toString(36).slice(2, 10));
   try {
-    var r = await sb.rpc('event_valet_checkin', { p_event: EVENT_ID, p_phone: '+1' + d, p_vehicle: veh, p_client_key: clientKey });
+    var r = await rpcRetry('event_valet_checkin', { p_event: EVENT_ID, p_phone: '+1' + d, p_vehicle: veh, p_client_key: clientKey });
     if (r.error) throw r.error;
     var res = r.data, t = res.ticket;
     clientKey = null;
     showConfirmation(t, res.slots_full);
     refresh();
     // Print + SMS run in parallel and never block the ticket.
-    if (res.created) { setStat($('dPrint'), 'Waiting for location', 'wait'); sendSms(t, 'CHECKIN', false, $('dSms')); }
-    else { $('dPrint').textContent = 'Already checked in'; $('dPrint').className = 'v off'; $('dSms').textContent = '—'; $('dSms').className = 'v off'; }
+    // created=false = same submission retried after a lost answer: still the same
+    // ticket; the server never sends the check-in SMS twice.
+    setStat($('dPrint'), t.print_count ? 'Printed ✓' : 'Waiting for location', t.print_count ? 'ok' : 'wait');
+    sendSms(t, 'CHECKIN', false, $('dSms'));
   } catch (e) {
-    $('ciErr').textContent = errText(e);
+    $('ciErr').textContent = isNetErr(e) ? 'Weak signal — not confirmed. Tap CHECK IN again (it will NOT create a duplicate).' : errText(e);
   } finally {
     $('ciBtn').disabled = false; $('ciBtn').textContent = 'CHECK IN';
   }
@@ -370,7 +488,8 @@ function showConfirmation(t, slotsFull){
   if (slotsFull) toast('All key slots are full — assign a slot on the board.', 5000);
 }
 $('dNext').onclick = function(){
-  $('ciPhone').value = ''; $('ciVeh').value = ''; $('ciErr').textContent = '';
+  $('ciPhone').value = ''; $('ciMake').value = ''; $('ciModel').value = ''; $('ciErr').textContent = '';
+  $('sgMake').innerHTML = ''; $('sgModel').innerHTML = ''; clientKey = null;
   $('ciDone').classList.add('hidden'); $('ciForm').classList.remove('hidden');
   state.last = null; $('ciPhone').focus();
 };
@@ -382,7 +501,7 @@ $('dDelete').onclick = function(){
   var t = state.last; if (!t) return;
   confirmModal('Delete ticket #' + t.ticket_code + '?', esc(t.vehicle) + ' — removes it and frees key slot ' + (t.slot_no ? pad2(t.slot_no) : '—') + '.', 'DELETE TICKET', 'btn-orange',
     async function(){
-      var r = await sb.rpc('event_valet_delete_ticket', { p_ticket: t.id });
+      var r = await rpcRetry('event_valet_delete_ticket', { p_ticket: t.id });
       if (r.error) { toast(errText(r.error), 4000); return; }
       toast('Ticket #' + t.ticket_code + ' deleted'); $('dNext').click(); refresh();
     });
@@ -441,7 +560,7 @@ async function chooseLocation(t, loc, statusEl, btn){
   var key = 'loc:' + t.id; if (state.busy[key]) return;
   state.busy[key] = true; if (btn) btn.disabled = true;
   try {
-    var r = await sb.rpc('event_valet_set_location', { p_ticket: t.id, p_location: loc });
+    var r = await rpcRetry('event_valet_set_location', { p_ticket: t.id, p_location: loc });
     if (r.error) throw r.error;
     var nt = r.data.ticket;
     if (state.last && state.last.id === nt.id) { state.last = nt; $('dLocs').innerHTML = locButtons(nt); }
@@ -462,7 +581,7 @@ async function printTicket(t, kind, statusEl, btn){
     await epsonPost(keyTicketXml(t));
     setStat(statusEl, kind === 'REPRINT' ? 'Reprinted ✓' : 'Printed ✓', 'ok');
     setPrinter(true);
-    sb.rpc('event_valet_mark_printed', { p_ticket: t.id, p_kind: kind }).then(function(){ refresh(); });
+    rpcRetry('event_valet_mark_printed', { p_ticket: t.id, p_kind: kind }).then(function(){ refresh(); });
   } catch (e) {
     setStat(statusEl, 'Print failed — tap REPRINT', 'bad');
     setPrinter(false);
@@ -500,10 +619,15 @@ async function sendSms(t, kind, resend, statusEl, btn){
   state.busy[key] = true; if (btn) btn.disabled = true;
   setStat(statusEl, 'Sending…', 'wait');
   try {
-    var token = await jwt();
-    var r = await fetch(FN_URL + '/send', { method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token, 'apikey': SB_KEY },
-      body: JSON.stringify({ ticket_id: t.id, kind: kind, resend: !!resend }) });
+    var token = await jwt(), r;
+    for (var i = 1; ; i++) {   // network retries are safe: the server sends each SMS once
+      try {
+        r = await fetchWithTimeout(FN_URL + '/send', { method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token, 'apikey': SB_KEY },
+          body: JSON.stringify({ ticket_id: t.id, kind: kind, resend: !!resend }) });
+        break;
+      } catch (e) { if (i >= 3) throw e; await new Promise(function(res){ setTimeout(res, 800 * i); }); }
+    }
     var j = await r.json().catch(function(){ return {}; });
     if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
     var label = (SMS_LABEL[j.status] || j.status) + (j.error_code ? ' (' + j.error_code + ')' : '');
@@ -527,10 +651,11 @@ async function refresh(){
     if (r.error) throw r.error;
     $('offline').classList.add('hidden');
     state.board = r.data;
+    state.fails = 0;
     onBoard();
   } catch (e) {
     if (/NOT_AUTHORIZED/.test(errText(e)) || /not allowed/.test(errText(e))) { showNotAllowed(); }
-    else $('offline').classList.remove('hidden');
+    else if (++state.fails >= 2) $('offline').classList.remove('hidden');
   } finally { refreshing = false; }
 }
 function onBoard(){
@@ -659,7 +784,7 @@ $('board').addEventListener('click', function(e){
   if (m === 'park') confirmModal('Back to PARKED?', 'Ticket #' + t.ticket_code + ' returns to the parked list.', 'BACK TO PARKED', 'btn-dark', function(){ setStatus(t, 'PARKED', btn); });
   if (m === 'del') confirmModal('Delete ticket #' + t.ticket_code + '?', esc(t.vehicle) + ' — removes it from the board and frees key slot ' + (t.slot_no ? pad2(t.slot_no) : '—') + '. Use for mistakes or tests.', 'DELETE TICKET', 'btn-orange',
     async function(){
-      var r = await sb.rpc('event_valet_delete_ticket', { p_ticket: t.id });
+      var r = await rpcRetry('event_valet_delete_ticket', { p_ticket: t.id });
       if (r.error) { toast(errText(r.error), 4000); return; }
       if (state.last && state.last.id === t.id) $('dNext').click();
       toast('Ticket #' + t.ticket_code + ' deleted'); refresh();
@@ -671,7 +796,7 @@ async function setStatus(t, to, btn){
   var key = 'st:' + t.id; if (state.busy[key]) return;
   state.busy[key] = true; if (btn) btn.disabled = true;
   try {
-    var r = await sb.rpc('event_valet_set_status', { p_ticket: t.id, p_status: to });
+    var r = await rpcRetry('event_valet_set_status', { p_ticket: t.id, p_status: to });
     if (r.error) throw r.error;
     var res = r.data;
     if (res.changed && to === 'REQUESTED') sendSms(res.ticket, 'REQUESTED', false, null);
@@ -696,7 +821,7 @@ function editSlot(t){
   $('mClose').onclick = closeModal;
   $('modalBody').querySelectorAll('[data-slot]').forEach(function(b){
     b.onclick = async function(){
-      var r = await sb.rpc('event_valet_set_slot', { p_ticket: t.id, p_slot: parseInt(b.dataset.slot, 10) });
+      var r = await rpcRetry('event_valet_set_slot', { p_ticket: t.id, p_slot: parseInt(b.dataset.slot, 10) });
       if (r.error) { toast(errText(r.error), 4000); return; }
       closeModal(); toast('#' + t.ticket_code + ' → KEY SLOT ' + pad2(r.data.ticket.slot_no) + ' — reprint the key ticket', 4500);
       refresh();
@@ -757,7 +882,7 @@ async function activeReg(){
 }
 async function saveSub(sub){
   var j = sub.toJSON();
-  var r = await sb.rpc('event_valet_push_subscribe', { p_event: EVENT_ID, p_endpoint: j.endpoint, p_p256dh: j.keys.p256dh, p_auth: j.keys.auth,
+  var r = await rpcRetry('event_valet_push_subscribe', { p_event: EVENT_ID, p_endpoint: j.endpoint, p_p256dh: j.keys.p256dh, p_auth: j.keys.auth,
     p_label: (isIOS() ? 'iPhone/iPad' : 'browser') + (isStandalone() ? ' app' : '') });
   if (r.error) throw r.error;
   return r.data;
