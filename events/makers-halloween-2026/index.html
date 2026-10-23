@@ -1,0 +1,674 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#0b0b0e">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Halloween Valet</title>
+<link rel="icon" href="/favicon-32x32.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<style>
+:root{
+  --bg:#0b0b0e; --panel:#141418; --panel2:#1b1b21; --line:#2a2a33; --text:#f4f1ea; --muted:#9a968c;
+  --gold:#d6b25e; --gold2:#f1d48a; --orange:#ff7a1a; --green:#3ecf75; --red:#ff5a5a; --grey:#6d6d76;
+  --r:18px;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Helvetica Neue",Arial,sans-serif;
+  -webkit-text-size-adjust:100%}
+body{min-height:100vh;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+button,input{font:inherit}
+.hidden{display:none!important}
+
+/* header */
+header{position:sticky;top:0;z-index:20;background:rgba(11,11,14,.94);backdrop-filter:blur(10px);
+  border-bottom:1px solid var(--line);padding:12px 16px 10px}
+.brand{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.brand h1{margin:0;font-size:20px;letter-spacing:.06em;font-weight:800;color:var(--gold2)}
+.brand h1 span{color:var(--orange)}
+.brand .sub{font-size:11px;letter-spacing:.14em;color:var(--muted);margin-top:2px;text-transform:uppercase}
+.badges{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.badge{font-size:11px;font-weight:700;letter-spacing:.06em;padding:5px 9px;border-radius:999px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+.badge.ok{color:var(--green);border-color:rgba(62,207,117,.4)}
+.badge.warn{color:var(--orange);border-color:rgba(255,122,26,.45)}
+.badge.bad{color:var(--red);border-color:rgba(255,90,90,.45)}
+.counts{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px}
+.count{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:7px 8px;text-align:center}
+.count b{display:block;font-size:24px;line-height:1.1}
+.count small{font-size:10px;letter-spacing:.12em;color:var(--muted)}
+.count.req b{color:var(--orange)} .count.rdy b{color:var(--green)} .count.dlv b{color:var(--grey)}
+.count.req.hot{border-color:var(--orange);box-shadow:0 0 0 1px var(--orange) inset}
+.tabs{display:flex;gap:8px;margin-top:10px}
+.tab{flex:1;padding:12px;border-radius:12px;border:1px solid var(--line);background:var(--panel);color:var(--muted);font-weight:800;letter-spacing:.08em}
+.tab.on{color:#111;background:var(--gold);border-color:var(--gold)}
+.tab .dot{display:inline-block;min-width:22px;padding:2px 6px;margin-left:6px;border-radius:999px;background:var(--orange);color:#111;font-size:12px}
+
+main{padding:16px;max-width:1280px;margin:0 auto}
+.layout{display:grid;gap:16px}
+@media (min-width:900px){
+  .tabs{display:none}
+  .layout{grid-template-columns:minmax(360px,420px) 1fr;align-items:start}
+  #viewCheckin,#viewBoard{display:block!important}
+  #viewCheckin{position:sticky;top:150px}
+}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:18px}
+.label{display:block;font-size:12px;font-weight:800;letter-spacing:.16em;color:var(--gold);margin:0 0 8px}
+.field{width:100%;padding:16px 16px;font-size:28px;font-weight:700;color:var(--text);background:var(--bg);
+  border:2px solid var(--line);border-radius:14px;outline:none;letter-spacing:.02em}
+.field:focus{border-color:var(--gold)}
+.field.err{border-color:var(--red)}
+.fgroup{margin-bottom:16px}
+.hint{font-size:13px;color:var(--muted);margin:-4px 0 14px;line-height:1.4}
+.err-msg{color:var(--red);font-weight:700;font-size:15px;min-height:20px;margin:4px 0 10px}
+.btn{display:block;width:100%;border:0;border-radius:14px;padding:18px;font-size:20px;font-weight:900;letter-spacing:.1em;cursor:pointer}
+.btn:disabled{opacity:.5}
+.btn-gold{background:linear-gradient(180deg,var(--gold2),var(--gold));color:#141008}
+.btn-dark{background:var(--panel2);color:var(--text);border:1px solid var(--line)}
+.btn-orange{background:var(--orange);color:#140a02}
+.btn-green{background:var(--green);color:#04140a}
+.btn-sm{padding:12px 10px;font-size:14px;letter-spacing:.06em;border-radius:12px}
+
+/* confirmation */
+.confirm{text-align:center}
+.confirm .ok{color:var(--green);font-weight:900;letter-spacing:.14em;font-size:14px}
+.bigrow{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:14px 0}
+.big{background:var(--bg);border:1px solid var(--line);border-radius:14px;padding:12px 6px}
+.big small{display:block;font-size:11px;letter-spacing:.16em;color:var(--muted);font-weight:800}
+.big b{display:block;font-size:52px;line-height:1.05;font-weight:900;color:var(--gold2)}
+.big.slot b{color:var(--text)}
+.veh{font-size:22px;font-weight:800;letter-spacing:.04em;margin:4px 0 12px}
+.stat{display:flex;justify-content:space-between;align-items:center;gap:10px;background:var(--bg);border:1px solid var(--line);
+  border-radius:12px;padding:10px 12px;margin-bottom:8px;font-size:15px;font-weight:700;text-align:left}
+.stat .v{font-weight:800}
+.v.ok{color:var(--green)} .v.bad{color:var(--red)} .v.wait{color:var(--gold2)} .v.off{color:var(--muted)}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+
+/* board */
+.toolbar{display:flex;gap:8px;margin-bottom:12px}
+.search{flex:1;padding:13px 14px;font-size:17px;color:var(--text);background:var(--panel);border:1px solid var(--line);border-radius:12px;outline:none}
+.sound{white-space:nowrap}
+.section-title{font-size:12px;letter-spacing:.18em;color:var(--muted);font-weight:800;margin:18px 2px 8px}
+.cards{display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(270px,1fr))}
+.card{background:var(--panel);border:1px solid var(--line);border-left:6px solid var(--line);border-radius:16px;padding:14px}
+.card.PARKED{border-left-color:#8b8676}
+.card.REQUESTED{border-color:rgba(255,122,26,.6);border-left-color:var(--orange);background:linear-gradient(180deg,rgba(255,122,26,.12),var(--panel) 60%)}
+.card.READY{border-left-color:var(--green);background:linear-gradient(180deg,rgba(62,207,117,.10),var(--panel) 60%)}
+.card.DELIVERED{opacity:.6;border-left-color:var(--grey)}
+.card.flash{animation:flash 1s ease-in-out 3}
+@keyframes flash{50%{box-shadow:0 0 0 3px var(--orange)}}
+.ctop{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+.tno{font-size:30px;font-weight:900;color:var(--gold2);line-height:1}
+.tno small{display:block;font-size:10px;letter-spacing:.16em;color:var(--muted);font-weight:800;margin-bottom:3px}
+.slotbox{text-align:right}
+.slotbox small{display:block;font-size:10px;letter-spacing:.16em;color:var(--muted);font-weight:800;margin-bottom:3px}
+.slotbox b{font-size:30px;font-weight:900;line-height:1}
+.slotbox b.none{color:var(--red);font-size:16px}
+.cveh{font-size:19px;font-weight:800;margin:10px 0 4px;letter-spacing:.03em}
+.meta{font-size:13px;color:var(--muted);display:flex;gap:10px;flex-wrap:wrap}
+.pill{display:inline-block;font-size:11px;font-weight:900;letter-spacing:.12em;padding:4px 8px;border-radius:999px;margin-top:8px}
+.pill.PARKED{background:#2a2924;color:#d9d3c2} .pill.REQUESTED{background:var(--orange);color:#140a02}
+.pill.READY{background:var(--green);color:#04140a} .pill.DELIVERED{background:#2a2a2f;color:#aaa}
+.actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+.actions .btn{padding:14px 8px;font-size:15px;letter-spacing:.06em}
+.actions .full{grid-column:1/-1}
+.mini{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.mini button{flex:1;min-width:0;padding:9px 6px;font-size:12px;font-weight:800;letter-spacing:.04em;border-radius:10px;
+  background:transparent;color:var(--muted);border:1px solid var(--line)}
+.smsline{font-size:12px;margin-top:8px;color:var(--muted)}
+.inb{font-size:12px;margin-top:6px;color:var(--gold2)}
+.empty{color:var(--muted);text-align:center;padding:30px 10px;border:1px dashed var(--line);border-radius:16px}
+
+/* login + modal + toast */
+.center{min-height:80vh;display:flex;align-items:center;justify-content:center;padding:16px}
+.login{width:100%;max-width:420px}
+.login h2{margin:0 0 4px;color:var(--gold2);letter-spacing:.06em}
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px}
+.modal{width:100%;max-width:420px}
+.modal h3{margin:0 0 6px;font-size:22px}
+.modal p{color:var(--muted);margin:0 0 14px}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:60;
+  background:var(--panel2);border:1px solid var(--line);padding:12px 16px;border-radius:12px;font-weight:700;max-width:92vw}
+.offline{background:var(--red);color:#fff;text-align:center;font-weight:800;padding:6px;font-size:13px;letter-spacing:.06em}
+</style>
+</head>
+<body>
+<div id="offline" class="offline hidden">NO CONNECTION — ACTIONS WILL NOT SAVE</div>
+
+<!-- LOGIN -->
+<section id="viewLogin" class="center hidden">
+  <div class="panel login">
+    <h2>🎃 HALLOWEEN VALET</h2>
+    <p class="hint" style="margin:0 0 16px">Makers Air · AirValet operator sign-in</p>
+    <div class="fgroup"><label class="label" for="lgUser">USERNAME</label>
+      <input id="lgUser" class="field" style="font-size:20px" autocapitalize="none" autocomplete="username" spellcheck="false"></div>
+    <div class="fgroup"><label class="label" for="lgPwd">PASSWORD</label>
+      <input id="lgPwd" class="field" style="font-size:20px" type="password" autocomplete="current-password"></div>
+    <div id="lgErr" class="err-msg"></div>
+    <button id="lgBtn" class="btn btn-gold">SIGN IN</button>
+  </div>
+</section>
+
+<!-- APP -->
+<div id="app" class="hidden">
+  <header>
+    <div class="brand">
+      <div>
+        <h1>🎃 MAKERS AIR <span>·</span> HALLOWEEN VALET</h1>
+        <div class="sub">Fall Trunk or Treat · Hangar 19 · Oct 24, 2026</div>
+      </div>
+      <div class="badges"><span id="bPrinter" class="badge">PRINTER …</span><span id="bSms" class="badge">SMS …</span></div>
+    </div>
+    <div class="counts">
+      <div class="count"><b id="cP">0</b><small>PARKED</small></div>
+      <div class="count req" id="cReqBox"><b id="cR">0</b><small>REQUESTED</small></div>
+      <div class="count rdy"><b id="cY">0</b><small>READY</small></div>
+      <div class="count dlv"><b id="cD">0</b><small>DELIVERED</small></div>
+    </div>
+    <div class="tabs">
+      <button class="tab on" data-tab="checkin">CHECK IN</button>
+      <button class="tab" data-tab="board">VALET BOARD<span id="tabDot" class="dot hidden">0</span></button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section id="viewCheckin">
+      <!-- form -->
+      <div id="ciForm" class="panel">
+        <div class="fgroup">
+          <label class="label" for="ciPhone">PHONE NUMBER</label>
+          <input id="ciPhone" class="field" type="tel" inputmode="tel" autocomplete="off" placeholder="(954) 555-0123" maxlength="16">
+        </div>
+        <div class="fgroup">
+          <label class="label" for="ciVeh">VEHICLE</label>
+          <input id="ciVeh" class="field" list="makes" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="BMW, Tesla, Civic…" maxlength="40">
+          <datalist id="makes"><option>TESLA</option><option>BMW</option><option>MERCEDES</option><option>TOYOTA CAMRY</option><option>HONDA CIVIC</option><option>HONDA ACCORD</option><option>LEXUS</option><option>AUDI</option><option>PORSCHE</option><option>JEEP</option><option>FORD F-150</option><option>CHEVROLET</option><option>NISSAN</option><option>HYUNDAI</option><option>KIA</option><option>RANGE ROVER</option></datalist>
+        </div>
+        <p class="hint">Say: “We’ll text your valet ticket — reply READY when you want your car.”</p>
+        <div id="ciErr" class="err-msg"></div>
+        <button id="ciBtn" class="btn btn-gold">CHECK IN</button>
+      </div>
+      <!-- confirmation -->
+      <div id="ciDone" class="panel confirm hidden">
+        <div class="ok">✓ CHECKED IN</div>
+        <div class="bigrow">
+          <div class="big"><small>TICKET</small><b id="dTicket">#000</b></div>
+          <div class="big slot"><small>KEY SLOT</small><b id="dSlot">00</b></div>
+        </div>
+        <div class="veh" id="dVeh">—</div>
+        <div class="stat"><span>🖨 Key ticket</span><span id="dPrint" class="v wait">Printing…</span></div>
+        <div class="stat"><span>💬 Guest SMS</span><span id="dSms" class="v wait">Sending…</span></div>
+        <button id="dNext" class="btn btn-gold" style="margin-top:12px">NEXT CHECK-IN</button>
+        <div class="row2">
+          <button id="dReprint" class="btn btn-dark btn-sm">REPRINT KEY TICKET</button>
+          <button id="dResend" class="btn btn-dark btn-sm">RESEND SMS</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="viewBoard" class="hidden">
+      <div class="toolbar">
+        <input id="q" class="search" placeholder="Search ticket #, vehicle, last 4 of phone" autocomplete="off" inputmode="search">
+        <button id="soundBtn" class="btn btn-dark btn-sm sound" style="width:auto">🔔 SOUND ON</button>
+      </div>
+      <div id="board"></div>
+    </section>
+  </main>
+</div>
+
+<div id="modal" class="modal-bg hidden"><div class="panel modal" id="modalBody"></div></div>
+<div id="toast" class="toast hidden"></div>
+
+<script src="/vendor/supabase.js"></script>
+<script>
+'use strict';
+// ── CONFIG ─────────────────────────────────────────────────────────────
+// Same Supabase project + anon key as the main AirValet app (index.html).
+// The event module only calls event_valet_* functions; nothing else.
+var EVENT_ID = 'makers-halloween-2026';
+var SB_URL = 'https://sfewtirvqhrpanwhbchd.supabase.co';
+var SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNmZXd0aXJ2cWhycGFud2hiY2hkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkyNzExMjcsImV4cCI6MjA5NDg0NzEyN30.UFf22k7Zn7v72IPujuF1YRrK6PPbp8K_uz6TkYlhOl8';
+var FN_URL = SB_URL + '/functions/v1/event-valet';
+// Local testing only: a backend override is honoured on localhost, never on
+// the public host (an override link must not be able to phish a password).
+if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) {
+  try {
+    var lc = JSON.parse(localStorage.getItem('ev_local_cfg') || 'null');
+    if (lc && lc.url) { SB_URL = lc.url; SB_KEY = lc.key; FN_URL = lc.fn; }
+  } catch (e) {}
+}
+// Printer: the same Epson TM-m30II + ePOS-Print over HTTPS the main app uses
+// (printer_host is shared through localStorage on this origin).
+var PRINTER_HOST = localStorage.getItem('printer_host') || '10.20.60.142';
+var PRINTER_URL = 'https://' + PRINTER_HOST + '/cgi-bin/epos/service.cgi?devid=local_printer&timeout=10000';
+if (typeof lc !== 'undefined' && lc && lc.printer) PRINTER_URL = lc.printer;  // localhost test printer only
+var TZ = 'America/New_York';
+var POLL_MS = 3000;
+
+var sb = supabase.createClient(SB_URL, SB_KEY);
+var state = { board: null, seenRequested: {}, firstLoad: true, sound: true, last: null, busy: {} };
+
+function $(id){ return document.getElementById(id); }
+function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+function pad3(n){ return ('00' + n).slice(-3); }
+function pad2(n){ return ('0' + n).slice(-2); }
+function toast(msg, ms){ var t = $('toast'); t.textContent = msg; t.classList.remove('hidden'); clearTimeout(toast._t); toast._t = setTimeout(function(){ t.classList.add('hidden'); }, ms || 2600); }
+function timeOf(iso){ return iso ? new Date(iso).toLocaleTimeString('en-US', { timeZone: TZ, hour: 'numeric', minute: '2-digit' }) : ''; }
+function errText(e){
+  var m = (e && (e.message || e.error_description || e.error)) || String(e);
+  var map = { INVALID_PHONE: 'Check the phone number (10 digits).', INVALID_VEHICLE: 'Enter the vehicle (make or model).',
+    NOT_AUTHORIZED: 'This login is not allowed to operate the valet.', EVENT_CLOSED: 'Event is closed.',
+    SLOT_OCCUPIED: 'That key slot is in use by another car.', INVALID_SLOT: 'Key slot must be between 1 and the capacity.',
+    ALREADY_DELIVERED: 'Already delivered.', TICKET_NOT_FOUND: 'Ticket not found.' };
+  for (var k in map) if (m.indexOf(k) >= 0) return map[k];
+  if (/Failed to fetch|NetworkError|Load failed/i.test(m)) return 'No connection. Try again.';
+  return m;
+}
+
+// ── AUTH (same username → email mapping as index.html) ─────────────────
+function canonicalizeUsername(raw){
+  var lower = String(raw || '').trim().toLowerCase();
+  return lower.normalize('NFKD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '');
+}
+function emailForLoginUsername(u){
+  var t = String(u || '').trim();
+  if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(t)) return t;
+  var c = canonicalizeUsername(t);
+  if (!c) return null;
+  return c === 'admin' ? 'makers@farber.local' : c + '@airvalet.local';
+}
+async function doLogin(){
+  var email = emailForLoginUsername($('lgUser').value), pwd = $('lgPwd').value;
+  $('lgErr').textContent = '';
+  if (!email || !pwd) { $('lgErr').textContent = 'Enter username and password.'; return; }
+  $('lgBtn').disabled = true;
+  var r = await sb.auth.signInWithPassword({ email: email, password: pwd });
+  $('lgBtn').disabled = false;
+  if (r.error) { $('lgErr').textContent = 'Invalid login credentials.'; return; }
+  start();
+}
+$('lgBtn').onclick = doLogin;
+$('lgPwd').addEventListener('keydown', function(e){ if (e.key === 'Enter') doLogin(); });
+async function jwt(){ var s = await sb.auth.getSession(); return s.data.session ? s.data.session.access_token : null; }
+
+// ── TABS ───────────────────────────────────────────────────────────────
+function showTab(name){
+  document.querySelectorAll('.tab').forEach(function(b){ b.classList.toggle('on', b.dataset.tab === name); });
+  $('viewCheckin').classList.toggle('hidden', name !== 'checkin');
+  $('viewBoard').classList.toggle('hidden', name !== 'board');
+  if (name === 'board') renderBoard();
+}
+document.querySelectorAll('.tab').forEach(function(b){ b.onclick = function(){ showTab(b.dataset.tab); }; });
+
+// ── PHONE FORMAT ───────────────────────────────────────────────────────
+function phoneDigits(v){ var d = String(v || '').replace(/\D/g, ''); if (d.length === 11 && d[0] === '1') d = d.slice(1); return d.slice(0, 10); }
+function fmtPhone(d){
+  if (d.length < 4) return d;
+  if (d.length < 7) return '(' + d.slice(0,3) + ') ' + d.slice(3);
+  return '(' + d.slice(0,3) + ') ' + d.slice(3,6) + '-' + d.slice(6);
+}
+function validPhone(d){ return d.length === 10 && !/[01]/.test(d[0]) && !/[01]/.test(d[3]); }
+$('ciPhone').addEventListener('input', function(){
+  var el = $('ciPhone'); el.value = fmtPhone(phoneDigits(el.value)); el.classList.remove('err');
+});
+$('ciVeh').addEventListener('input', function(){ $('ciVeh').classList.remove('err'); });
+$('ciPhone').addEventListener('keydown', function(e){ if (e.key === 'Enter') $('ciVeh').focus(); });
+$('ciVeh').addEventListener('keydown', function(e){ if (e.key === 'Enter') doCheckin(); });
+
+// ── CHECK-IN ───────────────────────────────────────────────────────────
+var clientKey = null;
+async function doCheckin(){
+  var d = phoneDigits($('ciPhone').value), veh = $('ciVeh').value.trim().replace(/\s+/g, ' ');
+  $('ciErr').textContent = '';
+  if (!validPhone(d)) { $('ciPhone').classList.add('err'); $('ciErr').textContent = 'Enter a valid 10-digit US phone number.'; $('ciPhone').focus(); return; }
+  if (!veh) { $('ciVeh').classList.add('err'); $('ciErr').textContent = 'Enter the vehicle (make or model).'; $('ciVeh').focus(); return; }
+  if ($('ciBtn').disabled) return;
+  $('ciBtn').disabled = true; $('ciBtn').textContent = 'CHECKING IN…';
+  // one key per form submission: a retry after a timeout returns the same ticket
+  clientKey = clientKey || (Date.now().toString(36) + Math.random().toString(36).slice(2, 10));
+  try {
+    var r = await sb.rpc('event_valet_checkin', { p_event: EVENT_ID, p_phone: '+1' + d, p_vehicle: veh, p_client_key: clientKey });
+    if (r.error) throw r.error;
+    var res = r.data, t = res.ticket;
+    clientKey = null;
+    showConfirmation(t, res.slots_full);
+    refresh();
+    // Print + SMS run in parallel and never block the ticket.
+    if (res.created) { printTicket(t, 'AUTO', $('dPrint')); sendSms(t, 'CHECKIN', false, $('dSms')); }
+    else { $('dPrint').textContent = 'Already checked in'; $('dPrint').className = 'v off'; $('dSms').textContent = '—'; $('dSms').className = 'v off'; }
+  } catch (e) {
+    $('ciErr').textContent = errText(e);
+  } finally {
+    $('ciBtn').disabled = false; $('ciBtn').textContent = 'CHECK IN';
+  }
+}
+$('ciBtn').onclick = doCheckin;
+
+function showConfirmation(t, slotsFull){
+  state.last = t;
+  $('dTicket').textContent = '#' + pad3(t.ticket_no);
+  $('dSlot').textContent = t.slot_no ? pad2(t.slot_no) : '—';
+  $('dVeh').textContent = t.vehicle;
+  $('ciForm').classList.add('hidden'); $('ciDone').classList.remove('hidden');
+  if (slotsFull) toast('All key slots are full — assign a slot on the board.', 5000);
+}
+$('dNext').onclick = function(){
+  $('ciPhone').value = ''; $('ciVeh').value = ''; $('ciErr').textContent = '';
+  $('ciDone').classList.add('hidden'); $('ciForm').classList.remove('hidden');
+  state.last = null; $('ciPhone').focus();
+};
+$('dReprint').onclick = function(){ if (state.last) printTicket(state.last, 'REPRINT', $('dPrint'), $('dReprint')); };
+$('dResend').onclick = function(){ if (state.last) sendSms(state.last, 'CHECKIN', true, $('dSms'), $('dResend')); };
+
+// ── PRINT (Epson ePOS-Print, same transport as the main app) ───────────
+function xmlEsc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]; }); }
+function keyTicketXml(t){
+  var when = new Date(t.checked_in_at);
+  var date = when.toLocaleDateString('en-US', { timeZone: TZ, month: 'short', day: 'numeric', year: 'numeric' }).toUpperCase();
+  var time = when.toLocaleTimeString('en-US', { timeZone: TZ, hour: 'numeric', minute: '2-digit' });
+  var slot = t.slot_no ? pad2(t.slot_no) : '--';
+  return '<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"><s:Body>'
+    + '<epos-print xmlns="http://www.epson-pos.com/schemas/2011/03/epos-print">'
+    + '<text align="center" em="true" width="2" height="2">MAKERS AIR&#10;</text>'
+    + '<text align="center" em="true" width="1" height="1">HALLOWEEN VALET&#10;</text>'
+    + '<text align="center" em="false">------------------------&#10;</text>'
+    + '<text align="center">TICKET&#10;</text>'
+    + '<text align="center" em="true" width="4" height="4">#' + pad3(t.ticket_no) + '&#10;</text>'
+    + '<feed line="1"/>'
+    + '<text align="center" em="false" width="1" height="1">KEY SLOT&#10;</text>'
+    + '<text align="center" em="true" width="4" height="4">' + slot + '&#10;</text>'
+    + '<text align="center" em="false" width="1" height="1">------------------------&#10;</text>'
+    + '<text align="center">VEHICLE&#10;</text>'
+    + '<text align="center" em="true" width="2" height="2">' + xmlEsc(String(t.vehicle).slice(0, 24)) + '&#10;</text>'
+    + '<feed line="1"/>'
+    + '<text align="center" em="false" width="1" height="1">' + xmlEsc(date) + '&#10;</text>'
+    + '<text align="center">' + xmlEsc(time) + '&#10;</text>'
+    + '<feed line="3"/><cut type="feed"/>'
+    + '</epos-print></s:Body></s:Envelope>';
+}
+async function epsonPost(xml){
+  var res = await fetch(PRINTER_URL, { method: 'POST', body: xml,
+    headers: { 'Content-Type': 'text/xml; charset=utf-8', 'SOAPAction': '"http://www.epson-pos.com/schemas/2011/03/epos-print"' },
+    signal: AbortSignal.timeout ? AbortSignal.timeout(12000) : undefined });
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  var txt = await res.text();
+  var ok = (txt.match(/success="([^"]*)"/) || [])[1];
+  var code = (txt.match(/code="([^"]*)"/) || [])[1] || '';
+  if (ok !== 'true') throw new Error(code || 'printer error');
+  return true;
+}
+async function printTicket(t, kind, statusEl, btn){
+  var key = 'print:' + t.id;
+  if (state.busy[key]) return;                       // no accidental double print
+  state.busy[key] = true; if (btn) btn.disabled = true;
+  setStat(statusEl, 'Printing…', 'wait');
+  try {
+    await epsonPost(keyTicketXml(t));
+    setStat(statusEl, kind === 'REPRINT' ? 'Reprinted ✓' : 'Printed ✓', 'ok');
+    setPrinter(true);
+    sb.rpc('event_valet_mark_printed', { p_ticket: t.id, p_kind: kind }).then(function(){ refresh(); });
+  } catch (e) {
+    setStat(statusEl, 'Print failed — tap REPRINT', 'bad');
+    setPrinter(false);
+  } finally {
+    setTimeout(function(){ state.busy[key] = false; if (btn) btn.disabled = false; }, 4000);
+  }
+}
+function setStat(el, text, cls){ if (!el) return; el.textContent = text; el.className = 'v ' + cls; }
+function setPrinter(ok){ var b = $('bPrinter'); b.textContent = ok ? 'PRINTER ✓' : 'PRINTER ✕'; b.className = 'badge ' + (ok ? 'ok' : 'bad'); }
+async function checkPrinter(){
+  try {
+    await epsonPost('<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"><s:Body><epos-print xmlns="http://www.epson-pos.com/schemas/2011/03/epos-print"></epos-print></s:Body></s:Envelope>');
+    setPrinter(true);
+  } catch (e) { setPrinter(false); }
+}
+$('bPrinter').onclick = function(){
+  openModal('<h3>Printer</h3><p>Epson TM-m30II · ' + esc(PRINTER_HOST) + '<br>If it shows ✕: open the printer page once, accept the certificate (Show Details → Visit This Website), then come back.</p>'
+    + '<button class="btn btn-gold" id="mPrTest">CHECK CONNECTION</button>'
+    + '<button class="btn btn-dark btn-sm" style="margin-top:8px" id="mPrOpen">OPEN PRINTER PAGE</button>'
+    + '<button class="btn btn-dark btn-sm" style="margin-top:8px" id="mClose">CLOSE</button>');
+  $('mPrTest').onclick = function(){ checkPrinter().then(function(){ toast($('bPrinter').textContent); }); };
+  $('mPrOpen').onclick = function(){ window.open('https://' + PRINTER_HOST, '_blank', 'noopener'); };
+  $('mClose').onclick = closeModal;
+};
+
+// ── SMS (server side; Twilio secrets never reach the browser) ──────────
+var SMS_LABEL = { ACCEPTED: 'Sent ✓', QUEUED: 'Sent ✓', SENDING: 'Sending…', SENT: 'Sent ✓', DELIVERED: 'Delivered ✓',
+  MOCK_SENT: 'Sent (test) ✓', DUPLICATE: 'Already sent', SKIPPED_SMS_OFF: 'SMS off', SKIPPED_TEST_MODE: 'Test mode — not sent',
+  SKIPPED_TIP_OFF: 'Tip SMS off', NOT_CONFIGURED: 'SMS not configured', FAILED: 'Failed', UNDELIVERED: 'Undelivered',
+  UNCONFIRMED: 'Unconfirmed' };
+function smsClass(s){ return /SENT|ACCEPTED|QUEUED|DELIVERED$|DUPLICATE/.test(s) && s !== 'UNDELIVERED' ? 'ok' : /FAILED|UNDELIVERED|UNCONFIRMED/.test(s) ? 'bad' : /SENDING/.test(s) ? 'wait' : 'off'; }
+async function sendSms(t, kind, resend, statusEl, btn){
+  var key = 'sms:' + kind + ':' + t.id;
+  if (state.busy[key]) return;
+  state.busy[key] = true; if (btn) btn.disabled = true;
+  setStat(statusEl, 'Sending…', 'wait');
+  try {
+    var token = await jwt();
+    var r = await fetch(FN_URL + '/send', { method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token, 'apikey': SB_KEY },
+      body: JSON.stringify({ ticket_id: t.id, kind: kind, resend: !!resend }) });
+    var j = await r.json().catch(function(){ return {}; });
+    if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+    var label = (SMS_LABEL[j.status] || j.status) + (j.error_code ? ' (' + j.error_code + ')' : '');
+    setStat(statusEl, label, smsClass(j.status));
+    if (statusEl == null) toast(kind === 'TIP' ? 'Thank-you SMS: ' + label : 'SMS: ' + label);
+  } catch (e) {
+    setStat(statusEl, 'SMS failed — tap RESEND', 'bad');
+    if (statusEl == null) toast('SMS failed: ' + errText(e), 4000);
+  } finally {
+    setTimeout(function(){ state.busy[key] = false; if (btn) btn.disabled = false; }, 3000);
+    refresh();
+  }
+}
+
+// ── BOARD ──────────────────────────────────────────────────────────────
+var refreshing = false;
+async function refresh(){
+  if (refreshing) return; refreshing = true;
+  try {
+    var r = await sb.rpc('event_valet_board', { p_event: EVENT_ID });
+    if (r.error) throw r.error;
+    $('offline').classList.add('hidden');
+    state.board = r.data;
+    onBoard();
+  } catch (e) {
+    if (/NOT_AUTHORIZED/.test(errText(e)) || /not allowed/.test(errText(e))) { showNotAllowed(); }
+    else $('offline').classList.remove('hidden');
+  } finally { refreshing = false; }
+}
+function onBoard(){
+  var b = state.board, c = b.counts;
+  $('cP').textContent = c.PARKED; $('cR').textContent = c.REQUESTED; $('cY').textContent = c.READY; $('cD').textContent = c.DELIVERED;
+  $('cReqBox').classList.toggle('hot', c.REQUESTED > 0);
+  $('tabDot').textContent = c.REQUESTED; $('tabDot').classList.toggle('hidden', !c.REQUESTED);
+  var ev = b.event, s = $('bSms');
+  if (!ev.sms_enabled) { s.textContent = 'SMS OFF'; s.className = 'badge bad'; }
+  else if (ev.sms_test_only) { s.textContent = 'SMS TEST'; s.className = 'badge warn'; }
+  else { s.textContent = 'SMS LIVE'; s.className = 'badge ok'; }
+  // new requests → alert
+  var fresh = [];
+  b.tickets.forEach(function(t){
+    if (t.status === 'REQUESTED' && !state.seenRequested[t.id + t.requested_at]) {
+      state.seenRequested[t.id + t.requested_at] = true;
+      if (!state.firstLoad) fresh.push(t);
+    }
+  });
+  state.firstLoad = false;
+  if (fresh.length) {
+    beep();
+    toast('🚗 REQUESTED: ' + fresh.map(function(t){ return '#' + pad3(t.ticket_no) + ' · SLOT ' + (t.slot_no ? pad2(t.slot_no) : '—'); }).join('  '), 6000);
+    if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+  }
+  renderBoard(fresh.map(function(t){ return t.id; }));
+}
+function lastSms(t){ return t.sms && t.sms.length ? t.sms[t.sms.length - 1] : null; }
+function cardHtml(t, flash){
+  var slot = t.slot_no ? '<b>' + pad2(t.slot_no) + '</b>' : '<b class="none">NO SLOT</b>';
+  var ls = lastSms(t), act = '';
+  if (t.status === 'PARKED') act = '<button class="btn btn-orange" data-a="REQUESTED">REQUEST CAR</button><button class="btn btn-dark" data-a="READY">MARK READY</button>';
+  if (t.status === 'REQUESTED') act = '<button class="btn btn-green" data-a="READY">MARK READY</button><button class="btn btn-gold" data-a="DELIVERED">DELIVERED</button>';
+  if (t.status === 'READY') act = '<button class="btn btn-gold full" data-a="DELIVERED">DELIVERED</button>';
+  var mini = t.status === 'DELIVERED'
+    ? (Date.now() - new Date(t.delivered_at).getTime() < 15 * 60000 ? '<button data-m="undo">UNDO DELIVERED</button>' : '')
+      + '<button data-m="tip">RESEND THANK-YOU</button>'
+    : '<button data-m="reprint">REPRINT</button><button data-m="resend">RESEND SMS</button><button data-m="slot">EDIT SLOT</button>'
+      + (t.status !== 'PARKED' ? '<button data-m="park">BACK TO PARKED</button>' : '');
+  var src = t.request_source === 'SMS' ? ' · via SMS' : t.request_source === 'GUEST_LINK' ? ' · via link' : t.request_source === 'STAFF' ? ' · by valet' : '';
+  var when = t.status === 'REQUESTED' ? 'Requested ' + timeOf(t.requested_at) + src
+    : t.status === 'READY' ? 'Ready ' + timeOf(t.ready_at)
+    : t.status === 'DELIVERED' ? 'Delivered ' + timeOf(t.delivered_at) : 'In ' + timeOf(t.checked_in_at);
+  return '<div class="card ' + t.status + (flash ? ' flash' : '') + '" data-id="' + t.id + '">'
+    + '<div class="ctop"><div class="tno"><small>TICKET</small>#' + pad3(t.ticket_no) + '</div>'
+    + '<div class="slotbox"><small>KEY SLOT</small>' + slot + '</div></div>'
+    + '<div class="cveh">' + esc(t.vehicle) + '</div>'
+    + '<div class="meta"><span>' + esc(when) + '</span><span>☎ …' + esc(t.phone_e164.slice(-4)) + '</span>'
+    + (t.print_count ? '<span>🖨 ' + t.print_count + '</span>' : '<span style="color:var(--red)">🖨 not printed</span>') + '</div>'
+    + '<span class="pill ' + t.status + '">' + t.status + '</span>'
+    + (ls ? '<div class="smsline">💬 ' + esc(ls.kind) + ': ' + esc(SMS_LABEL[ls.status] || ls.status) + (ls.error_code ? ' (' + esc(ls.error_code) + ')' : '') + '</div>' : '')
+    + (t.last_inbound ? '<div class="inb">“' + esc(t.last_inbound.body) + '” ' + esc(timeOf(t.last_inbound.at)) + '</div>' : '')
+    + (act ? '<div class="actions">' + act + '</div>' : '')
+    + '<div class="mini">' + mini + '</div></div>';
+}
+function renderBoard(flashIds){
+  if (!state.board) return;
+  var q = $('q').value.trim().toUpperCase().replace(/^#/, '');
+  var list = state.board.tickets.filter(function(t){
+    if (!q) return true;
+    if (/^\d+$/.test(q)) return t.ticket_no === parseInt(q, 10) || (q.length === 4 && t.phone_e164.slice(-4) === q);
+    return t.vehicle.indexOf(q) >= 0;
+  });
+  var groups = [['REQUESTED', 'REQUESTED — GET THESE CARS'], ['READY', 'READY AT THE STAND'], ['PARKED', 'PARKED'], ['DELIVERED', 'DELIVERED']];
+  var html = '';
+  flashIds = flashIds || [];
+  groups.forEach(function(g){
+    var items = list.filter(function(t){ return t.status === g[0]; });
+    if (g[0] === 'REQUESTED') items.sort(function(a, b){ return new Date(a.requested_at) - new Date(b.requested_at); });
+    else if (g[0] === 'DELIVERED') items.sort(function(a, b){ return new Date(b.delivered_at) - new Date(a.delivered_at); });
+    else items.sort(function(a, b){ return a.ticket_no - b.ticket_no; });
+    if (!items.length) return;
+    html += '<div class="section-title">' + g[1] + ' · ' + items.length + '</div><div class="cards">'
+      + items.map(function(t){ return cardHtml(t, flashIds.indexOf(t.id) >= 0); }).join('') + '</div>';
+  });
+  $('board').innerHTML = html || '<div class="empty">No cars yet. Check in the first guest.</div>';
+}
+$('q').addEventListener('input', function(){ renderBoard(); });
+function findT(id){ return state.board.tickets.filter(function(t){ return t.id === id; })[0]; }
+
+$('board').addEventListener('click', function(e){
+  var btn = e.target.closest('button'); if (!btn) return;
+  var card = btn.closest('.card'); var t = findT(card.dataset.id); if (!t) return;
+  if (btn.dataset.a) {
+    var to = btn.dataset.a;
+    if (to === 'DELIVERED') {
+      confirmModal('Deliver #' + pad3(t.ticket_no) + '?', esc(t.vehicle) + ' · key slot ' + (t.slot_no ? pad2(t.slot_no) : '—') + ' will be freed.', 'DELIVERED', 'btn-gold',
+        function(){ setStatus(t, to, btn); });
+    } else setStatus(t, to, btn);
+    return;
+  }
+  var m = btn.dataset.m;
+  if (m === 'reprint') printTicket(t, 'REPRINT', null, btn);
+  if (m === 'resend') sendSms(t, 'CHECKIN', true, null, btn);
+  if (m === 'tip') sendSms(t, 'TIP', true, null, btn);
+  if (m === 'slot') editSlot(t);
+  if (m === 'park') confirmModal('Back to PARKED?', 'Ticket #' + pad3(t.ticket_no) + ' returns to the parked list.', 'BACK TO PARKED', 'btn-dark', function(){ setStatus(t, 'PARKED', btn); });
+  if (m === 'undo') confirmModal('Undo delivery?', 'Ticket #' + pad3(t.ticket_no) + ' goes back to READY. If its slot was reused, assign a new slot.', 'UNDO', 'btn-dark', function(){ setStatus(t, 'READY', btn); });
+});
+
+async function setStatus(t, to, btn){
+  var key = 'st:' + t.id; if (state.busy[key]) return;
+  state.busy[key] = true; if (btn) btn.disabled = true;
+  try {
+    var r = await sb.rpc('event_valet_set_status', { p_ticket: t.id, p_status: to });
+    if (r.error) throw r.error;
+    var res = r.data;
+    if (res.changed && to === 'REQUESTED') sendSms(res.ticket, 'REQUESTED', false, null);
+    if (res.changed && to === 'DELIVERED') sendSms(res.ticket, 'TIP', false, null);
+    if (res.changed) toast('#' + pad3(t.ticket_no) + ' → ' + res.ticket.status);
+    await refresh();
+  } catch (e) { toast(errText(e), 4000); }
+  finally { state.busy[key] = false; if (btn) btn.disabled = false; }
+}
+
+function editSlot(t){
+  var cap = state.board.event.slot_capacity, used = {};
+  state.board.tickets.forEach(function(x){ if (x.status !== 'DELIVERED' && x.slot_no && x.id !== t.id) used[x.slot_no] = '#' + pad3(x.ticket_no); });
+  var grid = '';
+  for (var i = 1; i <= cap; i++) {
+    grid += '<button class="btn btn-sm ' + (used[i] ? 'btn-dark' : (t.slot_no === i ? 'btn-gold' : 'btn-dark')) + '" data-slot="' + i + '"' + (used[i] ? ' disabled' : '') + ' style="padding:10px 4px">'
+      + pad2(i) + (used[i] ? '<br><small style="font-size:10px">' + used[i] + '</small>' : '') + '</button>';
+  }
+  openModal('<h3>Key slot · #' + pad3(t.ticket_no) + '</h3><p>' + esc(t.vehicle) + ' · now ' + (t.slot_no ? pad2(t.slot_no) : 'none') + '. Pick a free slot.</p>'
+    + '<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px">' + grid + '</div>'
+    + '<button class="btn btn-dark btn-sm" style="margin-top:12px" id="mClose">CANCEL</button>');
+  $('mClose').onclick = closeModal;
+  $('modalBody').querySelectorAll('[data-slot]').forEach(function(b){
+    b.onclick = async function(){
+      var r = await sb.rpc('event_valet_set_slot', { p_ticket: t.id, p_slot: parseInt(b.dataset.slot, 10) });
+      if (r.error) { toast(errText(r.error), 4000); return; }
+      closeModal(); toast('#' + pad3(t.ticket_no) + ' → KEY SLOT ' + pad2(r.data.ticket.slot_no) + ' — reprint the key ticket', 4500);
+      refresh();
+    };
+  });
+}
+
+// ── MODAL ──────────────────────────────────────────────────────────────
+function openModal(html){ $('modalBody').innerHTML = html; $('modal').classList.remove('hidden'); }
+function closeModal(){ $('modal').classList.add('hidden'); $('modalBody').innerHTML = ''; }
+$('modal').addEventListener('click', function(e){ if (e.target === $('modal')) closeModal(); });
+function confirmModal(title, text, label, cls, onYes){
+  openModal('<h3>' + esc(title) + '</h3><p>' + text + '</p><button class="btn ' + cls + '" id="mYes">' + esc(label) + '</button>'
+    + '<button class="btn btn-dark btn-sm" style="margin-top:8px" id="mClose">CANCEL</button>');
+  $('mYes').onclick = function(){ closeModal(); onYes(); };
+  $('mClose').onclick = closeModal;
+}
+
+// ── SOUND (Web Audio; iOS needs one tap to unlock) ─────────────────────
+var actx = null;
+function unlockAudio(){ try { actx = actx || new (window.AudioContext || window.webkitAudioContext)(); if (actx.state === 'suspended') actx.resume(); } catch (e) {} }
+document.addEventListener('touchend', unlockAudio, { once: true });
+document.addEventListener('click', unlockAudio, { once: true });
+function beep(){
+  if (!state.sound || !actx) return;
+  try {
+    [0, 0.22].forEach(function(dt){
+      var o = actx.createOscillator(), g = actx.createGain();
+      o.type = 'sine'; o.frequency.value = 880; o.connect(g); g.connect(actx.destination);
+      g.gain.setValueAtTime(0.0001, actx.currentTime + dt);
+      g.gain.exponentialRampToValueAtTime(0.4, actx.currentTime + dt + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, actx.currentTime + dt + 0.18);
+      o.start(actx.currentTime + dt); o.stop(actx.currentTime + dt + 0.2);
+    });
+  } catch (e) {}
+}
+$('soundBtn').onclick = function(){ unlockAudio(); state.sound = !state.sound; $('soundBtn').textContent = state.sound ? '🔔 SOUND ON' : '🔕 SOUND OFF'; if (state.sound) beep(); };
+
+// ── START ──────────────────────────────────────────────────────────────
+var pollTimer = null;
+function showNotAllowed(){
+  $('app').classList.add('hidden'); $('viewLogin').classList.remove('hidden');
+  $('lgErr').textContent = 'This login cannot operate the valet. Use an AirValet operator account.';
+  if (pollTimer) clearInterval(pollTimer);
+}
+async function start(){
+  $('viewLogin').classList.add('hidden'); $('app').classList.remove('hidden');
+  await refresh();
+  checkPrinter();
+  if (pollTimer) clearInterval(pollTimer);
+  pollTimer = setInterval(function(){ if (!document.hidden) refresh(); }, POLL_MS);
+  if (window.matchMedia('(min-width:900px)').matches) $('ciPhone').focus();
+}
+document.addEventListener('visibilitychange', function(){ if (!document.hidden && pollTimer) refresh(); });
+window.addEventListener('online', refresh);
+window.addEventListener('offline', function(){ $('offline').classList.remove('hidden'); });
+(async function(){
+  var s = await sb.auth.getSession();
+  if (s.data.session) start(); else $('viewLogin').classList.remove('hidden');
+})();
+</script>
+</body>
+</html>

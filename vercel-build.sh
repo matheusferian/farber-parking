@@ -15,3 +15,8 @@ cp vendor/supabase.js dist/vendor/
 # Public A2P compliance pages (SMS program, privacy, terms). Static only,
 # not app-shell files: not in SHELL_FILES, never cached by the service worker.
 cp sms.html privacy.html terms.html dist/
+# Temporary Event Valet module (MAKERS AIR — HALLOWEEN VALET, 2026-10-24).
+# Separate pages, not app-shell files: not in SHELL_FILES, never cached by the
+# service worker. Remove this block (and events/) to retire the event.
+mkdir -p dist/events/makers-halloween-2026
+cp events/makers-halloween-2026/index.html events/makers-halloween-2026/t.html dist/events/makers-halloween-2026/
