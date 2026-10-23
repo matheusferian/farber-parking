@@ -215,6 +215,7 @@ main{padding:16px;max-width:1280px;margin:0 auto}
           <button id="dReprint" class="btn btn-dark btn-sm">REPRINT KEY TICKET</button>
           <button id="dResend" class="btn btn-dark btn-sm">RESEND SMS</button>
         </div>
+        <button id="dDelete" class="btn btn-dark btn-sm" style="margin-top:8px;color:var(--red)">DELETE THIS TICKET (mistake / test)</button>
       </div>
     </section>
 
@@ -376,6 +377,15 @@ $('dLocs').addEventListener('click', function(e){
   var b = e.target.closest('[data-loc]'); if (b && state.last) chooseLocation(state.last, b.dataset.loc, $('dPrint'), b);
 });
 $('dReprint').onclick = function(){ if (state.last) printTicket(state.last, 'REPRINT', $('dPrint'), $('dReprint')); };
+$('dDelete').onclick = function(){
+  var t = state.last; if (!t) return;
+  confirmModal('Delete ticket #' + t.ticket_code + '?', esc(t.vehicle) + ' — removes it and frees key slot ' + (t.slot_no ? pad2(t.slot_no) : '—') + '.', 'DELETE TICKET', 'btn-orange',
+    async function(){
+      var r = await sb.rpc('event_valet_delete_ticket', { p_ticket: t.id });
+      if (r.error) { toast(errText(r.error), 4000); return; }
+      toast('Ticket #' + t.ticket_code + ' deleted'); $('dNext').click(); refresh();
+    });
+};
 $('dResend').onclick = function(){ if (state.last) sendSms(state.last, 'CHECKIN', true, $('dSms'), $('dResend')); };
 
 // ── PRINT (Epson ePOS-Print, same transport as the main app) ───────────

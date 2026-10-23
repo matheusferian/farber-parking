@@ -313,3 +313,21 @@ Deno.test('tip SMS uses the direct Stripe link when tip_links.sms is set; check-
   assert(tw.sent[1].body.includes('\nhttps://buy.stripe.com/8x214mccK0uh9TjgIM6Vq00\n'));
   await reset({ sms_enabled: false, sms_test_only: true, tip_enabled: false, tip_links: {} });
 });
+
+Deno.test('staff alert SMS when a guest requests (READY or link), once per request; not for staff requests', async () => {
+  await reset({ staff_alert_phones: ['+19545558385'] });
+  const jwt = await login('localipad@airvalet.local');
+  const tw = fakeTwilio(); const h = makeHandler(env(), tw.f);
+  const c = await staffRpc(jwt, 'event_valet_checkin', { p_event: EVENT, p_phone: '9545551401', p_vehicle: 'Nissan', p_client_key: 'al1' });
+  await staffRpc(jwt, 'event_valet_set_location', { p_ticket: c.ticket.id, p_location: 'GRASS' });
+  const msg = inbound('+19545551401', 'ready');
+  await twilioPost(h, '/inbound', msg); await twilioPost(h, '/inbound', msg);
+  const alerts = tw.sent.filter((x) => x.to === '+19545558385');
+  assertEquals(alerts.length, 1);
+  assert(alerts[0].body.includes('#1401') && alerts[0].body.includes('GRASS') && alerts[0].body.includes('NISSAN'));
+  const c2 = await staffRpc(jwt, 'event_valet_checkin', { p_event: EVENT, p_phone: '9545551402', p_vehicle: 'Kia', p_client_key: 'al2' });
+  await staffRpc(jwt, 'event_valet_set_status', { p_ticket: c2.ticket.id, p_status: 'REQUESTED' });
+  await send(h, jwt, { ticket_id: c2.ticket.id, kind: 'REQUESTED' });
+  assertEquals(tw.sent.filter((x) => x.to === '+19545558385').length, 1);
+  await reset({ sms_enabled: false, sms_test_only: true, tip_enabled: false, tip_links: {}, staff_alert_phones: [] });
+});

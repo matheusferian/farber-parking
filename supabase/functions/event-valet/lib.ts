@@ -6,6 +6,17 @@ const enc = new TextEncoder();
 
 // ── Messages ────────────────────────────────────────────────────────────
 export type Kind = 'CHECKIN' | 'REQUESTED' | 'TIP' | 'AMBIGUOUS' | 'NO_MATCH';
+
+// Operator alert (to staff phones, never to guests).
+export function composeStaffAlert(t: { ticket_code: string; slot_no: number | null; vehicle: string; parking_location?: string | null }, via: string): string {
+  return [
+    '🚗 CAR REQUESTED' + (via ? ` (${via})` : ''),
+    `#${t.ticket_code} · KEY SLOT ${t.slot_no ? String(t.slot_no).padStart(2, '0') : '--'}`,
+    t.vehicle,
+    `📍 ${t.parking_location || 'NO LOCATION'}`,
+    '— Halloween Valet',
+  ].join('\n');
+}
 export type CarOption = { code: string; vehicle: string };
 
 // Ticket code = last 4 digits of the guest's phone ("0101"; a repeated last 4

@@ -12,7 +12,7 @@
 // sms_test_only = true only sms_test_phones receive texts. Secrets are
 // never logged or returned.
 
-import { CarOption, composeSms, Kind, maskLink, maskPhone, normalizePhone, parseInbound, timingSafeEqualStr, twilioSend, TwilioCfg, validSignature } from './lib.ts';
+import { CarOption, composeSms, composeStaffAlert, Kind, maskLink, maskPhone, normalizePhone, parseInbound, timingSafeEqualStr, twilioSend, TwilioCfg, validSignature } from './lib.ts';
 
 export type Env = (k: string) => string | undefined;
 type Json = Record<string, any>;
@@ -136,6 +136,23 @@ export function makeHandler(env: Env, fetchImpl: typeof fetch = fetch) {
     return { status, error_code: res.code };
   }
 
+  // ── Operator alert: a guest asked for the car (SMS READY / guest link) ──
+  async function alertStaff(t: Json, ev: Json, via: string) {
+    const phones: string[] = (ev.staff_alert_phones ?? []).filter((p: string) => /^\+[1-9]\d{7,14}$/.test(p));
+    if (!ev.sms_enabled || !phones.length) return;
+    const body = composeStaffAlert(t as any, via);
+    for (const phone of phones) {
+      const row = await insertMessage({ event_id: ev.id, ticket_id: t.id, direction: 'OUT', kind: 'STAFF_ALERT', phone_e164: phone,
+        status: 'SENDING', body, dedupe_key: `ALERT:${t.id}:${t.requested_at}:${phone}` });
+      if (!row) continue;
+      if (MODE === 'mock') { await patchMessage(row.id, { status: 'MOCK_SENT', twilio_sid: 'SMMOCK' + crypto.randomUUID().replace(/-/g, '').slice(0, 26) }); continue; }
+      if (!twilio) { await patchMessage(row.id, { status: 'NOT_CONFIGURED' }); continue; }
+      const r = await twilioSend(twilio, phone, body, `${PUBLIC_URL}/status?mid=${row.id}${kq}`, fetchImpl);
+      await patchMessage(row.id, r.ok ? { status: r.status.toUpperCase(), twilio_sid: r.sid } : { status: r.maybeSent ? 'UNCONFIRMED' : 'FAILED', error_code: r.code, error_message: r.message });
+      log('staff_alert', { ticket: t.ticket_code, ok: r.ok });
+    }
+  }
+
   // ── CORS ──
   function cors(req: Request): Record<string, string> {
     const o = req.headers.get('origin') ?? '';
@@ -174,7 +191,10 @@ export function makeHandler(env: Env, fetchImpl: typeof fetch = fetch) {
     if (r?.state !== 'ok') return json(req, 200, { state: 'invalid' });
     if (r.changed) {
       const x = await loadTicket(r.ticket_id);
-      if (x) await sendFor(x.t, x.ev, 'REQUESTED').catch((e) => log('sms_error', { msg: String(e).slice(0, 120) }));
+      if (x) {
+        await sendFor(x.t, x.ev, 'REQUESTED').catch((e) => log('sms_error', { msg: String(e).slice(0, 120) }));
+        await alertStaff(x.t, x.ev, 'guest link').catch((e) => log('alert_error', { msg: String(e).slice(0, 120) }));
+      }
     }
     const { ticket_id: _drop, ...pub } = r;
     return json(req, 200, pub);
@@ -223,7 +243,10 @@ export function makeHandler(env: Env, fetchImpl: typeof fetch = fetch) {
 
     if (r.result === 'REQUESTED') {
       const x = await loadTicket(t.id);
-      if (x) await sendFor(x.t, x.ev, 'REQUESTED');
+      if (x) {
+        await sendFor(x.t, x.ev, 'REQUESTED');
+        await alertStaff(x.t, x.ev, 'guest texted READY').catch((e) => log('alert_error', { msg: String(e).slice(0, 120) }));
+      }
     } else if (r.result === 'AMBIGUOUS' || r.result === 'NO_MATCH') {
       const x = await loadTicket((rows.find((y) => y.status !== 'DELIVERED') ?? rows[0]).id);
       // one clarification per inbound message (Twilio retries reuse the SID)
