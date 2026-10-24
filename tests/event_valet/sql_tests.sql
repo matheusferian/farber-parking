@@ -96,8 +96,23 @@ begin
   insert into _r(name, ok, info) values ('board counts', (r#>>'{counts,PARKED}')::int = 3 and jsonb_array_length(r->'tickets') = 5, r->>'counts');
   insert into _r(name, ok, info) values ('board has no token hash', position('guest_token' in r::text) = 0, null);
 
+  -- offline sync: keeps printed code+slot when free; changes and flags when taken; retry = same ticket
+  r := public.event_valet_checkin_offline('makers-halloween-2026', '9545557001', 'Volvo', 'off1', '7001', 19, 'GRASS', now() - interval '5 minutes', true);
+  insert into _r(name, ok, info) values ('offline sync keeps code/slot/location/printed',
+    (r->>'created')::boolean and r#>>'{ticket,ticket_code}' = '7001' and (r#>>'{ticket,slot_no}')::int = 19
+    and r#>>'{ticket,parking_location}' = 'GRASS' and (r#>>'{ticket,print_count}')::int = 1
+    and not (r->>'code_changed')::boolean and not (r->>'slot_changed')::boolean, r::text);
+  r := public.event_valet_checkin_offline('makers-halloween-2026', '9545557001', 'Volvo', 'off1', '7001', 19, 'GRASS', now(), true);
+  insert into _r(name, ok, info) values ('offline sync retry → same ticket', not (r->>'created')::boolean and r#>>'{ticket,ticket_code}' = '7001', r::text);
+  r := public.event_valet_checkin_offline('makers-halloween-2026', '3055557001', 'Mini', 'off2', '7001', 19, null, now(), true);
+  insert into _r(name, ok, info) values ('offline collision → new code + slot, flagged',
+    (r->>'code_changed')::boolean and (r->>'slot_changed')::boolean and r#>>'{ticket,ticket_code}' = '17001' and (r#>>'{ticket,slot_no}')::int <> 19, r::text);
+  r := public.event_valet_checkin_offline('makers-halloween-2026', '9545557002', 'Kia', 'off3', '9999', 0, 'ROOF', now() + interval '1 day', false);
+  insert into _r(name, ok, info) values ('offline: bad hints ignored safely',
+    r#>>'{ticket,ticket_code}' = '7002' and r#>>'{ticket,parking_location}' is null and (r#>>'{ticket,checked_in_at}')::timestamptz <= now(), r::text);
+
   -- fill all 20 slots → 21st gets slot NULL + slots_full
-  for i in 1..17 loop
+  for i in 1..14 loop
     perform public.event_valet_checkin('makers-halloween-2026', '954555' || lpad((200 + i)::text, 4, '0'), 'CAR ' || i, 'fill' || i);
   end loop;
   r := public.event_valet_checkin('makers-halloween-2026', '9545550300', 'OVERFLOW', 'fill-x');

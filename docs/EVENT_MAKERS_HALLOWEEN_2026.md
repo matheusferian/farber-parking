@@ -29,6 +29,20 @@ and `vercel-build.sh` (+copy of the 2 pages) change.
 - Guest without SMS: valet types the last 4 digits or the vehicle in the board search.
 - Board: polls every 3 s; REQUESTED first (orange), READY (green), PARKED, DELIVERED (grey). Sound + toast on new request. DELIVERED asks for confirmation; UNDO within 15 min.
 
+## Bad network (added 2026-10-23)
+
+| Situation | What happens |
+|---|---|
+| Weak / oscillating signal | Every request gives up after 12 s (6 s at check-in) and safe actions retry; the check-in key makes retries return the same ticket |
+| **Wi-Fi down, 4G up** (printer unreachable) | Everything keeps working; key tickets go to a **print queue** (header `PRINTER ✕ · N QUEUED`) and print by themselves, once, as soon as the printer answers (checked every 8 s). Queued items older than 6 h, deleted or delivered tickets are dropped |
+| **No internet, printer on Wi-Fi** | **Offline mode** (header `📴 OFFLINE · N TO SYNC`): check-in is saved on the phone (code = last 4, key slot taken from the top: 20, 19…), the key ticket prints right away, and on reconnect `event_valet_checkin_offline` syncs it, keeps the printed code/slot when still free (else assigns new ones and the phone shows *Ticket changed after sync* + REPRINT), then sends the guest SMS |
+| App opened with no internet | Event service worker (scope `/events/makers-halloween-2026/`, network-first) serves the cached page |
+
+## Operator alerts
+
+- Web Push to every phone that tapped **🔔 ALERTS** in the Home-Screen app (iOS 16.4+), on guest requests (SMS READY / link). Own RFC 8291/8292 code (`webpush.ts`), verified byte-exact against the RFC 8291 test vector.
+- SMS backup to `staff_alert_phones`.
+
 ## Safety switches (row `event_valet_events`, id `makers-halloween-2026`)
 
 | Column | Default | Meaning |
@@ -66,6 +80,8 @@ and `vercel-build.sh` (+copy of the 2 pages) change.
 - DB: `migrations/20261024_event_valet_makers_halloween_rollback.sql` (archives the data in `airvalet_archive`, drops only `event_valet_*`).
 
 ## Tests
+
+`tests/event_valet/e2e_errors.mjs` — 64 checks in headless Chrome with two isolated "phones": validation, autocomplete, lost response, slow signal, Wi-Fi drop + auto print, SMS endpoint down, simultaneous check-ins, same last 4, board sync, delete, offline mode + sync conflict, full offline, offline delete, app reopened offline, banner, expired session, end-state integrity.
 
 ```
 tests/event_valet/sql_tests.sql   49 checks (rolls back)          psql -v ipad=<uuid> -v tv=<uuid> -f …

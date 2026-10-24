@@ -10,10 +10,9 @@ export type Kind = 'CHECKIN' | 'REQUESTED' | 'TIP' | 'AMBIGUOUS' | 'NO_MATCH';
 // Operator alert (to staff phones, never to guests).
 export function composeStaffAlert(t: { ticket_code: string; slot_no: number | null; vehicle: string; parking_location?: string | null }, via: string): string {
   return [
-    '🚗 CAR REQUESTED' + (via ? ` (${via})` : ''),
-    `#${t.ticket_code} · KEY SLOT ${t.slot_no ? String(t.slot_no).padStart(2, '0') : '--'}`,
+    '🚗 CAR REQUESTED' + (via ? ` · ${via}` : ''),
+    `#${t.ticket_code} · KEY ${t.slot_no ? String(t.slot_no).padStart(2, '0') : '--'} · ${t.parking_location || 'NO LOCATION'}`,
     t.vehicle,
-    `📍 ${t.parking_location || 'NO LOCATION'}`,
     '— Halloween Valet',
   ].join('\n');
 }
@@ -27,45 +26,43 @@ export function composeSms(kind: Kind, code: string | null, link: string | null,
   switch (kind) {
     case 'CHECKIN':
       return [
-        '🎃 Welcome to Makers Air Halloween!',
-        'Your vehicle has been checked in.',
-        'Our valet service is complimentary — there is nothing to pay.',
-        `🎟️ VALET TICKET: #${no}`,
-        'When you’re ready to leave, simply reply READY to this message.',
-        'Please keep your ticket number handy for pickup.',
+        '🎃 Welcome to the Makers Air Halloween celebration!',
+        'Your car is checked in with our complimentary valet — there’s nothing to pay.',
+        `🎟️ Your ticket: #${no}` + (/^\d{4}$/.test(no) ? ' (the last 4 digits of your phone)' : ''),
+        'Ready to head home? Simply reply READY and we’ll bring your car around.',
         ...(link ? [`Your digital ticket: ${link}`] : []),
-        'Enjoy the celebration!',
+        'Enjoy the party!',
         '— Makers Air Valet',
         'Reply STOP to opt out.',
       ].join('\n');
     case 'REQUESTED':
       return [
-        '🚗 Your vehicle has been requested!',
+        '🚗 We’re bringing your car around!',
         `🎟️ Ticket #${no}`,
-        'Our valet team is preparing your car.',
-        'Please have your ticket number ready.',
+        'Please meet us at the valet stand — it will be ready shortly.',
         '— Makers Air Valet',
       ].join('\n');
     case 'TIP':
       return [
-        '🚗 Thank you for celebrating Halloween with Makers Air!',
-        'We hope you enjoyed the Halloween fun! 🎃',
+        '🎃 Thank you for celebrating Halloween with Makers Air!',
+        'We hope you had a spooktacular time.',
         'If you’d like to thank our valet team, you can leave an optional tip here:',
         link ?? '',
-        'Have a wonderful night!',
+        'Have a wonderful evening and drive safely!',
         '— Makers Air Valet',
       ].join('\n');
     case 'AMBIGUOUS':
       return [
-        '🎟️ We found more than one vehicle for this number.',
-        'Please reply with the one you want:',
+        '🎟️ We have more than one car under this number.',
+        'Reply with the one you’d like:',
         ...(pick.length ? pick : ['READY followed by your ticket number']),
         '— Makers Air Valet',
       ].join('\n');
     case 'NO_MATCH':
       return [
-        'We could not match that ticket number to this phone.',
-        ...(pick.length ? ['Please reply with:', ...pick] : ['Please reply READY, or see a valet.']),
+        'We couldn’t find that ticket for this number.',
+        ...(pick.length ? ['Please reply with:', ...pick] : ['Please reply READY']),
+        'or come see us at the valet stand.',
         '— Makers Air Valet',
       ].join('\n');
   }

@@ -12,12 +12,12 @@ const ANON = Deno.readTextFileSync(Deno.env.get('EV_ANON_KEY_FILE')!).trim();
 const JOBS = Deno.env.get('EV_PRINT_LOG') ?? '/tmp/ev_print_jobs.log';
 
 const REWRITES: Record<string, string> = {
-  '/events/makers-halloween-2026': '/events/makers-halloween-2026/index.html',
   '/events/makers-halloween-2026/t': '/events/makers-halloween-2026/t.html',
 };
 const TYPES: Record<string, string> = { html: 'text/html; charset=utf-8', js: 'text/javascript', css: 'text/css', png: 'image/png', webmanifest: 'application/manifest+json' };
 Deno.serve({ port: 8789 }, async (req) => {
   let p = decodeURIComponent(new URL(req.url).pathname);
+  if (p === '/events/makers-halloween-2026') return Response.redirect(new URL('/events/makers-halloween-2026/', req.url), 302);
   p = REWRITES[p] ?? (p.endsWith('/') ? p + 'index.html' : p);
   if (p.includes('..')) return new Response('bad', { status: 400 });
   try {
@@ -34,14 +34,15 @@ const handle = makeHandler((k) => ({
 } as Record<string, string>)[k]);
 Deno.serve({ port: 8790 }, handle);
 
-let fail = false;
+let fail = false, jobs = 0;
 Deno.serve({ port: 8791 }, async (req) => {
   const cors = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'content-type, soapaction', 'Access-Control-Allow-Methods': 'POST, OPTIONS' };
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
   if (req.method === 'GET' && new URL(req.url).pathname === '/fail') { fail = !fail; return new Response(`fail=${fail}`, { headers: cors }); }
+  if (req.method === 'GET' && new URL(req.url).pathname === '/count') return new Response(String(jobs), { headers: cors });
   const xml = await req.text();
-  if (xml.includes('<text')) await Deno.writeTextFile(JOBS, xml + '\n', { append: true });
   const ok = !fail;
+  if (ok && xml.includes('<text')) { jobs++; await Deno.writeTextFile(JOBS, xml + '\n', { append: true }); }
   return new Response(`<?xml version="1.0"?><s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"><s:Body><response success="${ok}" code="${ok ? '' : 'EPTR_REC_EMPTY'}" status="0" battery="0"/></s:Body></s:Envelope>`,
     { headers: { ...cors, 'Content-Type': 'text/xml' } });
 });

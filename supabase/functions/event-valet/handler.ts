@@ -167,8 +167,8 @@ export function makeHandler(env: Env, fetchImpl: typeof fetch = fetch) {
     const subs: Json[] = r.ok ? await r.json() : [];
     const slot = t.slot_no ? String(t.slot_no).padStart(2, '0') : '--';
     const data = {
-      title: `🚗 #${t.ticket_code} REQUESTED`,
-      body: `${t.vehicle} · KEY SLOT ${slot} · ${t.parking_location || 'NO LOCATION'}`,
+      title: `🚗 Car requested · #${t.ticket_code}`,
+      body: `${t.vehicle} · Key ${slot} · ${t.parking_location || 'No location yet'}`,
       tag: `req-${t.id}`,
       url: `/events/${ev.id}/`,
     };
