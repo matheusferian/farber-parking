@@ -109,7 +109,7 @@ await checkin(A, '9545550101', 'HONDA', 'CIVIC');
 let H = await byVeh('HONDA CIVIC');
 check('check-in: 1 ticket #0101, slot 1', H.length === 1 && H[0].ticket_code === '0101' && H[0].slot_no === 1, H);
 check('check-in SMS sent once', (await msgs('CHECKIN')).length === 1);
-check('nothing printed before the location', (await printed()) === PRINT_BASE && /Waiting for location/.test(await A.ev(txt('dPrint'))));
+check('nothing printed before the location', (await printed()) === PRINT_BASE && /Select a location/.test(await A.ev(txt('dPrint'))));
 
 // ── 4 lost response (server saved, phone never got the answer) ──
 await A.send('Fetch.enable', { patterns: [{ urlPattern: '*rpc/event_valet_checkin*', requestStage: 'Response' }] });
@@ -132,7 +132,7 @@ check('slow signal (2.5 s): ticket #0103 created', (await A.ev(txt('dTicket'))) 
 // ── 6 Wi-Fi drop: printer unreachable → queue → prints by itself once ──
 await printerFail(true);
 await tap(A, `document.querySelector('#dLocs [data-loc="HANGAR 19"]').click()`); await sleep(2500);
-check('printer down: "queued, prints automatically"', /queued/i.test(await A.ev(txt('dPrint'))), await A.ev(txt('dPrint')));
+check('printer down: "will print automatically"', /automatically/i.test(await A.ev(txt('dPrint'))), await A.ev(txt('dPrint')));
 check('printer down: header shows 1 QUEUED', /1 QUEUED/.test(await A.ev(txt('bPrinter'))), await A.ev(txt('bPrinter')));
 check('printer down: location saved', (await byVeh('LEXUS RX'))[0].parking_location === 'HANGAR 19');
 const p0 = await printed();

@@ -108,7 +108,8 @@ export function makeHandler(env: Env, fetchImpl: typeof fetch = fetch) {
     // undo gets a new confirmation; repeats of the same request never do.
     const dedupe = opts.dedupe ?? (opts.resend
       ? `${kind}:${t.id}:resend:${Math.floor(Date.now() / 30000)}`  // ≤ 1 resend / 30 s
-      : kind === 'REQUESTED' ? `${kind}:${t.id}:${t.requested_at}` : `${kind}:${t.id}`);
+      : kind === 'REQUESTED' ? `${kind}:${t.id}:${t.requested_at}`
+      : kind === 'READY' ? `${kind}:${t.id}:${t.ready_at}` : `${kind}:${t.id}`);
     const row = await insertMessage({ ...base, status: 'SENDING', dedupe_key: dedupe });
     if (!row) return { status: 'DUPLICATE' };
 
@@ -206,10 +207,12 @@ export function makeHandler(env: Env, fetchImpl: typeof fetch = fetch) {
     if (!staff) return json(req, 403, { error: 'NOT_AUTHORIZED' });
     const b = await req.json().catch(() => ({}));
     const kind = String(b.kind ?? '') as Kind;
-    if (!['CHECKIN', 'REQUESTED', 'TIP'].includes(kind) || typeof b.ticket_id !== 'string') return json(req, 400, { error: 'BAD_REQUEST' });
+    if (!['CHECKIN', 'REQUESTED', 'READY', 'TIP'].includes(kind) || typeof b.ticket_id !== 'string') return json(req, 400, { error: 'BAD_REQUEST' });
     const x = await loadTicket(b.ticket_id);
     if (!x) return json(req, 404, { error: 'TICKET_NOT_FOUND' });
+    // never before the fact: READY only for a car that is ready, thank-you only after delivery
     if (kind === 'TIP' && x.t.status !== 'DELIVERED') return json(req, 409, { error: 'NOT_DELIVERED' });
+    if (kind === 'READY' && x.t.status !== 'READY') return json(req, 409, { error: 'NOT_READY' });
     const out = await sendFor(x.t, x.ev, kind, { resend: b.resend === true });
     return json(req, 200, MODE === 'mock' ? out : { status: out.status, error_code: out.error_code });
   }
@@ -278,7 +281,23 @@ export function makeHandler(env: Env, fetchImpl: typeof fetch = fetch) {
       return twiml();
     }
 
-    const r = await rpc('event_valet_inbound_ready', { p_phone: phone, p_ref: parsed.ticketRef });
+    let ref = parsed.ticketRef;
+    // "1" / "2" = position in the "Which vehicle…?" list, not a ticket number
+    if (ref && /^\d{1,2}$/.test(ref)) {
+      const first = await rpc('event_valet_inbound_ready', { p_phone: phone, p_ref: null });
+      const opts: CarOption[] = first.options ?? [];
+      if (first.result !== 'AMBIGUOUS') ref = null;            // single car (already handled) or none
+      else ref = opts[parseInt(ref, 10) - 1]?.code ?? '__none__';
+      if (first.result !== 'AMBIGUOUS' && first.result !== 'NONE' && first.result !== 'DELIVERED') {
+        // the first call already requested the only active car
+        return await afterInbound(first, phone, sid, p, rows);
+      }
+    }
+    const r = await rpc('event_valet_inbound_ready', { p_phone: phone, p_ref: ref });
+    return await afterInbound(r, phone, sid, p, rows);
+  }
+
+  async function afterInbound(r: Json, phone: string, sid: string, p: URLSearchParams, rows: Json[]) {
     const t = r.ticket;
     await insertMessage({ event_id: t?.event_id ?? rows[0].event_id, ticket_id: t?.id ?? null, direction: 'IN', kind: 'READY',
       phone_e164: phone, body: String(p.get('Body') ?? '').slice(0, 500), twilio_sid: sid, status: r.result, dedupe_key: `IN:${sid}` });
@@ -288,7 +307,7 @@ export function makeHandler(env: Env, fetchImpl: typeof fetch = fetch) {
       const x = await loadTicket(t.id);
       if (x) {
         await sendFor(x.t, x.ev, 'REQUESTED');
-        await alertStaff(x.t, x.ev, 'guest texted READY').catch((e) => log('alert_error', { msg: String(e).slice(0, 120) }));
+        await alertStaff(x.t, x.ev, 'guest replied by text').catch((e) => log('alert_error', { msg: String(e).slice(0, 120) }));
       }
     } else if (r.result === 'AMBIGUOUS' || r.result === 'NO_MATCH') {
       const x = await loadTicket((rows.find((y) => y.status !== 'DELIVERED') ?? rows[0]).id);

@@ -5,64 +5,81 @@
 const enc = new TextEncoder();
 
 // ── Messages ────────────────────────────────────────────────────────────
-export type Kind = 'CHECKIN' | 'REQUESTED' | 'TIP' | 'AMBIGUOUS' | 'NO_MATCH';
+export type Kind = 'CHECKIN' | 'REQUESTED' | 'READY' | 'TIP' | 'AMBIGUOUS' | 'NO_MATCH';
 
 // Operator alert (to staff phones, never to guests).
 export function composeStaffAlert(t: { ticket_code: string; slot_no: number | null; vehicle: string; parking_location?: string | null }, via: string): string {
   return [
-    '🚗 CAR REQUESTED' + (via ? ` · ${via}` : ''),
-    `#${t.ticket_code} · KEY ${t.slot_no ? String(t.slot_no).padStart(2, '0') : '--'} · ${t.parking_location || 'NO LOCATION'}`,
-    t.vehicle,
+    '🚗 Car requested' + (via ? ` · ${via}` : ''),
+    `#${t.ticket_code} · Key ${t.slot_no ? String(t.slot_no).padStart(2, '0') : '--'} · ${t.parking_location || 'No location yet'}`,
+    displayVehicle(t.vehicle),
     '— Halloween Valet',
   ].join('\n');
 }
 export type CarOption = { code: string; vehicle: string };
 
+// Vehicles are stored in capitals ("TESLA MODEL Y"); guests read "Tesla Model Y".
+// Short words and words with digits stay as they are (BMW, GMC, X5, F-150, CR-V).
+export function displayVehicle(v: string): string {
+  return String(v ?? '').split(' ').map((w) => w.split('-').map((p) =>
+    p.length <= 3 || /\d/.test(p) ? p : p.charAt(0) + p.slice(1).toLowerCase()).join('-')).join(' ');
+}
+
 // Ticket code = last 4 digits of the guest's phone ("0101"; a repeated last 4
-// becomes "10101", "20101"…).
+// becomes "10101", "20101"…). Templates approved by the owner 2026-10-23;
+// "Reply STOP" stays on the first message (A2P opt-out disclosure).
 export function composeSms(kind: Kind, code: string | null, link: string | null, options: CarOption[] = []): string {
   const no = code ?? '';
-  const pick = options.map((o) => `READY ${o.code} — ${o.vehicle}`);
+  const list = options.map((o, i) => `${i + 1}. ${displayVehicle(o.vehicle)} — #${o.code}`);
   switch (kind) {
     case 'CHECKIN':
       return [
-        '🎃 Welcome to the Makers Air Halloween celebration!',
-        'Your car is checked in with our complimentary valet — there’s nothing to pay.',
-        `🎟️ Your ticket: #${no}` + (/^\d{4}$/.test(no) ? ' (the last 4 digits of your phone)' : ''),
-        'Ready to head home? Simply reply READY and we’ll bring your car around.',
+        '🎃 Welcome to the Makers Air Halloween Celebration!',
+        'Your vehicle has been checked in with our valet team.',
+        `Ticket #${no}`,
+        'When you’re ready to leave, simply reply READY, and we’ll take care of the rest.',
         ...(link ? [`Your digital ticket: ${link}`] : []),
-        'Enjoy the party!',
+        'Enjoy the celebration!',
         '— Makers Air Valet',
         'Reply STOP to opt out.',
       ].join('\n');
     case 'REQUESTED':
       return [
-        '🚗 We’re bringing your car around!',
-        `🎟️ Ticket #${no}`,
-        'Please meet us at the valet stand — it will be ready shortly.',
+        '🚗 We’ve received your request!',
+        `Ticket #${no}`,
+        'Our valet team is preparing your vehicle. We’ll let you know when it’s ready for pickup.',
+        '— Makers Air Valet',
+      ].join('\n');
+    case 'READY':
+      return [
+        '🚘 Your vehicle is ready!',
+        `Ticket #${no}`,
+        'Please head to the valet pickup area. Our team will be happy to assist you.',
         '— Makers Air Valet',
       ].join('\n');
     case 'TIP':
       return [
-        '🎃 Thank you for celebrating Halloween with Makers Air!',
-        'We hope you had a spooktacular time.',
-        'If you’d like to thank our valet team, you can leave an optional tip here:',
+        '🎃 Thank you for celebrating with Makers Air!',
+        'It was our pleasure taking care of your vehicle.',
+        'Enjoyed our valet service? You can leave our team an optional tip here:',
         link ?? '',
-        'Have a wonderful evening and drive safely!',
+        'Have a safe trip home!',
         '— Makers Air Valet',
       ].join('\n');
     case 'AMBIGUOUS':
       return [
-        '🎟️ We have more than one car under this number.',
-        'Reply with the one you’d like:',
-        ...(pick.length ? pick : ['READY followed by your ticket number']),
+        '🚗 Which vehicle would you like to request?',
+        '',
+        ...list,
+        '',
+        'Reply with the ticket number of the vehicle you’d like us to bring.',
         '— Makers Air Valet',
       ].join('\n');
     case 'NO_MATCH':
       return [
-        'We couldn’t find that ticket for this number.',
-        ...(pick.length ? ['Please reply with:', ...pick] : ['Please reply READY']),
-        'or come see us at the valet stand.',
+        'We couldn’t find that ticket number for this phone.',
+        ...(list.length ? ['', ...list, '', 'Please reply with one of the ticket numbers above, or visit the valet stand.']
+                        : ['Please reply READY, or visit the valet stand.']),
         '— Makers Air Valet',
       ].join('\n');
   }
@@ -82,6 +99,10 @@ export type Parsed = { type: 'ready'; ticketRef: string | null } | { type: 'keyw
 export function parseInbound(raw: string): Parsed {
   const text = String(raw ?? '').toUpperCase().replace(/[^A-Z0-9# ]/g, ' ').replace(/\s+/g, ' ').trim();
   if (KEYWORDS.has(text)) return { type: 'keyword' };
+  // A reply that is just a ticket number ("0101", "#10101") or a list position
+  // ("1") answers the "Which vehicle…?" question: treat it as READY <number>.
+  const bare = text.match(/^#?(\d{1,5})$/);
+  if (bare) return { type: 'ready', ticketRef: bare[1] };
   if (!/\bREADY\b/.test(text)) return { type: 'other' };
   // "READY 0101", "ready #10101", "0101 ready" → "0101" / "10101"
   const m = text.match(/(?:^|\s)#?(\d{1,5})(?:\s?([B-Z]))?(?=\s|$)/);

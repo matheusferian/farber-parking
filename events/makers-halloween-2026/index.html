@@ -164,16 +164,94 @@ main{padding:16px;max-width:1280px;margin:0 auto}
 .toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:60;
   background:var(--panel2);border:1px solid var(--line);padding:12px 16px;border-radius:12px;font-weight:700;max-width:92vw}
 .offline{background:#b3261e;color:#fff;text-align:center;font-weight:800;padding:6px;font-size:13px;letter-spacing:.06em}
+
+/* ── Type & spacing system (owner spec 2026-10-23) ─────────────────────
+   title 24 · section 18 · vehicle 17 · text 15–16 · secondary 13–14 ·
+   buttons 16 · ticket 20 · spacing 4/8/12/16/24 · touch ≥ 48px */
+.brand .eyebrow{font-size:13px;font-weight:600;letter-spacing:.08em;color:var(--muted);text-transform:uppercase}
+.brand h1{font-size:24px;font-weight:600;letter-spacing:0;color:var(--gold2);line-height:1.15;margin:2px 0 0}
+.brand .sub{display:none}
+.badge{font-size:13px;font-weight:600;letter-spacing:.02em;padding:5px 10px}
+.count small{font-size:13px;letter-spacing:0;font-weight:500}
+.count b{font-weight:600}
+.tab{font-size:16px;font-weight:600;letter-spacing:.04em;min-height:48px}
+.label{font-size:13px;font-weight:600;letter-spacing:.08em;margin-bottom:8px}
+.label .tag{font-size:12px;letter-spacing:.06em;font-weight:600}
+.field{font-size:22px;font-weight:600}
+.sugg button{font-size:15px;font-weight:600;min-height:44px}
+.hint{font-size:15px;line-height:1.45;margin:0 0 16px}
+.err-msg{font-size:15px;font-weight:600}
+.btn{font-size:16px;font-weight:600;letter-spacing:.04em;padding:14px 12px;min-height:48px;border-radius:14px}
+#ciBtn,#dNext{min-height:56px;font-size:17px}
+.btn-sm{font-size:15px;font-weight:600;letter-spacing:.02em;min-height:48px}
+.confirm .ok{font-size:15px;font-weight:600;letter-spacing:.08em}
+.big small{font-size:13px;font-weight:600;letter-spacing:.08em}
+.big b{font-size:40px;font-weight:700}
+.veh{font-size:18px;font-weight:600;letter-spacing:.02em;margin:8px 0 16px}
+.locs .btn{font-size:16px;font-weight:600;letter-spacing:.02em;min-height:52px}
+.stat{font-size:15px;font-weight:500}
+.stat .v{font-weight:600}
+.search{font-size:16px;min-height:48px}
+.section-title{font-size:18px;font-weight:600;letter-spacing:0;color:var(--text);margin:24px 2px 12px}
+.section-title .n{color:var(--muted);font-weight:500}
+.cards{gap:12px}
+.card{padding:16px}
+.crow{gap:12px;align-items:flex-start}
+.code{font-size:20px;font-weight:600;color:var(--gold2);line-height:1.2}
+.code small{font-size:13px;font-weight:500;letter-spacing:.04em;margin-bottom:2px}
+.kslot{min-width:76px;padding:6px 10px;border-color:#3a3a45}
+.kslot small{font-size:13px;font-weight:600;letter-spacing:.06em}
+.kslot b{font-size:32px;font-weight:700;color:var(--text)}
+.kslot b.none{font-size:14px;font-weight:600}
+.morebtn{width:48px;height:48px;font-weight:600}
+.cveh{font-size:17px;font-weight:500;letter-spacing:.01em;margin:4px 0 0;color:var(--text)}
+.facts{gap:8px;margin-top:12px}
+.fact{font-size:13px;font-weight:600;letter-spacing:.01em;padding:5px 9px}
+.status{font-size:13px;font-weight:700;letter-spacing:.06em;padding:5px 9px;border-radius:8px;border:1px solid}
+.status.PARKED{color:#e9e4d6;border-color:#55524a}
+.status.REQUESTED{color:#140a02;background:var(--orange);border-color:var(--orange)}
+.status.READY{color:#04140a;background:var(--green);border-color:var(--green)}
+.status.DELIVERED{color:var(--muted);border-color:var(--line)}
+.inb{font-size:14px;margin-top:12px}
+.actions{gap:8px;margin-top:16px}
+.actions .btn{font-size:16px;font-weight:600;letter-spacing:.04em;min-height:52px}
+.card .locs{margin:16px 0 0}
+.card .locs .btn{font-size:15px;min-height:52px}
+.drow{padding:12px 14px;min-height:60px}
+.drow b{font-size:17px;font-weight:600}
+.drow span{font-size:14px;font-weight:500}
+.drow .morebtn{width:44px;height:44px}
+.modal h3{font-size:20px;font-weight:600}
+.modal-bg{align-items:flex-start;padding:max(16px, env(safe-area-inset-top)) 16px 16px}
+.modal{max-height:calc(100vh - 32px - env(safe-area-inset-top));overflow-y:auto;-webkit-overflow-scrolling:touch;margin:auto 0}
+.modal p{font-size:15px;line-height:1.45}
+.toast{font-size:15px;font-weight:600}
+.offline{font-size:14px;font-weight:600;letter-spacing:.01em;padding:8px 12px}
+/* SMS preview (View details) */
+.thread{display:flex;flex-direction:column;gap:8px;margin:4px 0 16px;max-height:42vh;overflow-y:auto;padding:4px 2px}
+.bubble{max-width:86%;padding:9px 12px;border-radius:16px;font-size:15px;line-height:1.38;white-space:pre-line;overflow-wrap:anywhere}
+.bubble.out{align-self:flex-start;background:#26262e;color:var(--text);border-bottom-left-radius:5px}
+.bubble.in{align-self:flex-end;background:#2f6fe4;color:#fff;border-bottom-right-radius:5px}
+.bmeta{font-size:13px;color:var(--muted);margin:-4px 4px 2px}
+.bmeta.in{align-self:flex-end}
+.bmeta.bad{color:#ff9a9a}
+@media (max-width:600px){
+  .brand h1{font-size:24px}
+  .badge{font-size:13px;padding:4px 9px}
+  .count small{font-size:13px}
+  .field{font-size:22px}
+  .tab{padding:10px 8px}
+}
 </style>
 </head>
 <body>
-<div id="offline" class="offline hidden">📴 NO INTERNET — check-ins are saved on this phone and sync automatically</div>
+<div id="offline" class="offline hidden">📴 No internet · Check-ins are saved on this phone and will sync automatically.</div>
 
 <!-- LOGIN -->
 <section id="viewLogin" class="center hidden">
   <div class="panel login">
     <h2>🎃 HALLOWEEN VALET</h2>
-    <p class="hint" style="margin:0 0 16px">Makers Air · AirValet operator sign-in</p>
+    <p class="hint" style="margin:0 0 16px">Makers Air valet team sign-in</p>
     <div class="fgroup"><label class="label" for="lgUser">USERNAME</label>
       <input id="lgUser" class="field" style="font-size:20px" autocapitalize="none" autocomplete="username" spellcheck="false"></div>
     <div class="fgroup"><label class="label" for="lgPwd">PASSWORD</label>
@@ -188,16 +266,16 @@ main{padding:16px;max-width:1280px;margin:0 auto}
   <header>
     <div class="brand">
       <div>
-        <h1>🎃 MAKERS AIR <span>·</span> HALLOWEEN VALET</h1>
-        <div class="sub">Fall Trunk or Treat · Hangar 19 · Oct 24, 2026</div>
+        <div class="eyebrow">Makers Air · Hangar 19 · Oct 24</div>
+        <h1>🎃 Halloween Valet</h1>
       </div>
       <div class="badges"><span id="bNet" class="badge bad hidden">OFFLINE</span><span id="bAlerts" class="badge">🔔 …</span><span id="bPrinter" class="badge">PRINTER …</span><span id="bSms" class="badge">SMS …</span></div>
     </div>
     <div class="counts">
-      <div class="count"><b id="cP">0</b><small>PARKED</small></div>
-      <div class="count req" id="cReqBox"><b id="cR">0</b><small>REQUESTED</small></div>
-      <div class="count rdy"><b id="cY">0</b><small>READY</small></div>
-      <div class="count dlv"><b id="cD">0</b><small>DELIVERED</small></div>
+      <div class="count"><b id="cP">0</b><small>Checked in</small></div>
+      <div class="count req" id="cReqBox"><b id="cR">0</b><small>Requested</small></div>
+      <div class="count rdy"><b id="cY">0</b><small>Ready</small></div>
+      <div class="count dlv"><b id="cD">0</b><small>Delivered</small></div>
     </div>
     <div class="tabs">
       <button class="tab on" data-tab="checkin">CHECK IN</button>
@@ -223,7 +301,7 @@ main{padding:16px;max-width:1280px;margin:0 auto}
           <input id="ciModel" class="field" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" placeholder="X5, Model Y, Civic…" maxlength="30" enterkeyhint="go">
           <div class="sugg" id="sgModel"></div>
         </div>
-        <p class="hint">Tell the guest: “Your ticket is the last 4 digits of your phone. We’ll text it to you — just reply READY when you’d like your car.”</p>
+        <p class="hint">Tell the guest: “Your ticket number is the last 4 digits of your phone. When you’re ready to leave, just reply READY to our text.”</p>
         <div id="ciErr" class="err-msg"></div>
         <button id="ciBtn" class="btn btn-gold">CHECK IN</button>
       </div>
@@ -235,22 +313,22 @@ main{padding:16px;max-width:1280px;margin:0 auto}
           <div class="big slot"><small>KEY SLOT</small><b id="dSlot">00</b></div>
         </div>
         <div class="veh" id="dVeh">—</div>
-        <label class="label" style="text-align:left">PARKING LOCATION · tap after parking</label>
+        <label class="label" style="text-align:left">PARKING LOCATION · select after parking</label>
         <div class="locs" id="dLocs"></div>
-        <div class="stat"><span>🖨 Key ticket</span><span id="dPrint" class="v wait">Waiting for location</span></div>
-        <div class="stat"><span>💬 Guest SMS</span><span id="dSms" class="v wait">Sending…</span></div>
+        <div class="stat"><span>🖨 Key ticket</span><span id="dPrint" class="v wait">Select a location to print</span></div>
+        <div class="stat"><span>💬 Guest text</span><span id="dSms" class="v wait">Sending…</span></div>
         <button id="dNext" class="btn btn-gold" style="margin-top:12px">NEXT CHECK-IN</button>
         <div class="row2">
           <button id="dReprint" class="btn btn-dark btn-sm">REPRINT KEY TICKET</button>
-          <button id="dResend" class="btn btn-dark btn-sm">RESEND SMS</button>
+          <button id="dResend" class="btn btn-dark btn-sm">RESEND TEXT</button>
         </div>
-        <button id="dDelete" class="btn btn-dark btn-sm" style="margin-top:8px;color:var(--red)">DELETE THIS TICKET (mistake / test)</button>
+        <button id="dDelete" class="btn btn-dark btn-sm" style="margin-top:8px;color:var(--red)">DELETE TICKET</button>
       </div>
     </section>
 
     <section id="viewBoard" class="hidden">
       <div class="toolbar">
-        <input id="q" class="search" placeholder="🔎 Last 4 or vehicle" autocomplete="off" inputmode="search">
+        <input id="q" class="search" placeholder="Last 4 digits or vehicle" autocomplete="off" inputmode="search">
         <button id="soundBtn" class="btn btn-dark btn-sm sound" style="width:auto">🔔 SOUND ON</button>
       </div>
       <div id="board"></div>
@@ -323,7 +401,7 @@ function toast(msg, ms){ var t = $('toast'); t.textContent = msg; t.classList.re
 function timeOf(iso){ return iso ? new Date(iso).toLocaleTimeString('en-US', { timeZone: TZ, hour: 'numeric', minute: '2-digit' }) : ''; }
 function errText(e){
   var m = (e && (e.message || e.error_description || e.error)) || String(e);
-  var map = { INVALID_PHONE: 'Check the phone number (10 digits).', INVALID_VEHICLE: 'Enter the vehicle (make or model).',
+  var map = { INVALID_PHONE: 'Check the phone number (10 digits).', INVALID_VEHICLE: 'Enter the vehicle make.',
     NOT_AUTHORIZED: 'This login is not allowed to operate the valet.', EVENT_CLOSED: 'Event is closed.',
     SLOT_OCCUPIED: 'That key slot is in use by another car.', INVALID_SLOT: 'Key slot must be between 1 and the capacity.',
     ALREADY_DELIVERED: 'Already delivered.', TICKET_NOT_FOUND: 'Ticket not found.' };
@@ -454,7 +532,7 @@ async function doCheckin(){
   var d = phoneDigits($('ciPhone').value), veh = vehicleText();
   $('ciErr').textContent = '';
   if (!validPhone(d)) { $('ciPhone').classList.add('err'); $('ciErr').textContent = 'Enter a valid 10-digit US phone number.'; $('ciPhone').focus(); return; }
-  if (!norm($('ciMake').value).trim()) { $('ciMake').classList.add('err'); $('ciErr').textContent = 'Enter the car make (BMW, Tesla, Honda…).'; $('ciMake').focus(); return; }
+  if (!norm($('ciMake').value).trim()) { $('ciMake').classList.add('err'); $('ciErr').textContent = 'Enter the vehicle make (for example, BMW or Tesla).'; $('ciMake').focus(); return; }
   if ($('ciBtn').disabled) return;
   $('ciBtn').disabled = true; $('ciBtn').textContent = 'CHECKING IN…';
   // one key per form submission: a retry after a timeout returns the same ticket
@@ -473,7 +551,7 @@ async function doCheckin(){
     // Print + SMS run in parallel and never block the ticket.
     // created=false = same submission retried after a lost answer: still the same
     // ticket; the server never sends the check-in SMS twice.
-    setStat($('dPrint'), t.print_count ? 'Printed ✓' : 'Waiting for location', t.print_count ? 'ok' : 'wait');
+    setStat($('dPrint'), t.print_count ? 'Printed ✓' : 'Select a location to print', t.print_count ? 'ok' : 'wait');
     sendSms(t, 'CHECKIN', false, $('dSms'));
   } catch (e) {
     $('ciErr').textContent = isNetErr(e) ? 'Weak signal — not confirmed. Tap CHECK IN again (it will NOT create a duplicate).' : errText(e);
@@ -493,7 +571,7 @@ function showConfirmation(t, slotsFull){
   $('dSlot').textContent = t.slot_no ? pad2(t.slot_no) : '—';
   $('dVeh').textContent = t.vehicle;
   $('ciForm').classList.add('hidden'); $('ciDone').classList.remove('hidden');
-  if (slotsFull) toast('All key slots are full — assign a slot on the board.', 5000);
+  if (slotsFull) toast('All key slots are full. Assign a slot from View details.', 5000);
 }
 $('dNext').onclick = function(){
   $('ciPhone').value = ''; $('ciMake').value = ''; $('ciModel').value = ''; $('ciErr').textContent = '';
@@ -508,16 +586,16 @@ $('dReprint').onclick = function(){ if (state.last) printTicket(state.last, 'REP
 $('dDelete').onclick = function(){
   var t = state.last; if (!t) return;
   if (t.local) { deleteLocal(t); $('dNext').click(); return; }
-  confirmModal('Delete ticket #' + t.ticket_code + '?', esc(t.vehicle) + ' — removes it and frees key slot ' + (t.slot_no ? pad2(t.slot_no) : '—') + '.', 'DELETE TICKET', 'btn-orange',
+  confirmModal('Delete ticket #' + t.ticket_code + '?', esc(t.vehicle) + ' · This removes the ticket and frees key slot ' + (t.slot_no ? pad2(t.slot_no) : '—') + '. Use only for mistakes or tests.', 'DELETE TICKET', 'btn-orange',
     async function(){
       var r = await rpcRetry('event_valet_delete_ticket', { p_ticket: t.id });
       if (r.error) { toast(errText(r.error), 4000); return; }
-      toast('Ticket #' + t.ticket_code + ' deleted'); $('dNext').click(); refresh();
+      toast('Ticket #' + t.ticket_code + ' deleted.'); $('dNext').click(); refresh();
     });
 };
 $('dResend').onclick = function(){
   if (!state.last) return;
-  if (state.last.local) { toast('Offline — the SMS goes out automatically when the phone is back online.', 4000); return; }
+  if (state.last.local) { toast('Offline. The check-in text goes out automatically when the phone is back online.', 4000); return; }
   sendSms(state.last, 'CHECKIN', true, $('dSms'), $('dResend'));
 };
 
@@ -573,7 +651,7 @@ async function chooseLocation(t, loc, statusEl, btn){
   if (t.local && state.synced[t.lid]) t = state.synced[t.lid];         // synced meanwhile
   if (t.local) {
     var box = outbox(), e = box.filter(function(x){ return x.lid === t.lid; })[0];
-    if (!e) { toast('Ticket is syncing — try again in a moment.', 3000); return; }
+    if (!e) { toast('This ticket is syncing. Try again in a moment.', 3000); return; }
     e.location = loc; saveOutbox(box);
     var lt = localTicket(e);
     if (state.last && state.last.lid === lt.lid) { state.last = lt; $('dLocs').innerHTML = locButtons(lt); }
@@ -588,14 +666,14 @@ async function chooseLocation(t, loc, statusEl, btn){
     var nt = r.data.ticket;
     if (state.last && state.last.id === nt.id) { state.last = nt; $('dLocs').innerHTML = locButtons(nt); }
     if (!nt.print_count) printTicket(nt, 'AUTO', statusEl);                 // first time → print now
-    else if (r.data.changed) toast('#' + nt.ticket_code + ' → ' + loc + ' · tap REPRINT for a new key ticket', 4500);
+    else if (r.data.changed) toast('#' + nt.ticket_code + ' moved to ' + loc + '. Tap REPRINT for a new key ticket.', 4500);
     refresh();
   } catch (e) { toast(errText(e), 4000); }
   finally { state.busy[key] = false; if (btn) btn.disabled = false; }
 }
 
 async function printTicket(t, kind, statusEl, btn){
-  if (!t.parking_location) { setStat(statusEl, 'Set the parking location first', 'wait'); toast('Pick the parking location first — then it prints.', 3500); return; }
+  if (!t.parking_location) { setStat(statusEl, 'Select a parking location first', 'wait'); toast('Select the parking location first. The key ticket prints right after.', 3500); return; }
   var key = 'print:' + t.id;
   if (state.busy[key]) return;                       // no accidental double print
   state.busy[key] = true; if (btn) btn.disabled = true;
@@ -609,9 +687,9 @@ async function printTicket(t, kind, statusEl, btn){
   } catch (e) {
     // Wi-Fi down / printer off: never lose it — queued and printed as soon as the printer answers.
     queuePrint(t, kind);
-    setStat(statusEl, 'Printer not reachable — queued, prints automatically', 'bad');
+    setStat(statusEl, 'Printer offline · will print automatically', 'bad');
     setPrinter(false);
-    if (!statusEl) toast('Printer not reachable — #' + t.ticket_code + ' queued, prints automatically.', 4500);
+    if (!statusEl) toast('Printer offline · #' + t.ticket_code + ' will print automatically.', 4500);
   } finally {
     setTimeout(function(){ state.busy[key] = false; if (btn) btn.disabled = false; }, 4000);
   }
@@ -664,7 +742,7 @@ function localTicket(e){
 function setOffline(on){
   if (state.offline === on) return;
   state.offline = on; updateNetBadge();
-  if (on) toast('📴 No internet — OFFLINE MODE: check-ins are saved on this phone and still print.', 5000);
+  if (on) toast('📴 No internet · Offline mode is on. Check-ins are saved on this phone and still print.', 5000);
 }
 function updateNetBadge(){
   var n = outbox().length, b = $('bNet');
@@ -695,13 +773,13 @@ function checkinOffline(phone, vehicle){
   clientKey = null;
   var t = localTicket(e);
   showConfirmation(t, !slot);
-  setStat($('dPrint'), 'Waiting for location', 'wait');
-  setStat($('dSms'), 'Offline — sends when back online', 'wait');
+  setStat($('dPrint'), 'Select a location to print', 'wait');
+  setStat($('dSms'), 'Offline · sends when back online', 'wait');
   renderBoard();
 }
 function deleteLocal(t){
   saveOutbox(outbox().filter(function(e){ return e.lid !== t.lid; }));
-  unqueuePrint(t.id); toast('Offline ticket #' + t.ticket_code + ' deleted'); renderBoard();
+  unqueuePrint(t.id); toast('Offline ticket #' + t.ticket_code + ' deleted.'); renderBoard();
 }
 var flushing = false;
 async function flushOutbox(){
@@ -724,7 +802,7 @@ async function flushOutbox(){
       if (cur.printed && !t.print_count) rpcRetry('event_valet_mark_printed', { p_ticket: t.id, p_kind: 'OFFLINE' }, 2);
       retargetPrint('local:' + e.lid, t.id);
       var onScreen = state.last && state.last.lid === e.lid && !$('ciDone').classList.contains('hidden');
-      if (onScreen) { state.last = t; showConfirmation(t); setStat($('dPrint'), cur.printed ? 'Printed ✓' : 'Waiting for location', cur.printed ? 'ok' : 'wait'); }
+      if (onScreen) { state.last = t; showConfirmation(t); setStat($('dPrint'), cur.printed ? 'Printed ✓' : 'Select a location to print', cur.printed ? 'ok' : 'wait'); }
       sendSms(t, 'CHECKIN', false, onScreen ? $('dSms') : null);
       if (r.data.code_changed || r.data.slot_changed) syncChanged(cur, t);
     }
@@ -760,9 +838,9 @@ async function drainPrintq(manual){
       if (t === undefined) continue;
       if (!t || t.status === 'DELIVERED') { unqueuePrint(q[i].id); continue; }      // deleted or already gone
       try { await epsonPost(keyTicketXml(t)); }
-      catch (e) { setPrinter(false); if (manual) toast('Printer still not reachable — check the Wi-Fi.', 4000); break; }
+      catch (e) { setPrinter(false); if (manual) toast('The printer is still offline. Check the Wi-Fi connection.', 4000); break; }
       unqueuePrint(q[i].id); setPrinter(true); afterPrinted(t, q[i].kind);
-      toast('🖨 Printed #' + t.ticket_code + ' (was waiting)', 3500);
+      toast('🖨 Printed #' + t.ticket_code + ' (was waiting).', 3500);
     }
   } finally { draining = false; }
 }
@@ -770,9 +848,12 @@ setInterval(function(){ if (printq().length) drainPrintq(); }, 8000);
 
 // ── SMS (server side; Twilio secrets never reach the browser) ──────────
 var SMS_LABEL = { ACCEPTED: 'Sent ✓', QUEUED: 'Sent ✓', SENDING: 'Sending…', SENT: 'Sent ✓', DELIVERED: 'Delivered ✓',
-  MOCK_SENT: 'Sent (test) ✓', DUPLICATE: 'Already sent', SKIPPED_SMS_OFF: 'SMS off', SKIPPED_TEST_MODE: 'Test mode — not sent',
-  SKIPPED_TIP_OFF: 'Tip SMS off', NOT_CONFIGURED: 'SMS not configured', FAILED: 'Failed', UNDELIVERED: 'Undelivered',
-  UNCONFIRMED: 'Unconfirmed' };
+  MOCK_SENT: 'Sent (test) ✓', DUPLICATE: 'Already sent', SKIPPED_SMS_OFF: 'Texts are off', SKIPPED_TEST_MODE: 'Test mode · not sent',
+  SKIPPED_TIP_OFF: 'Tip text is off', NOT_CONFIGURED: 'Texting not set up', FAILED: 'Not delivered', UNDELIVERED: 'Not delivered',
+  UNCONFIRMED: 'Unconfirmed', RECEIVED: 'Received', REQUESTED: 'Car requested', AMBIGUOUS: 'Asked which car', NO_MATCH: 'Unknown ticket',
+  ALREADY: 'Already requested' };
+var KIND_LABEL = { CHECKIN: 'Check-in', REQUESTED: 'Request received', READY: 'Car ready', TIP: 'Thank-you', AMBIGUOUS: 'Which vehicle?',
+  NO_MATCH: 'Ticket not found', STAFF_ALERT: 'Team alert', INBOUND: 'Guest reply' };
 function smsClass(s){ return /SENT|ACCEPTED|QUEUED|DELIVERED$|DUPLICATE/.test(s) && s !== 'UNDELIVERED' ? 'ok' : /FAILED|UNDELIVERED|UNCONFIRMED/.test(s) ? 'bad' : /SENDING/.test(s) ? 'wait' : 'off'; }
 async function sendSms(t, kind, resend, statusEl, btn){
   var key = 'sms:' + kind + ':' + t.id;
@@ -793,10 +874,10 @@ async function sendSms(t, kind, resend, statusEl, btn){
     if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
     var label = (SMS_LABEL[j.status] || j.status) + (j.error_code ? ' (' + j.error_code + ')' : '');
     setStat(statusEl, label, smsClass(j.status));
-    if (statusEl == null) toast(kind === 'TIP' ? 'Thank-you SMS: ' + label : 'SMS: ' + label);
+    if (statusEl == null) toast((KIND_LABEL[kind] || 'Text') + ' text: ' + label);
   } catch (e) {
-    setStat(statusEl, 'SMS failed — tap RESEND', 'bad');
-    if (statusEl == null) toast('SMS failed: ' + errText(e), 4000);
+    setStat(statusEl, 'Text failed · tap RESEND', 'bad');
+    if (statusEl == null) toast('Text failed: ' + errText(e), 4000);
   } finally {
     setTimeout(function(){ state.busy[key] = false; if (btn) btn.disabled = false; }, 3000);
     refresh();
@@ -841,7 +922,7 @@ function onBoard(){
   state.firstLoad = false;
   if (fresh.length) {
     beep();
-    toast('🚗 REQUESTED: ' + fresh.map(function(t){ return '#' + t.ticket_code + ' · SLOT ' + (t.slot_no ? pad2(t.slot_no) : '—'); }).join('  '), 6000);
+    toast('🚗 Car requested: ' + fresh.map(function(t){ return '#' + t.ticket_code + ' · Key ' + (t.slot_no ? pad2(t.slot_no) : '—'); }).join('  '), 6000);
     if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
   }
   renderBoard(fresh.map(function(t){ return t.id; }));
@@ -849,20 +930,22 @@ function onBoard(){
 function lastSms(t){ return t.sms && t.sms.length ? t.sms[t.sms.length - 1] : null; }
 function smsFact(t){
   var ls = lastSms(t); if (!ls) return '';
-  if (/FAILED|UNDELIVERED/.test(ls.status)) return '<span class="fact bad">💬 SMS NOT DELIVERED — tell the guest #' + esc(t.ticket_code) + '</span>';
-  if (/UNCONFIRMED/.test(ls.status)) return '<span class="fact warn">💬 SMS unconfirmed</span>';
+  if (/FAILED|UNDELIVERED/.test(ls.status)) return '<span class="fact bad">💬 Text not delivered · tell the guest #' + esc(t.ticket_code) + '</span>';
+  if (/UNCONFIRMED/.test(ls.status)) return '<span class="fact warn">💬 Text unconfirmed</span>';
   return '';
 }
+var STATUS_LABEL = { PARKED: 'CHECKED IN', REQUESTED: 'REQUESTED', READY: 'READY', DELIVERED: 'DELIVERED' };
 function cardHtml(t, flash){
   if (t.status === 'DELIVERED') {
     return '<div class="drow" data-id="' + t.id + '"><b>#' + esc(t.ticket_code) + '</b><span>' + esc(t.vehicle) + ' · ' + esc(timeOf(t.delivered_at)) + '</span>'
-      + '<button class="morebtn" data-more="1" aria-label="More">⋯</button></div>';
+      + '<button class="morebtn" data-more="1" aria-label="View details" title="View details">⋯</button></div>';
   }
   var slot = t.slot_no ? '<b>' + pad2(t.slot_no) + '</b>' : '<b class="none">NONE</b>';
-  var src = t.request_source === 'SMS' ? ' · by SMS' : t.request_source === 'GUEST_LINK' ? ' · by link' : '';
-  var when = t.status === 'REQUESTED' ? 'Requested ' + timeOf(t.requested_at) + src : t.status === 'READY' ? 'Ready ' + timeOf(t.ready_at) : 'Parked ' + timeOf(t.checked_in_at);
+  var src = t.request_source === 'SMS' ? ' by text' : t.request_source === 'GUEST_LINK' ? ' by link' : '';
+  var when = t.status === 'REQUESTED' ? timeOf(t.requested_at) + src : t.status === 'READY' ? 'since ' + timeOf(t.ready_at) : 'in ' + timeOf(t.checked_in_at);
   var queued = printq().some(function(x){ return x.id === t.id; });
-  var facts = (t.parking_location ? '<span class="fact loc">📍 ' + esc(t.parking_location) + '</span>' : '')
+  var facts = '<span class="status ' + t.status + '">' + STATUS_LABEL[t.status] + '</span>'
+    + (t.parking_location ? '<span class="fact loc">📍 ' + esc(t.parking_location) + '</span>' : '')
     + '<span class="fact">' + esc(when) + '</span>'
     + (queued ? '<span class="fact warn">🖨 waiting for printer</span>' : t.parking_location && !t.print_count ? '<span class="fact bad">🖨 not printed</span>' : '')
     + (t.local ? '<span class="fact warn">📴 offline · will sync</span>' : '') + smsFact(t);
@@ -870,12 +953,12 @@ function cardHtml(t, flash){
   if (!t.parking_location) act = '<div class="locs">' + locButtons(t) + '</div>';
   else if (t.local) act = '';
   else if (t.status === 'PARKED') act = '<div class="actions"><button class="btn btn-orange full" data-a="REQUESTED">REQUEST CAR</button></div>';
-  else if (t.status === 'REQUESTED') act = '<div class="actions"><button class="btn btn-green" data-a="READY">READY</button><button class="btn btn-gold" data-a="DELIVERED">DELIVERED</button></div>';
+  else if (t.status === 'REQUESTED') act = '<div class="actions"><button class="btn btn-green" data-a="READY">CAR READY</button><button class="btn btn-gold" data-a="DELIVERED">DELIVERED</button></div>';
   else act = '<div class="actions"><button class="btn btn-gold full" data-a="DELIVERED">DELIVERED</button></div>';
   return '<div class="card ' + t.status + (t.local ? ' LOCAL' : '') + (flash ? ' flash' : '') + '" data-id="' + t.id + '">'
-    + '<div class="crow"><div class="code"><small>' + (t.local ? 'OFFLINE TICKET' : 'TICKET') + '</small>#' + esc(t.ticket_code) + '</div>'
-    + '<div class="kslot"><small>KEY</small>' + slot + '</div><button class="morebtn" data-more="1" aria-label="More">⋯</button></div>'
-    + '<div class="cveh">' + esc(t.vehicle) + '</div>'
+    + '<div class="crow"><div class="code"><small>' + (t.local ? 'Offline ticket' : 'Ticket') + '</small>#' + esc(t.ticket_code)
+    + '<div class="cveh">' + esc(t.vehicle) + '</div></div>'
+    + '<div class="kslot"><small>KEY</small>' + slot + '</div><button class="morebtn" data-more="1" aria-label="View details" title="View details">⋯</button></div>'
     + '<div class="facts">' + facts + '</div>'
     + (t.last_inbound ? '<div class="inb">💬 “' + esc(t.last_inbound.body) + '” ' + esc(timeOf(t.last_inbound.at)) + '</div>' : '')
     + act + '</div>';
@@ -892,7 +975,7 @@ function renderBoard(flashIds){
     }
     return t.vehicle.indexOf(q) >= 0;
   });
-  var groups = [['REQUESTED', 'REQUESTED — GET THESE CARS'], ['READY', 'READY AT THE STAND'], ['NOLOC', 'PARKED — SET LOCATION'], ['PARKED', 'PARKED'], ['DELIVERED', 'DELIVERED']];
+  var groups = [['REQUESTED', 'Requested'], ['READY', 'Ready for pickup'], ['NOLOC', 'Checked in · select location'], ['PARKED', 'Checked in'], ['DELIVERED', 'Delivered']];
   var html = '';
   flashIds = flashIds || [];
   groups.forEach(function(g){
@@ -905,7 +988,7 @@ function renderBoard(flashIds){
     else if (g[0] === 'DELIVERED') items.sort(function(a, b){ return new Date(b.delivered_at) - new Date(a.delivered_at); });
     else items.sort(function(a, b){ return (a.ticket_no || 9999) - (b.ticket_no || 9999); });
     if (!items.length) return;
-    html += '<div class="section-title" id="sec-' + g[0] + '">' + g[1] + ' · ' + items.length + '</div><div class="cards">'
+    html += '<div class="section-title" id="sec-' + g[0] + '">' + g[1] + ' <span class="n">· ' + items.length + '</span></div><div class="cards">'
       + items.map(function(t){ return cardHtml(t, flashIds.indexOf(t.id) >= 0); }).join('') + '</div>';
   });
   $('board').innerHTML = html || '<div class="empty">' + (q ? 'No car matches “' + esc(q) + '”.' : 'No cars yet. Check in the first guest.') + '</div>';
@@ -918,7 +1001,7 @@ $('q').addEventListener('input', function(){ renderBoard(); });
     $('q').value = '';
     if (!window.matchMedia('(min-width:900px)').matches) showTab('board'); else renderBoard();
     var sec = (x[1] === 'PARKED' && $('sec-NOLOC')) || $('sec-' + x[1]);
-    if (sec) sec.scrollIntoView({ behavior: 'smooth', block: 'start' }); else toast('No ' + x[1].toLowerCase() + ' cars yet');
+    if (sec) sec.scrollIntoView({ behavior: 'smooth', block: 'start' }); else toast('No ' + ({ PARKED: 'checked-in', REQUESTED: 'requested', READY: 'ready', DELIVERED: 'delivered' })[x[1]] + ' cars yet.');
   };
 });
 function findT(id){
@@ -934,7 +1017,7 @@ $('board').addEventListener('click', function(e){
   if (btn.dataset.a) {
     var to = btn.dataset.a;
     if (to === 'DELIVERED') {
-      confirmModal('Deliver #' + t.ticket_code + '?', esc(t.vehicle) + ' · key slot ' + (t.slot_no ? pad2(t.slot_no) : '—') + ' will be freed.', 'DELIVERED', 'btn-gold',
+      confirmModal('Mark #' + t.ticket_code + ' as delivered?', esc(t.vehicle) + ' · Key slot ' + (t.slot_no ? pad2(t.slot_no) : '—') + ' will be freed and the guest will get the thank-you text.', 'DELIVERED', 'btn-gold',
         function(){ setStatus(t, to, btn); });
     } else setStatus(t, to, btn);
   }
@@ -946,21 +1029,38 @@ function openMore(t){
     if (t.parking_location) b.push(['loc', '📍 CHANGE LOCATION', 'btn-dark']);
     if (!t.local) {
       b.push(['slot', '🔑 CHANGE KEY SLOT', 'btn-dark']);
-      b.push(['resend', '💬 RESEND TICKET SMS', 'btn-dark']);
-      if (t.status === 'PARKED') b.push(['ready', '✅ MARK READY (no request)', 'btn-dark']);
-      if (t.status !== 'PARKED') b.push(['park', '↩︎ BACK TO PARKED', 'btn-dark']);
+      b.push(['resend', '💬 RESEND CHECK-IN TEXT', 'btn-dark']);
+      if (t.status === 'PARKED') b.push(['ready', '✅ CAR READY', 'btn-dark']);
+      if (t.status !== 'PARKED') b.push(['park', '↩︎ BACK TO CHECKED IN', 'btn-dark']);
     }
   } else {
-    if (recent) b.push(['undo', '↩︎ UNDO DELIVERED', 'btn-dark']);
-    b.push(['tip', '💬 RESEND THANK-YOU', 'btn-dark']);
+    if (recent) b.push(['undo', '↩︎ UNDO DELIVERY', 'btn-dark']);
+    b.push(['tip', '💬 RESEND THANK-YOU TEXT', 'btn-dark']);
   }
   b.push(['del', '🗑 DELETE TICKET', 'btn-dark" style="color:var(--red);margin-top:22px']);
-  openModal('<div class="sheet"><h3>#' + esc(t.ticket_code) + ' · ' + esc(t.vehicle) + '</h3><p>' + (t.local ? 'Offline ticket (not synced yet)' : 'REF #' + pad3(t.ticket_no) + ' · ☎ …' + esc(String(t.phone_e164).slice(-4)))
-    + ' · key slot ' + (t.slot_no ? pad2(t.slot_no) : '—') + (t.parking_location ? ' · ' + esc(t.parking_location) : '') + '</p>'
+  openModal('<div class="sheet"><h3>#' + esc(t.ticket_code) + ' · ' + esc(t.vehicle) + '</h3><p>' + STATUS_LABEL[t.status] + ' · Key slot ' + (t.slot_no ? pad2(t.slot_no) : '—')
+    + (t.parking_location ? ' · ' + esc(t.parking_location) : '') + (t.local ? ' · Offline (not synced yet)' : ' · Ref #' + pad3(t.ticket_no) + ' · Phone …' + esc(String(t.phone_e164).slice(-4))) + '</p>'
+    + (t.local ? '' : '<div class="label" style="margin-top:4px">TEXT MESSAGES</div><div class="thread" id="mThread"><div class="bmeta">Loading…</div></div>')
     + b.map(function(x){ return '<button class="btn ' + x[2] + '" data-m="' + x[0] + '">' + x[1] + '</button>'; }).join('')
     + '<button class="btn btn-dark btn-sm" style="margin-top:12px" id="mClose">CLOSE</button></div>');
   $('mClose').onclick = closeModal;
   $('modalBody').querySelectorAll('[data-m]').forEach(function(x){ x.onclick = function(){ closeModal(); doMore(t, x.dataset.m); }; });
+  if (!t.local) loadThread(t);
+}
+// SMS preview: the real texts this guest got (and their replies), like the Messages app.
+async function loadThread(t){
+  var r = await rpcRetry('event_valet_ticket_messages', { p_ticket: t.id }, 2);
+  var el = $('mThread'); if (!el) return;
+  if (r.error) { el.innerHTML = '<div class="bmeta">Could not load the texts.</div>'; return; }
+  var list = (r.data || []).filter(function(m){ return m.kind !== 'STAFF_ALERT'; });
+  if (!list.length) { el.innerHTML = '<div class="bmeta">No texts yet.</div>'; return; }
+  el.innerHTML = list.map(function(m){
+    var dir = m.dir === 'IN' ? 'in' : 'out', st = SMS_LABEL[m.status] || m.status, bad = /FAILED|UNDELIVERED/.test(m.status);
+    var meta = (dir === 'in' ? 'Guest reply' : (KIND_LABEL[m.kind] || m.kind)) + ' · ' + timeOf(m.at) + (dir === 'out' ? ' · ' + st : '') + (m.error_code ? ' (' + esc(m.error_code) + ')' : '');
+    if (!m.body) return '<div class="bmeta ' + (bad ? 'bad' : '') + '">' + esc(meta) + '</div>';
+    return '<div class="bubble ' + dir + '">' + esc(m.body).replace(/\n{2,}/g, '\n\n') + '</div><div class="bmeta ' + dir + (bad ? ' bad' : '') + '">' + esc(meta) + '</div>';
+  }).join('');
+  el.scrollTop = el.scrollHeight;
 }
 function doMore(t, m){
   if (m === 'reprint') printTicket(t, 'REPRINT', null);
@@ -974,16 +1074,16 @@ function doMore(t, m){
   if (m === 'resend') sendSms(t, 'CHECKIN', true, null);
   if (m === 'tip') sendSms(t, 'TIP', true, null);
   if (m === 'ready') setStatus(t, 'READY', null);
-  if (m === 'park') confirmModal('Back to PARKED?', 'Ticket #' + t.ticket_code + ' returns to the parked list.', 'BACK TO PARKED', 'btn-dark', function(){ setStatus(t, 'PARKED', null); });
+  if (m === 'park') confirmModal('Move #' + t.ticket_code + ' back to checked in?', 'The request is cleared. Use this if the guest is not leaving yet.', 'BACK TO CHECKED IN', 'btn-dark', function(){ setStatus(t, 'PARKED', null); });
   if (m === 'undo') confirmModal('Undo delivery?', 'Ticket #' + t.ticket_code + ' goes back to READY. If its slot was reused, assign a new slot.', 'UNDO', 'btn-dark', function(){ setStatus(t, 'READY', null); });
-  if (m === 'del') confirmModal('Delete ticket #' + t.ticket_code + '?', esc(t.vehicle) + ' — removes it from the board and frees key slot ' + (t.slot_no ? pad2(t.slot_no) : '—') + '. Use for mistakes or tests.', 'DELETE TICKET', 'btn-orange',
+  if (m === 'del') confirmModal('Delete ticket #' + t.ticket_code + '?', esc(t.vehicle) + ' · This removes the ticket and frees key slot ' + (t.slot_no ? pad2(t.slot_no) : '—') + '. Use only for mistakes or tests.', 'DELETE TICKET', 'btn-orange',
     async function(){
       if (t.local) { deleteLocal(t); return; }
       var r = await rpcRetry('event_valet_delete_ticket', { p_ticket: t.id });
       if (r.error) { toast(errText(r.error), 4000); return; }
       unqueuePrint(t.id);
       if (state.last && state.last.id === t.id) $('dNext').click();
-      toast('Ticket #' + t.ticket_code + ' deleted'); refresh();
+      toast('Ticket #' + t.ticket_code + ' deleted.'); refresh();
     });
 }
 
@@ -995,8 +1095,9 @@ async function setStatus(t, to, btn){
     if (r.error) throw r.error;
     var res = r.data;
     if (res.changed && to === 'REQUESTED') sendSms(res.ticket, 'REQUESTED', false, null);
+    if (res.changed && to === 'READY' && res.from !== 'DELIVERED') sendSms(res.ticket, 'READY', false, null);
     if (res.changed && to === 'DELIVERED') sendSms(res.ticket, 'TIP', false, null);
-    if (res.changed) toast('#' + t.ticket_code + ' → ' + res.ticket.status);
+    if (res.changed) toast('#' + t.ticket_code + ' · ' + STATUS_LABEL[res.ticket.status].toLowerCase().replace(/^./, function(c){ return c.toUpperCase(); }));
     await refresh();
   } catch (e) { toast(errText(e), 4000); }
   finally { state.busy[key] = false; if (btn) btn.disabled = false; }
@@ -1010,7 +1111,7 @@ function editSlot(t){
     grid += '<button class="btn btn-sm ' + (used[i] ? 'btn-dark' : (t.slot_no === i ? 'btn-gold' : 'btn-dark')) + '" data-slot="' + i + '"' + (used[i] ? ' disabled' : '') + ' style="padding:10px 4px">'
       + pad2(i) + (used[i] ? '<br><small style="font-size:11px">' + used[i] + '</small>' : '') + '</button>';
   }
-  openModal('<h3>Key slot · #' + t.ticket_code + '</h3><p>' + esc(t.vehicle) + ' · now ' + (t.slot_no ? pad2(t.slot_no) : 'none') + '. Pick a free slot.</p>'
+  openModal('<h3>Key slot · #' + t.ticket_code + '</h3><p>' + esc(t.vehicle) + ' · Now ' + (t.slot_no ? pad2(t.slot_no) : 'none') + '. Choose an open slot.</p>'
     + '<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px">' + grid + '</div>'
     + '<button class="btn btn-dark btn-sm" style="margin-top:12px" id="mClose">CANCEL</button>');
   $('mClose').onclick = closeModal;
@@ -1018,7 +1119,7 @@ function editSlot(t){
     b.onclick = async function(){
       var r = await rpcRetry('event_valet_set_slot', { p_ticket: t.id, p_slot: parseInt(b.dataset.slot, 10) });
       if (r.error) { toast(errText(r.error), 4000); return; }
-      closeModal(); toast('#' + t.ticket_code + ' → KEY SLOT ' + pad2(r.data.ticket.slot_no) + ' — reprint the key ticket', 4500);
+      closeModal(); toast('#' + t.ticket_code + ' moved to key slot ' + pad2(r.data.ticket.slot_no) + '. Reprint the key ticket.', 4500);
       refresh();
     };
   });
@@ -1099,7 +1200,7 @@ async function enableAlerts(){
     $('mClose').onclick = closeModal; return;
   }
   var perm = await Notification.requestPermission();   // must run inside the tap
-  if (perm !== 'granted') { toast('Notifications are blocked — allow them in Settings → Notifications → Halloween Valet.', 5000); setAlerts('🔕 ALERTS OFF', 'warn'); return; }
+  if (perm !== 'granted') { toast('Notifications are blocked. Allow them in Settings › Notifications › Halloween Valet.', 5000); setAlerts('🔕 ALERTS OFF', 'warn'); return; }
   try {
     setAlerts('🔔 …', 'warn');
     var reg = await activeReg();
@@ -1114,7 +1215,7 @@ async function testAlert(){
     var r = await fetch(FN_URL + '/push-test', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (await jwt()), 'apikey': SB_KEY },
       body: JSON.stringify({ event_id: EVENT_ID }) });
     var j = await r.json();
-    toast(j.ok ? 'Test alert sent to ' + j.ok + ' device(s) — check the notification.' : 'No device received it (' + (j.error || j.devices + ' devices') + ').', 5000);
+    toast(j.ok ? 'Test alert sent to ' + j.ok + ' device' + (j.ok === 1 ? '' : 's') + '. Check your notifications.' : 'No device received it (' + (j.error || j.devices + ' devices') + ').', 5000);
   } catch (e) { toast('Test failed: ' + errText(e), 4000); }
 }
 $('bAlerts').onclick = function(){

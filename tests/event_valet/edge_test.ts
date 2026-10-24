@@ -91,6 +91,10 @@ Deno.test('parseInbound', () => {
   assertEquals(parseInbound('help'), { type: 'keyword' });
   assertEquals(parseInbound('already there?'), { type: 'other' });
   assertEquals(parseInbound('thanks'), { type: 'other' });
+  assertEquals(parseInbound('0101'), { type: 'ready', ticketRef: '0101' });
+  assertEquals(parseInbound(' #10101 '), { type: 'ready', ticketRef: '10101' });
+  assertEquals(parseInbound('2'), { type: 'ready', ticketRef: '2' });
+  assertEquals(parseInbound('call me at 5'), { type: 'other' });
 });
 Deno.test('normalizePhone', () => {
   assertEquals(normalizePhone('(954) 555-0101'), '+19545550101');
@@ -100,14 +104,20 @@ Deno.test('normalizePhone', () => {
 });
 Deno.test('templates: dynamic number, opt-out, link masked in storage', () => {
   const b = composeSms('CHECKIN', '0101', 'https://airvalet.farberos.com/events/x/t#abc');
-  assert(b.includes('Your ticket: #0101 (the last 4 digits of your phone)') && b.includes('reply READY') && b.includes('Reply STOP to opt out.'));
+  assert(b.includes('\nTicket #0101\n') && b.includes('reply READY') && b.includes('Reply STOP to opt out.'));
   assert(!maskLink(b, 'https://airvalet.farberos.com/events/x/t#abc').includes('#abc'));
-  assert(composeSms('REQUESTED', '10101', null).includes('Ticket #10101') && composeSms('REQUESTED', '0101', null).includes('bringing your car around'));
-  assert(composeSms('AMBIGUOUS', null, null, [{ code: '0500', vehicle: 'BMW' }]).includes('READY 0500 — BMW'));
+  assert(composeSms('REQUESTED', '10101', null).includes('Ticket #10101') && composeSms('REQUESTED', '0101', null).includes('received your request'));
+  assert(composeSms('AMBIGUOUS', null, null, [{ code: '0500', vehicle: 'BMW X5' }, { code: '10500', vehicle: 'LAND ROVER RANGE ROVER' }]).includes('1. BMW X5 — #0500\n2. Land Rover Range Rover — #10500'));
   assert(composeSms('TIP', '0101', 'L').includes('optional tip'));
-  assert(b.includes('complimentary') && b.includes('nothing to pay'));
-  assert(!composeSms('CHECKIN', '10101', null).includes('last 4 digits'));
-  assert(composeSms('TIP', '0101', 'L').includes('spooktacular') && !composeSms('TIP', '0101', 'L').includes('complimentary'));
+  for (const k of ['CHECKIN', 'REQUESTED', 'READY', 'TIP', 'AMBIGUOUS', 'NO_MATCH'] as const) {
+    const m = composeSms(k, '0101', 'https://buy.stripe.com/x', [{ code: '0101', vehicle: 'TESLA MODEL Y' }]);
+    assert(!/complimentary|free/i.test(m), k);                   // never say free / complimentary
+    assert(!m.includes('{{') && !m.includes('undefined') && !m.includes('null'), k);
+    assert((m.match(/\p{Extended_Pictographic}/gu) ?? []).length <= 1, k);   // max one emoji
+  }
+  assert(b.endsWith('Reply STOP to opt out.'));
+  assert(composeSms('READY', '0101', null).includes('Your vehicle is ready!'));
+  assert(composeSms('TIP', '0101', 'L').includes('safe trip home') && !composeSms('TIP', '0101', 'L').includes('complimentary'));
 });
 
 // ── integration ──
@@ -153,7 +163,7 @@ Deno.test('end-to-end: check-in SMS, READY, duplicate, delivered tip (once), gue
   assertEquals(r.status, 200); assert((await r.text()).includes('<Response>'));
   let t = (await rest(`event_valet_tickets?id=eq.${tid}`))[0];
   assertEquals(t.status, 'REQUESTED'); assertEquals(t.request_source, 'SMS');
-  assertEquals(tw.sent.length, 3); assert(tw.sent[2].body.includes('bringing your car around') && tw.sent[2].body.includes('#0101'));
+  assertEquals(tw.sent.length, 3); assert(tw.sent[2].body.includes('received your request') && tw.sent[2].body.includes('#0101'));
   await twilioPost(h, '/inbound', msg);
   await twilioPost(h, '/inbound', inbound('+19545550101', 'READY'));   // new SID, already requested
   assertEquals(tw.sent.length, 3);
@@ -189,7 +199,7 @@ Deno.test('guest link request → REQUESTED + one confirmation SMS', async () =>
   for (let i = 0; i < 2; i++) await h(new Request('http://x/event-valet/guest', { method: 'POST', body: JSON.stringify({ token: tok, action: 'request' }) }));
   const t = (await rest(`event_valet_tickets?id=eq.${c.ticket.id}`))[0];
   assertEquals(t.status, 'REQUESTED'); assertEquals(t.request_source, 'GUEST_LINK');
-  assertEquals(tw.sent.filter((x) => x.body.includes('bringing your car around')).length, 1);
+  assertEquals(tw.sent.filter((x) => x.body.includes('received your request')).length, 1);
 });
 
 Deno.test('two cars on one phone: READY asks for ticket number; READY <n> requests only that car', async () => {
@@ -199,7 +209,7 @@ Deno.test('two cars on one phone: READY asks for ticket number; READY <n> reques
   const a = await staffRpc(jwt, 'event_valet_checkin', { p_event: EVENT, p_phone: '9545550500', p_vehicle: 'BMW', p_client_key: 'm1' });
   const b = await staffRpc(jwt, 'event_valet_checkin', { p_event: EVENT, p_phone: '9545550500', p_vehicle: 'Audi', p_client_key: 'm2' });
   await twilioPost(h, '/inbound', inbound('+19545550500', 'READY'));
-  assertEquals(tw.sent.length, 1); assert(tw.sent[0].body.includes('more than one car') && tw.sent[0].body.includes('READY 10500 — AUDI'));
+  assertEquals(tw.sent.length, 1); assert(tw.sent[0].body.includes('Which vehicle') && tw.sent[0].body.includes('2. Audi — #10500'));
   for (const id of [a.ticket.id, b.ticket.id]) assertEquals((await rest(`event_valet_tickets?id=eq.${id}`))[0].status, 'PARKED');
   await twilioPost(h, '/inbound', inbound('+19545550500', `ready ${b.ticket.ticket_code}`));
   assertEquals((await rest(`event_valet_tickets?id=eq.${b.ticket.id}`))[0].status, 'REQUESTED');
@@ -327,7 +337,7 @@ Deno.test('staff alert SMS when a guest requests (READY or link), once per reque
   await twilioPost(h, '/inbound', msg); await twilioPost(h, '/inbound', msg);
   const alerts = tw.sent.filter((x) => x.to === '+19545558385');
   assertEquals(alerts.length, 1);
-  assert(alerts[0].body.includes('#1401') && alerts[0].body.includes('GRASS') && alerts[0].body.includes('NISSAN'));
+  assert(alerts[0].body.includes('#1401') && alerts[0].body.includes('GRASS') && alerts[0].body.includes('Nissan'));
   const c2 = await staffRpc(jwt, 'event_valet_checkin', { p_event: EVENT, p_phone: '9545551402', p_vehicle: 'Kia', p_client_key: 'al2' });
   await staffRpc(jwt, 'event_valet_set_status', { p_ticket: c2.ticket.id, p_status: 'REQUESTED' });
   await send(h, jwt, { ticket_id: c2.ticket.id, kind: 'REQUESTED' });
@@ -395,5 +405,54 @@ Deno.test('Web Push: guest READY → encrypted push to the subscribed operator d
   await h(new Request('http://x/event-valet/push-test', { method: 'POST', headers: { Authorization: `Bearer ${jwt}` }, body: JSON.stringify({ event_id: EVENT }) }));
   assertEquals(pushes.length, n);
   await rest(`event_valet_push_subs?event_id=eq.${EVENT}`, { method: 'DELETE' });
+  await reset({ sms_enabled: false, sms_test_only: true, tip_enabled: false, tip_links: {}, staff_alert_phones: [] });
+});
+
+Deno.test('two cars: reply with just the ticket number, or with the list position', async () => {
+  await reset({});
+  const jwt = await login('localipad@airvalet.local');
+  const tw = fakeTwilio(); const h = makeHandler(env(), tw.f);
+  const a = await staffRpc(jwt, 'event_valet_checkin', { p_event: EVENT, p_phone: '9545551701', p_vehicle: 'Tesla Model Y', p_client_key: 'n1' });
+  const b = await staffRpc(jwt, 'event_valet_checkin', { p_event: EVENT, p_phone: '9545551701', p_vehicle: 'BMW X5', p_client_key: 'n2' });
+  await twilioPost(h, '/inbound', inbound('+19545551701', 'READY'));
+  assert(tw.sent.at(-1)!.body.includes('1. Tesla Model Y — #1701\n2. BMW X5 — #11701'));
+  await twilioPost(h, '/inbound', inbound('+19545551701', '11701'));            // bare ticket number
+  assertEquals((await rest(`event_valet_tickets?id=eq.${b.ticket.id}`))[0].status, 'REQUESTED');
+  assertEquals((await rest(`event_valet_tickets?id=eq.${a.ticket.id}`))[0].status, 'PARKED');
+  await staffRpc(jwt, 'event_valet_set_status', { p_ticket: b.ticket.id, p_status: 'PARKED' });
+  await twilioPost(h, '/inbound', inbound('+19545551701', 'READY'));
+  await twilioPost(h, '/inbound', inbound('+19545551701', '1'));                // list position → Tesla
+  assertEquals((await rest(`event_valet_tickets?id=eq.${a.ticket.id}`))[0].status, 'REQUESTED');
+  assertEquals((await rest(`event_valet_tickets?id=eq.${b.ticket.id}`))[0].status, 'PARKED');
+  await twilioPost(h, '/inbound', inbound('+19545551701', '7'));                // no such position → list again, nothing changes
+  assert(tw.sent.at(-1)!.body.includes('couldn’t find that ticket number'));
+  assertEquals((await rest(`event_valet_tickets?id=eq.${b.ticket.id}`))[0].status, 'PARKED');
+  // single car: replying "0101"-style number or "1" requests it
+  const c = await staffRpc(jwt, 'event_valet_checkin', { p_event: EVENT, p_phone: '9545551702', p_vehicle: 'Kia', p_client_key: 'n3' });
+  await twilioPost(h, '/inbound', inbound('+19545551702', '1702'));
+  assertEquals((await rest(`event_valet_tickets?id=eq.${c.ticket.id}`))[0].status, 'REQUESTED');
+  // someone else's number from this phone never requests their car
+  await twilioPost(h, '/inbound', inbound('+19545551702', '11701'));
+  assertEquals((await rest(`event_valet_tickets?id=eq.${b.ticket.id}`))[0].status, 'PARKED');
+});
+
+Deno.test('READY SMS only when the car is ready, once per ready; thank-you only after delivery', async () => {
+  await reset({});
+  const jwt = await login('localipad@airvalet.local');
+  const tw = fakeTwilio(); const h = makeHandler(env(), tw.f);
+  const c = await staffRpc(jwt, 'event_valet_checkin', { p_event: EVENT, p_phone: '9545551801', p_vehicle: 'Volvo', p_client_key: 'r1' });
+  assertEquals((await send(h, jwt, { ticket_id: c.ticket.id, kind: 'READY' })).code, 409);   // not ready yet
+  assertEquals((await send(h, jwt, { ticket_id: c.ticket.id, kind: 'TIP' })).code, 409);     // not delivered yet
+  await staffRpc(jwt, 'event_valet_set_status', { p_ticket: c.ticket.id, p_status: 'READY' });
+  for (let i = 0; i < 3; i++) await send(h, jwt, { ticket_id: c.ticket.id, kind: 'READY' });
+  assertEquals(tw.sent.filter((x) => x.body.includes('Your vehicle is ready!')).length, 1);
+  // back to parked and ready again → a new "ready" (new ready time), still one per transition
+  await staffRpc(jwt, 'event_valet_set_status', { p_ticket: c.ticket.id, p_status: 'PARKED' });
+  await staffRpc(jwt, 'event_valet_set_status', { p_ticket: c.ticket.id, p_status: 'READY' });
+  await send(h, jwt, { ticket_id: c.ticket.id, kind: 'READY' }); await send(h, jwt, { ticket_id: c.ticket.id, kind: 'READY' });
+  assertEquals(tw.sent.filter((x) => x.body.includes('Your vehicle is ready!')).length, 2);
+  await staffRpc(jwt, 'event_valet_set_status', { p_ticket: c.ticket.id, p_status: 'DELIVERED' });
+  await send(h, jwt, { ticket_id: c.ticket.id, kind: 'TIP' });
+  assertEquals(tw.sent.filter((x) => x.body.includes('optional tip')).length, 1);
   await reset({ sms_enabled: false, sms_test_only: true, tip_enabled: false, tip_links: {}, staff_alert_phones: [] });
 });
