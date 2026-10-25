@@ -4236,7 +4236,9 @@ async function resolveSmsProvider(){
   if (SMS_PROVIDER === 'mock_twilio') return;
   var dev = null;
   if (!isTvMode() && _authToken && !(typeof navigator !== 'undefined' && navigator.onLine === false)) {
-    var key = smsDeviceKey(false);
+    // A device that never asked still needs the program state (sending_enabled)
+    // so non-ADMIN logins see the Request button: make its local key now.
+    var key = smsDeviceKey(false) || smsDeviceKey(true);
     if (!key) dev = { status: 'unknown' };
     else {
       try {
