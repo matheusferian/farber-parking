@@ -99,6 +99,7 @@
     }
     return '<section class="' + cls + '" aria-label="Vehicle status">' +
       '<p class="lbl">Your vehicle' + (p.vehicle ? ' · ' + esc(niceVehicle(p.vehicle)) : '') + '</p>' +
+      (p.vehicle ? '' : '<p class="line soft">Vehicle details will be updated soon.</p>') +
       '<p class="big">' + esc(big) + '</p><p class="line">' + line + '</p>' + extra + '</section>';
   }
   function contactValet(p) { return (p.contacts && p.contacts.valet_phone) || VALET_PHONE_FALLBACK; }
@@ -116,10 +117,9 @@
         '<li><span class="n">1</span>Land with Makers Air</li><li><span class="n">2</span>Complete Customs</li>' +
         '<li><span class="n">3</span>Go back to your pilots and aircraft</li><li class="last"><span class="n">4</span><strong>Hangar 19</strong></li></ol></section>';
     }
-    if (p.pickup === 'TO_BE_CONFIRMED') return '<section class="card"><p class="lbl">Pickup</p><p class="ptext">Our team will confirm your pickup details before your return.</p></section>';
-    if (p.pickup === 'OTHER') return '<section class="card"><p class="lbl">Pickup</p><p class="ptext">Please let our valet team know when you will arrive, and we will have your car ready.</p></section>';
+    if (p.pickup === 'TO_BE_CONFIRMED' || p.pickup === 'OTHER' || !p.pickup) return '<section class="card"><p class="lbl">Pickup information</p><p class="ptext">To be confirmed by our valet team.</p></section>';
     if ((p.pickup === 'CUSTOMS_EXCEPTION' || p.pickup === 'CUSTOMS_ASCEND') && p.status === 'PARKED') {
-      return '<section class="card"><p class="lbl">Pickup</p><p class="ptext">Customs. Our team will confirm when your vehicle is ready.</p></section>';
+      return '<section class="card"><p class="lbl">Pickup information</p><p class="ptext">Customs. Our team will confirm when your vehicle is ready.</p></section>';
     }
     return '';
   }
@@ -128,7 +128,7 @@
     var p = pass;
     var name = p.first_name ? 'Welcome, ' + esc(p.first_name) : 'Welcome';
     var date = fmtDate(p.return_date), time = fmtTime(p.return_time);
-    var retText = date ? date + (time ? ' · ' + time : '') : 'Not set yet';
+    var retText = date ? date + (time ? ' · ' + time : '') : 'Not available yet.';
     var pend = p.pending_return;
     var html = '<header class="top"><img src="assets/makers-valet-lockup-white.png" alt="Makers Air Valet by Farber Parking" width="200" height="64">' +
       '<h1>' + name + '</h1></header><main>';
@@ -148,6 +148,7 @@
     if (p.gratuity_url) rows += '<button type="button" data-open="gratuity"><span>Gratuity</span><small>Optional</small></button>';
     if (rows) html += '<div class="list">' + rows + '</div>';
     var c = p.contacts || {};
+    if (p.chat_enabled) html += '<button class="btn primary chatbtn" type="button" data-open="chat">Message our valet team</button>';
     html += '<section aria-label="Contact our team"><p class="lbl sec">Contact our team</p><div class="contacts">' +
       '<a href="' + esc(tel(contactValet(p))) + '"><strong>Call valet</strong><span>' + esc(contactValet(p)) + '</span></a>' +
       (c.text_phone ? '<a href="' + esc(sms(c.text_phone)) + '"><strong>Text valet</strong><span>Or reply to our text</span></a>' : '') +
@@ -168,10 +169,14 @@
     lastFocus = document.activeElement;
     form = { kind: kind, step: 1, ck: clientKey() };
     drawSheet();
+    if (kind === 'chat') { loadChat(); chatTimer = setInterval(function () { if (!document.hidden) loadChat(); }, 8000); }
     sheetBg.hidden = false;
     var f = sheet.querySelector('button, input, a'); if (f) f.focus();
   }
-  function closeSheet() { sheetBg.hidden = true; sheet.innerHTML = ''; if (lastFocus && lastFocus.focus) lastFocus.focus(); }
+  function closeSheet() {
+    if (chatTimer) { clearInterval(chatTimer); chatTimer = null; }
+    sheetBg.hidden = true; sheet.innerHTML = ''; if (lastFocus && lastFocus.focus) lastFocus.focus();
+  }
   sheetBg.addEventListener('click', function (e) { if (e.target === sheetBg) closeSheet(); });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !sheetBg.hidden) closeSheet(); });
 
@@ -230,6 +235,12 @@
       h = head('Gratuity') + '<p class="p0">For the valet team. Always optional, and appreciated either way.</p>' +
         '<a class="btn primary" href="' + esc(p.gratuity_url) + '" target="_blank" rel="noopener noreferrer">Continue to secure payment</a>' +
         '<p class="muted">Secure payment by Stripe · Matt Solutions &amp; Services. You choose the amount.</p>';
+    } else if (form.kind === 'chat') {
+      h = head('Valet team') + '<div class="chat" id="chatList" aria-live="polite">' + chatHtml() + '</div>' +
+        '<label class="f"><span class="sr">Message</span><textarea id="chatText" maxlength="600" placeholder="Write a message">' + esc(form.draft || '') + '</textarea></label>' +
+        (form.err ? '<p class="err" role="alert">' + esc(form.err) + '</p>' : '') +
+        '<button class="btn primary" type="button" data-chatsend' + (form.busy ? ' disabled' : '') + '>' + (form.busy ? 'Sending…' : 'Send') + '</button>' +
+        '<p class="muted">Our replies also arrive by text message. You can reply to our texts too.</p>';
     } else if (form.kind === 'lockbox') {
       var lb = p.lockbox || {};
       h = head('After-hours pickup') + '<ol class="steps"><li><span class="n">1</span>After Customs, go back to your pilots</li><li><span class="n">2</span>Walk to Hangar 19</li><li class="last"><span class="n">3</span>Open the lockbox with your code</li></ol>' +
@@ -255,10 +266,51 @@
     });
     on('[data-send]', function () { sendRequest({ kind: 'RETURN_CHANGE', reason: form.reason, date: form.date, time: form.time || null, carrier: form.carrier || null, note: form.note || null }, 4); });
     on('[data-wash]', function () { sendRequest({ kind: 'CAR_WASH' }, 9); });
+    on('[data-chatsend]', sendChat);
+    var ta = document.getElementById('chatText');
+    if (ta) ta.addEventListener('input', function () { form.draft = ta.value; });
+    var cl = document.getElementById('chatList'); if (cl) cl.scrollTop = cl.scrollHeight;
   }
   function keep() {
     var d = document.getElementById('fDate'), t = document.getElementById('fTime'), c = document.getElementById('fCarrier'), n = document.getElementById('fNote');
     if (d) form.date = d.value; if (t) form.time = t.value; if (c) form.carrier = c.value; if (n) form.note = n.value;
+  }
+
+  // ── Valet chat (no SMS for the passenger's messages) ──
+  var chatMsgs = [], chatTimer = null;
+  function chatHtml() {
+    if (!chatMsgs.length) return '<p class="muted">Send us a message about your car or your return. We usually reply quickly during valet hours.</p>';
+    return chatMsgs.map(function (m) {
+      var t = new Date(m.at), when = isNaN(t) ? '' : t.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+      return '<div class="msg ' + (m.from === 'guest' ? 'me' : 'them') + '"><p>' + esc(m.body) + '</p><span>' + (m.from === 'guest' ? 'You' : 'Makers Air Valet') + ' · ' + esc(when) + '</span></div>';
+    }).join('');
+  }
+  async function loadChat() {
+    try {
+      var r = await post({ t: TOKEN, action: 'messages' });
+      if (r.data && r.data.state === 'ok') {
+        var changed = JSON.stringify(r.data.messages) !== JSON.stringify(chatMsgs);
+        chatMsgs = r.data.messages || [];
+        var cl = document.getElementById('chatList');
+        if (cl && changed) { cl.innerHTML = chatHtml(); cl.scrollTop = cl.scrollHeight; }
+      }
+    } catch (e) { /* keep the thread on screen */ }
+  }
+  async function sendChat() {
+    var ta = document.getElementById('chatText'); if (!ta || form.busy) return;
+    var text = ta.value.trim(); if (!text) return;
+    form.draft = ta.value; form.busy = true; form.err = null; drawSheet();
+    try {
+      // Same key on retries of this draft → the message is stored once.
+      var r = await post({ t: TOKEN, action: 'send', body: text, ck: form.ck });
+      form.busy = false;
+      var res = r.data && r.data.result;
+      if (r.status === 429 || res === 'LIMITED') form.err = 'Too many messages. Please wait a little or call our valet team.';
+      else if (res === 'OK') { form.draft = ''; form.ck = clientKey(); await loadChat(); }
+      else if (res === 'UNAVAILABLE') form.err = 'Chat is not available right now. Please call our valet team.';
+      else form.err = 'Could not send. Please try again.';
+    } catch (e) { form.busy = false; form.err = 'No connection. Your message was not sent yet; please try again.'; }
+    drawSheet();
   }
 
   async function sendRequest(body, doneStep) {
@@ -291,6 +343,7 @@
     load();
   });
   document.addEventListener('visibilitychange', function () { if (!document.hidden && pass && sheetBg.hidden) load(); });
-  setInterval(function () { if (!document.hidden && pass && sheetBg.hidden) load(); }, 60000);
+  // Latest data on every open/return to the page, and every 30 s while open.
+  setInterval(function () { if (!document.hidden && pass && sheetBg.hidden) load(); }, 30000);
   load();
 })();

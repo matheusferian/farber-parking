@@ -51,9 +51,10 @@ insert into public.passengers (id, ts, checkin_date, name, phone, ticket, ret, c
 select set_config('t.t1', pg_temp.mint(900001), true), set_config('t.t2', pg_temp.mint(900002), true),
        set_config('t.t3', pg_temp.mint(900003), true), set_config('t.t4', pg_temp.mint(900004), true),
        set_config('t.t5', pg_temp.mint(900005), true), set_config('t.t6', pg_temp.mint(900006), true);
-insert into public.airvalet_super_admins (user_id) select id from public.user_profiles where username = 'localadmin';
+insert into public.airvalet_super_admins (user_id) select id from public.user_profiles where username = 'localadmin' on conflict do nothing;
 
 -- ── 1. Dark launch ───────────────────────────────────────────────────────
+update public.airvalet_portal_settings set portal_enabled = false, requests_enabled = false, push_enabled = false where id;
 select pg_temp.check(pg_temp.pv(current_setting('t.t1')) = '{"state":"expired"}', 'portal OFF: a valid link looks exactly like an unknown one');
 update public.airvalet_portal_settings set portal_enabled = true;
 
@@ -61,7 +62,7 @@ update public.airvalet_portal_settings set portal_enabled = true;
 select set_config('t.v1', pg_temp.pv(current_setting('t.t1'))::text, true);
 select pg_temp.check((current_setting('t.v1')::jsonb ->> 'state') = 'ok', 'view ok');
 select pg_temp.check((select array_agg(k order by k) from jsonb_object_keys(current_setting('t.v1')::jsonb -> 'pass') k)
-  = array['car_wash','car_wash_lead_hours','contacts','first_name','gratuity_url','lockbox','pending_return','pickup','requests_enabled',
+  = array['car_wash','car_wash_lead_hours','chat_enabled','contacts','first_name','gratuity_url','lockbox','pending_return','pickup','requests_enabled',
           'return_date','return_time','status','terms_published','valet_hours','vehicle'], 'view: exact key set (no ticket, phone, ids)');
 select pg_temp.check(position('1025-91' in current_setting('t.v1')) = 0 and position('555' in current_setting('t.v1')) = 0
                      and position('900001' in current_setting('t.v1')) = 0, 'view: ticket, phone digits, passenger id absent from the whole JSON');

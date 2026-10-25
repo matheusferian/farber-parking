@@ -118,17 +118,17 @@ function readyVariant(p: PassengerCtx): string {
 const notArchived = (p: PassengerCtx) => (p.status === 'DELIVERED' || p.status === 'ARCHIVED' ? 'NOT_IN_CUSTODY' : null);
 
 export const TEMPLATES: Record<MessageType, Template> = {
-  // Owner D1 (2026-10-25): short welcome + valet pass link + STOP line.
-  // Must stay ONE GSM-7 segment with the real link length. The wording is
-  // shortened step by step first; the name is dropped only as the last step.
+  // Owner final text (2026-10-25, go-live): no passenger name — the phone may
+  // belong to a companion. Fixed length: 160 GSM-7 chars with the real link
+  // (https://airvalet.farberos.com/a# + 17-char token) = ONE segment.
   CHECK_IN: {
-    type: 'CHECK_IN', status: 'APPROVED', version: 'checkin-d1-2026-10-25', freeText: false, allowedRoles: OPS,
+    type: 'CHECK_IN', status: 'APPROVED', version: 'checkin-2026-10-25-golive', freeText: false, allowedRoles: OPS,
     needsPassLink: true,
     defaultEventRef: () => 'checkin',
     guard: notArchived,
-    render: (p, env) => {
+    render: (_p, env) => {
       if (!env.passUrl) throw new TemplateError('PASS_LINK_MISSING', 'passenger link not available');
-      return { variant: 'CHECK_IN_D1', body: welcomeBody(firstName(p.name), env.passUrl) };
+      return { variant: 'CHECK_IN_PASS', body: welcomeBody(env.passUrl) };
     },
   },
   // Replaces RETURN_CONFIRMATION + TASK_CONFIRMATION. When the return flight
@@ -162,17 +162,17 @@ export const TEMPLATES: Record<MessageType, Template> = {
       if (readyVariant(p) === 'CUSTOMS_EXCEPTION') {
         // Makers return, Customs approved case by case. Never states where
         // the key is; the passenger contacts the valet team on arrival.
-        return { variant: 'CUSTOMS_EXCEPTION', body: `${SENDER}: Welcome back! As arranged, your vehicle will be at Customs. When you arrive, reply here or call ${VALET_PHONE} for your key.` };
+        return { variant: 'CUSTOMS_EXCEPTION', body: `${SENDER}: Welcome back! As arranged, your car is ready at Customs. When you arrive, reply here or call ${VALET_PHONE} for your key.` };
       }
       if (pickupPlace(p) === 'HANGAR_19') {
         return {
           variant: 'HANGAR19_WELCOME_BACK',
-          body: `${SENDER}: Welcome back! After clearing U.S. Customs, please stay with your pilots and return to Makers Air at Hangar 19, where your vehicle will be ready and waiting. Please don't exit through the U.S. Customs terminal, as there is no transportation back to Makers Air from there.`,
+          body: `${SENDER}: Welcome back! After Customs, stay with your pilots and return to Hangar 19. Your car is ready. Please don't exit through the Customs terminal.`,
         };
       }
       // Customs = Ascend return (any departure). Same in-person handoff for
       // Makers→Ascend and Ascend→Ascend; no key location in the SMS.
-      return { variant: 'CUSTOMS_WELCOME', body: `${SENDER}: Welcome back! Your vehicle is ready at Customs. An Ascend team member will personally hand you your key when you arrive.` };
+      return { variant: 'CUSTOMS_WELCOME', body: `${SENDER}: Welcome back! Your car is ready at Customs. An Ascend team member will hand you your key when you arrive.` };
     },
   },
   // Delivery confirmation (replaces TIP_YES / TIP_NO / CUSTOMS_GRATUITY):
@@ -183,7 +183,7 @@ export const TEMPLATES: Record<MessageType, Template> = {
     guard: (p) => (p.status !== 'DELIVERED' ? 'NOT_DELIVERED' : null),
     render: () => ({
       variant: 'DELIVERED',
-      body: `${SENDER}: Your vehicle has been delivered. Thank you for choosing us, we look forward to welcoming you on your next trip!`,
+      body: `${SENDER}: Your vehicle has been delivered. Thank you for choosing us. We look forward to your next trip!`,
     }),
   },
   // Sent by staff (with preview) after approving a passenger's return change.
@@ -203,7 +203,7 @@ export const TEMPLATES: Record<MessageType, Template> = {
     guard: notArchived,
     render: () => ({
       variant: 'AFTER_HOURS_CONFIRMED',
-      body: `${SENDER}: Your after-hours pickup is confirmed. Pickup instructions will appear on your valet page on your return day.`,
+      body: `${SENDER}: Your after-hours pickup is confirmed. On your return day, the pickup steps will appear on your valet pass link.`,
     }),
   },
   // Inbox: a staff member answers the passenger. Free text, double-tap safe
@@ -269,17 +269,9 @@ export function estimateCostUsd(segments: number): number {
   return Math.round(segments * (SMS_PRICE_PER_SEGMENT_USD + SMS_CARRIER_FEE_EST_USD) * 10000) / 10000;
 }
 
-// D1 welcome, optimised to ONE segment: wording first, the name last.
-export function welcomeBody(name: string, link: string): string {
-  const hi = name ? `Hi ${name}, ` : 'Hi, ';
-  const variants = [
-    `${hi}welcome to Makers Air! Your vehicle is checked in.\nYour valet pass: ${link}\nReply STOP to opt out.`,
-    `${hi}welcome to Makers Air! Your car is checked in.\nYour valet pass: ${link}\nReply STOP to opt out.`,
-    `${hi}welcome to Makers Air! Your car is checked in.\nValet pass: ${link}\nReply STOP to opt out.`,
-    `${hi}welcome to Makers Air! Your car is checked in.\nValet pass: ${link}\nReply STOP to opt out`,
-  ];
-  for (const v of variants) if (countSegments(v) === 1) return v;
-  return `Hi, welcome to Makers Air! Your vehicle is checked in.\nYour valet pass: ${link}\nReply STOP to opt out.`;
+// Owner's go-live welcome (single line breaks keep it at 160 chars = 1 segment).
+export function welcomeBody(link: string): string {
+  return `Welcome to Makers Air Valet!\nYour vehicle has been checked in.\nYour digital valet pass:\n${link}\nReply STOP to opt out.`;
 }
 
 // "10/31/2026" + "18:00" → "Fri, Oct 31, 6:00 PM" (time only when set).

@@ -108,12 +108,36 @@ check(wrong.body.result === 'WRONG_CODE' || wrong.body.result === 'EXPIRED', 'wr
 
 // ── Mandatory preview through the API ──
 const prev = await fn('send-sms', { passenger_id: 900101, message_type: 'CHECK_IN', preview: true }, ipad, { 'x-airvalet-device': 'e2e_device_key_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' });
-check(prev.body.ok && prev.body.segments === 1 && prev.body.encoding === 'GSM-7' && prev.body.body.startsWith('Hi John, welcome to Makers Air!'), 'preview: D1 text, 1 GSM-7 segment');
+check(prev.body.ok && prev.body.segments === 1 && prev.body.encoding === 'GSM-7' && prev.body.body.startsWith('Welcome to Makers Air Valet!') && prev.body.chars === 160, 'preview: go-live welcome text, 160 chars, 1 GSM-7 segment');
 const before = await rest(ipad, 'airvalet_sms_messages?passenger_id=eq.900101&direction=eq.outbound&select=id');
 const prevBlocked = await fn('send-sms', { passenger_id: 900101, message_type: 'CHECK_IN', preview: true }, ipad, { 'x-airvalet-device': 'not-approved-device-key-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' });
 check(prevBlocked.body.would_send === false && prevBlocked.body.block === 'DEVICE_NOT_AUTHORIZED', 'preview tells why: unapproved device');
 const after = await rest(ipad, 'airvalet_sms_messages?passenger_id=eq.900101&direction=eq.outbound&select=id');
 check(before.body.length === after.body.length, 'previews never create a message');
+
+// ── Valet pass chat (no SMS) + Digital Pass switch ──
+check((await rpc(ipad, 'airvalet_digital_pass_set', { p_on: true })).status >= 400, 'iPad cannot flip the Digital Pass switch');
+const on = await rpc(admin, 'airvalet_digital_pass_set', { p_on: true });
+check(on.body.on === true && on.body.chat === true && on.body.requests === true && on.body.portal === true, 'ADMIN: Digital Pass ON (texts, page, chat, requests)');
+check((await view(TOK['900101'])).body.pass.chat_enabled === true, 'portal shows the chat button when on');
+const chatIp = { 'x-forwarded-for': '10.30.0.1' };
+const ckc = ck();
+const sent = await Promise.all([1, 2, 3].map(() => fn('valet-pass', { t: TOK['900101'], action: 'send', body: 'Landing 6pm 😀\nThanks!', ck: ckc }, undefined, chatIp)));
+check(sent.every((r) => r.body.state === 'ok'), 'passenger chat message accepted');
+const inb = await rest(ipad, "airvalet_sms_messages?passenger_id=eq.900101&provider=eq.portal&direction=eq.inbound&select=id,body");
+check(inb.body.length === 1 && inb.body[0].body === 'Landing 6pm \nThanks!', 'same message key x3 → one Inbox row, GSM-7, line break kept');
+const sr = await rpc(ipad, 'airvalet_portal_staff_reply', { p_passenger_id: 900101, p_body: 'See you at Hangar 19.', p_compose_id: 'compose:' + crypto.randomUUID(), p_staff_name: 'Ana' });
+check(sr.body.result === 'OK', 'staff chat-only reply (app compose id) stored');
+const th = await fn('valet-pass', { t: TOK['900101'], action: 'messages' }, undefined, chatIp);
+const bodies = (th.body.messages || []).map((m: any) => m.body);
+check(bodies.includes('See you at Hangar 19.') && bodies.includes('Landing 6pm \nThanks!'), 'guest thread shows both sides');
+check(!JSON.stringify(th.body).match(/\+1\d{10}|900101|1025-/), 'guest thread carries no phone, ids or ticket');
+check((await fn('valet-pass', { t: TOK['900102'], action: 'messages' }, undefined, { 'x-forwarded-for': '10.30.0.2' })).body.messages.every((m: any) => m.body !== 'See you at Hangar 19.'), 'another passenger never sees this chat');
+const off = await rpc(admin, 'airvalet_digital_pass_set', { p_on: false });
+check(off.body.on === false && off.body.chat === false && off.body.requests === false, 'ADMIN: Digital Pass OFF (texts, chat, requests off)');
+const v2 = await view(TOK['900101']);
+check(v2.body.state === 'ok' && v2.body.pass.chat_enabled === false, 'OFF: link still readable, chat hidden');
+check((await fn('valet-pass', { t: TOK['900101'], action: 'send', body: 'hello', ck: ck() }, undefined, chatIp)).body.result !== 'OK', 'OFF: chat messages refused');
 
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail) Deno.exit(1);

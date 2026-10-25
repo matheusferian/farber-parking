@@ -66,14 +66,14 @@ Deno.test('templates: only REPLY and the owner-approved CHECK_IN (D1) are APPROV
   assertEquals(Object.keys(TEMPLATES).sort(), ['AFTER_HOURS_CONFIRMED', 'CHECK_IN', 'CUSTOM_OPERATIONAL', 'REPLY', 'RETURN_CONFIRMATION', 'RETURN_UPDATED', 'VEHICLE_DELIVERED', 'VEHICLE_READY']);
   for (const t of Object.values(TEMPLATES)) {
     if (t.type === 'REPLY') { assertEquals(t.status, 'APPROVED'); assert(t.freeText); continue; }
-    if (t.type === 'CHECK_IN') { assertEquals(t.status, 'APPROVED'); assertEquals(t.version, 'checkin-d1-2026-10-25'); continue; }
+    if (t.type === 'CHECK_IN') { assertEquals(t.status, 'APPROVED'); assertEquals(t.version, 'checkin-2026-10-25-golive'); continue; }
     assertEquals(t.status, 'PENDING_APPROVAL');
     assertEquals(codeOf(() => renderMessage(t, P({ status: 'DELIVERED', delivery_type: 'CUSTOMS', customs_welcome_sent: true, return_operator: 'MAKERS' }), ENV, 'x')), 'TEMPLATE_NOT_APPROVED');
   }
 });
 Deno.test('identity: every templated SMS names Makers Air (CHECK_IN D1 = "welcome to Makers Air!", others "Makers Air Valet:"), Ascend included', () => {
   const ci = renderMessage(A.CHECK_IN, P({ ticket: 'A-0714-1' }), ENV).body;
-  assertStringIncludes(ci, 'welcome to Makers Air!'); assertFalse(ci.includes('Ascend'));
+  assertStringIncludes(ci, 'Welcome to Makers Air Valet!'); assertFalse(ci.includes('Ascend'));
   const cases: Array<[string, PassengerCtx]> = [
     ['RETURN_CONFIRMATION', P({ ticket: 'A-1' })], ['RETURN_UPDATED', P({ ticket: 'A-1', ret: '10/31/2026', ret_time: '18:00' })], ['AFTER_HOURS_CONFIRMED', P({ ticket: 'A-1' })],
     ['VEHICLE_READY', P({ ticket: 'A-1', return_operator: 'ASCEND' })], ['VEHICLE_READY', P({ ticket: 'A-1', return_operator: 'MAKERS' })],
@@ -85,32 +85,15 @@ Deno.test('identity: every templated SMS names Makers Air (CHECK_IN D1 = "welcom
     assertFalse(b.includes('Ascend Valet'), t);
   }
 });
-Deno.test('CHECK_IN D1: exact owner wording, real link, STOP line, ONE GSM-7 segment, no pickup instructions', () => {
-  const b = renderMessage(A.CHECK_IN, P({ name: 'ANA SILVA' }), ENV).body;
-  assertEquals(b, `Hi Ana, welcome to Makers Air! Your vehicle is checked in.\nYour valet pass: ${PASS}\nReply STOP to opt out.`);
-  assertFalse(/Hangar|Customs|tip|gratuity/i.test(b));
-  assertEquals(seg(b), 1);
-  assertEquals(codeOf(() => renderMessage(A.CHECK_IN, P(), {})), 'PASS_LINK_MISSING');
-});
-Deno.test('CHECK_IN D1: long names shorten the wording first; the name is dropped only last', () => {
-  const at = (n: string) => renderMessage(A.CHECK_IN, P({ name: n }), ENV).body;
-  // up to 15 letters: exact owner wording
-  assertStringIncludes(at('CHRISTOPHERSONN X'), 'Hi Christophersonn, welcome to Makers Air! Your vehicle is checked in.');
-  // 16–19 letters: shorter wording, name kept
-  const b16 = at('Maximilianusabcd'); assertStringIncludes(b16, 'Hi Maximilianusabcd,'); assertStringIncludes(b16, 'Your car is checked in.');
-  // every name fits ONE segment, always with the link and the STOP line
-  for (const n of ['A', 'Jo', 'John', 'Alexandria', 'Bartholomew', 'Maximilianusabcdefgh', 'Wolfeschlegelsteinhausen']) {
-    const b = at(n); assertEquals(seg(b), 1, n); assertStringIncludes(b, PASS); assertStringIncludes(b, 'STOP to opt out');
-  }
-});
-Deno.test('CHECK_IN D1: accents / emoji in names never switch the text to UCS-2', () => {
-  for (const n of ['JOÃO', 'José', 'Zoë', 'Åsa', 'Łukasz', 'Ana😀', 'Nguyễn']) {
+Deno.test('CHECK_IN (go-live): exact owner wording, no passenger name, real link, STOP line, ONE GSM-7 segment', () => {
+  for (const n of ['ANA SILVA', 'JOÃO 😀', 'Wolfeschlegelsteinhausen', null]) {
     const b = renderMessage(A.CHECK_IN, P({ name: n }), ENV).body;
-    assertEquals(seg(b), 1, n);
-    assert(Array.from(b).every((ch) => isGsm7(ch)), n);
+    assertEquals(b, `Welcome to Makers Air Valet!\nYour vehicle has been checked in.\nYour digital valet pass:\n${PASS}\nReply STOP to opt out.`);
+    assertEquals(b.length, 160); assertEquals(seg(b), 1);
+    assert(Array.from(b).every((ch) => isGsm7(ch)));
   }
-  assertStringIncludes(renderMessage(A.CHECK_IN, P({ name: 'JOÃO' }), ENV).body, 'Hi Joao,');
-  assertStringIncludes(renderMessage(A.CHECK_IN, P({ name: 'José' }), ENV).body, 'Hi José,');
+  assertFalse(/Hangar|Customs|tip|gratuity/i.test(renderMessage(A.CHECK_IN, P(), ENV).body));
+  assertEquals(codeOf(() => renderMessage(A.CHECK_IN, P(), {})), 'PASS_LINK_MISSING');
 });
 Deno.test('RETURN_UPDATED / AFTER_HOURS_CONFIRMED: one segment, no lockbox code, pending approval', () => {
   const tpl = { ...A.RETURN_UPDATED, status: 'APPROVED' as const, version: 't' };
@@ -411,8 +394,7 @@ Deno.test('service: happy path → one provider call, queued, SID + staff name s
   assertEquals(r.ok, true); assertEquals(r.status, 'queued'); assert(r.sid?.startsWith('SMMOCK'));
   assertEquals(provider.calls.length, 1);
   assertEquals(provider.calls[0].to, '+13055550101');
-  assert(provider.calls[0].body.startsWith('Hi '));
-  assertStringIncludes(provider.calls[0].body, 'welcome to Makers Air! Your vehicle is checked in.\nYour valet pass: https://airvalet.farberos.com/a#');
+  assert(provider.calls[0].body.startsWith('Welcome to Makers Air Valet!\nYour vehicle has been checked in.\nYour digital valet pass:\nhttps://airvalet.farberos.com/a#'));
   assertEquals(countSegments(provider.calls[0].body), 1); // owner D1: one GSM-7 segment with the real link
   const tok = store.passLinks.get(1001)!;
   assertEquals(tok.length, 17);
@@ -424,7 +406,7 @@ Deno.test('service: happy path → one provider call, queued, SID + staff name s
   assertEquals(store.claims[0].segments, 1);
   const row = [...store.rows.values()][0];
   assertEquals(row.key, buildIdempotencyKey(1001, 'CHECK_IN', 'checkin'));
-  assertEquals(store.claims[0].templateKey, 'CHECK_IN_D1');
+  assertEquals(store.claims[0].templateKey, 'CHECK_IN_PASS');
   assertEquals(store.claims[0].sentByName, 'Valet Ana');
 });
 Deno.test('service: Ascend departure still identified as Makers Air Valet; a resend rotates the link', async () => {
@@ -432,7 +414,7 @@ Deno.test('service: Ascend departure still identified as Makers Air Valet; a res
   await sendAirValetSms(deps, { passengerId: 1002, type: 'CHECK_IN', actor: ops });
   const first = store.passLinks.get(1002)!;
   await sendAirValetSms(deps, { passengerId: 1002, type: 'CHECK_IN', eventRef: 'resend:7f1c0a2b', actor: mgr });
-  assertStringIncludes(provider.calls[0].body, 'welcome to Makers Air!'); assertFalse(provider.calls[0].body.includes('Ascend'));
+  assertStringIncludes(provider.calls[0].body, 'Welcome to Makers Air Valet!'); assertFalse(provider.calls[0].body.includes('Ascend'));
   assertEquals(store.mints, 2);
   assert(store.passLinks.get(1002) !== first);
   assertStringIncludes(provider.calls[1].body, store.passLinks.get(1002)!);

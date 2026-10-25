@@ -3836,7 +3836,12 @@ async function vsConfirmClockOut(){
 }
 // ── VALET ATTENDANCE END ─────────────────────────────────────
 
+var _checkinKey = null; // one key per New Entry form: a retried save never creates a second check-in
+function newCheckinKey(){
+  return 'ck_' + (window.crypto && crypto.randomUUID ? crypto.randomUUID().replace(/-/g, '') : (Date.now().toString(36) + Math.random().toString(36).slice(2)));
+}
 function openAdd(){
+  _checkinKey = newCheckinKey();
   document.getElementById('modalTitle').textContent='New Entry';
   document.getElementById('modalSub').textContent='Add a new passenger';
   document.getElementById('fName').value='';
@@ -4586,7 +4591,7 @@ function closeInboxThread(){
 }
 async function loadThread(passengerId, quiet){
   try {
-    _ibx.thread = await smsApi('/rest/v1/airvalet_sms_messages?passenger_id=eq.' + passengerId + '&select=id,direction,message_type,template_key,body,status,error_code,sent_by_name,created_at,sent_at,delivered_at,read_at,received_at,segments&order=created_at.asc&limit=300');
+    _ibx.thread = await smsApi('/rest/v1/airvalet_sms_messages?passenger_id=eq.' + passengerId + '&select=id,direction,provider,message_type,template_key,body,status,error_code,sent_by_name,created_at,sent_at,delivered_at,read_at,received_at,segments&order=created_at.asc&limit=300');
   } catch(e) { _ibx.thread = []; }
   if (_ibx.open !== passengerId) return;
   // Opening the conversation registers the read (who + when, server-side).
@@ -4613,12 +4618,12 @@ function renderThread(passengerId, keepComposer){
       var sys = (kw === 'STOP' || kw === 'START' || kw === 'HELP')
         ? '<div class="ibx-sys">' + (kw === 'STOP' ? 'Passenger replied STOP — opted out. Texts are blocked.' : kw === 'START' ? 'Passenger replied START — texts allowed again.' : 'Passenger asked for HELP — automatic help reply sent by the carrier service.') + '</div>' : '';
       return '<div class="ibx-msg in"><div class="ibx-bub">' + escapeHTML(m.body || '') + '</div>' +
-        '<div class="ibx-meta">' + escapeHTML(ibxTime(m.received_at || m.created_at)) + ' · ' + (m.read_at ? 'Read ' + escapeHTML(ibxTime(m.read_at)) : '<b>Unread</b>') + '</div></div>' + sys;
+        '<div class="ibx-meta">' + escapeHTML(ibxTime(m.received_at || m.created_at)) + (m.provider === 'portal' ? ' · via valet pass chat' : '') + ' · ' + (m.read_at ? 'Read ' + escapeHTML(ibxTime(m.read_at)) : '<b>Unread</b>') + '</div></div>' + sys;
     }
     var openInfo = (m.id === lastCheckin && opened && opened.first_opened_at)
       ? ' · <span class="ibx-st ok">&#128279; Link opened ' + escapeHTML(ibxTime(opened.last_opened_at)) + (opened.open_count > 1 ? ' (' + opened.open_count + '×)' : '') + '</span>' : '';
     return '<div class="ibx-msg out' + (m.status === 'blocked' ? ' blocked' : '') + '"><div class="ibx-bub">' + escapeHTML(m.body || '') + '</div>' +
-      '<div class="ibx-meta">' + escapeHTML(ibxTypeLabel(m)) + ' · ' + escapeHTML(m.sent_by_name || 'AirValet') + ' · ' + escapeHTML(ibxTime(m.created_at)) + ' · ' + smsStatusHtml(m) + openInfo + '</div></div>';
+      '<div class="ibx-meta">' + escapeHTML(ibxTypeLabel(m)) + ' · ' + escapeHTML(m.sent_by_name || 'AirValet') + ' · ' + escapeHTML(ibxTime(m.created_at)) + ' · ' + (m.provider === 'portal' ? '<span class="ibx-st ok">Chat only (no text)</span>' : smsStatusHtml(m)) + openInfo + '</div></div>';
   }).join('');
   var optedOut = !!conv.opted_out;
   var header = '<div class="ibx-th-h"><button class="ibx-back" onclick="closeInboxThread()" aria-label="Back">&#8249;</button>' +
@@ -4632,6 +4637,7 @@ function renderThread(passengerId, keepComposer){
     ? '<div class="ibx-blocked">Passenger replied STOP. Texts are blocked until they reply START.</div>'
     : '<div class="ibx-comp"><textarea id="ibxText" rows="2" maxlength="480" placeholder="Reply to ' + escapeHTML(String(p.name || '').split(' ')[0] || 'passenger') + '… (sent as a normal SMS)" oninput="onInboxDraft(' + passengerId + ')">' + escapeHTML(draft) + '</textarea>' +
       '<div class="ibx-comp-row"><span class="ibx-quick" onclick="useQuickReply(' + passengerId + ',\'No problem, see you then!\')">No problem, see you then!</span><span class="ibx-quick" onclick="useQuickReply(' + passengerId + ',\'Noted, thank you!\')">Noted, thank you!</span>' +
+      '<label class="ibx-sms-chk"><input type="checkbox" id="ibxAlsoSms" checked> Also send as text message</label>' +
       '<span class="ibx-count" id="ibxCount"></span><button class="rp-btn rp-btn-primary" id="ibxSendBtn" onclick="sendInboxReply(' + passengerId + ')"' + (_ibx.sending ? ' disabled' : '') + '>' + (_ibx.sending ? 'Sending…' : 'Send') + '</button></div></div>';
   if (keepComposer && document.getElementById('ibxText') && !optedOut){
     var list = box.querySelector('.ibx-msgs'); if (list){ list.innerHTML = msgs || '<div class="ibx-empty">No texts yet.</div>'; }
@@ -4668,6 +4674,17 @@ async function sendInboxReply(passengerId){
   var c = _ibx.compose[passengerId] || (_ibx.compose[passengerId] = { id: newComposeId(), text: text });
   _ibx.sending = true;
   var btn = document.getElementById('ibxSendBtn'); if (btn){ btn.disabled = true; btn.textContent = 'Sending…'; }
+  // Chat-only reply (no SMS cost): shown in the passenger's valet pass chat.
+  var alsoSms = document.getElementById('ibxAlsoSms');
+  if (alsoSms && !alsoSms.checked) {
+    var cr = null;
+    try { cr = await vpRpc('airvalet_portal_staff_reply', { p_passenger_id: passengerId, p_body: text, p_compose_id: c.id, p_staff_name: smsStaffName() || null }); } catch(e) { cr = { result: 'NETWORK' }; }
+    _ibx.sending = false;
+    if (cr && cr.result === 'OK') { _ibx.compose[passengerId] = { id: newComposeId(), text: '' }; }
+    else showMsg(cr && cr.result === 'NO_PASS_LINK' ? 'This passenger has no active valet pass link — check "Also send as text message".' : 'Not sent — try again.', true);
+    await loadInbox(); renderThread(passengerId, false);
+    return;
+  }
   var res = await sendServerSms(passengerId, 'REPLY', { eventRef: c.id, customBody: text });
   _ibx.sending = false;
   if (res && res.ok){
@@ -5072,9 +5089,15 @@ async function vpAdminLoad(){
   _vp.settings = s;
   var h = s.valet_hours && s.valet_hours.mon ? s.valet_hours.mon : null;
   var chk = function(k, label, note){ return '<label class="vpa-chk"><input type="checkbox" id="vpS_' + k + '" ' + (s[k] ? 'checked' : '') + '> ' + label + (note ? ' <span class="vpa-n">' + note + '</span>' : '') + '</label>'; };
+  var dp = null;
+  try { dp = await vpRpc('airvalet_digital_pass_status'); } catch(e) {}
   document.getElementById('vpAdmPortal').innerHTML =
+    (dp ? '<div class="vpa-dp ' + (dp.on ? 'on' : 'off') + '"><b>AIRVALET DIGITAL PASS: ' + (dp.on ? 'ON' : 'OFF') + '</b>' +
+      '<span class="vpa-n">' + (dp.on ? (dp.new_checkins ? 'New check-ins get the welcome text.' : 'On, waiting for START NEW CHECK-INS.') + (dp.test_only ? ' Test mode.' : '') : 'No texts, chat or requests. Links already sent stay readable.') + '</span>' +
+      '<button type="button" class="smsbtn' + (dp.on ? '' : ' pri') + '" onclick="vpDigitalPassSet(' + (dp.on ? 'false' : 'true') + ')">' + (dp.on ? 'Turn OFF now' : 'Turn ON') + '</button></div>' : '') +
     chk('portal_enabled', 'Passenger page on', '(off = every link shows "not active")') +
     chk('requests_enabled', 'Passengers may send requests', '(return change, car wash)') +
+    chk('chat_enabled', 'Chat on the valet pass', '(messages arrive in the Inbox, no text cost)') +
     chk('push_enabled', 'Device alerts (Web Push)') +
     chk('tv_alerts_enabled', 'Message alerts on the TV') +
     chk('terms_published', 'Show Valet Terms link', '(only after the legal review)') +
@@ -5109,6 +5132,7 @@ async function vpAdminSave(){
   if (open && close) ['mon','tue','wed','thu','fri','sat','sun'].forEach(function(d){ hours[d] = [open, close]; });
   var patch = {
     portal_enabled: g('vpS_portal_enabled').checked, requests_enabled: g('vpS_requests_enabled').checked,
+    chat_enabled: g('vpS_chat_enabled').checked,
     push_enabled: g('vpS_push_enabled').checked, tv_alerts_enabled: g('vpS_tv_alerts_enabled').checked,
     terms_published: g('vpS_terms_published').checked, text_phone: g('vpS_text_phone').value.trim(),
     reservations_phone: g('vpS_reservations_phone').value.trim(), valet_hours: hours,
@@ -5117,6 +5141,14 @@ async function vpAdminSave(){
   if (patch.portal_enabled && !_vp.settings.portal_enabled && !confirm('Turn the passenger page ON? Links already sent start working immediately.')) return;
   try { _vp.settings = await vpRpc('airvalet_portal_settings_set', { p_patch: patch }); msg.textContent = '✓ Saved'; }
   catch(e) { msg.textContent = 'Not saved: ' + e.message; }
+}
+// One switch for the whole digital pass. OFF is immediate (no confirm needed
+// to stop); ON asks first. New check-ins still need START NEW CHECK-INS.
+async function vpDigitalPassSet(on){
+  if (on && !confirm('Turn AIRVALET DIGITAL PASS ON?\n\nTexts, chat and requests turn on. New check-ins still need START NEW CHECK-INS.')) return;
+  var m = document.getElementById('vpAdmMsg');
+  try { await vpRpc('airvalet_digital_pass_set', { p_on: !!on }); vpAdminLoad(); if (typeof loadSmsAdmin === 'function') loadSmsAdmin(); }
+  catch(e) { if (m) m.textContent = 'Not changed: ' + e.message; }
 }
 async function vpAlertsCall(body){
   return smsApi('/functions/v1/airvalet-admin-alerts', { method: 'POST', body: JSON.stringify(body) });
@@ -6149,9 +6181,15 @@ async function saveEntry(sendSms, printMode){
   var status0=document.getElementById('fStatus').value;
   var retVal=document.getElementById('fReturn').value;
   if(status0==='PENDING'&&!retVal){
-    alert('Return Date is required for PENDING status.');
-    document.getElementById('fReturn').focus();
-    return;
+    // Digital check-in can start with phone + name: no return date yet means
+    // the existing NO DATE status (Return Date stays required for PENDING).
+    if(!confirm('No return date yet.\n\nSave as NO DATE now and add the return date later?')){
+      document.getElementById('fReturn').focus();
+      return;
+    }
+    document.getElementById('fStatus').value='NO DATE';
+    onStatusChange('NO DATE');
+    status0='NO DATE';
   }
   var dupTicket = data.filter(function(r) {
     var existingTicket = String(r.ticket || '').trim();
@@ -6227,7 +6265,8 @@ async function saveEntry(sendSms, printMode){
     delivery_at_customs: deliveryAtCustoms,
     return_operator: returnOp,
     carwash_status: carwashStatus,
-    deldate: ''
+    deldate: '',
+    client_key: _checkinKey || newCheckinKey()
   };
 
   // Decided upfront from the connectivity indicator (never guessed) —
@@ -6241,8 +6280,25 @@ async function saveEntry(sendSms, printMode){
   if(!knownOffline){
     // ── ONLINE PATH — byte-for-byte the original saveEntry() behavior ──
     try{
-      var _newRows = await sbInsert(payload);
+      var _newRows;
+      try { _newRows = await sbInsert(payload); }
+      catch(insErr){
+        // Same form saved twice (double tap / retry after a lost answer): the
+        // database refuses a second row with this client key → use the first.
+        if(!(insErr instanceof TypeError) && /passengers_client_key_unique/.test(String(insErr.message))){
+          var _exRes = await fetch(SUPABASE_URL + '/rest/v1/' + TABLE + '?client_key=eq.' + encodeURIComponent(payload.client_key) + '&select=*', { headers: sbHeaders() });
+          _newRows = _exRes.ok ? await _exRes.json() : null;
+          if(!_newRows || !_newRows.length) throw insErr;
+        } else throw insErr;
+      }
       var _newId = (_newRows && _newRows[0]) ? _newRows[0].id : null;
+      // Two devices saving at the same moment: the database gives the second
+      // one the next free number. Use the server's ticket for prints and SMS.
+      if(_newRows && _newRows[0] && _newRows[0].ticket && _newRows[0].ticket !== ticket){
+        showMsg('Ticket ' + ticket + ' was just taken on another device — this car is ticket ' + _newRows[0].ticket + '.', true);
+        ticket = _newRows[0].ticket;
+      }
+      _checkinKey = newCheckinKey();
       sbLog('CREATED', nameUpper, ticket, locVal, 'Passenger added to system', {passenger_id:_newId});
       if (_newId) vlhInsert({passenger_id:_newId, ticket:ticket, passenger_name:nameUpper, from_location:'', to_location:locVal, action:'CHECK-IN', note:'Vehicle checked in at '+locVal, created_by:_currentUserEmail});
       maybeAddVehicle(carVal);

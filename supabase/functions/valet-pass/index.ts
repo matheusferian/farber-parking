@@ -9,6 +9,8 @@
 //   POST { t }                                   → { state, pass }    (view)
 //   POST { t, action: 'request', kind, reason?, date?, time?, carrier?, note?, ck }
 //                                                → { state, result }  (passenger request)
+//   POST { t, action: 'messages' }               → { state, messages } (valet chat thread)
+//   POST { t, action: 'send', body, ck }         → { state, result }  (chat message, no SMS)
 //
 // Requests are stored PENDING; nothing operational changes until staff
 // approve in AirValet. A new request notifies staff (iPad push / Super Admin
@@ -51,6 +53,14 @@ export function cleanText(v: unknown, max: number): string | null {
     .map((ch) => (isGsm7(ch) ? ch : ch.normalize('NFD').replace(/[̀-ͯ]/g, '')))
     .filter((ch) => ch.length === 1 && isGsm7(ch) && ch !== '\n' && ch !== '\r').join('').slice(0, max).trim();
   return s || null;
+}
+
+// Chat text: GSM-7 only (no emoji), line breaks kept (max 4 in a row), capped.
+export function cleanChat(v: unknown): string {
+  if (typeof v !== 'string') return '';
+  return Array.from(v.replace(/\r\n?/g, '\n').replace(/\n{3,}/g, '\n\n').trim())
+    .map((ch) => (isGsm7(ch) ? ch : ch.normalize('NFD').replace(/[\u0300-\u036f]/g, '')))
+    .filter((ch) => ch.length === 1 && isGsm7(ch) && ch !== '\r').join('').slice(0, 600).trim();
 }
 
 Deno.serve(async (req) => {
@@ -107,6 +117,31 @@ Deno.serve(async (req) => {
       const redact = makeRedactor([get('SUPABASE_SERVICE_ROLE_KEY'), get('AIRVALET_VAPID_PRIVATE_JWK'), cfg.twilio?.apiKeySecret]);
       const log = (event: string, d: Record<string, unknown>) => console.log(redact(JSON.stringify({ event, ...d })));
       const job = notifyEvent(makeNotifyDeps(admin, cfg, get, log), 'PASS_REQUEST', String(data.request_id));
+      if (typeof EdgeRuntime !== 'undefined') EdgeRuntime.waitUntil(job); else job.catch(() => {});
+    }
+    return reply(200, { state: 'ok', result: data.result });
+  }
+
+  if (body.action === 'messages') {
+    const { data, error } = await admin.rpc('airvalet_portal_messages', { p_token: token, p_client: client });
+    if (error || !data) return reply(503, { state: 'error' });
+    if (data.state === 'limited') return reply(429, { state: 'limited' });
+    if (data.state !== 'ok') return reply(200, { state: 'expired' });
+    return reply(200, { state: 'ok', messages: data.messages });
+  }
+
+  if (body.action === 'send') {
+    const ck = typeof body.ck === 'string' && CK_RE.test(body.ck) ? body.ck : '';
+    const text = cleanChat(body.body);
+    const { data, error } = await admin.rpc('airvalet_portal_send_message', { p_token: token, p_client: client, p_body: text, p_client_key: ck });
+    if (error || !data) return reply(503, { state: 'error' });
+    if (data.state === 'limited') return reply(429, { state: 'limited' });
+    if (data.state !== 'ok') return reply(200, { state: 'expired' });
+    if (data.result === 'OK' && !data.duplicate && data.message_id) {
+      const cfg = readSmsConfig(get);
+      const redact = makeRedactor([get('SUPABASE_SERVICE_ROLE_KEY'), get('AIRVALET_VAPID_PRIVATE_JWK'), cfg.twilio?.apiKeySecret]);
+      const log = (event: string, d: Record<string, unknown>) => console.log(redact(JSON.stringify({ event, ...d })));
+      const job = notifyEvent(makeNotifyDeps(admin, cfg, get, log), 'GUEST_MESSAGE', String(data.message_id));
       if (typeof EdgeRuntime !== 'undefined') EdgeRuntime.waitUntil(job); else job.catch(() => {});
     }
     return reply(200, { state: 'ok', result: data.result });
