@@ -283,6 +283,13 @@
     }
   }
 
+  // A different link opened in the same tab: show that pass, never the previous one.
+  window.addEventListener('hashchange', function () {
+    TOKEN = String(location.hash || '').replace(/^#/, ''); pass = null;
+    if (!sheetBg.hidden) closeSheet();
+    app.innerHTML = '<div class="center"><p class="muted">Loading your valet pass…</p></div>';
+    load();
+  });
   document.addEventListener('visibilitychange', function () { if (!document.hidden && pass && sheetBg.hidden) load(); });
   setInterval(function () { if (!document.hidden && pass && sheetBg.hidden) load(); }, 60000);
   load();
