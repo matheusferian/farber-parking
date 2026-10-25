@@ -2126,7 +2126,7 @@ body.tv-stale .tv-stale-banner{display:block;}
 .ci2-rpm button small{font-weight:400;font-size:12px;color:var(--mu);}
 
 /* v2 on iPad / wide screens: a wider sheet, two columns where it helps, bigger touch targets */
-@media (min-width:768px){
+@media (min-width:768px) and (min-height:600px){
   .modal.ci2-wide{width:calc(100% - 48px);max-width:900px;padding:28px 32px 32px;}
   .modal.ci2-wide h2{font-size:22px;}
   .modal.ci2-wide .msub{font-size:13px;}
@@ -2155,3 +2155,25 @@ body.tv-stale .tv-stale-banner{display:block;}
 }
 .dc-authpk{margin-top:4px;padding:5px 8px;border-radius:8px;background:#FFF1CC;color:#7A5A00;white-space:normal;}
 .dc-authpk b{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.04em;}
+.ci2-dup{margin-top:12px;border:1.5px solid #F0C46A;background:#FFF4E0;color:#5C4300;border-radius:13px;padding:12px 14px;font-size:14px;}
+.ci2-dup p{margin-bottom:4px;}
+
+/* audit 2026-10-25: contrast, 44pt targets, phone landscape, reduced motion */
+.ci2{--ok-tx:#0F7A52;--ctl-b:#7F8FAA;}
+.ci2-ok,.ci2-retnote.set,.ci2-sec-h .v.done,.ci2-saved,.ci2-need span.ok{color:var(--ok-tx);}
+.ci2-inp,.ci2-rq button,.ci2-seg button,.ci2-chipset button,.ci2-search,.ci2-cal{border-color:var(--ctl-b);}
+.ci2-rq button[aria-pressed="true"],.ci2-seg button[aria-pressed="true"],.ci2-chipset button[aria-pressed="true"]{border-color:var(--navy);}
+.ci2-inp:focus,.ci2-search:focus{border-color:var(--blue);}
+.ci2-link{min-height:44px;padding:0 12px;}
+.ci2-sms button{min-height:44px!important;}
+.ci2-cal-x{min-height:44px;}
+.ci2-consent summary{min-height:44px;}
+.ci2-veh,.ci2-hgr,.ci2-mi{min-height:44px!important;}
+.ci2-hint.bad{color:#C0392E;font-weight:600;}
+.ci2-er{margin-top:12px;}
+@media (max-width:440px){
+  .ci2-cal{padding:6px 2px 8px;}
+  .ci2-cal-g{gap:2px 0;}
+  .ci2-cal-g button{min-width:44px;height:46px;}
+}
+@media (prefers-reduced-motion:reduce){.ci2-track i{transition:none!important;}}

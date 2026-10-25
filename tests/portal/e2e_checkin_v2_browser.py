@@ -52,7 +52,7 @@ async def guard(route):
 
 
 async def login(page):
-    await page.goto(APP)
+    await page.goto(APP + '?checkin=v2')  # v2 is opt-in per device
     await page.wait_for_selector('#loginEmail', state='visible', timeout=15000)
     for attempt in range(3):
         await page.wait_for_timeout(2000)  # the login screen resets its fields once on start
@@ -137,6 +137,19 @@ async def main():
         check(await page.is_hidden('#ci2Created'), 'phone edited during the countdown → nothing created')
         check(int(sql("select count(*) from passengers")) == n0, '… and no passenger row')
         await page.evaluate('closeAll()')
+        # Regression (audit P0): closing the sheet during the countdown must cancel it.
+        for how, js in [('Cancel → Discard', "tryCloseAdd(); doDiscard();"), ('Esc', "document.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape'}));"),
+                        ('tap outside', "document.getElementById('addOv').dispatchEvent(new MouseEvent('click', {bubbles: true}));"), ('Closing Report', "eodOpenClosingReport();")]:
+            await open_new(page)
+            await fill(page, 'E2E CLOSE ' + how.upper(), '30555' + RUN + '09')
+            await page.click('#ci2Yes')
+            await page.wait_for_timeout(700)
+            await page.evaluate(js)
+            await page.wait_for_timeout(3600)
+            created = sql("select count(*) from passengers where name = 'E2E CLOSE " + how.upper() + "'")
+            texted = sql("select count(*) from airvalet_sms_messages m join passengers p on p.id = m.passenger_id where p.name = 'E2E CLOSE " + how.upper() + "'")
+            check(created == '0' and texted == '0', f'closed during the countdown ({how}) → no ticket, no text', [created, texted])
+            await page.evaluate("closeAll(); document.getElementById('discardOv').classList.remove('on'); document.querySelector('.tab[data-t=\"all\"]') && 0")
 
         # 2. Happy path: name + phone + Tomorrow + Yes → one ticket, one welcome.
         phone = '30555' + RUN + '02'
@@ -280,9 +293,16 @@ async def main():
         await page.evaluate(f'openTipModal({r["id"]}, "NORMAL")')
         await page.wait_for_timeout(300)
         check(await page.is_disabled('#tipYesBtn'), 'Deliver locked until the ID check')
+        check(await page.evaluate("!document.querySelector('input[name=\"relWho\"]:checked')"), 'nobody preselected as the person picking up')
         await shot(page, 'v2-ipad-5-delivery')
         await page.check('#relIdOk')
-        check(not await page.is_disabled('#tipYesBtn'), 'ID checked → Deliver unlocked')
+        check(await page.is_disabled('#tipYesBtn'), 'ID checked but no person chosen → still locked')
+        await page.check('input[name="relWho"][value="AUTHORIZED"]')
+        check(not await page.is_checked('#relIdOk') and await page.is_disabled('#tipYesBtn'), 'choosing the person resets the ID check')
+        await page.check('#relIdOk')
+        check(not await page.is_disabled('#tipYesBtn'), 'person chosen + ID checked → Deliver unlocked')
+        lock = await page.evaluate(f"(async () => {{ const ok = await deliverWithTip({r['id']}, 'LOCKBOX', null); return [ok, document.getElementById('msg').innerText]; }})()")
+        check(lock[0] is False and 'no lockbox' in lock[1], 'authorized pickup + Lockbox delivery → refused (nobody can check an ID)', lock)
         await page.click('#tipYesBtn')
         await page.wait_for_timeout(1200)
         rel = sql(f"select status || '|' || released_to_name || '|' || released_to_kind || '|' || released_id_checked || '|' || coalesce(released_by,'') from passengers where id = {r['id']}")
@@ -314,6 +334,33 @@ async def main():
         check(rc['ticket'] != r['ticket'], 'companion gets its own ticket', rc)
         st = sql(f"select status || '|' || coalesce(error_code,'') from airvalet_sms_messages where passenger_id = {rc['id']} and message_type = 'CHECK_IN'")
         check(st != '' and not st.startswith('blocked'), 'companion (same phone, < 2 min) gets its own welcome', st)
+        await page.evaluate('closeAll()')
+
+        # 7b. Same guest (not delivered) again within 15 min, e.g. after a reload → warning, no silent duplicate.
+        await open_new(page)
+        await fill(page, 'E2E COMPANION', phone)
+        await page.click('#ci2Yes')
+        await page.wait_for_timeout(600)
+        check(await page.is_visible('#ci2Dup') and await page.is_hidden('#ci2Cd'), 'same name + phone checked in minutes ago → warning instead of a new ticket')
+        check(rc['ticket'] in await page.inner_text('#ci2Dup'), 'warning names the existing ticket', await page.inner_text('#ci2Dup'))
+        n_same = sql(f"select count(*) from passengers where phone like '%{phone[-4:]}' and name = 'E2E COMPANION'")
+        await page.click('#ci2DupOpen')
+        await page.wait_for_timeout(500)
+        check(await page.evaluate("document.getElementById('detOv').classList.contains('on')") and not await page.evaluate("document.getElementById('addOv').classList.contains('on')"), 'Open → closes the form and opens the existing car')
+        check(sql(f"select count(*) from passengers where phone like '%{phone[-4:]}' and name = 'E2E COMPANION'") == n_same, '… and no ticket was created')
+        await page.evaluate('closeAll()')
+        await open_new(page)
+        await fill(page, 'E2E COMPANION', phone)
+        await page.click('#ci2Yes'); await page.wait_for_timeout(400)
+        await page.click('#ci2DupNew')
+        check(await page.is_visible('#ci2Cd'), '“Check in again” → countdown starts (staff decision)')
+        await page.click('#ci2Undo')
+        check(sql(f"select count(*) from passengers where phone like '%{phone[-4:]}' and name = 'E2E COMPANION'") == n_same, 'Undo after “Check in again” → still nothing created')
+        # App update banner tapped while typing → asks first, nothing reloads on Cancel.
+        await page.evaluate("window.__skip = 0; _offlineSw.registration = { waiting: { postMessage: function(){ window.__skip++; } } };")
+        page.once('dialog', lambda d: asyncio.ensure_future(d.dismiss()))
+        await page.evaluate('offlineApplyUpdate()')
+        check(await page.evaluate('window.__skip') == 0, 'app update during a check-in → asks first; Cancel keeps the form')
         await page.evaluate('closeAll()')
 
         # 8. No texts → ticket created, zero texts.
@@ -356,7 +403,7 @@ async def main():
         await page.wait_for_timeout(400)
         labels = [p['label'] for p in await page.evaluate('window.__prints')]
         check(labels == ['Key', 'Dashboard'] and all(well_formed(p['xml']) for p in await page.evaluate('window.__prints')), 'after a page reload: Key + Dashboard print from the car record', labels)
-        await page.evaluate("localStorage.setItem('airvalet_checkin_classic', '1'); openAdd();")
+        await page.evaluate("localStorage.removeItem('airvalet_checkin_v2'); openAdd();")
         check(await page.is_visible('#fName') and await page.is_hidden('#ci2') and await page.is_visible('#saveBtnPrint'), 'classic form: shown with its own Save + Print button')
         check(not await page.evaluate("document.querySelector('#addOv .modal').classList.contains('ci2-wide')"), 'classic form keeps its original sheet width')
         await page.evaluate('window.__prints = []')
@@ -371,7 +418,21 @@ async def main():
         check(not await page.evaluate("document.getElementById('addOv').classList.contains('on')"), 'classic save closes the form as before')
         cl = sql("select count(*) from airvalet_sms_messages m join passengers p on p.id = m.passenger_id where p.name = 'E2E CLASSIC & SON'")
         check(cl == '0', 'classic save without SMS sends nothing', cl)
-        await page.evaluate("localStorage.removeItem('airvalet_checkin_classic'); closeAll();")
+        await page.evaluate("localStorage.setItem('airvalet_checkin_v2', '1'); closeAll();")
+
+        # 10c. A device that never opted in still gets the classic form.
+        fresh = await b.new_context(viewport={'width': 820, 'height': 1180})
+        await fresh.route('**/*', guard)
+        p2 = await fresh.new_page()
+        await p2.goto(APP)
+        await p2.wait_for_selector('#loginEmail', state='visible', timeout=15000)
+        await p2.wait_for_timeout(1500)
+        check(not await p2.evaluate('ci2Active()'), 'fresh device: classic form is the default (v2 is opt-in)')
+        await p2.goto(APP + '?checkin=v2'); await p2.wait_for_selector('#loginEmail', state='visible'); await p2.wait_for_timeout(800)
+        check(await p2.evaluate('ci2Active()'), '?checkin=v2 turns v2 on for that device only')
+        await p2.goto(APP + '?checkin=classic'); await p2.wait_for_selector('#loginEmail', state='visible'); await p2.wait_for_timeout(800)
+        check(not await p2.evaluate('ci2Active()'), '?checkin=classic turns it off again')
+        await fresh.close()
 
         # 11. iPhone layout smoke.
         await page.set_viewport_size({'width': 390, 'height': 844})

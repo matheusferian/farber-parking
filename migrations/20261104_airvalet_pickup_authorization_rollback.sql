@@ -3,6 +3,8 @@
 -- export them first (select id, ticket, pickup_auth_*, released_* from passengers
 -- where pickup_auth_name is not null or released_to_name is not null).
 begin;
+drop trigger if exists airvalet_pickup_stamp on public.passengers;
+drop function if exists public.airvalet_pickup_stamp();
 drop trigger if exists airvalet_pickup_release_guard on public.passengers;
 drop function if exists public.airvalet_pickup_release_guard();
 alter table public.passengers drop constraint if exists passengers_pickup_auth_check;
