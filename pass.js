@@ -113,9 +113,11 @@
   function pickupBlock(p) {
     if (p.status === 'DELIVERED') return '';
     if (p.pickup === 'HANGAR_19') {
-      return '<section class="card" aria-label="Getting to your car"><p class="lbl">Getting to your car</p><ol class="steps mt">' +
+      if (p.status === 'READY') return ''; // the status card already says Hangar 19
+      // One quiet line; the four steps open on tap (owner 2026-10-25: cleaner page).
+      return '<details class="card pickup" aria-label="Getting to your car"><summary><span class="lbl">Pickup</span><span class="pk-place">Hangar 19</span><span class="pk-how">How to get there</span></summary><ol class="steps mt">' +
         '<li><span class="n">1</span>Land with Makers Air</li><li><span class="n">2</span>Complete Customs</li>' +
-        '<li><span class="n">3</span>Go back to your pilots and aircraft</li><li class="last"><span class="n">4</span><strong>Hangar 19</strong></li></ol></section>';
+        '<li><span class="n">3</span>Go back to your pilots and aircraft</li><li class="last"><span class="n">4</span><strong>Hangar 19</strong></li></ol></details>';
     }
     if (p.pickup === 'TO_BE_CONFIRMED' || p.pickup === 'OTHER' || !p.pickup) return '<section class="card"><p class="lbl">Pickup information</p><p class="ptext">To be confirmed by our valet team.</p></section>';
     if ((p.pickup === 'CUSTOMS_EXCEPTION' || p.pickup === 'CUSTOMS_ASCEND') && p.status === 'PARKED') {
@@ -156,14 +158,11 @@
     if (rows) html += '<div class="list">' + rows + '</div>';
     var c = p.contacts || {};
     if (p.chat_enabled) html += '<button class="btn primary chatbtn" type="button" data-open="chat">Message our valet team</button>';
-    html += '<section aria-label="Contact our team"><p class="lbl sec">Contact our team</p><div class="contacts">' +
-      '<a href="' + esc(tel(contactValet(p))) + '"><strong>Call valet</strong><span>' + esc(contactValet(p)) + '</span></a>' +
-      (c.text_phone ? '<a href="' + esc(sms(c.text_phone)) + '"><strong>Text valet</strong><span>Or reply to our text</span></a>' : '') +
-      '</div>' + (c.reservations_phone ? '<p class="muted note">Flights and reservations: <a href="' + esc(tel(c.reservations_phone)) + '">Makers Air ' + esc(c.reservations_phone) + '</a></p>' : '') +
-      (hoursText(p.valet_hours) ? '<p class="muted note">' + esc(hoursText(p.valet_hours)) + '</p>' : '') + '</section>';
-    html += '<footer><img src="assets/makers-valet-badge.png" alt="" width="44" height="44"><p>Complimentary valet service for Makers Air passengers' +
-      (p.terms_published ? ' · <a href="terms.html">Valet Terms</a>' : '') + '</p>' +
-      '<p>Makers Air Valet · Hangar 19 · 2331 NW 55th Court, Fort Lauderdale, FL 33309</p>' +
+    // One contact line (the chat covers texting); reservations / hours only when set.
+    html += '<p class="contact-line">Questions? <a href="' + esc(tel(contactValet(p))) + '">Call ' + esc(contactValet(p)) + '</a></p>' +
+      (c.reservations_phone ? '<p class="muted note center-note">Flights: <a href="' + esc(tel(c.reservations_phone)) + '">Makers Air ' + esc(c.reservations_phone) + '</a></p>' : '') +
+      (hoursText(p.valet_hours) ? '<p class="muted note center-note">' + esc(hoursText(p.valet_hours)) + '</p>' : '');
+    html += '<footer><p>Makers Air Valet · Hangar 19, Fort Lauderdale' + (p.terms_published ? ' · <a href="terms.html">Valet Terms</a>' : '') + '</p>' +
       '<p><a href="sms.html">SMS program</a> · <a href="privacy.html">Privacy</a></p></footer></main>';
     app.innerHTML = html;
     Array.prototype.forEach.call(app.querySelectorAll('[data-open]'), function (b) {
