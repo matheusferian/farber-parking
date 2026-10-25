@@ -405,6 +405,8 @@
       </div>
     </div>
     <div id="passengerFields">
+    <div id="ci2" hidden></div>
+    <div id="ciLegacy">
     <div class="fr full">
       <div class="fg">
         <label>Flying with</label>
@@ -519,12 +521,14 @@
         </div>
       </div>
     </div>
+    <div style="text-align:center;margin:4px 0 2px"><button type="button" class="ci2-link" onclick="ci2UseClassic(false)">Use the new check-in</button></div>
     <div class="mact">
       <button class="btnc" onclick="tryCloseAdd()">Cancel</button>
       <button class="btnp" id="saveBtnSms" onclick="saveEntry(true)" style="background:linear-gradient(135deg,#1a5c3a,#1a9e6a);border-color:var(--ok);">&#128172; Save + Review SMS</button>
       <button class="btnp" id="saveBtn" onclick="saveEntry(false)">Save Only</button>
       <button class="btnp" id="saveBtnPrint" onclick="saveEntry(true,'both')" style="background:linear-gradient(135deg,#1a3d7c,#2a5db0);border-color:var(--gold);">🖨 Save + Print + Review SMS</button>
     </div>
+    </div><!-- end #ciLegacy -->
     </div><!-- end #passengerFields -->
     <div id="rentalFields" style="display:none">
       <div style="background:rgba(232,197,106,0.07);border:1px solid rgba(232,197,106,0.25);border-radius:10px;padding:9px 13px;margin-bottom:10px;font-size:11px;color:var(--gold);display:flex;align-items:center;gap:7px;">
@@ -644,6 +648,7 @@
     <div style="font-family:'Sora',sans-serif;font-size:18px;font-weight:800;color:var(--tx);margin-bottom:4px">Confirm delivery?</div>
     <div id="tipPassName" style="font-size:16px;font-weight:800;color:var(--tx);margin-top:8px;font-family:'Sora',sans-serif"></div>
     <div id="tipVehicleLine" style="font-size:12px;color:var(--mu);margin-top:2px;font-family:'JetBrains Mono',monospace"></div>
+    <div id="tipPickup" class="ci2-release" hidden></div>
     <div style="display:flex;flex-direction:column;gap:10px;margin:18px 0 20px">
       <button class="tip-opt tip-yes" id="tipYesBtn" onclick="selectTip(null)">✅ Deliver</button>
     </div>
@@ -2140,6 +2145,7 @@ function buildKeyTicketXml(r) {
     // ── Fields ──────────────────────────────────────────────────
     + '<text font="font_b">PHONE: ' + phoneDisp + '&#10;</text>'
     + '<text font="font_b">' + escapeHTML(carDisp || '') + ' / ' + escapeHTML(colorDisp || '') + '&#10;</text>'
+    + (hasPickupAuth(r) ? '<text align="center" em="true">AUTHORIZED PICKUP&#10;</text><text align="center">' + escapeHTML(r.pickup_auth_name) + (r.pickup_auth_phone ? ' ' + escapeHTML(fmtP(r.pickup_auth_phone)) : '') + '&#10;</text><text align="center" font="font_b">CHECK PHOTO ID&#10;</text>' : '')
     + (returnOperator(r)==='OTHER' ?
         '<text align="center" em="true">IMPORTANT:&#10;</text>'
         + '<text align="center" em="true">RETURNING WITH: OTHER&#10;</text>'
@@ -2499,7 +2505,19 @@ function mapPassengerRow(r) {
     delivery_at_customs: r.delivery_at_customs||false,
     carwash_status: r.carwash_status||null,
     return_operator: r.return_operator||null,
-    customs_exception_requested_at: r.customs_exception_requested_at||null
+    customs_exception_requested_at: r.customs_exception_requested_at||null,
+    // Authorized pickup + who took the car (20261104; absent before it → null).
+    pickup_auth_name: r.pickup_auth_name||null,
+    pickup_auth_phone: r.pickup_auth_phone||null,
+    pickup_auth_location: r.pickup_auth_location||null,
+    pickup_auth_notes: r.pickup_auth_notes||null,
+    pickup_auth_at: r.pickup_auth_at||null,
+    pickup_auth_by: r.pickup_auth_by||null,
+    released_to_name: r.released_to_name||null,
+    released_to_kind: r.released_to_kind||null,
+    released_id_checked: r.released_id_checked==null?null:!!r.released_id_checked,
+    released_by: r.released_by||null,
+    released_at: r.released_at||null
   };
 }
 
@@ -2802,6 +2820,7 @@ function renderTable() {
         (isApproxRecord(r)?'<span class="tag" style="background:rgba(201,168,76,0.15);color:var(--gold)">~APPROX</span>':'')+
         (isAscend(r)?'<span class="tag" style="background:rgba(99,179,237,0.15);color:#63b3ed">✈ ASCEND</span>':'')+
         (notReturning?OTHER_BOAT_DASH_ICON_HTML:'')+
+        (hasPickupAuth(r)&&r.status!=='DELIVERED'?'<span class="tag t-authpk" title="Authorized pickup: '+escapeHTML(r.pickup_auth_name)+'">AUTHORIZED PICKUP</span>':'')+
         (r.isOfflinePending?'<span class="tag" style="background:rgba(232,160,48,.18);color:#e8a030;font-weight:800" title="Saved locally, not yet on the server">🟠 PENDING SYNC</span>':'');
     var actionBtn=r.status!=='DELIVERED'?'<button class="qd-btn'+(ro?' late':r.status==='NO DATE'?' nodate':'')+'" onclick="quickDeliver('+r.id+')">✓</button>':'<span style="color:var(--mu);font-size:12px">—</span>';
     h+='<tr class="passenger-row'+(notReturning?' other-boat-row':'')+'" data-id="'+r.id+'" style="'+(sel?'background:rgba(232,160,48,.12)':'')+';cursor:pointer">'+
@@ -3890,7 +3909,8 @@ function openAdd(){
     eod.style.display=allowed.indexOf('closingreport')!==-1?'':'none';
   }
   document.getElementById('addOv').classList.add('on');
-  setTimeout(function(){ var n=document.getElementById('fName'); if(n) n.focus(); },100);
+  if(ci2Active()) ci2Open(); else ci2Close();
+  setTimeout(function(){ var n=document.getElementById(ci2Active()?'ci2Name':'fName'); if(n) n.focus(); },100);
 }
 function eodOpenClosingReport(){
   document.getElementById('addOv').classList.remove('on');
@@ -3911,6 +3931,7 @@ function isAddFormDirty(){
   var fEstDate=document.getElementById('fEstDate');
   var fObs=document.getElementById('fObs');
   var fCarwash=document.getElementById('fCarwash');
+  if(ci2Active()) return ci2Dirty();
   if(fName&&fName.value.trim()) return true;
   if(fPhone&&fPhone.value.trim()) return true;
   if(fTicket&&fTicket.value.trim()&&fTicket.value.trim()!==_autoTicket) return true;
@@ -6185,18 +6206,26 @@ if(!window._customsReminderInterval){
 }
 
 // ── SAVE NEW ENTRY ─────────────────────────────────────────────
-async function saveEntry(sendSms, printMode){
+// opts.v2 (New Check-in v2): the form fields were filled by the v2 screen,
+// the modal stays open and the result is returned ({ok, id, ticket,
+// consent, offline}). The classic buttons call it without opts, unchanged.
+async function saveEntry(sendSms, printMode, opts){
+  var v2=!!(opts&&opts.v2);
   var name=document.getElementById('fName').value.trim();
   var ticket=document.getElementById('fTicket').value.trim();
-  if(!name||!ticket){alert('Name and Ticket required.');return;}
+  if(!name||!ticket){alert('Name and Ticket required.');return {ok:false};}
   var status0=document.getElementById('fStatus').value;
   var retVal=document.getElementById('fReturn').value;
-  if(status0==='PENDING'&&!retVal){
+  if(status0==='PENDING'&&!retVal&&v2){
+    document.getElementById('fStatus').value='NO DATE';
+    onStatusChange('NO DATE');
+    status0='NO DATE';
+  } else if(status0==='PENDING'&&!retVal){
     // Digital check-in can start with phone + name: no return date yet means
     // the existing NO DATE status (Return Date stays required for PENDING).
     if(!confirm('No return date yet.\n\nSave as NO DATE now and add the return date later?')){
       document.getElementById('fReturn').focus();
-      return;
+      return {ok:false};
     }
     document.getElementById('fStatus').value='NO DATE';
     onStatusChange('NO DATE');
@@ -6318,7 +6347,7 @@ async function saveEntry(sendSms, printMode){
       // record, never pre-checked, before any text can go out.
       var _smsConsent = smsProgramOpen() && _newId && !!(document.getElementById('fSmsConsent')||{}).checked;
       if (_smsConsent) _smsConsent = await recordSmsConsent(_newId);
-      resetFormFields();
+      if(!v2) resetFormFields();
       showMsg('✓ Saved!', false);
 
       if(printMode==='both'){
@@ -6348,7 +6377,7 @@ async function saveEntry(sendSms, printMode){
       }
       await loadData();
       resetSaveButtons();
-      return;
+      return {ok:true, id:_newId, ticket:ticket, consent:!!_smsConsent};
     }catch(e){
       if(!(e instanceof TypeError)){
         // A real server-side rejection (validation, RLS, 4xx/5xx — sbInsert()
@@ -6358,7 +6387,7 @@ async function saveEntry(sendSms, printMode){
         showMsg('❌ Error: '+e.message, true);
         console.error(e);
         resetSaveButtons();
-        return;
+        return {ok:false, error:e.message};
       }
       // fetch() itself threw TypeError — a genuine network-level failure
       // (the connectivity indicator hadn't yet caught up with reality).
@@ -6380,13 +6409,13 @@ async function saveEntry(sendSms, printMode){
   if(!authStatus.valid){
     showMsg('OFFLINE ACCESS NOT AVAILABLE — CONNECT TO INTERNET AND SIGN IN', true);
     resetSaveButtons();
-    return;
+    return {ok:false, error:'OFFLINE ACCESS NOT AVAILABLE'};
   }
   var deviceCodeForSave = (typeof getOfflineDeviceCode==='function') ? getOfflineDeviceCode() : '';
   if(!deviceCodeForSave){
     showMsg('OFFLINE ACCESS NOT AVAILABLE — DEVICE CODE NOT CONFIGURED (see Debug tab)', true);
     resetSaveButtons();
-    return;
+    return {ok:false, error:'OFFLINE DEVICE CODE NOT CONFIGURED'};
   }
 
   var record = offlineBuildCheckinRecord(payload);
@@ -6399,14 +6428,14 @@ async function saveEntry(sendSms, printMode){
     console.error('Offline check-in FAILED to save to IndexedDB', idbErr);
     showMsg('❌ CHECK-IN NOT SAVED — '+idbErr.message, true);
     resetSaveButtons();
-    return;
+    return {ok:false, error:'CHECK-IN NOT SAVED — '+idbErr.message};
   }
 
   // IndexedDB confirmed the write — from here on this check-in IS saved,
   // even if a step below (render, printing) has a problem of its own.
   try{
     data.push(mapOfflinePendingRow(record));
-    resetFormFields();
+    if(!v2) resetFormFields();
     render();
     var savedMsg='🟠 OFFLINE MODE — Saved locally as PENDING SYNC (Ticket '+ticket+').';
     if(sendSms && phoneFull) savedMsg+=' SMS NOT COMPLETED — OFFLINE.';
@@ -6440,6 +6469,589 @@ async function saveEntry(sendSms, printMode){
   }
 
   resetSaveButtons();
+  return {ok:true, offline:true, ticket:ticket, consent:false};
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ── NEW CHECK-IN v2 ───────────────────────────────────────────
+// Name → Phone → Return date → consent. "Yes, agreed" with a name and a
+// valid phone starts a 3 s countdown (Undo); then the ticket is saved by
+// saveEntry() (same client key, server ticket renumbering, offline queue),
+// consent is recorded and the welcome text goes out once through the server.
+// Every detail after that saves on its own into the same ticket; the guest's
+// valet pass reads that row, so it updates without another text.
+// Per device: localStorage airvalet_checkin_classic = '1' shows the old form.
+// ═══════════════════════════════════════════════════════════════
+var CI2_CLASSIC_LS = 'airvalet_checkin_classic';
+function ci2Active(){ try { return localStorage.getItem(CI2_CLASSIC_LS) !== '1'; } catch(e) { return true; } }
+function ci2UseClassic(on){
+  try { if (on) localStorage.setItem(CI2_CLASSIC_LS, '1'); else localStorage.removeItem(CI2_CLASSIC_LS); } catch(e) {}
+  if (_ci && _ci.created) { closeAll(); return; }
+  openAdd();
+}
+var CI2_MAKES = {
+  'Ford':['F-150','Explorer','Expedition','Bronco','Mustang','Escape','Edge','Transit'],
+  'Chevrolet':['Tahoe','Suburban','Silverado','Equinox','Traverse','Corvette','Malibu'],
+  'GMC':['Yukon','Yukon XL','Sierra','Acadia','Terrain','Hummer EV'],
+  'Toyota':['Highlander','RAV4','Tacoma','Tundra','Camry','Corolla','4Runner','Sequoia','Land Cruiser','Sienna'],
+  'BMW':['X5','X7','X3','X6','5 Series','7 Series','3 Series','iX'],
+  'Mercedes-Benz':['GLE','GLS','G-Class','S-Class','E-Class','C-Class','GLC','Sprinter'],
+  'Tesla':['Model Y','Model X','Model S','Model 3','Cybertruck'],
+  'Jeep':['Grand Cherokee','Wrangler','Gladiator','Wagoneer','Grand Wagoneer','Compass'],
+  'Lexus':['RX','GX','LX','NX','ES','IS'],
+  'Audi':['Q7','Q5','Q8','A4','A6','e-tron'],
+  'Honda':['Pilot','CR-V','Odyssey','Accord','Civic','Passport'],
+  'Land Rover':['Range Rover','Range Rover Sport','Defender','Discovery','Velar'],
+  'Cadillac':['Escalade','Escalade ESV','XT5','XT6','Lyriq'],
+  'Nissan':['Armada','Pathfinder','Rogue','Altima','Frontier'],
+  'Ram':['1500','2500','ProMaster'],
+  'Kia':['Telluride','Sorento','Sportage','Carnival','EV9'],
+  'Hyundai':['Palisade','Santa Fe','Tucson','Sonata'],
+  'Lincoln':['Navigator','Aviator','Nautilus'],
+  'Porsche':['Cayenne','Macan','911','Taycan','Panamera'],
+  'Subaru':['Outback','Forester','Ascent','Crosstrek'],
+  'Volvo':['XC90','XC60','XC40'],
+  'Rolls-Royce':['Cullinan','Ghost','Phantom'],
+  'Bentley':['Bentayga','Continental GT'],
+  'Ferrari':['Purosangue','Roma','SF90']
+};
+var CI2_COLORS = [['White','#fff'],['Black','#111'],['Gray','#8A8F98'],['Silver','#C7CCD3'],['Blue','#1F4FA8'],['Red','#B3261E'],['Green','#2F6B3B'],['Brown','#6B4A2F'],['Gold','#C9A227'],['Beige','#D9C9A8']];
+var CI2_PICKUP_LOCS = ['Hangar 19', 'Customs', 'Other'];
+var _ci = null;
+
+function ci2Close(){
+  var box = document.getElementById('ci2'), leg = document.getElementById('ciLegacy');
+  if (box) { box.hidden = true; box.innerHTML = ''; }
+  if (leg) leg.hidden = false;
+  if (_ci && _ci.timer) clearInterval(_ci.timer);
+  if (_ci && _ci.pollTimer) clearTimeout(_ci.pollTimer);
+  _ci = null;
+}
+function ci2Open(){
+  if (_ci && _ci.timer) clearInterval(_ci.timer);
+  if (_ci && _ci.pollTimer) clearTimeout(_ci.pollTimer);
+  _ci = { op:'MAKERS', consent:null, timer:null, busy:false, created:false, id:null, ticket:'', offline:false,
+          ret:'', noDate:false, other:false, hangar:'', make:'', model:'', vehText:'', color:'', printed:false,
+          pick:null, pickLoc:'', calOpen:{}, calMonth:{}, msgId:null, pollN:0, pollTimer:null };
+  document.getElementById('ciLegacy').hidden = true;
+  var box = document.getElementById('ci2'); box.hidden = false; box.innerHTML = ci2Html();
+  document.getElementById('modalTitle').textContent = 'New check-in';
+  document.getElementById('modalSub').textContent = 'Name, phone and consent create the ticket and send the valet pass.';
+  ci2Bind(); ci2RenderPickers(); ci2RenderHangars(); ci2RenderMakes(); ci2RenderColors(); ci2RenderWash(); ci2RenderPickLoc(); ci2Need();
+}
+function ci2Dirty(){
+  if (!_ci || _ci.created) return false;
+  var n = document.getElementById('ci2Name'), p = document.getElementById('ci2Phone');
+  return !!((n && n.value.trim()) || (p && p.value.trim()) || _ci.ret || _ci.noDate || _ci.other);
+}
+function ci2El(id){ return document.getElementById(id); }
+
+function ci2Html(){
+  var legal = '“Can we text you about your vehicle at this number? Makers Air Valet, operated by Farber Parking, will send check-in, return-date, pickup and delivery updates, and reply when you text us. Message frequency varies. Msg &amp; data rates may apply. Reply HELP for help or STOP to opt out. Consent is not a condition of service. Terms and Privacy: airvalet.farberos.com/terms.html.”';
+  return ''
+  + '<div class="ci2">'
+  + '<div class="ci2-card" id="ci2Step">'
+  +   '<div class="ci2-fly" role="group" aria-label="Flying with"><button type="button" data-op="MAKERS" aria-pressed="true">Makers Air</button><button type="button" data-op="ASCEND" aria-pressed="false">✈ Ascend</button></div>'
+  +   '<div class="ci2-f"><label for="ci2Name">Name</label><div class="ci2-acw"><input id="ci2Name" class="ci2-inp" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="First and last name"><div class="ci2-ac" id="ci2Ac" hidden></div></div><div class="ci2-hint" id="ci2Freq" hidden></div></div>'
+  +   '<div class="ci2-f"><label for="ci2Phone">Phone</label><div class="ci2-pw"><input id="ci2Phone" class="ci2-inp" type="tel" inputmode="numeric" autocomplete="off" maxlength="14" placeholder="(305) 555-0142"><span class="ci2-ok" id="ci2PhoneOk">Valid</span></div><div class="ci2-hint" id="ci2PhoneHint">US number. It can be a companion’s phone.</div></div>'
+  +   '<div class="ci2-er" id="ci2Er" hidden>⚠️ This guest had an Early Return before. Confirm the return date carefully.</div>'
+  +   '<div class="ci2-f"><div class="ci2-lr"><span class="ci2-lab" id="ci2RetLbl">Return date</span><span class="ci2-opt">Optional</span></div><div class="ci2-retpick" data-n="1"></div>'
+  +     '<label class="ci2-check"><input type="checkbox" class="ci2-other"><span>Returning with another airline<small>No automatic pickup instructions; staff set the pickup place</small></span></label></div>'
+  +   '<div class="ci2-consent"><p class="ci2-q">Guest agrees to texts about this car?</p>'
+  +     '<div class="ci2-seg"><button type="button" class="yes" id="ci2Yes" aria-pressed="false">Yes, agreed</button><button type="button" class="no" id="ci2No" aria-pressed="false">No texts</button></div>'
+  +     '<details><summary>Read to the guest</summary><p class="ci2-script">' + legal + ' Tap “Yes, agreed” only if they say yes.</p></details>'
+  +     '<p class="ci2-hint" id="ci2Native" hidden>This device sends texts through iPhone Messages.</p></div>'
+  +   '<button type="button" class="ci2-go" id="ci2NoText" hidden>Check in without texts</button>'
+  +   '<div class="ci2-cd" id="ci2Cd" role="status" aria-live="polite" hidden><div class="ci2-grow"><p id="ci2CdText"></p><div class="ci2-track"><i id="ci2CdBar"></i></div></div><button type="button" id="ci2Undo">Undo</button></div>'
+  +   '<div class="ci2-saving" id="ci2Saving" role="status" hidden>Creating ticket…</div>'
+  +   '<div class="ci2-foot"><button type="button" class="ci2-link" onclick="tryCloseAdd()">Cancel</button><button type="button" class="ci2-link" onclick="ci2UseClassic(true)">Use the classic form</button></div>'
+  + '</div>'
+  + '<div id="ci2Created" hidden><div class="ci2-tag">'
+  +   '<p class="ci2-who" id="ci2Who"></p><p class="ci2-num" id="ci2Num"></p>'
+  +   '<div class="ci2-rows">'
+  +     '<button type="button" class="ci2-row" data-open="ci2SRet"><span class="k">Return</span><span class="v" id="ci2TRet"></span><u>Edit</u></button>'
+  +     '<button type="button" class="ci2-row" data-open="ci2SVeh"><span class="k">Vehicle</span><span class="v" id="ci2TVeh"></span><u>Edit</u></button>'
+  +     '<button type="button" class="ci2-row" data-open="ci2SPick" id="ci2TPickRow" hidden><span class="k">Pickup by</span><span class="v" id="ci2TPick"></span><u>Edit</u></button>'
+  +   '</div>'
+  +   '<div class="ci2-chips" aria-live="polite"><span class="ci2-chip">Ticket created</span><span class="ci2-chip" id="ci2Sms"></span><span class="ci2-chip ok" id="ci2Pass" hidden></span></div>'
+  + '</div></div>'
+  + '<div id="ci2Details" class="ci2-details" hidden>'
+  +   ci2Sec('ci2SHangar', 'Hangar', 'Not set', '<div class="ci2-chipset" id="ci2Hangars"></div>')
+  +   ci2Sec('ci2SVeh', 'Vehicle', 'Not set', '<p class="ci2-sub">Make</p><input class="ci2-search" id="ci2MakeQ" placeholder="Search or type any make" autocomplete="off"><div class="ci2-chipset" id="ci2Makes"></div>'
+  +     '<div id="ci2ModelBox" hidden><p class="ci2-sub">Model</p><input class="ci2-search" id="ci2ModelQ" placeholder="Search or type any model" autocomplete="off"><div class="ci2-chipset" id="ci2Models"></div></div>'
+  +     '<p class="ci2-sub">Color</p><div class="ci2-chipset" id="ci2Colors"></div><div id="ci2OtherColorBox" hidden><input class="ci2-search" id="ci2OtherColor" placeholder="Type the color" style="margin-top:8px"></div>')
+  +   ci2Sec('ci2SRet', 'Return', 'No date yet', '<div class="ci2-retpick" data-n="2"></div><label class="ci2-check"><input type="checkbox" class="ci2-other"><span>Returning with another airline</span></label>'
+  +     '<p class="ci2-sub">Return time (optional)</p><input class="ci2-search ci2-time" id="ci2Time" type="time">')
+  +   ci2Sec('ci2SFlight', 'Flight / tail', 'Not set', '<input class="ci2-search" id="ci2Flight" placeholder="Flight or tail number" autocomplete="off" autocapitalize="characters"><p class="ci2-hint">With a return time or flight, the guest’s valet pass shows “Flying back”.</p>')
+  +   ci2Sec('ci2SPick', 'Someone else will pick up', 'No', '<label class="ci2-check" style="margin-top:0"><input type="checkbox" id="ci2PickOn"><span>Someone else will pick up the vehicle<small>The guest keeps the valet pass. Nothing is texted to this person.</small></span></label>'
+  +     '<div id="ci2PickForm" hidden><div class="ci2-two"><input class="ci2-search" id="ci2PName" placeholder="Pickup person name" autocomplete="off" autocapitalize="characters" maxlength="80"><input class="ci2-search" id="ci2PPhone" type="tel" inputmode="numeric" maxlength="14" placeholder="Phone (optional)"></div>'
+  +     '<p class="ci2-sub">Pickup location</p><div class="ci2-chipset" id="ci2PLoc"></div>'
+  +     '<p class="ci2-sub">Notes</p><textarea class="ci2-search ci2-ta" id="ci2PNotes" maxlength="500" placeholder="Relationship, ID to check, anything the team should know"></textarea>'
+  +     '<div class="ci2-btnrow"><button type="button" class="ci2-btn" id="ci2PSave">Save authorization</button><button type="button" class="ci2-btn line danger" id="ci2PRevoke" hidden>Revoke</button></div>'
+  +     '<p class="ci2-hint">At delivery the team checks this person’s photo ID and records who took the car. Having the valet pass link is never enough.</p></div>')
+  +   ci2Sec('ci2SMore', 'More', 'Car wash, notes', '<p class="ci2-sub">Car wash</p><div class="ci2-chipset" id="ci2Wash"></div><p class="ci2-sub">Notes</p><textarea class="ci2-search ci2-ta" id="ci2Notes" placeholder="Anything the team should know"></textarea>')
+  + '</div>'
+  + '<div class="ci2-dock" id="ci2Dock" hidden><div class="ci2-need"><span id="ci2NH">Hangar</span><span id="ci2NM">Make or model</span><span id="ci2NC">Color</span></div>'
+  +   '<button type="button" class="ci2-btn line" onclick="ci2Done()">Done</button><button type="button" class="ci2-print" id="ci2Print" disabled>Print key tag</button></div>'
+  + '</div>';
+}
+function ci2Sec(id, title, val, inner){
+  return '<div class="ci2-sec" id="' + id + '"><button type="button" class="ci2-sec-h" aria-expanded="false"><span class="t">' + title + '</span><span class="v" id="' + id + 'V">' + val + '</span></button><div class="ci2-in">' + inner + '</div></div>';
+}
+
+function ci2Bind(){
+  var box = ci2El('ci2');
+  box.querySelectorAll('.ci2-fly button').forEach(function(b){ b.addEventListener('click', function(){ ci2SetOp(b.dataset.op); }); });
+  var nm = ci2El('ci2Name'), ph = ci2El('ci2Phone');
+  nm.addEventListener('input', function(){
+    this.value = this.value.toUpperCase();
+    if (_ci.timer) ci2Undo('Name changed — nothing sent.');
+    ci2Suggest(this.value); ci2MirrorChecks();
+  });
+  nm.addEventListener('blur', function(){ setTimeout(function(){ var a = ci2El('ci2Ac'); if (a) a.hidden = true; }, 150); });
+  ph.addEventListener('input', function(){
+    fmtPhoneInput(this);
+    var d = ci2Digits(this.value);
+    ci2El('ci2PhoneOk').classList.toggle('on', d.length === 10);
+    if (_ci.timer) ci2Undo('Phone changed — nothing sent.');
+    ci2MirrorChecks();
+  });
+  ci2El('ci2Yes').addEventListener('click', function(){ ci2SetConsent(true); });
+  ci2El('ci2No').addEventListener('click', function(){ ci2SetConsent(false); });
+  ci2El('ci2NoText').addEventListener('click', function(){ ci2Create(false); });
+  ci2El('ci2Undo').addEventListener('click', function(){ ci2Undo(); });
+  box.querySelectorAll('.ci2-other').forEach(function(c){ c.addEventListener('change', function(){ ci2SetOther(c.checked); }); });
+  box.querySelectorAll('.ci2-sec-h').forEach(function(h){ h.addEventListener('click', function(){ ci2Toggle(h.parentNode.id); }); });
+  box.querySelectorAll('.ci2-row').forEach(function(r){ r.addEventListener('click', function(){ ci2OpenSec(r.dataset.open); }); });
+  ci2El('ci2MakeQ').addEventListener('input', ci2RenderMakes);
+  ci2El('ci2ModelQ').addEventListener('input', ci2RenderModels);
+  ci2El('ci2OtherColor').addEventListener('change', function(){ var v = this.value.trim(); if (v) ci2SetColor(v); });
+  ci2El('ci2Time').addEventListener('change', function(){ ci2SaveTime(this.value); });
+  ci2El('ci2Flight').addEventListener('input', function(){ this.value = this.value.toUpperCase(); });
+  ci2El('ci2Flight').addEventListener('change', function(){ ci2SaveFlight(this.value.trim()); });
+  ci2El('ci2Notes').addEventListener('change', function(){ ci2SaveNotes(this.value.trim()); });
+  ci2El('ci2PickOn').addEventListener('change', function(){ ci2PickToggle(this.checked); });
+  ci2El('ci2PPhone').addEventListener('input', function(){ fmtPhoneInput(this); });
+  ci2El('ci2PName').addEventListener('input', function(){ this.value = this.value.toUpperCase(); });
+  ci2El('ci2PSave').addEventListener('click', ci2PickSave);
+  ci2El('ci2PRevoke').addEventListener('click', ci2PickRevoke);
+  ci2El('ci2Print').addEventListener('click', ci2Print);
+  ci2El('ci2Native').hidden = smsProgramOpen();
+}
+function ci2Digits(v){ return String(v || '').replace(/\D/g, '').replace(/^1(?=\d{10}$)/, ''); }
+function ci2Toast(m, bad){ showMsg(m, !!bad); }
+
+// ── Step 1 ──
+function ci2SetOp(op){
+  _ci.op = op;
+  ci2El('ci2').querySelectorAll('.ci2-fly button').forEach(function(b){ b.setAttribute('aria-pressed', String(b.dataset.op === op)); });
+  var ob = document.querySelector(op === 'ASCEND' ? '#ciLegacy .ob-ascend' : '#ciLegacy .ob:not(.ob-ascend)');
+  if (ob) selOp(ob, op);
+  if (_ci.timer) ci2Undo('Flying with changed — nothing sent.');
+}
+// Returning guests: same suggestions as the classic form (latest visit per name).
+function ci2Suggest(q){
+  var drop = ci2El('ci2Ac'); q = q.trim().toUpperCase();
+  if (q.length < 2 || _ci.created) { drop.hidden = true; return; }
+  var seen = {}, matches = [];
+  data.slice().sort(function(a, b){ return b.id - a.id; }).forEach(function(r){
+    var n = String(r.name || '').toUpperCase();
+    if (!n || seen[n] || r.isOfflinePending) return;
+    if (n.indexOf(q) >= 0) { seen[n] = true; matches.push(r); }
+  });
+  if (!matches.length) { drop.hidden = true; return; }
+  drop.innerHTML = matches.slice(0, 5).map(function(r, i){
+    var last4 = ci2Digits(r.phone).slice(-4);
+    return '<button type="button" class="ci2-ac-i" data-i="' + i + '"><b>' + escapeHTML(r.name) + '</b><span>' + (last4 ? '•••-' + escapeHTML(last4) : 'No phone') + (r.car ? ' · ' + escapeHTML(formatVehicleLine(r)) : '') + '</span></button>';
+  }).join('');
+  drop.querySelectorAll('.ci2-ac-i').forEach(function(b){
+    b.addEventListener('mousedown', function(e){
+      e.preventDefault();
+      var r = matches[parseInt(b.dataset.i, 10)];
+      ci2El('ci2Name').value = r.name;
+      if (r.phone) { var p = ci2El('ci2Phone'); p.value = r.phone; fmtPhoneInput(p); ci2El('ci2PhoneOk').classList.toggle('on', ci2Digits(p.value).length === 10); }
+      if (r.car) { _ci.vehText = String(r.car).toUpperCase(); _ci.make = ''; _ci.model = ''; }
+      if (r.color) _ci.color = r.color;
+      drop.hidden = true; ci2MirrorChecks(); ci2VehSum(false);
+    });
+  });
+  drop.hidden = false;
+}
+// Previous visits + Early Return warning, reusing the classic checks.
+function ci2MirrorChecks(){
+  var name = ci2El('ci2Name').value.trim(), phone = ci2El('ci2Phone').value.trim();
+  document.getElementById('fName').value = name; document.getElementById('fPhone').value = phone;
+  chkEarlyReturn();
+  var er = document.getElementById('erWarn'); ci2El('ci2Er').hidden = !(er && er.style.display === 'block');
+  var m = name.length > 2 ? data.filter(function(r){ return String(r.name || '').toLowerCase() === name.toLowerCase(); }) : [];
+  var f = ci2El('ci2Freq');
+  if (m.length) { var last = m[m.length - 1]; f.textContent = m.length + ' previous visit' + (m.length > 1 ? 's' : '') + '. Last: ' + (last.ticket || '') + (last.car ? ' · ' + formatVehicleLine(last) : ''); f.hidden = false; }
+  else f.hidden = true;
+}
+function ci2SetConsent(v){
+  if (_ci.created || _ci.busy) return;
+  _ci.consent = v;
+  ci2El('ci2Yes').setAttribute('aria-pressed', String(v === true));
+  ci2El('ci2No').setAttribute('aria-pressed', String(v === false));
+  ci2El('ci2NoText').hidden = v !== false;
+  if (v === true) ci2StartCountdown();
+  else if (_ci.timer) ci2Undo('Changed to No texts — nothing sent.');
+}
+function ci2ResetConsent(){ _ci.consent = null; ci2El('ci2Yes').setAttribute('aria-pressed', 'false'); }
+function ci2StartCountdown(){
+  if (!ci2El('ci2Name').value.trim()) { ci2Toast('Add the guest name first.', true); ci2ResetConsent(); ci2El('ci2Name').focus(); return; }
+  if (ci2Digits(ci2El('ci2Phone').value).length !== 10) { ci2Toast('Enter a valid 10-digit phone.', true); ci2ResetConsent(); ci2El('ci2Phone').focus(); return; }
+  if (_ci.timer) clearInterval(_ci.timer);
+  var left = 3, cd = ci2El('ci2Cd'), bar = ci2El('ci2CdBar');
+  cd.hidden = false; bar.style.transition = 'none'; bar.style.width = '0';
+  requestAnimationFrame(function(){ requestAnimationFrame(function(){ bar.style.transition = 'width 3s linear'; bar.style.width = '100%'; }); });
+  var t = function(){ ci2El('ci2CdText').textContent = 'Creating ticket and sending valet pass to •••-' + ci2Digits(ci2El('ci2Phone').value).slice(-4) + ' in ' + left + '…'; };
+  t();
+  _ci.timer = setInterval(function(){
+    left--;
+    if (left > 0) { t(); return; }
+    clearInterval(_ci.timer); _ci.timer = null; cd.hidden = true;
+    ci2Create(true);
+  }, 1000);
+}
+function ci2Undo(msg){
+  if (_ci.timer) { clearInterval(_ci.timer); _ci.timer = null; }
+  ci2El('ci2Cd').hidden = true; ci2ResetConsent();
+  ci2Toast(msg || 'Cancelled — nothing sent.');
+}
+
+// ── Create (one ticket per form: saveEntry's client key) ──
+async function ci2Create(withText){
+  if (_ci.created || _ci.busy) return;
+  _ci.busy = true; ci2El('ci2Saving').hidden = false; ci2El('ci2NoText').hidden = true;
+  var name = ci2El('ci2Name').value.trim().toUpperCase(), phone = ci2El('ci2Phone').value.trim();
+  document.getElementById('fName').value = name;
+  document.getElementById('fPhone').value = phone;
+  document.getElementById('fReturn').value = _ci.ret;
+  document.getElementById('fStatus').value = _ci.ret ? 'PENDING' : 'NO DATE';
+  onStatusChange(_ci.ret ? 'PENDING' : 'NO DATE');
+  var op = _ci.op === 'ASCEND' ? 'ASCEND' : 'MAKERS';
+  var rsel = document.getElementById('fReturnOp');
+  if (rsel) { rsel.value = _ci.other ? 'OTHER' : op; _returnOpTouched = true; }
+  var vt = ci2VehCar();
+  document.getElementById('fCar').value = vt;
+  document.getElementById('fColor').value = _ci.color || '';
+  document.getElementById('fLoc').value = _ci.hangar || '';
+  var fsc = document.getElementById('fSmsConsent'); if (fsc) fsc.checked = !!withText && smsProgramOpen();
+  var res = null;
+  try { res = await saveEntry(false, null, { v2: true }); } catch(e) { res = { ok: false, error: e.message }; }
+  _ci.busy = false; ci2El('ci2Saving').hidden = true;
+  if (!res || !res.ok) {
+    // Nothing was saved: the typed entry stays on screen to try again.
+    ci2ResetConsent(); ci2El('ci2NoText').hidden = _ci.consent !== false;
+    ci2Toast('Check-in NOT saved' + (res && res.error ? ' — ' + res.error : '') + '. Nothing was sent.', true);
+    return;
+  }
+  _ci.created = true; _ci.id = res.id || null; _ci.ticket = res.ticket || ''; _ci.offline = !!res.offline;
+  ci2El('ci2Step').hidden = true; ci2El('ci2Created').hidden = false; ci2El('ci2Details').hidden = false; ci2El('ci2Dock').hidden = false;
+  ci2El('ci2Who').textContent = name + (ci2Digits(phone) ? ' · •••-' + ci2Digits(phone).slice(-4) : '');
+  ci2El('ci2Num').textContent = _ci.ticket;
+  document.getElementById('modalSub').textContent = 'Saved. Add details below — each one saves to this ticket.';
+  ci2RenderCard(); ci2Need();
+  var sc = ci2El('ci2Sms');
+  if (_ci.offline) { ci2Chip('warn', 'Saved offline · text not sent'); return; }
+  if (!withText) { ci2Chip('', 'No texts'); return; }
+  if (res.consent && smsRouteFor(_ci.id) === 'server') { ci2SendWelcome(); return; }
+  // Not in AirValet texting on this device: one tap opens iPhone Messages.
+  ci2Chip('warn', 'Text not sent yet <button type="button" onclick="ci2NativeWelcome()">Send from iPhone</button>');
+}
+function ci2Chip(cls, html){ var c = ci2El('ci2Sms'); if (!c) return; c.className = 'ci2-chip' + (cls ? ' ' + cls : ''); c.innerHTML = html; }
+async function ci2SendWelcome(){
+  ci2Chip('', 'Valet pass: sending…');
+  var r = await sendServerSms(_ci.id, 'CHECK_IN');
+  if (typeof loadInbox === 'function') loadInbox();
+  if (!_ci) return;
+  if (r && r.ok) {
+    if (r.duplicate) { ci2Chip('ok', 'Valet pass already sent'); return; }
+    _ci.msgId = r.messageId || null; ci2Chip('', 'Valet pass: sent'); ci2PollSms(); return;
+  }
+  var code = r && r.error ? r.error.code : '';
+  var notSent = SMS_NATIVE_FALLBACK[code] || (r && r.status === 'failed' && code !== '21610');
+  // The server guarantees nothing went out → iPhone Messages is safe. Otherwise
+  // no fallback (a retry could double-text); the reason is shown instead.
+  if (notSent) ci2Chip('fail', 'Text failed <button type="button" onclick="ci2NativeWelcome()">Send from iPhone</button>');
+  else ci2Chip('fail', 'Not sent: ' + escapeHTML(smsBlockText(code)));
+}
+function ci2PollSms(){
+  if (!_ci || !_ci.msgId) return;
+  _ci.pollTimer = setTimeout(async function(){
+    if (!_ci || !_ci.msgId) return;
+    try {
+      var rows = await smsApi('/rest/v1/airvalet_sms_messages?id=eq.' + encodeURIComponent(_ci.msgId) + '&select=status,error_code', { method: 'GET' });
+      var m = rows && rows[0]; if (!_ci) return;
+      if (m && m.status === 'delivered') { ci2Chip('ok', 'Valet pass: delivered ✓'); return; }
+      if (m && (m.status === 'failed' || m.status === 'undelivered')) { ci2Chip('fail', 'Text not delivered' + (m.error_code ? ' (' + escapeHTML(m.error_code) + ')' : '') + ' <button type="button" onclick="ci2NativeWelcome()">Send from iPhone</button>'); return; }
+      if (m && m.status === 'send_unknown') { ci2Chip('warn', 'Unconfirmed — check the inbox before resending'); return; }
+    } catch(e) { /* keep the last status on screen */ }
+    if (++_ci.pollN < 20) ci2PollSms();
+  }, 3000);
+}
+function ci2NativeWelcome(){
+  var r = data.find(function(x){ return x.id === _ci.id; }) || { ticket: _ci.ticket, ret: '', return_operator: _ci.other ? 'OTHER' : _ci.op };
+  var name = ci2El('ci2Name').value.trim().toUpperCase(), phone = ci2El('ci2Phone').value.trim();
+  sendNativeSms({ passengerId: _ci.id, passengerName: name, phone: phone, ticket: _ci.ticket, templateKey: 'WELCOME',
+    messageType: welcomeSmsMessageType(r), body: buildWelcomeSms(r), metadata: { trigger: 'New check-in v2 — Send from iPhone' } });
+  ci2Chip('', 'Opened in iPhone Messages');
+}
+function ci2Done(){ closeAll(); }
+
+// ── Ticket card ──
+function ci2RetSummary(){
+  var s = _ci.ret ? ci2Nice(_ci.ret) : (_ci.noDate ? 'No date' : 'Not set');
+  var tm = ci2El('ci2Time') && ci2El('ci2Time').value;
+  if (_ci.ret && tm) s += ' · ' + tm;
+  if (_ci.other) s += ' · another airline';
+  return s;
+}
+function ci2RenderCard(){
+  if (!_ci || !_ci.created) return;
+  var tr = ci2El('ci2TRet'); tr.textContent = ci2RetSummary(); tr.className = 'v' + (_ci.ret || _ci.noDate ? '' : ' ci2-empty');
+  var v = ci2VehLine(); var tv = ci2El('ci2TVeh'); tv.textContent = v || 'Add make, model, color'; tv.className = 'v' + (v ? '' : ' ci2-empty');
+  ci2El('ci2TPickRow').hidden = !_ci.pick;
+  if (_ci.pick) ci2El('ci2TPick').textContent = _ci.pick.name + (_ci.pick.loc ? ' · ' + _ci.pick.loc : '');
+}
+function ci2PassUpdated(msg){
+  if (!_ci.created) return;
+  var c = ci2El('ci2Pass'); c.hidden = false; c.textContent = _ci.offline ? 'Saved offline' : 'Pass updated ✓';
+  if (msg) ci2Toast(msg);
+}
+
+// ── Return date ──
+function ci2Iso(d){ return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+function ci2AddDays(n){ var d = new Date(); d.setHours(12, 0, 0, 0); d.setDate(d.getDate() + n); return d; }
+function ci2Nice(v, o){ return new Date(v + 'T12:00:00').toLocaleDateString('en-US', o || { weekday: 'short', month: 'short', day: 'numeric' }); }
+function ci2DayLbl(v){ return ci2Nice(v, { weekday: 'short' }) + ' ' + Number(v.slice(8)); }
+function ci2RenderPickers(){
+  ci2El('ci2').querySelectorAll('.ci2-retpick').forEach(ci2RenderPick);
+  ci2El('ci2').querySelectorAll('.ci2-other').forEach(function(c){ c.checked = _ci.other; });
+  var sv = ci2El('ci2SRetV'); if (sv) { sv.textContent = ci2RetSummary(); sv.className = 'v' + (_ci.ret || _ci.noDate ? ' done' : ''); }
+}
+function ci2RenderPick(box){
+  var n = box.dataset.n, t0 = ci2Iso(ci2AddDays(0)), t1 = ci2Iso(ci2AddDays(1)), v = _ci.ret, manual = !!v && v !== t0 && v !== t1;
+  box.innerHTML = '<div class="ci2-rq" role="group" aria-labelledby="ci2RetLbl">'
+    + '<button type="button" data-d="' + t0 + '" aria-pressed="' + (v === t0) + '">Today<small>' + ci2DayLbl(t0) + '</small></button>'
+    + '<button type="button" data-d="' + t1 + '" aria-pressed="' + (v === t1) + '">Tomorrow<small>' + ci2DayLbl(t1) + '</small></button>'
+    + '<button type="button" data-cal="' + n + '" aria-pressed="' + manual + '" aria-expanded="' + !!_ci.calOpen[n] + '">' + (manual ? ci2Nice(v, { month: 'short', day: 'numeric' }) : 'Pick date') + '<small>' + (manual ? ci2Nice(v, { weekday: 'long' }) : 'Calendar') + '</small></button>'
+    + '<button type="button" data-nodate="1" aria-pressed="' + _ci.noDate + '">No date<small>Not known yet</small></button>'
+    + '</div>'
+    + '<div class="ci2-cal"' + (_ci.calOpen[n] ? '' : ' hidden') + '>' + (_ci.calOpen[n] ? ci2CalHtml(n) : '') + '</div>'
+    + '<p class="ci2-retnote' + (v ? ' set' : '') + '">' + (v ? 'Returns ' + ci2Nice(v, { weekday: 'long', month: 'long', day: 'numeric' }) : _ci.noDate ? 'Return not defined yet. Add it any time; the same pass updates.' : 'You can leave this empty.') + '</p>';
+  box.querySelectorAll('[data-d]').forEach(function(b){ b.addEventListener('click', function(){ ci2SetRet(b.dataset.d); }); });
+  box.querySelectorAll('[data-cal]').forEach(function(b){ b.addEventListener('click', function(){ _ci.calOpen[n] = !_ci.calOpen[n]; ci2RenderPickers(); }); });
+  box.querySelectorAll('[data-nodate]').forEach(function(b){ b.addEventListener('click', ci2SetNoDate); });
+  box.querySelectorAll('[data-cd]').forEach(function(b){ b.addEventListener('click', function(){ ci2SetRet(b.dataset.cd); }); });
+  box.querySelectorAll('[data-nav]').forEach(function(b){ b.addEventListener('click', function(){
+    var base = _ci.calMonth[n] || (_ci.ret ? new Date(_ci.ret + 'T12:00:00') : ci2AddDays(0));
+    _ci.calMonth[n] = new Date(base.getFullYear(), base.getMonth() + parseInt(b.dataset.nav, 10), 1, 12); ci2RenderPickers();
+  }); });
+  box.querySelectorAll('[data-calx]').forEach(function(b){ b.addEventListener('click', function(){ _ci.calOpen[n] = false; ci2RenderPickers(); }); });
+}
+function ci2CalHtml(n){
+  var now = ci2AddDays(0), base = _ci.calMonth[n] || (_ci.ret ? new Date(_ci.ret + 'T12:00:00') : now), y = base.getFullYear(), m = base.getMonth();
+  var first = new Date(y, m, 1, 12), days = new Date(y, m + 1, 0).getDate(), today = ci2Iso(now), atStart = (y === now.getFullYear() && m === now.getMonth());
+  // Current month starts at this week and rolls into the next: always 5 weeks to tap.
+  var startDay = 1, lead = first.getDay();
+  if (atStart) { startDay = Math.max(1, now.getDate() - now.getDay()); lead = new Date(y, m, startDay, 12).getDay(); }
+  var cells = atStart ? 35 - lead : days - startDay + 1, spans = atStart && startDay + cells - 1 > days;
+  var title = spans ? first.toLocaleDateString('en-US', { month: 'short' }) + ' – ' + new Date(y, m + 1, 1, 12).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : first.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  var h = '<div class="ci2-cal-h"><button type="button" data-nav="-1" aria-label="Previous month"' + (atStart ? ' disabled' : '') + '>‹</button><b>' + title + '</b><button type="button" data-nav="1" aria-label="Next month">›</button></div><div class="ci2-cal-g">';
+  ['S','M','T','W','T','F','S'].forEach(function(w){ h += '<span class="wd">' + w + '</span>'; });
+  for (var i = 0; i < lead; i++) h += '<span></span>';
+  for (var k = 0; k < cells; k++) {
+    var dt = new Date(y, m, startDay + k, 12), v = ci2Iso(dt), d = dt.getDate();
+    var lbl = (d === 1 && k > 0) ? '<small>' + dt.toLocaleDateString('en-US', { month: 'short' }) + '</small>' : '';
+    h += '<button type="button" data-cd="' + v + '" class="' + (v === today ? 'today' : '') + '" aria-pressed="' + (v === _ci.ret) + '" aria-label="' + ci2Nice(v, { weekday: 'long', month: 'long', day: 'numeric' }) + '"' + (v < today ? ' disabled' : '') + '>' + lbl + d + '</button>';
+  }
+  return h + '</div><button type="button" class="ci2-cal-x" data-calx="1">Close</button>';
+}
+async function ci2SetRet(v){
+  var prev = { ret: _ci.ret, noDate: _ci.noDate };
+  _ci.ret = v; _ci.noDate = false; _ci.calOpen = {}; _ci.calMonth = {};
+  ci2RenderPickers(); ci2RenderCard();
+  if (!_ci.created || (prev.ret === v && !prev.noDate)) return;
+  if (await ci2SaveReturn(v)) ci2PassUpdated('Return date saved. Same valet pass updated, no new text.');
+  else { _ci.ret = prev.ret; _ci.noDate = prev.noDate; ci2RenderPickers(); ci2RenderCard(); }
+}
+async function ci2SetNoDate(){
+  var prev = { ret: _ci.ret, noDate: _ci.noDate };
+  _ci.ret = ''; _ci.noDate = true; _ci.calOpen = {};
+  ci2RenderPickers(); ci2RenderCard();
+  if (!_ci.created || !prev.ret) return;
+  if (await ci2SaveReturn('')) ci2PassUpdated('No return date. Same valet pass, no new text.');
+  else { _ci.ret = prev.ret; _ci.noDate = prev.noDate; ci2RenderPickers(); ci2RenderCard(); }
+}
+// After check-in the date goes through the same audited RPC as the car card.
+async function ci2SaveReturn(isoDate){
+  if (!ci2CanSave()) return false;
+  try {
+    var row = await changePassengerReturnDate(_ci.id, isoDate ? d2us(isoDate) : '', 'Set during check-in', false);
+    var r0 = Array.isArray(row) ? row[0] : row;
+    var r = data.find(function(x){ return x.id === _ci.id; });
+    if (r && r0) { r.ret = r0.ret; r.status = r0.status; r.obs = r0.obs; }
+    // No date at check-in is the NO DATE status, same as a check-in saved without one.
+    if (!isoDate && r0 && r0.status === 'PENDING') { await sbUpdate(_ci.id, { status: 'NO DATE' }); if (r) r.status = 'NO DATE'; }
+    render(); ci2Saved('ci2SRet'); return true;
+  } catch(e) { ci2Toast('Return date not saved: ' + e.message, true); return false; }
+}
+async function ci2SetOther(on){
+  var prev = _ci.other; _ci.other = on; ci2RenderPickers(); ci2RenderCard();
+  if (!_ci.created) return;
+  var op = _ci.op === 'ASCEND' ? 'ASCEND' : 'MAKERS';
+  if (await ci2Save({ return_operator: on ? 'OTHER' : op }, 'ci2SRet', 'Returning with: ' + (on ? 'another airline (OTHER)' : op)))
+    ci2PassUpdated(on ? 'Returning with another airline. Same valet pass, no new text.' : 'Another airline removed. Same valet pass, no new text.');
+  else { _ci.other = prev; ci2RenderPickers(); ci2RenderCard(); }
+}
+function ci2SaveTime(v){
+  ci2RenderPickers(); ci2RenderCard();
+  if (!_ci.created) return;
+  if (v && /^\d:\d{2}$/.test(v)) v = '0' + v;
+  if (v && !isValidDepTime(v)) { ci2Toast('Use a time like 17:30.', true); return; }
+  if (!ci2CanSave()) return;
+  saveDepartureTime(_ci.id, v || '').then(function(){ ci2Saved('ci2SRet'); ci2PassUpdated(); });
+}
+function ci2SaveFlight(v){
+  var sv = ci2El('ci2SFlightV'); sv.textContent = v || 'Not set'; sv.className = 'v' + (v ? ' done' : '');
+  if (!_ci.created) return;
+  ci2Save({ return_flight: v }, 'ci2SFlight', 'Return flight: ' + (v || 'cleared')).then(function(ok){ if (ok) ci2PassUpdated(); });
+}
+
+// ── Details: progressive saving into the same ticket ──
+function ci2CanSave(){
+  if (_ci.offline || !_ci.id || isOfflinePendingId(_ci.id)) { ci2Toast('Saved offline. Add details from the car card after it syncs.', true); return false; }
+  return true;
+}
+async function ci2Save(patch, secId, logDetail){
+  if (!ci2CanSave()) return false;
+  var r = data.find(function(x){ return x.id === _ci.id; });
+  try {
+    await sbUpdate(_ci.id, patch);
+    if (r) Object.keys(patch).forEach(function(k){ r[k] = patch[k]; });
+    if (logDetail && r) sbLog('EDITED', r.name || '', r.ticket || '', r.loc || '', 'New check-in: ' + logDetail, { passenger_id: _ci.id });
+    render(); ci2Saved(secId); return true;
+  } catch(e) { ci2Toast('Not saved: ' + e.message, true); return false; }
+}
+function ci2Saved(secId){
+  var sec = ci2El(secId); if (!sec) return;
+  var t = sec.querySelector('.t'), s = sec.querySelector('.ci2-saved');
+  if (!s) { s = document.createElement('span'); s.className = 'ci2-saved'; s.textContent = 'Saved'; t.appendChild(s); }
+  s.classList.add('on'); clearTimeout(s._h); s._h = setTimeout(function(){ s.classList.remove('on'); }, 1400);
+}
+function ci2Toggle(id){ var s = ci2El(id); s.classList.toggle('open'); s.querySelector('.ci2-sec-h').setAttribute('aria-expanded', String(s.classList.contains('open'))); }
+function ci2OpenSec(id){ var s = ci2El(id); if (!s.classList.contains('open')) ci2Toggle(id); s.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+function ci2ChipSet(el, items, sel, onPick, render){
+  el.innerHTML = '';
+  items.forEach(function(it){
+    var key = Array.isArray(it) ? it[0] : it, b = document.createElement('button');
+    b.type = 'button'; b.innerHTML = render ? render(it) : escapeHTML(key); b.setAttribute('aria-pressed', String(key === sel));
+    b.addEventListener('click', function(){ onPick(key); }); el.appendChild(b);
+  });
+}
+function ci2RenderHangars(){
+  var counts = computeHangarCounts();
+  ci2ChipSet(ci2El('ci2Hangars'), HANGARS, _ci.hangar, async function(h){
+    var prev = _ci.hangar; _ci.hangar = h; ci2RenderHangars(); ci2HangarSum(); ci2Need();
+    if (_ci.created && !(await ci2Save({ loc: h }, 'ci2SHangar', 'Location ' + (prev || '—') + ' → ' + h))) { _ci.hangar = prev; ci2RenderHangars(); ci2HangarSum(); ci2Need(); }
+  }, function(h){ return escapeHTML(h) + (counts[h] ? '<small>' + counts[h] + '</small>' : ''); });
+}
+function ci2HangarSum(){ var v = ci2El('ci2SHangarV'); v.textContent = _ci.hangar || 'Not set'; v.className = 'v' + (_ci.hangar ? ' done' : ''); }
+function ci2RenderMakes(){
+  var raw = ci2El('ci2MakeQ').value.trim(), q = raw.toLowerCase();
+  var list = Object.keys(CI2_MAKES).filter(function(m){ return !q || m.toLowerCase().indexOf(q) >= 0; });
+  if (q && !list.some(function(m){ return m.toLowerCase() === q; })) list = list.concat(['Use “' + raw + '”']);
+  ci2ChipSet(ci2El('ci2Makes'), q ? list : list.slice(0, 12), _ci.make, function(k){
+    if (k.indexOf('Use “') === 0) k = raw;
+    _ci.make = k; _ci.model = ''; _ci.vehText = ''; ci2El('ci2MakeQ').value = ''; ci2El('ci2ModelBox').hidden = false;
+    ci2RenderMakes(); ci2RenderModels(); ci2VehSum(true);
+  });
+}
+function ci2RenderModels(){
+  var raw = ci2El('ci2ModelQ').value.trim(), q = raw.toLowerCase();
+  var list = (CI2_MAKES[_ci.make] || []).filter(function(m){ return !q || m.toLowerCase().indexOf(q) >= 0; });
+  if (q && !list.some(function(m){ return m.toLowerCase() === q; })) list = list.concat(['Use “' + raw + '”']);
+  ci2ChipSet(ci2El('ci2Models'), list, _ci.model, function(k){
+    if (k.indexOf('Use “') === 0) k = raw;
+    _ci.model = k; _ci.vehText = ''; ci2El('ci2ModelQ').value = ''; ci2RenderModels(); ci2VehSum(true);
+  });
+}
+function ci2RenderColors(){
+  var known = CI2_COLORS.some(function(c){ return c[0] === _ci.color; });
+  ci2ChipSet(ci2El('ci2Colors'), CI2_COLORS.concat([['Other', 'transparent']]), known ? _ci.color : (_ci.color ? 'Other' : ''), function(k){
+    if (k === 'Other') { ci2El('ci2OtherColorBox').hidden = false; ci2El('ci2OtherColor').focus(); return; }
+    ci2El('ci2OtherColorBox').hidden = true; ci2SetColor(k);
+  }, function(c){ return '<span class="ci2-sw"><i style="background:' + c[1] + '"></i>' + c[0] + '</span>'; });
+}
+function ci2SetColor(c){ _ci.color = c; ci2RenderColors(); ci2VehSum(true); }
+// car keeps its existing free-text format ("MAKE MODEL", upper case); color stays in its own column.
+function ci2VehCar(){ return (_ci.vehText || [_ci.make, _ci.model].filter(Boolean).join(' ')).toUpperCase(); }
+function ci2VehLine(){ return [_ci.color, ci2VehCar()].filter(Boolean).join(' '); }
+function ci2VehSum(save){
+  var s = ci2VehLine(), v = ci2El('ci2SVehV'); v.textContent = s || 'Not set'; v.className = 'v' + (s ? ' done' : '');
+  ci2RenderCard(); ci2Need();
+  if (save && _ci.created) ci2Save({ car: ci2VehCar(), color: _ci.color || null }, 'ci2SVeh', 'Vehicle → ' + (s || '—'));
+}
+function ci2RenderWash(){
+  var opts = [['', 'No'], ['CARWASH', 'Car wash'], ['SEND_PRICE', 'Send price']];
+  var cur = _ci.wash || '';
+  ci2ChipSet(ci2El('ci2Wash'), opts.map(function(o){ return o[1]; }), (opts.find(function(o){ return o[0] === cur; }) || opts[0])[1], async function(label){
+    var val = (opts.find(function(o){ return o[1] === label; }) || opts[0])[0], prev = _ci.wash;
+    _ci.wash = val; ci2RenderWash();
+    if (_ci.created && !(await ci2Save({ carwash_status: val || null }, 'ci2SMore', 'Car wash → ' + label))) { _ci.wash = prev; ci2RenderWash(); }
+  });
+}
+function ci2SaveNotes(v){ if (_ci.created) ci2Save({ obs: v.toUpperCase() }, 'ci2SMore', 'Notes updated'); }
+
+// ── Authorized pickup (same ticket; nothing texted to that person) ──
+function ci2RenderPickLoc(){ ci2ChipSet(ci2El('ci2PLoc'), CI2_PICKUP_LOCS, _ci.pickLoc, function(k){ _ci.pickLoc = k; ci2RenderPickLoc(); }); }
+function ci2PickToggle(on){
+  ci2El('ci2PickForm').hidden = !on;
+  if (on) ci2El('ci2PName').focus();
+  else if (_ci.pick) ci2PickRevoke();
+}
+async function ci2PickSave(){
+  var n = ci2El('ci2PName').value.trim().toUpperCase(), p = ci2Digits(ci2El('ci2PPhone').value), notes = ci2El('ci2PNotes').value.trim();
+  if (!n) { ci2Toast('Add the pickup person’s name.', true); ci2El('ci2PName').focus(); return; }
+  if (p && p.length !== 10) { ci2Toast('Phone must have 10 digits, or leave it empty.', true); return; }
+  if (!_ci.created) { ci2Toast('Create the ticket first.', true); return; }
+  var patch = { pickup_auth_name: n, pickup_auth_phone: p || null, pickup_auth_location: _ci.pickLoc || null, pickup_auth_notes: notes || null,
+                pickup_auth_at: new Date().toISOString(), pickup_auth_by: _currentUserEmail || null };
+  if (!(await ci2Save(patch, 'ci2SPick', 'Authorized pickup: ' + n + (_ci.pickLoc ? ' at ' + _ci.pickLoc : '')))) return;
+  _ci.pick = { name: n, phone: p, loc: _ci.pickLoc, notes: notes };
+  var v = ci2El('ci2SPickV'); v.textContent = n; v.className = 'v done'; ci2El('ci2PRevoke').hidden = false; ci2RenderCard();
+  ci2Toast('Authorization saved. Nothing was texted to ' + n.split(' ')[0] + '.');
+}
+async function ci2PickRevoke(){
+  if (_ci.created && _ci.pick) {
+    var ok = await ci2Save({ pickup_auth_name: null, pickup_auth_phone: null, pickup_auth_location: null, pickup_auth_notes: null, pickup_auth_at: null, pickup_auth_by: null },
+                          'ci2SPick', 'Authorized pickup revoked (' + _ci.pick.name + ')');
+    if (!ok) return;
+  }
+  _ci.pick = null; _ci.pickLoc = '';
+  ci2El('ci2PickOn').checked = false; ci2El('ci2PickForm').hidden = true; ci2El('ci2PRevoke').hidden = true;
+  ['ci2PName', 'ci2PPhone', 'ci2PNotes'].forEach(function(i){ ci2El(i).value = ''; });
+  var v = ci2El('ci2SPickV'); v.textContent = 'No'; v.className = 'v';
+  ci2RenderPickLoc(); ci2RenderCard(); ci2Toast('Authorization revoked.');
+}
+
+// ── Print: manual, one tap, only with Hangar + Make/Model + Color ──
+function ci2Need(){
+  if (!_ci) return;
+  var h = !!_ci.hangar, m = !!ci2VehCar(), c = !!_ci.color;
+  ci2El('ci2NH').className = h ? 'ok' : ''; ci2El('ci2NM').className = m ? 'ok' : ''; ci2El('ci2NC').className = c ? 'ok' : '';
+  var b = ci2El('ci2Print'); b.disabled = !(h && m && c && _ci.created); b.textContent = _ci.printed ? 'Reprint key tag' : 'Print key tag';
+}
+async function ci2Print(){
+  if (!_ci || !_ci.created) return;
+  var r = data.find(function(x){ return x.id === _ci.id; });
+  var rec = r || { ticket: _ci.ticket, name: ci2El('ci2Who').textContent.split(' · ')[0], phone: ci2El('ci2Phone').value.trim(), ret: _ci.ret ? d2us(_ci.ret) : '',
+                   car: ci2VehCar(), color: _ci.color, loc: _ci.hangar, return_operator: _ci.other ? 'OTHER' : _ci.op };
+  ci2El('ci2Print').disabled = true;
+  try { await printKeyTicket(rec); await printDashboardTicket(rec); _ci.printed = true; }
+  finally { ci2Need(); }
 }
 
 // ── DETAIL PANEL ───────────────────────────────────────────────
@@ -6645,6 +7257,7 @@ function showDet(id){
       '<div class="di editable" style="grid-column:1/-1" data-field="loc" data-raw="'+escapeHTML(r.loc||'')+'"><div class="di-l">Location ✎</div><div class="di-v">'+escapeHTML(r.loc||'—')+'</div></div>'+
       '<div class="di editable" style="grid-column:1/-1" data-field="obs"><div class="di-l">Notes ✎</div><div class="di-v" style="font-size:12px">'+escapeHTML(r.obs||'—')+'</div></div>'+
       returnPickupPanelHtml(r)+
+      pickupAuthPanelHtml(r)+
       '<div class="di" style="grid-column:1/-1"><div class="di-l">Car wash</div>'+
         '<div class="di-v"><div class="lbs" id="editCarwashGroup" data-current="'+(r.carwash_status||'')+'">'+
           '<div class="carwash-btn'+(r.carwash_status==='CARWASH'?' on':'')+'" onclick="editSelCarwash(this,\'CARWASH\')">&#128704; Car wash</div>'+
@@ -6738,7 +7351,91 @@ function openTipModal(id, deliveryType){
   vehEl.textContent=vehLine;
   vehEl.style.display=vehLine?'':'none';
   setTipButtonsDisabled(false);
+  pickupReleaseRender(r);
   ov.classList.add('on');
+}
+// ── AUTHORIZED PICKUP AT DELIVERY ───────────────────────────────
+// A ticket with an authorized pickup person: the team picks who is taking
+// the car and confirms a photo ID before Deliver unlocks. The database
+// refuses the delivery without that record (airvalet_pickup_release_guard).
+function hasPickupAuth(r){ return !!(r && String(r.pickup_auth_name||'').trim()); }
+function pickupReleaseRender(r){
+  var box=document.getElementById('tipPickup'); if(!box) return;
+  if(!hasPickupAuth(r)){ box.hidden=true; box.innerHTML=''; return; }
+  box.hidden=false;
+  box.innerHTML='<div class="ci2-rel-h">Who is picking up the car?</div>'+
+    '<label class="ci2-rel-o"><input type="radio" name="relWho" value="AUTHORIZED" checked><span><b>'+escapeHTML(r.pickup_auth_name)+'</b><small>Authorized pickup'+(r.pickup_auth_phone?' · '+escapeHTML(fmtP(r.pickup_auth_phone)):'')+(r.pickup_auth_location?' · '+escapeHTML(r.pickup_auth_location):'')+'</small></span></label>'+
+    '<label class="ci2-rel-o"><input type="radio" name="relWho" value="GUEST"><span><b>'+escapeHTML(r.name||'')+'</b><small>Guest on the ticket</small></span></label>'+
+    (r.pickup_auth_notes?'<div class="ci2-rel-n">'+escapeHTML(r.pickup_auth_notes)+'</div>':'')+
+    '<label class="ci2-rel-id"><input type="checkbox" id="relIdOk"><span>I checked this person’s photo ID</span></label>'+
+    '<div class="ci2-rel-n">Having the valet pass link is not enough.</div>';
+  var yes=document.getElementById('tipYesBtn'); if(yes) yes.disabled=true;
+  document.getElementById('relIdOk').addEventListener('change',function(){ if(yes) yes.disabled=!this.checked; });
+}
+// Car panel: show, add, edit or revoke the authorization; after delivery,
+// who took the car.
+function pickupAuthPanelHtml(r){
+  var h='<div class="di ci2-pk" style="grid-column:1/-1" id="pkPanel"><div class="di-l">Authorized pickup</div><div class="di-v">';
+  if(r.released_to_name){
+    h+='<div class="ci2-pk-rel">Released to <b>'+escapeHTML(r.released_to_name)+'</b> ('+(r.released_to_kind==='GUEST'?'guest':'authorized pickup')+')'+
+       (r.released_id_checked?' · ID checked':'')+(r.released_by?' by '+escapeHTML(String(r.released_by).split('@')[0]):'')+
+       (r.released_at?' · '+escapeHTML(new Date(r.released_at).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})):'')+'</div>';
+  }
+  if(hasPickupAuth(r)){
+    h+='<div class="ci2-pk-box"><b>'+escapeHTML(r.pickup_auth_name)+'</b>'+
+       '<div>'+(r.pickup_auth_phone?escapeHTML(fmtP(r.pickup_auth_phone)):'No phone')+' · '+escapeHTML(r.pickup_auth_location||'Location not set')+'</div>'+
+       (r.pickup_auth_notes?'<div class="ci2-pk-n">'+escapeHTML(r.pickup_auth_notes)+'</div>':'')+'</div>';
+    if(r.status!=='DELIVERED') h+='<div class="ci2-btnrow"><button type="button" class="ci2-btn line" onclick="pickupAuthEdit('+r.id+')">Edit</button><button type="button" class="ci2-btn line danger" onclick="pickupAuthRevoke('+r.id+')">Revoke</button></div>';
+  } else if(r.status!=='DELIVERED'){
+    h+='<button type="button" class="ci2-btn line" onclick="pickupAuthEdit('+r.id+')">+ Someone else will pick up</button>';
+  } else if(!r.released_to_name) h+='—';
+  return h+'<div id="pkForm"></div></div></div>';
+}
+function pickupAuthEdit(id){
+  var r=data.find(function(x){return x.id===id;}); if(!r) return;
+  var f=document.getElementById('pkForm'); if(!f) return;
+  var locs=['','Hangar 19','Customs','Other'];
+  f.innerHTML='<div class="ci2-pk-form"><div class="ci2-two"><input class="ci2-search" id="pkName" maxlength="80" autocapitalize="characters" placeholder="Pickup person name" value="'+escapeHTML(r.pickup_auth_name||'')+'">'+
+    '<input class="ci2-search" id="pkPhone" type="tel" inputmode="numeric" maxlength="14" placeholder="Phone (optional)" value="'+escapeHTML(r.pickup_auth_phone?fmtP(r.pickup_auth_phone):'')+'"></div>'+
+    '<select class="ci2-search" id="pkLoc">'+locs.map(function(l){return '<option value="'+l+'"'+((r.pickup_auth_location||'')===l?' selected':'')+'>'+(l||'Pickup location')+'</option>';}).join('')+'</select>'+
+    '<textarea class="ci2-search ci2-ta" id="pkNotes" maxlength="500" placeholder="Relationship, ID to check">'+escapeHTML(r.pickup_auth_notes||'')+'</textarea>'+
+    '<div class="ci2-btnrow"><button type="button" class="ci2-btn" onclick="pickupAuthSave('+id+')">Save authorization</button><button type="button" class="ci2-btn line" onclick="document.getElementById(\'pkForm\').innerHTML=\'\'">Cancel</button></div>'+
+    '<div class="ci2-pk-n">Nothing is texted to this person. The guest keeps the valet pass.</div></div>';
+  document.getElementById('pkPhone').addEventListener('input',function(){fmtPhoneInput(this);});
+  document.getElementById('pkName').addEventListener('input',function(){this.value=this.value.toUpperCase();});
+  document.getElementById('pkName').focus();
+}
+async function pickupAuthSave(id){
+  var r=data.find(function(x){return x.id===id;}); if(!r) return;
+  var n=document.getElementById('pkName').value.trim().toUpperCase(), p=document.getElementById('pkPhone').value.replace(/\D/g,'').replace(/^1(?=\d{10}$)/,'');
+  if(!n){ showMsg('Add the pickup person’s name.',true); return; }
+  if(p&&p.length!==10){ showMsg('Phone must have 10 digits, or leave it empty.',true); return; }
+  var patch={pickup_auth_name:n,pickup_auth_phone:p||null,pickup_auth_location:document.getElementById('pkLoc').value||null,
+             pickup_auth_notes:document.getElementById('pkNotes').value.trim()||null,pickup_auth_at:new Date().toISOString(),pickup_auth_by:_currentUserEmail||null};
+  try{
+    await sbUpdate(id,patch); Object.assign(r,patch);
+    sbLog('EDITED',r.name||'',r.ticket||'',r.loc||'','Authorized pickup: '+n+(patch.pickup_auth_location?' at '+patch.pickup_auth_location:''),{passenger_id:id});
+    render(); showDet(id); showMsg('✓ Authorization saved. Nothing was texted to '+n.split(' ')[0]+'.',false);
+  }catch(e){ showMsg('Not saved: '+e.message,true); }
+}
+async function pickupAuthRevoke(id){
+  var r=data.find(function(x){return x.id===id;}); if(!r||!hasPickupAuth(r)) return;
+  if(!confirm('Revoke the pickup authorization for '+r.pickup_auth_name+'?')) return;
+  var patch={pickup_auth_name:null,pickup_auth_phone:null,pickup_auth_location:null,pickup_auth_notes:null,pickup_auth_at:null,pickup_auth_by:null};
+  var who=r.pickup_auth_name;
+  try{
+    await sbUpdate(id,patch); Object.assign(r,patch);
+    sbLog('EDITED',r.name||'',r.ticket||'',r.loc||'','Authorized pickup revoked ('+who+')',{passenger_id:id});
+    render(); showDet(id); showMsg('Authorization revoked.',false);
+  }catch(e){ showMsg('Not saved: '+e.message,true); }
+}
+function pickupReleaseChoice(r){
+  if(!hasPickupAuth(r)) return null;
+  var ok=document.getElementById('relIdOk');
+  if(!ok||!ok.checked) return {error:'Confirm the photo ID before delivering.'};
+  var who=(document.querySelector('input[name="relWho"]:checked')||{}).value==='GUEST'?'GUEST':'AUTHORIZED';
+  return {released_to_kind:who, released_to_name:who==='GUEST'?(r.name||''):r.pickup_auth_name, released_id_checked:true,
+          released_by:_currentUserEmail||null, released_at:new Date().toISOString()};
 }
 
 async function deliverWithTip(id, deliveryType, tipReceived){
@@ -6761,7 +7458,11 @@ async function deliverWithTip(id, deliveryType, tipReceived){
     // retired historical field, preserved as-is for old records.
     var upd={status:'DELIVERED',deldate:todayStr,checkout_date:checkoutIso,delivery_type:deliveryType,tip_received:tipReceived};
     if(!isCustoms){upd.loc='HANGAR 19';upd.previous_delivery_location=prevLoc;}
+    var rel=pickupReleaseChoice(r);
+    if(rel&&rel.error){ showMsg(rel.error,true); return false; }
+    if(rel){ Object.assign(upd,rel); tipNote+=' | Released to '+rel.released_to_name+' ('+(rel.released_to_kind==='GUEST'?'guest':'authorized pickup')+', ID checked)'; }
     await sbUpdate(r.id,upd);
+    if(rel) Object.assign(r,rel);
     if(!isCustoms){
       await sbLog('DELIVERED_FROM_LOCATION',r.name,r.ticket,'HANGAR 19','Delivered as '+deliveryType+'. Previous location: '+prevLoc+'. Final location automatically changed to HANGAR 19.'+(isLateDeliver?' (late)':'')+tipNote,{passenger_id:r.id});
       vlhInsert({passenger_id:r.id,ticket:r.ticket,passenger_name:r.name,from_location:prevLoc,to_location:'HANGAR 19',action:'DELIVERED ('+deliveryType+')',note:(isLateDeliver?'Late delivery':''),created_by:_currentUserEmail});
@@ -6874,6 +7575,7 @@ function quickDeliver(id, deliveryType){
 async function markDel(id){
   var r=null;for(var i=0;i<data.length;i++){if(data[i].id===id){r=data[i];break;}}
   if(!r)return;
+  if(hasPickupAuth(r)){ openTipModal(id,'NORMAL'); return; }
   if(r.isOfflinePending){ showMsg(OFFLINE_PENDING_SYNC_MSG, true); return; }
   var prevLoc=r.loc||'';
   loading(true);
@@ -6901,6 +7603,8 @@ async function undoDeliverToday(id){
   try{
     var updUndo={status:'PENDING',deldate:null,checkout_date:null,delivery_type:null,previous_delivery_location:null};
     if(r.previous_delivery_location){updUndo.loc=restoredLoc;}
+    // A new delivery needs a new ID check (only sent once the pickup columns exist).
+    if(r.released_to_name||r.released_id_checked){updUndo.released_to_name=null;updUndo.released_to_kind=null;updUndo.released_id_checked=null;updUndo.released_by=null;updUndo.released_at=null;}
     // Undoing a Customs delivery un-does the "vehicle is at Customs" state
     // entirely, so its communication flags must not linger as stale state.
     if(r.delivery_type==='CUSTOMS'){
@@ -6913,6 +7617,7 @@ async function undoDeliverToday(id){
       if(data[i].id===id){
         data[i].status='PENDING';data[i].deldate=null;data[i].checkout_date=null;data[i].delivery_type=null;data[i].previous_delivery_location=null;
         if(r.previous_delivery_location) data[i].loc=restoredLoc;
+        if('released_to_name' in updUndo){data[i].released_to_name=null;data[i].released_to_kind=null;data[i].released_id_checked=null;data[i].released_by=null;data[i].released_at=null;}
         if(updUndo.customs_welcome_sent===false){
           data[i].customs_welcome_sent=false;data[i].customs_welcome_sent_at=null;
           data[i].customs_gratuity_sent=false;data[i].customs_gratuity_sent_at=null;
@@ -6933,6 +7638,7 @@ async function undoDeliverToday(id){
 async function earlyReturn(id){
   var r=null;for(var i=0;i<data.length;i++){if(data[i].id===id){r=data[i];break;}}
   if(!r)return;
+  if(hasPickupAuth(r)){ showMsg('Authorized pickup on file — confirm who takes the car.',false); openTipModal(id,'NORMAL'); return; }
   if(!confirm('⚡ Early Return — Mark as delivered?\n'+r.name+' (Ticket '+r.ticket+')\nWas expected: '+fmtD(r.ret))) return;
   var prevLoc=r.loc||'';
   loading(true);

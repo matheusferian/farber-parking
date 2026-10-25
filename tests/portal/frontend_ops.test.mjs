@@ -100,7 +100,7 @@ function deliverCtx({ enrolled = true, provider = 'twilio' } = {}) {
     OFFLINE_PENDING_SYNC_MSG: 'pending', _currentUserEmail: 'local@test',
     SMS_MESSAGE_TYPES: { TIP_NO: 'TIP_NO', TIP_YES: 'TIP_YES' },
   });
-  load(ctx, ['isServerSms', 'smsRouteFor', 'buildTipSms', 'deliverWithTip'], `var SMS_PROVIDER=${JSON.stringify(provider)}; var _smsEnrolled={};`);
+  load(ctx, ['isServerSms', 'smsRouteFor', 'buildTipSms', 'hasPickupAuth', 'pickupReleaseChoice', 'deliverWithTip'], `var SMS_PROVIDER=${JSON.stringify(provider)}; var _smsEnrolled={};`);
   if (enrolled) vm.runInContext('_smsEnrolled[7]=true;', ctx);
   ctx.data.push({ id: 7, name: 'JOHN SMITH', phone: '3055550100', ticket: '1025-7', loc: 'CUSTOMS', ret: '10/25/2026', status: 'PENDING' });
   return ctx;
@@ -142,7 +142,7 @@ test('a DB failure while delivering sends nothing', async () => {
 function printCtx() {
   const sent = [];
   const ctx = sandbox({ sent });
-  load(ctx, ['isAscend', 'buildCustomerTicketXml', 'buildKeyTicketXml', 'buildDashboardTicketXml', 'printKeyTicket', 'printDashboardTicket', 'printCustomerTicket']);
+  load(ctx, ['isAscend', 'hasPickupAuth', 'buildCustomerTicketXml', 'buildKeyTicketXml', 'buildDashboardTicketXml', 'printKeyTicket', 'printDashboardTicket', 'printCustomerTicket']);
   // Stub AFTER loading: the real epsonSend/epsonFetch are never loaded.
   ctx.epsonSend = async (xml, label) => { sent.push({ xml, label }); return true; };
   ctx.fetch = () => { throw new Error('network must not be used'); };
