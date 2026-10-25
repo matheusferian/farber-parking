@@ -13,6 +13,8 @@
 //     never count as tips.
 // Optional passenger tie: metadata.passenger_id, or client_reference_id "pax-<id>".
 // Idempotency: stripe_event_id is unique; a Stripe retry is a no-op.
+// Refunds (charge.refunded, owner 2026-10-25): a full refund marks the tip
+// 'refunded' (out of the reports); a partial one lowers amount_cents.
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import Stripe from 'npm:stripe@17';
@@ -63,11 +65,22 @@ export function tipFromSession(session: Session, eventId: string, links: string[
   };
 }
 
+// charge.refunded → what to store on the tip with that payment intent.
+export function refundUpdate(charge: { payment_intent?: unknown; amount?: number | null; amount_refunded?: number | null; refunded?: boolean | null }):
+  { paymentIntent: string; status: 'refunded' | 'succeeded'; amount_cents: number } | null {
+  const pi = typeof charge.payment_intent === 'string' ? charge.payment_intent : null;
+  const amount = Number(charge.amount ?? 0), refunded = Number(charge.amount_refunded ?? 0);
+  if (!pi || !(amount > 0) || !(refunded > 0)) return null;
+  if (charge.refunded || refunded >= amount) return { paymentIntent: pi, status: 'refunded', amount_cents: amount };
+  return { paymentIntent: pi, status: 'succeeded', amount_cents: amount - refunded };
+}
+
 export type Deps = {
   webhookSecret: string | undefined;
   links: string[];
   stripe: Stripe;
   save: (row: TipRow) => Promise<{ error: { message: string; code?: string } | null }>;
+  refund: (paymentIntent: string, status: string, amountCents: number) => Promise<{ updated: number; error: { message: string } | null }>;
   log: (event: string, data: Record<string, unknown>) => void;
 };
 
@@ -83,6 +96,14 @@ export async function handle(req: Request, deps: Deps): Promise<Response> {
     event = await deps.stripe.webhooks.constructEventAsync(rawBody, sig, deps.webhookSecret);
   } catch {
     return json(400, { error: 'signature verification failed' });
+  }
+  if (event.type === 'charge.refunded') {
+    const u = refundUpdate(event.data.object as unknown as Parameters<typeof refundUpdate>[0]);
+    if (!u) return json(200, { received: true, ignored: true });
+    const r = await deps.refund(u.paymentIntent, u.status, u.amount_cents);
+    if (r.error) { deps.log('stripe_refund_update_failed', { event: event.id, error: r.error.message }); return json(500, { received: false }); }
+    deps.log('stripe_refund_applied', { event: event.id, updated: r.updated, status: u.status });
+    return json(200, { received: true, updated: r.updated });
   }
   if (event.type !== 'checkout.session.completed') return json(200, { received: true, skipped: event.type });
   const row = tipFromSession(event.data.object as unknown as Session, event.id, deps.links);
@@ -108,6 +129,12 @@ if (import.meta.main) {
     save: async (row) => {
       const { error } = await admin.from('payments').insert(row);
       return { error: error ? { message: error.message, code: (error as { code?: string }).code } : null };
+    },
+    // Only AirValet tips are touched (car wash payments are never stored here).
+    refund: async (pi, status, amountCents) => {
+      const { data, error } = await admin.from('payments').update({ status, amount_cents: amountCents })
+        .eq('stripe_payment_intent_id', pi).eq('type', 'TIP').select('id');
+      return { updated: Array.isArray(data) ? data.length : 0, error: error ? { message: error.message } : null };
     },
     log: (event, data) => console.log(JSON.stringify({ event, ...data })),
   }));

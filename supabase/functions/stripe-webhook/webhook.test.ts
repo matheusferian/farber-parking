@@ -1,7 +1,7 @@
 // deno test --allow-env --allow-net --allow-read supabase/functions/stripe-webhook/webhook.test.ts
 import { assert, assertEquals } from 'jsr:@std/assert@1';
 import Stripe from 'npm:stripe@17';
-import { gratuityLinkIds, handle, tipFromSession, type TipRow } from './index.ts';
+import { gratuityLinkIds, handle, refundUpdate, tipFromSession, type TipRow } from './index.ts';
 
 const GRAT = 'plink_1GratuityAAA';
 const CARWASH = 'plink_1CarWashBBB';
@@ -24,6 +24,7 @@ function deps(saved: TipRow[], over: Record<string, unknown> = {}) {
       if (seen.has(r.stripe_event_id)) return Promise.resolve({ error: { message: 'dup', code: '23505' } });
       seen.add(r.stripe_event_id); saved.push(r); return Promise.resolve({ error: null });
     },
+    refund: (_pi: string, _s: string, _a: number) => Promise.resolve({ updated: 1, error: null }),
     log: () => {}, ...over,
   };
 }
@@ -70,4 +71,19 @@ Deno.test('handler: other event types and car wash payments are acknowledged, no
 Deno.test('handler: a database error asks Stripe to retry (500)', async () => {
   const r = await handle(await signed('checkout.session.completed', session()), deps([], { save: () => Promise.resolve({ error: { message: 'db down' } }) }));
   assertEquals(r.status, 500);
+});
+
+Deno.test('refunds: full refund → refunded, partial → lower amount, nothing refunded → ignored', () => {
+  assertEquals(refundUpdate({ payment_intent: 'pi_1', amount: 2000, amount_refunded: 2000, refunded: true }), { paymentIntent: 'pi_1', status: 'refunded', amount_cents: 2000 });
+  assertEquals(refundUpdate({ payment_intent: 'pi_1', amount: 2000, amount_refunded: 500, refunded: false }), { paymentIntent: 'pi_1', status: 'succeeded', amount_cents: 1500 });
+  assertEquals(refundUpdate({ payment_intent: 'pi_1', amount: 2000, amount_refunded: 0 }), null);
+  assertEquals(refundUpdate({ payment_intent: null, amount: 2000, amount_refunded: 2000 }), null);
+});
+Deno.test('handler: signed charge.refunded updates the tip; a DB error asks for a retry', async () => {
+  const calls: Array<[string, string, number]> = [];
+  const d = deps([], { refund: (pi: string, st: string, a: number) => { calls.push([pi, st, a]); return Promise.resolve({ updated: 1, error: null }); } });
+  const r = await handle(await signed('charge.refunded', { id: 'ch_1', object: 'charge', payment_intent: 'pi_1', amount: 100, amount_refunded: 100, refunded: true }, SECRET, 'evt_r1'), d);
+  assertEquals(r.status, 200); assertEquals(calls, [['pi_1', 'refunded', 100]]);
+  const bad = deps([], { refund: () => Promise.resolve({ updated: 0, error: { message: 'db' } }) });
+  assertEquals((await handle(await signed('charge.refunded', { id: 'ch_2', object: 'charge', payment_intent: 'pi_2', amount: 100, amount_refunded: 100, refunded: true }, SECRET, 'evt_r2'), bad)).status, 500);
 });
