@@ -67,7 +67,7 @@ Deno.test('templates: REPLY, CHECK_IN (D1), VEHICLE_READY and VEHICLE_DELIVERED 
   for (const t of Object.values(TEMPLATES)) {
     if (t.type === 'REPLY') { assertEquals(t.status, 'APPROVED'); assert(t.freeText); continue; }
     if (t.type === 'CHECK_IN') { assertEquals(t.status, 'APPROVED'); assertEquals(t.version, 'checkin-2026-10-25-golive'); continue; }
-    if (t.type === 'VEHICLE_READY') { assertEquals(t.status, 'APPROVED'); assertEquals(t.version, 'ready-2026-10-25'); continue; }
+    if (t.type === 'VEHICLE_READY') { assertEquals(t.status, 'APPROVED'); assertEquals(t.version, 'ready-2026-10-25b'); continue; }
     if (t.type === 'VEHICLE_DELIVERED') { assertEquals(t.status, 'APPROVED'); assertEquals(t.version, 'delivered-2026-10-25'); continue; }
     assertEquals(t.status, 'PENDING_APPROVAL');
     assertEquals(codeOf(() => renderMessage(t, P({ status: 'DELIVERED', delivery_type: 'CUSTOMS', customs_welcome_sent: true, return_operator: 'MAKERS' }), ENV, 'x')), 'TEMPLATE_NOT_APPROVED');
@@ -134,17 +134,18 @@ Deno.test('Makers Customs exception: 8 owner scenarios (template + pickup rules)
   const pend = { return_operator: 'MAKERS' as const, customs_exception_requested_at: '2026-10-09T15:00:00Z' };
   assertEquals(pickupPlace(P(pend)), 'HANGAR_19');
   assertEquals(ready(pend).variant, 'CUSTOMS_REQUEST_PENDING');
-  // 3 approved → Customs, exception text (key on the driver's side tire — owner 2026-10-25)
+  // 3 approved → Customs, exception text: reply on arrival, never where the key is (owner 2026-10-25 final)
   const ok = ready({ return_operator: 'MAKERS', delivery_at_customs: true });
   assertEquals(pickupPlace(P({ return_operator: 'MAKERS', delivery_at_customs: true })), 'CUSTOMS');
-  assertEquals(ok.variant, 'CUSTOMS_EXCEPTION'); assertStringIncludes(ok.body, 'As arranged'); assertStringIncludes(ok.body, '(954) 352-1010');
-  assertStringIncludes(ok.body, "Your key is on the driver's side tire.");
+  assertEquals(ok.variant, 'CUSTOMS_EXCEPTION');
+  assertEquals(ok.body, 'Welcome back to Makers Air!\nYour vehicle is ready at Customs. Please reply to this message when you arrive so our valet team can assist you with your key.');
+  assertFalse(/tire|key is|driver/i.test(ok.body));
   assertEquals(seg(ok.body), 1);
   // 4 approved then revoked → Hangar 19
   assertEquals(ready({ return_operator: 'MAKERS', delivery_at_customs: false }).variant, 'HANGAR19_WELCOME_BACK');
   // 5 return changed to Ascend → Customs is the rule (Ascend handoff), not the exception
   const asc = ready({ return_operator: 'ASCEND' });
-  assertEquals(asc.variant, 'CUSTOMS_WELCOME'); assertFalse(asc.body.includes('As arranged'));
+  assertEquals(asc.variant, 'CUSTOMS_WELCOME'); assertFalse(asc.body.includes('reply to this message'));
   // 6 Ascend → Makers → Hangar 19 (DB resets the flag; template follows it)
   assertEquals(ready({ ticket: 'A-1', return_operator: 'MAKERS', delivery_at_customs: false }).variant, 'HANGAR19_WELCOME_BACK');
   // 7/8 are data rules (trigger) — covered in tests/sms/sql_tests.sql
@@ -158,9 +159,8 @@ Deno.test('ready idempotency key follows the instruction variant (exception ≠ 
   assertEquals(k({ return_operator: 'MAKERS', delivery_at_customs: true }), 'ready:CUSTOMS_EXCEPTION');
   assertEquals(k({ return_operator: 'ASCEND' }), 'ready:CUSTOMS_WELCOME');
 });
-Deno.test('security: no SMS states where a key is left, except the Makers Customs exception (owner 2026-10-25)', () => {
+Deno.test('security: no SMS ever states where a key is left (Makers Customs exception included)', () => {
   const bodies: string[] = [];
-  const exceptionBodies: string[] = [];
   for (const dep of ['0714-3', 'A-0714-1']) {
     for (const ret of ['MAKERS', 'ASCEND', 'OTHER', null] as const) {
       for (const [t, extra] of [
@@ -168,17 +168,12 @@ Deno.test('security: no SMS states where a key is left, except the Makers Custom
         ['VEHICLE_DELIVERED', { status: 'DELIVERED', delivery_type: 'NORMAL', tip_received: false }],
         ['VEHICLE_DELIVERED', { status: 'DELIVERED', delivery_type: 'LOCKBOX', tip_received: true }],
       ] as Array<[string, Partial<PassengerCtx>]>) {
-        try {
-          const r = renderMessage(A[t], P({ ticket: dep, return_operator: ret, ...extra }), ENV);
-          (r.variant === 'CUSTOMS_EXCEPTION' ? exceptionBodies : bodies).push(r.body);
-        } catch { /* refused = nothing sent */ }
+        try { bodies.push(renderMessage(A[t], P({ ticket: dep, return_operator: ret, ...extra }), ENV).body); } catch { /* refused = nothing sent */ }
       }
     }
   }
   assert(bodies.length > 20);
   for (const b of bodies) assertFalse(/tire|key is (on|in|under|at)|keys? (left|placed|located)|lockbox code|driver.?s.?side/i.test(b), b);
-  assert(exceptionBodies.length > 0);
-  for (const b of exceptionBodies) { assertStringIncludes(b, "driver's side tire"); assertFalse(/lockbox code/i.test(b)); }
 });
 Deno.test('return location derived from the return operator only', () => {
   assertEquals(returnLocation('MAKERS'), 'HANGAR_19'); assertEquals(returnLocation('ASCEND'), 'CUSTOMS');

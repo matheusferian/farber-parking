@@ -148,7 +148,7 @@ export const TEMPLATES: Record<MessageType, Template> = {
   // HANGAR19_WELCOME_BACK / CUSTOMS_WELCOME_*: chosen by the RETURN flight.
   // Manual only (staff button) — never automatic.
   VEHICLE_READY: {
-    type: 'VEHICLE_READY', status: 'APPROVED', version: 'ready-2026-10-25', freeText: false, allowedRoles: OPS,
+    type: 'VEHICLE_READY', status: 'APPROVED', version: 'ready-2026-10-25b', freeText: false, allowedRoles: OPS,
     defaultEventRef: (_now, p) => 'ready:' + readyVariant(p),
     guard: (p) => {
       if (p.status === 'ARCHIVED' || p.status === 'DELIVERED') return 'NOT_IN_CUSTODY';
@@ -160,10 +160,10 @@ export const TEMPLATES: Record<MessageType, Template> = {
     },
     render: (p) => {
       if (readyVariant(p) === 'CUSTOMS_EXCEPTION') {
-        // Makers return, Customs approved case by case. Owner decision
-        // 2026-10-25: this one text states the key spot (driver's side tire);
-        // every other text still never says where a key is.
-        return { variant: 'CUSTOMS_EXCEPTION', body: `${SENDER}: Welcome back! As arranged, your car is ready at Customs. Your key is on the driver's side tire. Questions? Call ${VALET_PHONE}.` };
+        // Makers return, Customs approved case by case. Owner 2026-10-25 (final):
+        // never states where the key is; the guest replies on arrival and the
+        // valet team helps with the key. 154 GSM-7 chars = 1 segment.
+        return { variant: 'CUSTOMS_EXCEPTION', body: 'Welcome back to Makers Air!\nYour vehicle is ready at Customs. Please reply to this message when you arrive so our valet team can assist you with your key.' };
       }
       if (pickupPlace(p) === 'HANGAR_19') {
         return {
