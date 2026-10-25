@@ -499,9 +499,9 @@
     </div>
     <div class="fr full">
       <div class="fg">
-        <label>Carwash <span style="color:var(--mu);font-weight:400">(optional)</span></label>
+        <label>Car wash <span style="color:var(--mu);font-weight:400">(optional)</span></label>
         <div class="lbs">
-          <div class="carwash-btn" onclick="selCarwash(this,'CARWASH')">&#128704; Carwash</div>
+          <div class="carwash-btn" onclick="selCarwash(this,'CARWASH')">&#128704; Car wash</div>
           <div class="carwash-btn" onclick="selCarwash(this,'SEND_PRICE')">&#128172; Send Price</div>
         </div>
         <input type="hidden" id="fCarwash">
@@ -3357,7 +3357,7 @@ function isAscend(r){return !!(r&&String(r.ticket||'').match(/^A-/));}
 // name-badge slot/style as the existing ~APPROX/ASCEND/PENDING SYNC
 // tags, just a new value, never gated by or gating those.
 function carwashBadgeHtml(r){
-  if(r.carwash_status==='CARWASH') return '<span style="font-size:9px;background:rgba(52,152,219,0.18);color:#2E86C1;border-radius:4px;padding:2px 5px;margin-left:4px;font-weight:800;font-family:\'JetBrains Mono\',monospace">&#128704; CARWASH</span>';
+  if(r.carwash_status==='CARWASH') return '<span style="font-size:9px;background:rgba(52,152,219,0.18);color:#2E86C1;border-radius:4px;padding:2px 5px;margin-left:4px;font-weight:800;font-family:\'JetBrains Mono\',monospace">&#128704; CAR WASH</span>';
   if(r.carwash_status==='SEND_PRICE') return '<span style="font-size:9px;background:rgba(140,82,255,0.18);color:#7C4DFF;border-radius:4px;padding:2px 5px;margin-left:4px;font-weight:800;font-family:\'JetBrains Mono\',monospace">&#128172; SEND PRICE</span>';
   if(r.carwash_status==='WASHED') return '<span style="font-size:9px;background:rgba(107,114,128,0.15);color:var(--mu);border-radius:4px;padding:2px 5px;margin-left:4px;font-weight:600;font-family:\'JetBrains Mono\',monospace">&#10003; WASHED</span>';
   return '';
@@ -6639,9 +6639,9 @@ function showDet(id){
       '<div class="di editable" style="grid-column:1/-1" data-field="loc" data-raw="'+escapeHTML(r.loc||'')+'"><div class="di-l">Location ✎</div><div class="di-v">'+escapeHTML(r.loc||'—')+'</div></div>'+
       '<div class="di editable" style="grid-column:1/-1" data-field="obs"><div class="di-l">Notes ✎</div><div class="di-v" style="font-size:12px">'+escapeHTML(r.obs||'—')+'</div></div>'+
       returnPickupPanelHtml(r)+
-      '<div class="di" style="grid-column:1/-1"><div class="di-l">Carwash</div>'+
+      '<div class="di" style="grid-column:1/-1"><div class="di-l">Car wash</div>'+
         '<div class="di-v"><div class="lbs" id="editCarwashGroup" data-current="'+(r.carwash_status||'')+'">'+
-          '<div class="carwash-btn'+(r.carwash_status==='CARWASH'?' on':'')+'" onclick="editSelCarwash(this,\'CARWASH\')">&#128704; Carwash</div>'+
+          '<div class="carwash-btn'+(r.carwash_status==='CARWASH'?' on':'')+'" onclick="editSelCarwash(this,\'CARWASH\')">&#128704; Car wash</div>'+
           '<div class="carwash-btn'+(r.carwash_status==='SEND_PRICE'?' on':'')+'" onclick="editSelCarwash(this,\'SEND_PRICE\')">&#128172; Send Price</div>'+
           '<div class="carwash-btn'+(r.carwash_status==='WASHED'?' on':'')+'" onclick="editSelCarwash(this,\'WASHED\')">&#10003; Washed</div>'+
         '</div></div></div>'+
@@ -13610,7 +13610,7 @@ function tvBuildOpsPages(vm){
       // Raw emoji, not an &#...; entity — alertsColHtml() runs a.txt
       // through escapeHTML(), which would turn an entity's "&" into
       // "&amp;" and print it as literal text instead of rendering it.
-      return {r:r, txt:'🚿 Carwash — '+when, lvl:'warning'};
+      return {r:r, txt:'🚿 Car wash — '+when, lvl:'warning'};
     }))
     // Send Price — tied to r.checkin_date (the passenger's departure/
     // travel-out day), not r.ret. vm.sendPricePending already requires
@@ -13622,7 +13622,7 @@ function tvBuildOpsPages(vm){
       var depDate = tvParseCheckinDate(r.checkin_date);
       var when = tvIsCheckedInToday(r.checkin_date) ? 'departing today'
         : (depDate ? 'departing '+depDate.toLocaleDateString('en-US',{month:'short',day:'numeric'}) : 'departing — date unknown');
-      return {r:r, txt:'💬 Carwash — Send Price — '+when, lvl:'warning'};
+      return {r:r, txt:'💬 Car wash — Send Price — '+when, lvl:'warning'};
     }));
   var seen={};
   alerts = alerts.filter(function(a){ if(seen[a.r.id]) return false; seen[a.r.id]=true; return true; });
