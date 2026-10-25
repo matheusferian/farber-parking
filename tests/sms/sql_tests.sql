@@ -609,6 +609,12 @@ select pg_temp.check((select claimed from e2v1), 'vehicle-ready (Hangar 19) clai
 select public.airvalet_sms_mark_result((select message_id from e2v1), 'queued', 'SM_E2V1', 'MG', null, null, 1);
 select pg_temp.check((select error_code from pg_temp.claim('e2:v2', 6102, null, '+13055556102', 'VEHICLE_READY', 'HANGAR19_WELCOME_BACK', 'v1', 'b', 2, 'mock', '00000000-0000-0000-0000-0000000000a1')) = 'DUPLICATE_RECENT', 'same template, new key, < 2 min → DUPLICATE_RECENT');
 select pg_temp.check((select claimed from pg_temp.claim('e2:v3', 6102, null, '+13055556102', 'VEHICLE_READY', 'CUSTOMS_WELCOME', 'v1', 'b', 1, 'mock', '00000000-0000-0000-0000-0000000000a1')), 'CORRECTED template (Customs) → allowed');
+-- Real duplicate welcome (same passenger, new key, < 2 min) is still blocked (20261103 only frees companions).
+create temp table e2c1 as select * from pg_temp.claim('e2:c1', 6102, null, '+13055556102', 'CHECK_IN', 'CHECK_IN', 'v1', 'b', 1, 'mock', '00000000-0000-0000-0000-0000000000a1');
+select pg_temp.check((select claimed from e2c1), 'welcome claimed');
+select pg_temp.check((select error_code from pg_temp.claim('e2:c1b', 6102, null, '+13055556102', 'CHECK_IN', 'CHECK_IN', 'v1', 'b', 1, 'mock', '00000000-0000-0000-0000-0000000000a1')) = 'PREVIOUS_UNCONFIRMED', 'same passenger welcome while the first is in flight → held');
+select public.airvalet_sms_mark_result((select message_id from e2c1), 'queued', 'SM_E2C1', 'MG', null, null, 1);
+select pg_temp.check((select error_code from pg_temp.claim('e2:c2', 6102, null, '+13055556102', 'CHECK_IN', 'CHECK_IN', 'v1', 'b', 1, 'mock', '00000000-0000-0000-0000-0000000000a1')) = 'DUPLICATE_RECENT', 'same passenger welcome again with a NEW key, < 2 min → DUPLICATE_RECENT');
 
 -- Unconfirmed (timeout): blocks a blind resend until staff resolve it.
 create temp table u1 as select * from pg_temp.claim('e2:u:CHECK_IN', 6101, null, '+13055556101', 'CHECK_IN', 'CHECK_IN', 'v1', 'b', 1, 'mock', '00000000-0000-0000-0000-0000000000a1');

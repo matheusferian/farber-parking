@@ -2066,12 +2066,12 @@ function buildCustomerTicketXml(r) {
     + '<text align="left">------------------------------------------&#10;</text>'
     // ── Ticket number + Return Date ──────────────────────────────
     + '<text align="center">TICKET #&#10;</text>'
-    + '<text align="center" dh="true" dw="true">' + r.ticket + '&#10;</text>'
+    + '<text align="center" dh="true" dw="true">' + escapeHTML(r.ticket) + '&#10;</text>'
     + '<text align="center">RETURN DATE&#10;</text>'
     + '<text align="center" height="2" width="1">' + retDisp + '&#10;</text>'
     + '<text align="left" height="1" width="1">------------------------------------------&#10;</text>'
     // ── Fields ──────────────────────────────────────────────────
-    + '<text>PASSENGER: ' + r.name + '&#10;</text>'
+    + '<text>PASSENGER: ' + escapeHTML(r.name) + '&#10;</text>'
     + '<text>PHONE: ' + phoneDisp + '&#10;</text>'
     + '<text>------------------------------------------&#10;</text>'
     + '<text>' + ctaLine1 + '&#10;</text>'
@@ -2129,17 +2129,17 @@ function buildKeyTicketXml(r) {
     + (isAscend(r)?'<text align="center" em="true">PRIVATE FLIGHT&#10;</text>':'')
     + '<text align="center">------------------------&#10;</text>'
     // ── Name + Hangar + Return + Ticket ─────────────────────────
-    + '<text align="center" height="4" width="2">' + (isAscend(r) ? '[A] ' : '') + (r.name || '') + '&#10;</text>'
-    + '<text align="center" height="3" width="2">' + locDisp + '&#10;</text>'
+    + '<text align="center" height="4" width="2">' + (isAscend(r) ? '[A] ' : '') + escapeHTML(r.name || '') + '&#10;</text>'
+    + '<text align="center" height="3" width="2">' + escapeHTML(locDisp) + '&#10;</text>'
     + (pickupLocation(r)==='CUSTOMS' ? '<text align="center" em="true" font="font_b">*** DELIVER TO CUSTOMS ***&#10;</text>'
         + (isCustomsException(r) ? '<text align="center" font="font_b">MAKERS EXCEPTION - APPROVED&#10;</text>' : '') : '')
     + (isCustomsRequestPending(r) ? '<text align="center" font="font_b">CUSTOMS REQUESTED - PENDING&#10;</text><text align="center" font="font_b">Hangar 19 until approved&#10;</text>' : '')
     + '<text align="center" height="2" width="1">' + retDisp + '&#10;</text>'
-    + '<text align="center" height="2" width="2">' + r.ticket + '&#10;</text>'
+    + '<text align="center" height="2" width="2">' + escapeHTML(r.ticket) + '&#10;</text>'
     + '<text align="center">------------------------&#10;</text>'
     // ── Fields ──────────────────────────────────────────────────
     + '<text font="font_b">PHONE: ' + phoneDisp + '&#10;</text>'
-    + '<text font="font_b">' + (carDisp || '') + ' / ' + (colorDisp || '') + '&#10;</text>'
+    + '<text font="font_b">' + escapeHTML(carDisp || '') + ' / ' + escapeHTML(colorDisp || '') + '&#10;</text>'
     + (returnOperator(r)==='OTHER' ?
         '<text align="center" em="true">IMPORTANT:&#10;</text>'
         + '<text align="center" em="true">RETURNING WITH: OTHER&#10;</text>'
@@ -3636,10 +3636,10 @@ function buildRentalLogXml(r) {
     + '<text align="center" em="true">RENTAL LOG&#10;</text>'
     + '<text align="center">OFFICE COPY&#10;</text>'
     + '<text align="center">------------------------&#10;</text>'
-    + '<text>Passenger: ' + (r.name||'') + '&#10;</text>'
-    + '<text>Rental Co: ' + (r.company||'') + '&#10;</text>'
+    + '<text>Passenger: ' + escapeHTML(r.name||'') + '&#10;</text>'
+    + '<text>Rental Co: ' + escapeHTML(r.company||'') + '&#10;</text>'
     + '<text>Flight:    ' + d + '&#10;</text>'
-    + '<text>Vehicle:   ' + carLine + '&#10;</text>'
+    + '<text>Vehicle:   ' + escapeHTML(carLine) + '&#10;</text>'
     + '<text align="center">------------------------&#10;</text>'
     + '<text align="center" em="true">PARKED ON GRASS&#10;</text>'
     + '<text align="center" em="true">KEY LEFT AT OFFICE&#10;</text>'

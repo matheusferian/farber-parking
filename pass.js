@@ -214,7 +214,7 @@
     lastFocus = document.activeElement;
     form = { kind: kind, step: 1, ck: clientKey() };
     drawSheet();
-    if (kind === 'chat') { loadChat(); chatTimer = setInterval(function () { if (!document.hidden) loadChat(); }, 8000); }
+    if (kind === 'chat') { loadChat(); chatTimer = setInterval(function () { if (!document.hidden) loadChat(); }, 15000); }  // ~40 calls/10 min, well under the server brake
     sheetBg.hidden = false;
     var f = sheet.querySelector('button, input, a'); if (f) f.focus();
   }
