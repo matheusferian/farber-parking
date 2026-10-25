@@ -2820,12 +2820,15 @@ function renderTable() {
         (isApproxRecord(r)?'<span class="tag" style="background:rgba(201,168,76,0.15);color:var(--gold)">~APPROX</span>':'')+
         (isAscend(r)?'<span class="tag" style="background:rgba(99,179,237,0.15);color:#63b3ed">✈ ASCEND</span>':'')+
         (notReturning?OTHER_BOAT_DASH_ICON_HTML:'')+
-        (hasPickupAuth(r)&&r.status!=='DELIVERED'?'<span class="tag t-authpk" title="Authorized pickup: '+escapeHTML(r.pickup_auth_name)+'">AUTHORIZED PICKUP</span>':'')+
         (r.isOfflinePending?'<span class="tag" style="background:rgba(232,160,48,.18);color:#e8a030;font-weight:800" title="Saved locally, not yet on the server">🟠 PENDING SYNC</span>':'');
+    // Authorized pickup: a tag in the table row, its own line on the phone card.
+    var authOn=hasPickupAuth(r)&&r.status!=='DELIVERED';
+    var authTag=authOn?'<span class="tag t-authpk" title="Authorized pickup: '+escapeHTML(r.pickup_auth_name)+'">AUTHORIZED PICKUP</span>':'';
+    var authLine=authOn?'<div class="dc-l dc-authpk"><b>AUTHORIZED PICKUP</b> · '+escapeHTML(r.pickup_auth_name)+(r.pickup_auth_phone?' · '+escapeHTML(fmtP(r.pickup_auth_phone)):'')+(r.pickup_auth_location?' · '+escapeHTML(r.pickup_auth_location):'')+'</div>':'';
     var actionBtn=r.status!=='DELIVERED'?'<button class="qd-btn'+(ro?' late':r.status==='NO DATE'?' nodate':'')+'" onclick="quickDeliver('+r.id+')">✓</button>':'<span style="color:var(--mu);font-size:12px">—</span>';
     h+='<tr class="passenger-row'+(notReturning?' other-boat-row':'')+'" data-id="'+r.id+'" style="'+(sel?'background:rgba(232,160,48,.12)':'')+';cursor:pointer">'+
       '<td class="cbtd" onclick="event.stopPropagation()"><input type="checkbox" data-id="'+r.id+'" '+(sel?'checked':'')+' onchange="rowChk(this)"></td>'+
-      '<td style="font-weight:500">'+(isAscend(r)?'[A] ':'')+escapeHTML(r.name)+nameTags+'</td>'+
+      '<td style="font-weight:500">'+(isAscend(r)?'[A] ':'')+escapeHTML(r.name)+nameTags+authTag+'</td>'+
       '<td style="font-family:monospace;font-size:12px;color:var(--mu)">'+escapeHTML(fmtP(r.phone))+'</td>'+
       '<td style="font-family:monospace;font-size:12px;color:var(--gold)">'+escapeHTML(r.ticket)+'</td>'+
       '<td style="font-size:12px;color:var(--mu)">'+escapeHTML(r.car)+'</td>'+
@@ -2844,6 +2847,7 @@ function renderTable() {
           '<div class="dc-c">'+escapeHTML(r.car)+(r.color?' · '+escapeHTML(r.color):'')+' · '+escapeHTML(fmtP(r.phone))+'</div>'+
           '<div class="dc-l">'+escapeHTML(r.loc||'No location')+' · <span class="dc-tk">'+escapeHTML(r.ticket)+'</span></div>'+
           '<div class="dc-l">Return: <span class="rd '+rc+'">'+escapeHTML(rl)+'</span> · <span class="badge '+bc+'">'+escapeHTML(r.status)+'</span></div>'+
+          authLine+
         '</div>'+
         '<div class="tw-card-action" onclick="event.stopPropagation()">'+actionBtn+'</div>'+
       '</div>'+
@@ -3594,6 +3598,7 @@ function selMode(el, mode) {
     document.getElementById('modalSub').textContent='Clock in or out';
     vsOpenPanel();
   }
+  ci2WideModal(isPax && !!_ci);
 }
 
 // ── SAVE RENTAL LOG ────────────────────────────────────────────
@@ -6523,6 +6528,7 @@ function ci2Close(){
   var box = document.getElementById('ci2'), leg = document.getElementById('ciLegacy');
   if (box) { box.hidden = true; box.innerHTML = ''; }
   if (leg) leg.hidden = false;
+  ci2WideModal(false);
   if (_ci && _ci.timer) clearInterval(_ci.timer);
   if (_ci && _ci.pollTimer) clearTimeout(_ci.pollTimer);
   document.removeEventListener('click', ci2ReprintOutside, true);
@@ -6536,10 +6542,13 @@ function ci2Open(){
           pick:null, pickLoc:'', calOpen:{}, calMonth:{}, msgId:null, pollN:0, pollTimer:null };
   document.getElementById('ciLegacy').hidden = true;
   var box = document.getElementById('ci2'); box.hidden = false; box.innerHTML = ci2Html();
+  ci2WideModal(true);
   document.getElementById('modalTitle').textContent = 'New check-in';
   document.getElementById('modalSub').textContent = 'Name, phone and consent create the ticket and send the valet pass.';
   ci2Bind(); ci2RenderPickers(); ci2RenderHangars(); ci2RenderMakes(); ci2RenderColors(); ci2RenderWash(); ci2RenderPickLoc(); ci2Need();
 }
+// Wider sheet on iPad for the v2 form only (the classic form keeps its size).
+function ci2WideModal(on){ var m = document.querySelector('#addOv .modal'); if (m) m.classList.toggle('ci2-wide', !!on); }
 function ci2Dirty(){
   if (!_ci || _ci.created) return false;
   var n = document.getElementById('ci2Name'), p = document.getElementById('ci2Phone');
@@ -6553,8 +6562,8 @@ function ci2Html(){
   + '<div class="ci2">'
   + '<div class="ci2-card" id="ci2Step">'
   +   '<div class="ci2-fly" role="group" aria-label="Flying with"><button type="button" data-op="MAKERS" aria-pressed="true">Makers Air</button><button type="button" data-op="ASCEND" aria-pressed="false">✈ Ascend</button></div>'
-  +   '<div class="ci2-f"><label for="ci2Name">Name</label><div class="ci2-acw"><input id="ci2Name" class="ci2-inp" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="First and last name"><div class="ci2-ac" id="ci2Ac" hidden></div></div><div class="ci2-hint" id="ci2Freq" hidden></div></div>'
-  +   '<div class="ci2-f"><label for="ci2Phone">Phone</label><div class="ci2-pw"><input id="ci2Phone" class="ci2-inp" type="tel" inputmode="numeric" autocomplete="off" maxlength="14" placeholder="(305) 555-0142"><span class="ci2-ok" id="ci2PhoneOk">Valid</span></div><div class="ci2-hint" id="ci2PhoneHint">US number. It can be a companion’s phone.</div></div>'
+  +   '<div class="ci2-np"><div class="ci2-f"><label for="ci2Name">Name</label><div class="ci2-acw"><input id="ci2Name" class="ci2-inp" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="First and last name"><div class="ci2-ac" id="ci2Ac" hidden></div></div><div class="ci2-hint" id="ci2Freq" hidden></div></div>'
+  +   '<div class="ci2-f"><label for="ci2Phone">Phone</label><div class="ci2-pw"><input id="ci2Phone" class="ci2-inp" type="tel" inputmode="numeric" autocomplete="off" maxlength="14" placeholder="(305) 555-0142"><span class="ci2-ok" id="ci2PhoneOk">Valid</span></div><div class="ci2-hint" id="ci2PhoneHint">US number. It can be a companion’s phone.</div></div></div>'
   +   '<div class="ci2-er" id="ci2Er" hidden>⚠️ This guest had an Early Return before. Confirm the return date carefully.</div>'
   +   '<div class="ci2-f"><div class="ci2-lr"><span class="ci2-lab" id="ci2RetLbl">Return date</span><span class="ci2-opt">Optional</span></div><div class="ci2-retpick" data-n="1"></div>'
   +     '<label class="ci2-check"><input type="checkbox" class="ci2-other"><span>Returning with another airline<small>No automatic pickup instructions; staff set the pickup place</small></span></label></div>'
@@ -6569,20 +6578,23 @@ function ci2Html(){
   + '</div>'
   + '<div id="ci2Created" hidden><div class="ci2-tag">'
   +   '<p class="ci2-who" id="ci2Who"></p><p class="ci2-num" id="ci2Num"></p>'
-  +   '<div class="ci2-rows">'
-  +     '<button type="button" class="ci2-row" data-open="ci2SRet"><span class="k">Return</span><span class="v" id="ci2TRet"></span><u>Edit</u></button>'
-  +     '<button type="button" class="ci2-row" data-open="ci2SVeh"><span class="k">Vehicle</span><span class="v" id="ci2TVeh"></span><u>Edit</u></button>'
-  +     '<button type="button" class="ci2-row" data-open="ci2SPick" id="ci2TPickRow" hidden><span class="k">Pickup by</span><span class="v" id="ci2TPick"></span><u>Edit</u></button>'
+  +   '<button type="button" class="ci2-veh" data-open="ci2SVeh"><span id="ci2TVeh"></span><u>Edit</u></button>'
+  +   '<div class="ci2-meta">'
+  +     '<button type="button" class="ci2-hgr" data-open="ci2SHangar" id="ci2THangar"></button>'
+  +     '<button type="button" class="ci2-mi" data-open="ci2SRet"><span>Return</span><b id="ci2TRet"></b></button>'
+  +     '<button type="button" class="ci2-mi" data-open="ci2SPick" id="ci2TPickRow" hidden><span>Pickup by</span><b id="ci2TPick"></b></button>'
   +   '</div>'
-  +   '<div class="ci2-chips" aria-live="polite"><span class="ci2-chip">Ticket created</span><span class="ci2-chip" id="ci2Sms"></span><span class="ci2-chip ok" id="ci2Pass" hidden></span></div>'
+  +   '<div class="ci2-sms" id="ci2Sms" role="status" aria-live="polite"></div>'
+  +   '<p class="ci2-passup" id="ci2Pass" hidden></p>'
   + '</div></div>'
-  + '<div id="ci2Details" class="ci2-details" hidden>'
+  + '<div id="ci2Details" class="ci2-details" hidden><div class="ci2-col">'
   +   ci2Sec('ci2SHangar', 'Hangar', 'Not set', '<div class="ci2-chipset" id="ci2Hangars"></div>')
   +   ci2Sec('ci2SVeh', 'Vehicle', 'Not set', '<p class="ci2-sub">Make</p><input class="ci2-search" id="ci2MakeQ" placeholder="Search or type any make" autocomplete="off"><div class="ci2-chipset" id="ci2Makes"></div>'
   +     '<div id="ci2ModelBox" hidden><p class="ci2-sub">Model</p><input class="ci2-search" id="ci2ModelQ" placeholder="Search or type any model" autocomplete="off"><div class="ci2-chipset" id="ci2Models"></div></div>'
   +     '<p class="ci2-sub">Color</p><div class="ci2-chipset" id="ci2Colors"></div><div id="ci2OtherColorBox" hidden><input class="ci2-search" id="ci2OtherColor" placeholder="Type the color" style="margin-top:8px"></div>')
   +   ci2Sec('ci2SRet', 'Return', 'No date yet', '<div class="ci2-retpick" data-n="2"></div><label class="ci2-check"><input type="checkbox" class="ci2-other"><span>Returning with another airline</span></label>'
   +     '<p class="ci2-sub">Return time (optional)</p><input class="ci2-search ci2-time" id="ci2Time" type="time">')
+  + '</div><div class="ci2-col">'
   +   ci2Sec('ci2SFlight', 'Flight / tail', 'Not set', '<input class="ci2-search" id="ci2Flight" placeholder="Flight or tail number" autocomplete="off" autocapitalize="characters"><p class="ci2-hint">With a return time or flight, the guest’s valet pass shows “Flying back”.</p>')
   +   ci2Sec('ci2SPick', 'Someone else will pick up', 'No', '<label class="ci2-check" style="margin-top:0"><input type="checkbox" id="ci2PickOn"><span>Someone else will pick up the vehicle<small>The guest keeps the valet pass. Nothing is texted to this person.</small></span></label>'
   +     '<div id="ci2PickForm" hidden><div class="ci2-two"><input class="ci2-search" id="ci2PName" placeholder="Pickup person name" autocomplete="off" autocapitalize="characters" maxlength="80"><input class="ci2-search" id="ci2PPhone" type="tel" inputmode="numeric" maxlength="14" placeholder="Phone (optional)"></div>'
@@ -6591,10 +6603,10 @@ function ci2Html(){
   +     '<div class="ci2-btnrow"><button type="button" class="ci2-btn" id="ci2PSave">Save authorization</button><button type="button" class="ci2-btn line danger" id="ci2PRevoke" hidden>Revoke</button></div>'
   +     '<p class="ci2-hint">At delivery the team checks this person’s photo ID and records who took the car. Having the valet pass link is never enough.</p></div>')
   +   ci2Sec('ci2SMore', 'More', 'Car wash, notes', '<p class="ci2-sub">Car wash</p><div class="ci2-chipset" id="ci2Wash"></div><p class="ci2-sub">Notes</p><textarea class="ci2-search ci2-ta" id="ci2Notes" placeholder="Anything the team should know"></textarea>')
-  + '</div>'
+  + '</div></div>'
   + '<div class="ci2-dock" id="ci2Dock" hidden><div class="ci2-need"><span id="ci2NH">Hangar</span><span id="ci2NM">Make or model</span><span id="ci2NC">Color</span></div>'
   +   '<button type="button" class="ci2-btn line" onclick="ci2Done()">Done</button>'
-  +   '<div class="ci2-printw"><button type="button" class="ci2-print" id="ci2Print" disabled aria-haspopup="menu" aria-expanded="false">Print key tag</button>'
+  +   '<div class="ci2-printw"><button type="button" class="ci2-print" id="ci2Print" disabled aria-haspopup="menu" aria-expanded="false">Print Tags</button>'
   +     '<div class="ci2-rpm" id="ci2Reprint" role="menu" hidden><button type="button" role="menuitem" data-print="both">Print both<small>Key + dashboard</small></button>'
   +     '<button type="button" role="menuitem" data-print="key">Key tag only</button><button type="button" role="menuitem" data-print="dash">Dashboard tag only</button></div></div></div>'
   + '</div>';
@@ -6626,7 +6638,7 @@ function ci2Bind(){
   ci2El('ci2Undo').addEventListener('click', function(){ ci2Undo(); });
   box.querySelectorAll('.ci2-other').forEach(function(c){ c.addEventListener('change', function(){ ci2SetOther(c.checked); }); });
   box.querySelectorAll('.ci2-sec-h').forEach(function(h){ h.addEventListener('click', function(){ ci2Toggle(h.parentNode.id); }); });
-  box.querySelectorAll('.ci2-row').forEach(function(r){ r.addEventListener('click', function(){ ci2OpenSec(r.dataset.open); }); });
+  box.querySelectorAll('#ci2Created [data-open]').forEach(function(r){ r.addEventListener('click', function(){ ci2OpenSec(r.dataset.open); }); });
   ci2El('ci2MakeQ').addEventListener('input', ci2RenderMakes);
   ci2El('ci2ModelQ').addEventListener('input', ci2RenderModels);
   ci2El('ci2OtherColor').addEventListener('change', function(){ var v = this.value.trim(); if (v) ci2SetColor(v); });
@@ -6759,49 +6771,63 @@ async function ci2Create(withText){
   document.getElementById('modalSub').textContent = 'Saved. Add details below — each one saves to this ticket.';
   ci2RenderCard(); ci2Need();
   var sc = ci2El('ci2Sms');
-  if (_ci.offline) { ci2Chip('warn', 'Saved offline · text not sent'); return; }
-  if (!withText) { ci2Chip('', 'No texts'); return; }
+  if (_ci.offline) { ci2Sms('notsent', 'Saved offline — no text sent'); return; }
+  if (!withText) { ci2Sms('noconsent', 'Guest chose no texts'); return; }
   if (res.consent && smsRouteFor(_ci.id) === 'server') { ci2SendWelcome(); return; }
   // Not in AirValet texting on this device: one tap opens iPhone Messages.
-  ci2Chip('warn', 'Text not sent yet <button type="button" onclick="ci2NativeWelcome()">Send from iPhone</button>');
+  ci2Sms('notsent', 'This device is not in AirValet texting', 'Send from iPhone');
 }
-function ci2Chip(cls, html){ var c = ci2El('ci2Sms'); if (!c) return; c.className = 'ci2-chip' + (cls ? ' ' + cls : ''); c.innerHTML = html; }
+// Welcome SMS status on the ticket card. "Sent" only once the backend says
+// sent/delivered (Twilio status callback); accepted/queued stays "Sending".
+var CI2_SMS_LABEL = { sending: 'Sending', sent: 'Sent', failed: 'Failed', noconsent: 'No consent', notsent: 'Not sent' };
+function ci2Sms(state, detail, action){
+  var c = ci2El('ci2Sms'); if (!c) return;
+  _ci.smsState = state;
+  c.className = 'ci2-sms ' + state;
+  c.innerHTML = '<i aria-hidden="true"></i><span class="l">Welcome SMS</span><b>' + CI2_SMS_LABEL[state] + '</b>'
+    + (detail ? '<span class="d">' + escapeHTML(detail) + '</span>' : '')
+    + (action ? '<button type="button" onclick="ci2NativeWelcome()">' + escapeHTML(action) + '</button>' : '');
+}
 async function ci2SendWelcome(){
-  ci2Chip('', 'Valet pass: sending…');
+  ci2Sms('sending');
   var r = await sendServerSms(_ci.id, 'CHECK_IN');
   if (typeof loadInbox === 'function') loadInbox();
   if (!_ci) return;
   if (r && r.ok) {
-    if (r.duplicate) { ci2Chip('ok', 'Valet pass already sent'); return; }
-    _ci.msgId = r.messageId || null; ci2Chip('', 'Valet pass: sent'); ci2PollSms(); return;
+    // Accepted by the server (also a duplicate of the same welcome): the real
+    // state comes from the message row.
+    _ci.msgId = r.messageId || null; ci2Sms('sending', r.duplicate ? 'Already requested — not sent twice' : 'Waiting for the carrier'); ci2PollSms(true); return;
   }
   var code = r && r.error ? r.error.code : '';
   var notSent = SMS_NATIVE_FALLBACK[code] || (r && r.status === 'failed' && code !== '21610');
   // The server guarantees nothing went out → iPhone Messages is safe. Otherwise
   // no fallback (a retry could double-text); the reason is shown instead.
-  if (notSent) ci2Chip('fail', 'Text failed <button type="button" onclick="ci2NativeWelcome()">Send from iPhone</button>');
-  else ci2Chip('fail', 'Not sent: ' + escapeHTML(smsBlockText(code)));
+  if (notSent) ci2Sms('failed', smsBlockText(code), 'Send from iPhone');
+  else ci2Sms('notsent', smsBlockText(code));
 }
-function ci2PollSms(){
+function ci2PollSms(now){
   if (!_ci || !_ci.msgId) return;
   _ci.pollTimer = setTimeout(async function(){
     if (!_ci || !_ci.msgId) return;
     try {
       var rows = await smsApi('/rest/v1/airvalet_sms_messages?id=eq.' + encodeURIComponent(_ci.msgId) + '&select=status,error_code', { method: 'GET' });
       var m = rows && rows[0]; if (!_ci) return;
-      if (m && m.status === 'delivered') { ci2Chip('ok', 'Valet pass: delivered ✓'); return; }
-      if (m && (m.status === 'failed' || m.status === 'undelivered')) { ci2Chip('fail', 'Text not delivered' + (m.error_code ? ' (' + escapeHTML(m.error_code) + ')' : '') + ' <button type="button" onclick="ci2NativeWelcome()">Send from iPhone</button>'); return; }
-      if (m && m.status === 'send_unknown') { ci2Chip('warn', 'Unconfirmed — check the inbox before resending'); return; }
+      if (m && m.status === 'delivered') { ci2Sms('sent', 'Delivered to the phone'); return; }
+      if (m && m.status === 'sent') { ci2Sms('sent', 'Waiting for delivery'); ci2PollAgain(); return; }
+      if (m && (m.status === 'failed' || m.status === 'undelivered')) { ci2Sms('failed', 'Not delivered' + (m.error_code ? ' (' + m.error_code + ')' : ''), 'Send from iPhone'); return; }
+      if (m && m.status === 'blocked') { ci2Sms('notsent', smsBlockText(m.error_code)); return; }
+      if (m && m.status === 'send_unknown') { ci2Sms('sending', 'Unconfirmed — check the inbox before resending'); return; }
     } catch(e) { /* keep the last status on screen */ }
-    if (++_ci.pollN < 20) ci2PollSms();
-  }, 3000);
+    ci2PollAgain();
+  }, now ? 600 : 3000);
 }
+function ci2PollAgain(){ if (_ci && ++_ci.pollN < 40) ci2PollSms(); }
 function ci2NativeWelcome(){
   var r = data.find(function(x){ return x.id === _ci.id; }) || { ticket: _ci.ticket, ret: '', return_operator: _ci.other ? 'OTHER' : _ci.op };
   var name = ci2El('ci2Name').value.trim().toUpperCase(), phone = ci2El('ci2Phone').value.trim();
   sendNativeSms({ passengerId: _ci.id, passengerName: name, phone: phone, ticket: _ci.ticket, templateKey: 'WELCOME',
     messageType: welcomeSmsMessageType(r), body: buildWelcomeSms(r), metadata: { trigger: 'New check-in v2 — Send from iPhone' } });
-  ci2Chip('', 'Opened in iPhone Messages');
+  ci2Sms('notsent', 'Opened in iPhone Messages — not tracked here');
 }
 function ci2Done(){ closeAll(); }
 
@@ -6815,14 +6841,15 @@ function ci2RetSummary(){
 }
 function ci2RenderCard(){
   if (!_ci || !_ci.created) return;
-  var tr = ci2El('ci2TRet'); tr.textContent = ci2RetSummary(); tr.className = 'v' + (_ci.ret || _ci.noDate ? '' : ' ci2-empty');
-  var v = ci2VehLine(); var tv = ci2El('ci2TVeh'); tv.textContent = v || 'Add make, model, color'; tv.className = 'v' + (v ? '' : ' ci2-empty');
+  ci2El('ci2TRet').textContent = ci2RetSummary();
+  var v = ci2VehLine(), tv = ci2El('ci2TVeh'); tv.textContent = v || 'Add vehicle'; tv.className = v ? '' : 'ci2-empty';
+  var hg = ci2El('ci2THangar'); hg.textContent = _ci.hangar || 'Add hangar'; hg.className = 'ci2-hgr' + (_ci.hangar ? '' : ' ci2-empty');
   ci2El('ci2TPickRow').hidden = !_ci.pick;
   if (_ci.pick) ci2El('ci2TPick').textContent = _ci.pick.name + (_ci.pick.loc ? ' · ' + _ci.pick.loc : '');
 }
 function ci2PassUpdated(msg){
   if (!_ci.created) return;
-  var c = ci2El('ci2Pass'); c.hidden = false; c.textContent = _ci.offline ? 'Saved offline' : 'Pass updated ✓';
+  var c = ci2El('ci2Pass'); c.hidden = false; c.textContent = _ci.offline ? 'Saved offline' : 'Valet pass updated ✓ (no new text)';
   if (msg) ci2Toast(msg);
 }
 
@@ -6959,7 +6986,7 @@ function ci2ChipSet(el, items, sel, onPick, render){
 function ci2RenderHangars(){
   var counts = computeHangarCounts();
   ci2ChipSet(ci2El('ci2Hangars'), HANGARS, _ci.hangar, async function(h){
-    var prev = _ci.hangar; _ci.hangar = h; ci2RenderHangars(); ci2HangarSum(); ci2Need();
+    var prev = _ci.hangar; _ci.hangar = h; ci2RenderHangars(); ci2HangarSum(); ci2Need(); ci2RenderCard();
     if (_ci.created && !(await ci2Save({ loc: h }, 'ci2SHangar', 'Location ' + (prev || '—') + ' → ' + h))) { _ci.hangar = prev; ci2RenderHangars(); ci2HangarSum(); ci2Need(); }
   }, function(h){ return escapeHTML(h) + (counts[h] ? '<small>' + counts[h] + '</small>' : ''); });
 }
@@ -7042,7 +7069,7 @@ async function ci2PickRevoke(){
   ci2RenderPickLoc(); ci2RenderCard(); ci2Toast('Authorization revoked.');
 }
 
-// ── Print: manual, only with Hangar + Make/Model + Color ──
+// ── Print Tags: manual, only with Hangar + Make/Model + Color ──
 // First tap prints both operational tags: the Key tag (keys) and the
 // Dashboard tag (the car's dashboard, how valets find the car). After that the
 // button offers Reprint: both, key only or dashboard only. One job at a time:
@@ -7053,7 +7080,7 @@ function ci2Need(){
   ci2El('ci2NH').className = h ? 'ok' : ''; ci2El('ci2NM').className = m ? 'ok' : ''; ci2El('ci2NC').className = c ? 'ok' : '';
   var b = ci2El('ci2Print');
   b.disabled = !!_ci.printing || !(h && m && c && _ci.created);
-  b.textContent = _ci.printing ? 'Printing…' : (_ci.printed ? 'Reprint ▾' : 'Print key tag');
+  b.textContent = _ci.printing ? 'Printing…' : (_ci.printed ? 'Reprint ▾' : 'Print Tags');
   b.setAttribute('aria-expanded', String(!ci2El('ci2Reprint').hidden));
 }
 function ci2PrintTap(){

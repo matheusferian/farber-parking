@@ -119,6 +119,12 @@ async def main():
             raise
         check(await page.evaluate('smsProgramOpen()'), 'device approved and AirValet texting open (local mock)')
 
+        # 0. iPad layout: wider sheet, name + phone side by side.
+        await open_new(page)
+        lay = await page.evaluate("(() => { const m = document.querySelector('#addOv .modal').getBoundingClientRect(); const n = document.getElementById('ci2Name').getBoundingClientRect(); const p = document.getElementById('ci2Phone').getBoundingClientRect(); return { w: m.width, sameRow: Math.abs(n.top - p.top) < 2, h: n.height }; })()")
+        check(lay['w'] >= 760 and lay['sameRow'] and lay['h'] >= 60, 'iPad: wider sheet, Name and Phone side by side, 60px+ fields', lay)
+        await page.evaluate('closeAll()')
+
         # 1. Typing never sends; editing during the countdown cancels it.
         n0 = int(sql("select count(*) from passengers"))
         await open_new(page)
@@ -147,7 +153,17 @@ async def main():
         check(await page.evaluate('_smsEnrolled[_ci.id] === true'), 'ticket enrolled in AirValet texting')
         await page.wait_for_timeout(1500)
         chip = await page.inner_text('#ci2Sms')
-        check(re.search(r'sent|delivered', chip, re.I) is not None, 'card shows the text status', chip)
+        check('Sending' in chip and 'Sent' not in chip.replace('Sending', ''), 'accepted by the server but no carrier confirmation → card says Sending (never Sent)', chip)
+        sql(f"update airvalet_sms_messages set status = 'sent', sent_at = now() where passenger_id = {r['id']} and message_type = 'CHECK_IN'")
+        await page.wait_for_function("document.getElementById('ci2Sms').classList.contains('sent')", timeout=8000)
+        chip = await page.inner_text('#ci2Sms')
+        check(re.search(r'\bSent\b', chip) is not None, 'backend status sent → card says Sent', chip)
+        sql(f"update airvalet_sms_messages set status = 'delivered', delivered_at = now() where passenger_id = {r['id']} and message_type = 'CHECK_IN'")
+        await page.wait_for_function("document.getElementById('ci2Sms').innerText.includes('Delivered')", timeout=8000)
+        check('Delivered to the phone' in await page.inner_text('#ci2Sms'), 'backend delivered → Sent · Delivered to the phone')
+        card = await page.evaluate("({num: getComputedStyle(document.getElementById('ci2Num')).fontSize, veh: getComputedStyle(document.querySelector('.ci2-veh')).fontSize, order: [...document.querySelector('.ci2-tag').children].map(e => e.id || e.className)})")
+        check(float(card['num'][:-2]) > float(card['veh'][:-2]) and card['order'][1] == 'ci2Num' and card['order'][2] == 'ci2-veh' and card['order'][3] == 'ci2-meta' and card['order'][4] == 'ci2Sms',
+              'card hierarchy: ticket number > vehicle > hangar > welcome SMS', card)
         # Second tap / second create call → still one ticket and one text.
         await page.evaluate('ci2Create(true)')
         await page.wait_for_timeout(800)
@@ -155,7 +171,7 @@ async def main():
         check(sql(f"select count(*) from airvalet_sms_messages where passenger_id = {r['id']} and message_type = 'CHECK_IN'") == '1', 'repeat create call → still one text')
 
         # 3. Return date changed later → same pass, no new text.
-        await page.click('.ci2-row[data-open="ci2SRet"]')
+        await page.click('#ci2Created [data-open="ci2SRet"]')
         await page.click('#ci2SRet [data-cal="2"]')
         await page.click('#ci2SRet .ci2-cal-g button:not([disabled]):nth-of-type(5)')
         await page.wait_for_timeout(800)
@@ -173,20 +189,23 @@ async def main():
         check(sql(f"select count(*) from airvalet_sms_messages where passenger_id = {r['id']}") == '1', 'still one text after all return edits')
 
         # 4. Vehicle + hangar + color unlock Print key tag (manual, one tap).
-        check(await page.is_disabled('#ci2Print'), 'Print key tag locked before Hangar + Make/Model + Color')
+        check(await page.is_disabled('#ci2Print'), 'Print Tags locked before Hangar + Make/Model + Color')
+        check(await page.inner_text('#ci2Print') == 'Print Tags', 'button is labelled Print Tags')
         await page.click('.ci2-sec-h >> text=Hangar')
         await page.click('#ci2Hangars button >> nth=0')
-        await page.click('.ci2-row[data-open="ci2SVeh"]')
+        await page.click('#ci2Created [data-open="ci2SVeh"]')
         await page.fill('#ci2MakeQ', 'cadil')
         await page.click('#ci2Makes button >> text=Cadillac')
         await page.click('#ci2Models button >> text=Escalade')
         check(await page.is_disabled('#ci2Print'), 'still locked without color')
         await page.click('#ci2Colors button >> text=Black')
         await page.wait_for_timeout(700)
-        check(not await page.is_disabled('#ci2Print'), 'Print key tag unlocked')
+        check(not await page.is_disabled('#ci2Print'), 'Print Tags unlocked')
         check(await page.evaluate('window.__prints.length') == 0, 'nothing printed automatically')
         check(sql(f"select car || '|' || color || '|' || loc from passengers where id = {r['id']}") == 'CADILLAC ESCALADE|Black|HANGAR 19', 'vehicle and hangar saved progressively')
         await shot(page, 'v2-ipad-3-details')
+        cols = await page.evaluate("getComputedStyle(document.getElementById('ci2Details')).gridTemplateColumns.split(' ').length")
+        check(cols == 2, 'iPad: detail sections in two columns', cols)
 
         # 5. Authorized pickup on the same ticket; nothing texted to that person.
         await page.click('.ci2-sec-h >> text=Someone else will pick up')
@@ -199,6 +218,11 @@ async def main():
         await page.wait_for_timeout(800)
         check(sql(f"select pickup_auth_name || '|' || pickup_auth_phone || '|' || pickup_auth_location from passengers where id = {r['id']}") == 'ANA SOUZA & CO|7865550111|Customs', 'authorization saved on the same ticket')
         check(sql("select count(*) from airvalet_sms_messages where phone_e164 = '+17865550111'") == '0', 'nothing texted to the pickup person')
+        dash = await page.evaluate(f"""(() => {{ const f0 = curFilter; curFilter = 'all'; render(); const r = data.find(x => x.id === {r['id']});
+          const row = document.querySelector('#tbody tr[data-id="{r['id']}"]'), card = document.querySelector('#tbodyCards .dcard[data-id="{r['id']}"]');
+          const out = {{ tag: !!(row && row.querySelector('.t-authpk')), line: card && card.querySelector('.dc-authpk') ? card.querySelector('.dc-authpk').innerText : '' }}; curFilter = f0; render(); return out; }})()""")
+        check(dash['tag'] and 'ANA SOUZA & CO' in dash['line'] and '(786) 555-0111' in dash['line'] and 'Customs' in dash['line'],
+              'dashboard: AUTHORIZED PICKUP tag in the table and name · phone · place on the car card', dash)
         check(int(sql(f"select count(*) from passengers where phone like '%{phone[-4:]}' and name = 'E2E GUEST ONE'")) == 1, 'no second check-in created')
         sms_before = sql(f"select count(*) from airvalet_sms_messages where passenger_id = {r['id']}")
         pre = await page.evaluate('window.__prints.map(p => [p.label, String(p.xml).slice(0, 160)])')
@@ -211,11 +235,11 @@ async def main():
         await page.wait_for_timeout(1200)
         prints = await page.evaluate('window.__prints')
         labels = [p['label'] for p in prints]
-        check(labels == ['Key', 'Dashboard'], 'Print key tag (3 fast taps) → exactly one Key tag + one Dashboard tag, no customer copy', labels)
+        check(labels == ['Key', 'Dashboard'], 'Print Tags (3 fast taps) → exactly one Key tag + one Dashboard tag, no customer copy', labels)
         check(all(well_formed(p['xml']) for p in prints), 'print XML well-formed with "&" in the pickup name')
         check('AUTHORIZED PICKUP' in prints[0]['xml'] and 'ANA SOUZA &amp; CO' in prints[0]['xml'], 'key tag shows AUTHORIZED PICKUP + name (escaped)')
         check('DASHBOARD COPY' in prints[1]['xml'] and r['ticket'] in prints[1]['xml'], 'dashboard tag has the ticket number')
-        check(await page.inner_text('#ci2Print') == 'Reprint ▾', 'button becomes Reprint')
+        check(await page.inner_text('#ci2Print') == 'Reprint ▾', 'button becomes Reprint ▾')
         check(await page.is_hidden('#ci2Reprint'), 'reprint options closed until tapped')
         await page.click('#ci2Print')
         check(await page.is_visible('#ci2Reprint'), 'Reprint opens three options')
@@ -294,6 +318,7 @@ async def main():
 
         # 8. No texts → ticket created, zero texts.
         rn = await create(page, 'E2E NO TEXTS', '30555' + RUN + '04', consent=False)
+        check('No consent' in await page.inner_text('#ci2Sms'), 'No texts → card says No consent')
         check(sql(f"select count(*) from airvalet_sms_messages where passenger_id = {rn['id']}") == '0', 'No texts → ticket created, nothing sent')
         await page.evaluate('closeAll()')
 
@@ -302,7 +327,7 @@ async def main():
         await page.wait_for_timeout(1500)
         chip = await page.inner_text('#ci2Sms')
         check(bool(rf['id']), 'provider failure → check-in still saved', rf)
-        check(re.search(r'fail|not', chip, re.I) is not None, 'card shows the failure', chip)
+        check('Failed' in chip, 'card shows Failed (with the reason)', chip)
         await shot(page, 'v2-ipad-6-twilio-fail')
         await page.evaluate('closeAll()')
 
@@ -333,6 +358,7 @@ async def main():
         check(labels == ['Key', 'Dashboard'] and all(well_formed(p['xml']) for p in await page.evaluate('window.__prints')), 'after a page reload: Key + Dashboard print from the car record', labels)
         await page.evaluate("localStorage.setItem('airvalet_checkin_classic', '1'); openAdd();")
         check(await page.is_visible('#fName') and await page.is_hidden('#ci2') and await page.is_visible('#saveBtnPrint'), 'classic form: shown with its own Save + Print button')
+        check(not await page.evaluate("document.querySelector('#addOv .modal').classList.contains('ci2-wide')"), 'classic form keeps its original sheet width')
         await page.evaluate('window.__prints = []')
         await page.fill('#fName', 'E2E CLASSIC & SON')
         await page.click('#fPhone'); await page.keyboard.type('30555' + RUN + '07')
@@ -354,12 +380,24 @@ async def main():
         await page.click('.ci2-retpick[data-n="1"] [data-cal="1"]')
         sw = await page.evaluate('document.documentElement.scrollWidth')
         check(sw <= 390, 'iPhone: no horizontal scroll', sw)
+        lay = await page.evaluate("(() => { const n = document.getElementById('ci2Name').getBoundingClientRect(); const p = document.getElementById('ci2Phone').getBoundingClientRect(); return { stacked: p.top > n.bottom, w: n.width }; })()")
+        check(lay['stacked'] and lay['w'] >= 300, 'iPhone: one column, full-width fields', lay)
         await shot(page, 'v2-iphone-1-calendar')
         await page.evaluate('closeAll()')
 
         check(not errors, 'no page errors', errors)
         await b.close()
-    # Let the scratch reseed.sh delete this test device again.
+    # Leave the local stack as found: remove this run's fictitious rows (they would
+    # collide with fixed ticket numbers in other suites) and the test device link.
+    sql("""do $$ declare r record; begin
+      create temp table e2e_ids on commit drop as select id from passengers where name like 'E2E %';
+      for r in select conrelid::regclass t, a.attname c from pg_constraint k join pg_attribute a on a.attrelid = k.conrelid and a.attnum = any(k.conkey)
+               where k.contype = 'f' and k.confrelid = 'public.passengers'::regclass loop
+        execute format('delete from %s where %I in (select id from e2e_ids)', r.t, r.c);
+      end loop;
+      delete from airvalet_sms_messages where passenger_id in (select id from e2e_ids);
+      delete from passengers where id in (select id from e2e_ids);
+    end $$""")
     sql("delete from airvalet_sms_enrollments where device_id in (select id from airvalet_sms_devices where label = 'E2E iPad')")
     print(f'\n{oks} passed, {fails} failed')
     sys.exit(1 if fails else 0)
