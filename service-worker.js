@@ -51,7 +51,7 @@
 // v46: Returning with / pickup model, Makers Customs exception, Needs Review
 //      (index.html, utils.js, styles.css changed). Same SHELL_FILES.
 // v47: AirValet SMS inbox + server-side texts (only when SMS_PROVIDER = 'twilio').
-var CACHE_VERSION = 'v58';
+var CACHE_VERSION = 'v59';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 var SHELL_FILES = [

@@ -641,13 +641,11 @@
 <!-- TIP CONFIRMATION OVERLAY -->
 <div class="ov" id="tipOv">
   <div class="modal" style="max-width:340px;text-align:center">
-    <div style="font-family:'Sora',sans-serif;font-size:18px;font-weight:800;color:var(--tx);margin-bottom:4px">💵 Tip Received?</div>
+    <div style="font-family:'Sora',sans-serif;font-size:18px;font-weight:800;color:var(--tx);margin-bottom:4px">Confirm delivery?</div>
     <div id="tipPassName" style="font-size:16px;font-weight:800;color:var(--tx);margin-top:8px;font-family:'Sora',sans-serif"></div>
     <div id="tipVehicleLine" style="font-size:12px;color:var(--mu);margin-top:2px;font-family:'JetBrains Mono',monospace"></div>
-    <div style="font-size:13px;color:var(--mu);margin:14px 0 16px">Did the passenger leave a tip?</div>
-    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px">
-      <button class="tip-opt tip-yes" id="tipYesBtn" onclick="selectTip(true)">✅ Yes</button>
-      <button class="tip-opt tip-no" id="tipNoBtn" onclick="selectTip(false)">❌ No</button>
+    <div style="display:flex;flex-direction:column;gap:10px;margin:18px 0 20px">
+      <button class="tip-opt tip-yes" id="tipYesBtn" onclick="selectTip(null)">✅ Deliver</button>
     </div>
     <button class="btnc" id="tipCancelBtn" onclick="closeTipModal()">Cancel</button>
   </div>
@@ -2911,7 +2909,7 @@ function renderDay() {
       return '<div class="dcard '+cls+(isApprox?' approx-card':'')+(r.status==='DELIVERED'&&showDeliver?' delivered-today-card':'')+'" onclick="showDet('+r.id+')">'+
         '<div class="dc-top">'+
           '<div class="dc-body">'+
-            '<div class="dc-n">'+(r.status==='DELIVERED'&&showDeliver?'<span style="text-decoration:line-through;opacity:0.6">'+(isAscend(r)?'[A] ':'')+escapeHTML(r.name)+'</span>':(isAscend(r)?'[A] ':'')+escapeHTML(r.name))+(isApprox?' <span style="font-size:9px;background:rgba(201,168,76,0.2);color:var(--gold);border-radius:4px;padding:2px 5px;margin-left:4px">~APPROX</span>':'')+(isAscend(r)?'<span style="font-size:9px;background:rgba(99,179,237,0.18);color:#63b3ed;border-radius:4px;padding:2px 5px;margin-left:4px;font-family:\'JetBrains Mono\',monospace">✈ ASCEND</span>':'')+(r.not_returning_with_makers_air?' '+OTHER_BOAT_DASH_ICON_HTML:'')+(r.isOfflinePending?'<span style="font-size:9px;background:rgba(232,160,48,.22);color:#e8a030;border-radius:4px;padding:2px 5px;margin-left:4px;font-weight:800;font-family:\'JetBrains Mono\',monospace" title="Saved locally, not yet on the server">🟠 PENDING SYNC</span>':'')+(r.status==='DELIVERED'?tipStatusCompact(r):'')+(showCarwashBadge?carwashBadgeHtml(r):'')+'</div>'+
+            '<div class="dc-n">'+(r.status==='DELIVERED'&&showDeliver?'<span style="text-decoration:line-through;opacity:0.6">'+(isAscend(r)?'[A] ':'')+escapeHTML(r.name)+'</span>':(isAscend(r)?'[A] ':'')+escapeHTML(r.name))+(isApprox?' <span style="font-size:9px;background:rgba(201,168,76,0.2);color:var(--gold);border-radius:4px;padding:2px 5px;margin-left:4px">~APPROX</span>':'')+(isAscend(r)?'<span style="font-size:9px;background:rgba(99,179,237,0.18);color:#63b3ed;border-radius:4px;padding:2px 5px;margin-left:4px;font-family:\'JetBrains Mono\',monospace">✈ ASCEND</span>':'')+(r.not_returning_with_makers_air?' '+OTHER_BOAT_DASH_ICON_HTML:'')+(r.isOfflinePending?'<span style="font-size:9px;background:rgba(232,160,48,.22);color:#e8a030;border-radius:4px;padding:2px 5px;margin-left:4px;font-weight:800;font-family:\'JetBrains Mono\',monospace" title="Saved locally, not yet on the server">🟠 PENDING SYNC</span>':'')+(showCarwashBadge?carwashBadgeHtml(r):'')+'</div>'+
             '<div class="dc-c">'+escapeHTML(r.car)+' · '+escapeHTML(fmtP(r.phone))+'</div>'+
             flightHtml+
           '</div>'+
@@ -3945,7 +3943,7 @@ document.querySelectorAll('.ov').forEach(function(o){o.addEventListener('click',
 // ── TIP CONFIRMATION MODAL ──────────────────────────────────────
 var _tipSaving=false;
 function setTipButtonsDisabled(disabled){
-  ['tipYesBtn','tipNoBtn','tipCancelBtn'].forEach(function(id){
+  ['tipYesBtn','tipCancelBtn'].forEach(function(id){
     var b=document.getElementById(id);
     if(b) b.disabled=disabled;
   });
@@ -6650,7 +6648,7 @@ function showDet(id){
       (r.status==='DELIVERED'?
         '<div class="di" style="grid-column:1/-1"><div class="di-l">Delivery Method</div><div class="di-v">'+deliveryMethodHtml(r.delivery_type)+'</div></div>'+
         (r.previous_delivery_location?'<div class="di" style="grid-column:1/-1"><div class="di-l">Delivered From</div><div class="di-v" style="font-family:\'JetBrains Mono\',monospace;font-size:13px;color:var(--mu)">'+escapeHTML(r.previous_delivery_location)+'</div></div>':'')+
-        '<div class="di" style="grid-column:1/-1"><div class="di-l">Tip</div><div class="di-v">'+tipStatusHtml(r)+'</div></div>'
+        ''
       :'')+
     '</div>'+histH+
     (r.archived_by?
@@ -6738,10 +6736,9 @@ function openTipModal(id, deliveryType){
 }
 
 async function deliverWithTip(id, deliveryType, tipReceived){
-  if(tipReceived!==true && tipReceived!==false){
-    showMsg('Invalid tip status', true);
-    return false;
-  }
+  // Tip is no longer asked at delivery (owner 2026-10-25): tip_received stays
+  // null; everyone gets the same delivered text with the gratuity link.
+  if(tipReceived!==true && tipReceived!==false) tipReceived=null;
   var r=null; for(var i=0;i<data.length;i++){if(data[i].id===id){r=data[i];break;}}
   if(!r) return false;
   if(r.isOfflinePending){ showMsg(OFFLINE_PENDING_SYNC_MSG, true); return false; }
@@ -6749,7 +6746,7 @@ async function deliverWithTip(id, deliveryType, tipReceived){
   var isCustoms=deliveryType==='CUSTOMS';
   var prevLoc=r.loc||'';
   var deliveryOk=false;
-  var tipLabel=tipReceived?'YES':'NO';
+  var tipNote=tipReceived===null?'':(' | Tip: '+(tipReceived?'YES':'NO'));
   loading(true);
   try{
     var todayStr=getTodayStr();
@@ -6760,11 +6757,11 @@ async function deliverWithTip(id, deliveryType, tipReceived){
     if(!isCustoms){upd.loc='HANGAR 19';upd.previous_delivery_location=prevLoc;}
     await sbUpdate(r.id,upd);
     if(!isCustoms){
-      await sbLog('DELIVERED_FROM_LOCATION',r.name,r.ticket,'HANGAR 19','Delivered as '+deliveryType+'. Previous location: '+prevLoc+'. Final location automatically changed to HANGAR 19.'+(isLateDeliver?' (late)':'')+' | Tip: '+tipLabel,{passenger_id:r.id});
-      vlhInsert({passenger_id:r.id,ticket:r.ticket,passenger_name:r.name,from_location:prevLoc,to_location:'HANGAR 19',action:'DELIVERED ('+deliveryType+')',note:'Tip: '+tipLabel+(isLateDeliver?' | Late delivery':''),created_by:_currentUserEmail});
+      await sbLog('DELIVERED_FROM_LOCATION',r.name,r.ticket,'HANGAR 19','Delivered as '+deliveryType+'. Previous location: '+prevLoc+'. Final location automatically changed to HANGAR 19.'+(isLateDeliver?' (late)':'')+tipNote,{passenger_id:r.id});
+      vlhInsert({passenger_id:r.id,ticket:r.ticket,passenger_name:r.name,from_location:prevLoc,to_location:'HANGAR 19',action:'DELIVERED ('+deliveryType+')',note:(isLateDeliver?'Late delivery':''),created_by:_currentUserEmail});
     } else {
-      await sbLog('DELIVERED',r.name,r.ticket,r.loc,'Vehicle delivered'+(isLateDeliver?' (late)':'')+' via CUSTOMS | Tip: '+tipLabel,{passenger_id:r.id});
-      vlhInsert({passenger_id:r.id,ticket:r.ticket,passenger_name:r.name,from_location:prevLoc,to_location:r.loc,action:'DELIVERED (CUSTOMS)',note:'Tip: '+tipLabel+(isLateDeliver?' | Late delivery':''),created_by:_currentUserEmail});
+      await sbLog('DELIVERED',r.name,r.ticket,r.loc,'Vehicle delivered'+(isLateDeliver?' (late)':'')+' via CUSTOMS'+tipNote,{passenger_id:r.id});
+      vlhInsert({passenger_id:r.id,ticket:r.ticket,passenger_name:r.name,from_location:prevLoc,to_location:r.loc,action:'DELIVERED (CUSTOMS)',note:(isLateDeliver?'Late delivery':''),created_by:_currentUserEmail});
     }
     for(var i=0;i<data.length;i++){
       if(data[i].id===r.id){
@@ -6778,7 +6775,7 @@ async function deliverWithTip(id, deliveryType, tipReceived){
       }
     }
     render();
-    showMsg('✓ Delivered: '+r.name+' (Tip: '+tipLabel+')', false);
+    showMsg('✓ Delivered: '+r.name, false);
     deliveryOk=true;
   }catch(e){
     showMsg('Error: '+e.message,true);
