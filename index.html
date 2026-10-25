@@ -4484,6 +4484,7 @@ function renderInboxList(){
   var box = document.getElementById('ibxConvs'); if (!box) return;
   var q = ((document.getElementById('ibxSearch') || {}).value || '').trim().toLowerCase();
   var rows = _ibx.convs.filter(function(c){
+    if (/^TEST-/i.test(String(c.ticket || ''))) return false; // archived owner tests stay in history, off the list
     if (!q) return true;
     return [c.passenger_name, c.ticket, c.phone_e164, c.last_body].some(function(v){ return String(v || '').toLowerCase().indexOf(q) !== -1; });
   });
@@ -4534,10 +4535,12 @@ async function resolveSmsAlert(messageId, resolution){
 function renderInboxReview(){
   var box = document.getElementById('ibxReview'); if (!box) return;
   var alertsHtml = renderSmsAlerts();
-  if (!_ibx.review.length){ box.innerHTML = alertsHtml; return; }
-  var unread = _ibx.review.filter(function(m){ return !m.read_at; }).length;
+  // Only what still needs someone: unread replies, or ambiguous ones to link.
+  var todo = _ibx.review.filter(function(m){ return !m.read_at || m.match_method === 'ambiguous'; });
+  if (!todo.length){ box.innerHTML = alertsHtml; return; }
+  var unread = todo.filter(function(m){ return !m.read_at; }).length;
   box.innerHTML = alertsHtml + '<div class="ibx-sec-t">Needs review' + (unread ? ' <span class="ibx-unread">' + unread + '</span>' : '') + '</div>' +
-    _ibx.review.map(function(m){
+    todo.map(function(m){
       var phone = String(m.phone_e164 || '');
       var masked = phone.length > 4 ? '+1 •••-•••-' + phone.slice(-4) : phone;
       var cands = Array.isArray(m.match_candidates) ? m.match_candidates : [];
@@ -4548,7 +4551,7 @@ function renderInboxReview(){
           return '<button class="rp-btn" onclick="assignInboundToPassenger(\'' + m.id + '\',' + id + ')">' + escapeHTML(p.name) + ' · #' + escapeHTML(p.ticket || '') + '</button>';
         }).join('') + '</div>';
       } else {
-        actions = '<div class="ibx-rv-note">No passenger on file with this number. A reply can only be linked to a passenger whose phone is this number.</div>' +
+        actions = '<div class="ibx-rv-note">Number not on file.</div>' +
           (m.read_at ? '<div class="ibx-rv-note">Read ' + escapeHTML(ibxTime(m.read_at)) + '</div>' : '<div class="ibx-rv-acts"><button class="rp-btn" onclick="markInboundRead(\'' + m.id + '\')">Mark as read</button></div>');
       }
       return '<div class="ibx-rv' + (m.read_at ? ' read' : '') + '"><div class="ibx-rv-top"><span>From ' + escapeHTML(masked) + ' · ' + escapeHTML(ibxTime(m.received_at)) + '</span>' +
