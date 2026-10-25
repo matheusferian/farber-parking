@@ -8,8 +8,8 @@
  * it only draws a muted video over the page, which is already rendered and
  * usable underneath, and removes itself.
  *
- * Plays at most once per ticket, trip leg and device: the localStorage key is
- * mav.cine.<16 hex of SHA-256(token + leg)> — no name, ticket or phone, not
+ * Plays only the first time the link is opened on a device: the localStorage key is
+ * mav.cine.<16 hex of SHA-256(token + ':first')> — no name, ticket or phone, not
  * guessable, nothing sent anywhere. Without storage it simply plays once per
  * page load. Never plays with reduced motion or Save-Data. Gives up (and shows
  * the page) if the video has not started within 2.5 s, on any error, when the
@@ -151,10 +151,13 @@
       try {
         if (!cfg || !FILES[cfg.kind] || !/^[a-z0-9-]{1,40}$/.test(cfg.v || '')) return;
         if (prefersReducedMotion() || saveData()) return;
-        var leg = cfg.kind === 'RETURN' ? 'return' : 'outbound';
-        storageKey(String(token || ''), leg).then(function (key) {
-          if (seen(key)) return;
-          play(cfg, base, key);
+        // Owner 2026-10-25: only the FIRST time this link is opened on this
+        // device (whatever the trip stage). Devices that already saw a film
+        // under the earlier per-leg keys are skipped too.
+        var t = String(token || '');
+        Promise.all([storageKey(t, 'first'), storageKey(t, 'outbound'), storageKey(t, 'return')]).then(function (k) {
+          if (seen(k[0]) || seen(k[1]) || seen(k[2])) return;
+          play(cfg, base, k[0]);
         });
       } catch (e) { /* the page is already usable: nothing to do */ }
     }

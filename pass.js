@@ -79,7 +79,7 @@
   }
 
   // At most once per page load (the 30 s refresh never replays it); the film
-  // itself also plays only once per trip leg on this device.
+  // itself plays only the first time this link is opened on the device.
   function startIntro() {
     if (cineTried || !CINEMATIC_ON || !window.MAVCinematic || !pass) return;
     cineTried = true;
