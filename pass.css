@@ -27,6 +27,7 @@ main{padding:0 1.1rem 2.4rem;margin-top:-2.4rem;display:flex;flex-direction:colu
 .pass-top{background:var(--navy2);color:#fff;padding:1.25rem 1.35rem 1.35rem}
 .tone-ready .pass-top{background:var(--green)}
 .tone-customs .pass-top{background:#123E8C}
+.tone-returning .pass-top{background:#0F3B6E}
 .tone-done .pass-top{background:var(--navy)}
 .pass-car{margin:0;font-size:.92rem;font-weight:500;color:rgba(255,255,255,.78)}
 .pass-status{margin:.15rem 0 0;font-family:Sora,Inter,sans-serif;font-size:2.6rem;font-weight:800;line-height:1.02;letter-spacing:-.02em}
@@ -37,6 +38,7 @@ main{padding:0 1.1rem 2.4rem;margin-top:-2.4rem;display:flex;flex-direction:colu
 .pass-tear::before{left:-1.95rem}.pass-tear::after{right:-1.95rem}
 .pass-bottom{padding:1.15rem 1.35rem 1.3rem}
 .pass-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+.pass-grid.flight{margin-top:1rem;padding-top:1rem;border-top:1px solid var(--soft)}
 .k{margin:0;font-size:.82rem;font-weight:500;color:var(--mu)}
 .v{margin:.2rem 0 0;font-family:Sora,Inter,sans-serif;font-size:1.3rem;font-weight:700;line-height:1.2;color:var(--navy)}
 .v-soft{font-family:Inter,sans-serif;font-size:.95rem;font-weight:500;color:var(--mu)}

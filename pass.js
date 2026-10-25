@@ -38,7 +38,7 @@
     return new Date(+m[1], +m[2] - 1, +m[3], 12).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
   }
   function fmtTime(t) {
-    var m = /^(\d{2}):(\d{2})/.exec(String(t || ''));
+    var m = /^(\d{1,2}):(\d{2})/.exec(String(t || ''));
     if (!m) return null;
     var h = +m[1];
     return ((h + 11) % 12 + 1) + ':' + m[2] + ' ' + (h < 12 ? 'AM' : 'PM');
@@ -84,7 +84,7 @@
     if (cineTried || !CINEMATIC_ON || !window.MAVCinematic || !pass) return;
     cineTried = true;
     var kind = pass.status === 'DELIVERED' ? null
-      : (pass.status === 'READY' || pass.status === 'CUSTOMS_CONFIRMED') ? 'RETURN' : 'DEPARTURE';
+      : (pass.status === 'READY' || pass.status === 'CUSTOMS_CONFIRMED' || isReturning(pass)) ? 'RETURN' : 'DEPARTURE';
     if (kind) window.MAVCinematic.start({ kind: kind, v: CINEMATIC_VERSION }, TOKEN, 'cine/');
   }
 
@@ -110,9 +110,16 @@
           : 'As arranged, your car will be at Customs. When you arrive, reply to our text or call ' + esc(contactValet(p)) + ' for your key.' };
     }
     if (p.status === 'DELIVERED') return { tone: 'done', word: 'Delivered', line: 'Thank you for choosing Makers Air Valet.' };
+    // Staff filled the return flight / arrival time: the guest is on the way back
+    // (owner 2026-10-25). "Ready" is still set by staff only.
+    if (isReturning(p)) {
+      return { tone: 'returning', word: 'Flying back',
+        line: p.pickup === 'HANGAR_19' ? 'Fly safe. We\u2019ll be waiting at Hangar\u00a019 and help with your luggage.' : 'Fly safe. We\u2019ll be waiting for you and help with your luggage.' };
+    }
     return { tone: 'parked', word: 'Parked', line: 'Your car is safely parked.' };
   }
   function contactValet(p) { return (p.contacts && p.contacts.valet_phone) || VALET_PHONE_FALLBACK; }
+  function isReturning(p) { return (p.status === 'PARKED' || !p.status) && !!(p.return_flight || p.arrival_time); }
   // "Black MERCEDES GLE" → "Black Mercedes GLE" (short / numbered model codes stay upper case).
   function niceVehicle(v) {
     return String(v || '').split(/\s+/).map(function (w) {
@@ -145,9 +152,16 @@
       '<div><p class="k">Pickup</p><p class="v' + (place ? '' : ' v-soft') + '">' + (place ? esc(place) : 'To be confirmed by our valet team.') + '</p>' +
         (steps ? '<button class="link" type="button" id="howBtn" aria-expanded="false" aria-controls="howSteps">How to get there</button>' : '') + '</div>' +
       '<div><p class="k">Return</p><p class="v' + (date ? '' : ' v-soft') + '">' + (date ? esc(date) : 'Not available yet.') + '</p>' +
-        (date && time ? '<p class="v2">' + esc(time) + '</p>' : '') +
+        (date && time && !p.arrival_time ? '<p class="v2">' + esc(time) + '</p>' : '') +
         (p.requests_enabled ? '<button class="link" type="button" data-open="return">Change return</button>' : '') + '</div>' +
       '</div>';
+    // Return flight + arrival time, once staff fill them on the car card.
+    var arr = fmtTime(p.arrival_time);
+    if (p.return_flight || arr) {
+      html += '<div class="pass-grid flight">' +
+        '<div><p class="k">Flight</p><p class="v">' + (p.return_flight ? esc(p.return_flight) : '<span class="v-soft">To be confirmed</span>') + '</p></div>' +
+        '<div><p class="k">Arrives</p><p class="v">' + (arr ? esc(arr) : '<span class="v-soft">To be confirmed</span>') + '</p></div></div>';
+    }
     if (steps) {
       html += '<ol class="steps howto" id="howSteps" hidden>' +
         '<li>Land with Makers Air</li><li>Complete Customs</li><li>Go back to your pilots and aircraft</li><li><strong>Walk to Hangar 19</strong></li></ol>';
