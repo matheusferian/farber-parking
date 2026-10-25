@@ -9,7 +9,7 @@
 //   * every attempt that reaches the claim step leaves an audit row.
 
 import { normalizePhoneE164 } from './phone.ts';
-import { countSegments, MessageType, PassengerCtx, RenderEnv, renderMessage, Role, Template, TemplateError, TEMPLATES } from './templates.ts';
+import { countSegments, estimateCostUsd, isGsm7, MessageType, PassengerCtx, RenderEnv, renderMessage, Role, Template, TemplateError, TEMPLATES } from './templates.ts';
 import type { SendOutcome, SmsProvider } from './provider.ts';
 
 export type SmsMode = 'disabled' | 'mock' | 'allowlist' | 'live';
@@ -38,6 +38,10 @@ export interface SmsStore {
   mintPassLink(passengerId: number): Promise<string | null>;
   // Flags sends left without a provider answer as UNCONFIRMED (alerts).
   reconcile?(): Promise<number>;
+  // Preview only: what the claim would refuse (consent, opt-out, device,
+  // test mode, eligibility) without claiming anything.
+  previewStatus?(passengerId: number, phoneE164: string, deviceKeyHash: string | null):
+    Promise<{ would_send: boolean; block: string | null; consent: boolean; opted_out: boolean }>;
 }
 
 export type SendInput = {
@@ -246,5 +250,73 @@ export async function sendAirValetSms(deps: SendDeps, input: SendInput): Promise
       } catch { /* already logged */ }
     }
     return fail('error', 'INTERNAL', 'internal error', claimedId ? { messageId: claimedId } : {});
+  }
+}
+
+export type PreviewResult = {
+  ok: boolean;
+  status: 'preview' | 'rejected';
+  error?: { code: string; message: string };
+  to?: string;
+  body?: string;            // exactly what the passenger receives; the link token shows as dots (minted at send)
+  chars?: number;
+  segments?: number;
+  encoding?: 'GSM-7' | 'UCS-2';
+  estimated_cost_usd?: number;
+  would_send?: boolean;
+  block?: string | null;
+  consent?: boolean;
+  opted_out?: boolean;
+  link_note?: string | null;
+};
+
+// Same template, same passenger data, same link length as sendAirValetSms —
+// but nothing is claimed, minted or sent. Used by the mandatory preview.
+export async function previewAirValetSms(deps: SendDeps, input: SendInput): Promise<PreviewResult> {
+  const reject = (code: string, message: string): PreviewResult => ({ ok: false, status: 'rejected', error: { code, message } });
+  try {
+    const templates: Record<string, Template> = deps.templates ?? TEMPLATES;
+    const baseTpl = Object.hasOwn(templates, input.type) ? templates[input.type] : undefined;
+    if (!baseTpl) return reject('INVALID_TYPE', 'unknown message type');
+    const tpl: Template = deps.mode === 'mock' && baseTpl.status !== 'APPROVED'
+      ? { ...baseTpl, status: 'APPROVED', version: 'draft-mock' } : baseTpl;
+    if (!input.actor.role || !tpl.allowedRoles.includes(input.actor.role)) return reject('FORBIDDEN', 'role not allowed for this message type');
+    if (!Number.isSafeInteger(input.passengerId) || input.passengerId <= 0) return reject('INVALID_PASSENGER', 'invalid passenger id');
+    const passenger = await deps.store.getPassenger(input.passengerId);
+    if (!passenger) return reject('PASSENGER_NOT_FOUND', 'passenger not found');
+    const phone = normalizePhoneE164(passenger.phone);
+    if (!phone.valid) return reject('INVALID_PHONE', `invalid phone (${phone.reason})`);
+    const env: RenderEnv = { ...(deps.renderEnv ?? {}) };
+    if (tpl.needsPassLink) {
+      if (!deps.passBaseUrl) return reject('PASS_LINK_MISSING', 'passenger link base URL not configured');
+      env.passUrl = deps.passBaseUrl + '\u2022'.repeat(PASS_TOKEN_LEN);
+    }
+    let rendered: { body: string };
+    try {
+      // Segment math uses a GSM-7 placeholder of the SAME length as the real token.
+      rendered = renderMessage(tpl, passenger, tpl.needsPassLink ? { ...env, passUrl: deps.passBaseUrl + 'A'.repeat(PASS_TOKEN_LEN) } : env, input.customBody);
+    } catch (e) {
+      if (e instanceof TemplateError) return reject(e.code, e.message);
+      throw e;
+    }
+    const body = tpl.needsPassLink ? rendered.body.replace(deps.passBaseUrl + 'A'.repeat(PASS_TOKEN_LEN), env.passUrl!) : rendered.body;
+    const segments = countSegments(rendered.body);
+    let gate = { would_send: deps.mode !== 'disabled', block: deps.mode === 'disabled' ? 'SMS_DISABLED' : null as string | null, consent: false, opted_out: false };
+    if (deps.mode === 'allowlist' && !deps.allowlist.includes(phone.e164)) gate = { ...gate, would_send: false, block: 'NOT_ALLOWLISTED' };
+    if (deps.store.previewStatus) {
+      const s = await deps.store.previewStatus(passenger.id, phone.e164, input.deviceKeyHash ?? null);
+      gate = { would_send: gate.would_send && s.would_send, block: gate.block ?? s.block, consent: s.consent, opted_out: s.opted_out };
+    }
+    return {
+      ok: true, status: 'preview', to: phone.e164, body,
+      chars: Array.from(rendered.body).length, segments,
+      encoding: Array.from(rendered.body).every(isGsm7) ? 'GSM-7' : 'UCS-2',
+      estimated_cost_usd: estimateCostUsd(segments),
+      ...gate,
+      link_note: tpl.needsPassLink ? 'The personal link is created when the text is sent (shown as dots, same length).' : null,
+    };
+  } catch (e) {
+    (deps.log ?? (() => {}))('sms.preview_error', { error: (e as Error)?.name || 'Error' });
+    return reject('INTERNAL', 'internal error');
   }
 }

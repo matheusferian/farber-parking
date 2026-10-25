@@ -12,6 +12,7 @@ export type WebhookStore = {
   applyStatus(sid: string, status: string, errorCode: string | null, errorMessage: string | null, messageId: string | null): Promise<string>;
   recordInbound(sid: string, fromE164: string, body: string, messagingServiceSid: string | null, keyword: Keyword | null):
     Promise<{ message_id: string; inserted: boolean; passenger_id: number | null; match_method: string }>;
+  isAdminAlertPhone?(phoneE164: string): Promise<boolean>;
 };
 
 export type WebhookDeps = {
@@ -20,6 +21,12 @@ export type WebhookDeps = {
   store: WebhookStore;
   expectedMessagingServiceSid: string | undefined; // REQUIRED: other services' traffic is ignored
   log?: (event: string, data: Record<string, unknown>) => void;
+  // The Super Admin alert phone is staff, not a guest: its texts are never
+  // stored as guest messages (no loop between alerts and the Inbox).
+  isAdminPhone?: (e164: string) => Promise<boolean>;
+  // Called after a NEW guest message is stored (never for keywords, admin
+  // texts or Twilio retries). Must not throw; used for staff notifications.
+  onGuestMessage?: (messageId: string) => void;
 };
 
 export type Keyword = 'STOP' | 'START' | 'HELP';
@@ -104,8 +111,15 @@ export async function handleInbound(deps: WebhookDeps, req: Request): Promise<Re
   const body = (params.get('Body') || '').slice(0, 1600);
   const keyword = classifyKeyword(body, params.get('OptOutType'));
   try {
+    if (deps.isAdminPhone && await deps.isAdminPhone(from.e164)) {
+      deps.log?.('twilio.inbound_admin_phone', { sid, keyword });
+      return twiml();
+    }
     const r = await deps.store.recordInbound(sid, from.e164, body, params.get('MessagingServiceSid'), keyword);
     deps.log?.('twilio.inbound', { sid, inserted: r.inserted, matched: r.match_method, keyword });
+    if (r.inserted && !keyword) {
+      try { deps.onGuestMessage?.(r.message_id); } catch { /* notifications never affect the webhook */ }
+    }
     // Empty TwiML: no auto-reply from AirValet. STOP/HELP replies come from
     // Twilio Advanced Opt-Out on the Messaging Service.
     return twiml();

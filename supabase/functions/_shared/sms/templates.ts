@@ -36,6 +36,7 @@ export type Operator = 'MAKERS' | 'ASCEND';
 export type ReturnOperator = Operator | 'OTHER';
 export type MessageType =
   | 'CHECK_IN' | 'RETURN_CONFIRMATION' | 'VEHICLE_READY' | 'VEHICLE_DELIVERED'
+  | 'RETURN_UPDATED' | 'AFTER_HOURS_CONFIRMED'
   | 'REPLY' | 'CUSTOM_OPERATIONAL';
 export type Role = 'ADMIN' | 'MANAGER' | 'IPAD_OPS' | 'IPHONE_OPS' | 'TV_ONLY';
 
@@ -44,6 +45,7 @@ export type PassengerCtx = {
   name: string | null;
   ticket: string | null;
   ret: string | null;
+  ret_time?: string | null;                       // optional HH:MM (P1); never invented
   car: string | null;
   status: string | null;
   return_operator: ReturnOperator | null;
@@ -98,12 +100,15 @@ export function pickupPlace(p: Pick<PassengerCtx, 'return_operator' | 'delivery_
 export const VALET_PHONE = '(954) 352-1010'; // printed on the customer ticket today
 
 // "JOHN SMITH" → "John". Control chars stripped so a name can't add lines.
+// Letters outside GSM-7 are transliterated (José → José stays: é is GSM-7;
+// João → Joao) so a name never turns the whole text into UCS-2.
 export function firstName(name: string | null): string {
   // deno-lint-ignore no-control-regex
   const w = String(name || '').replace(/[\u0000-\u001f\u007f]+/g, ' ').trim().split(/\s+/)[0] || '';
-  return w ? w.charAt(0).toUpperCase() + w.slice(1).toLowerCase() : '';
+  const t = w ? w.charAt(0).toUpperCase() + w.slice(1).toLowerCase() : '';
+  return Array.from(t).map((ch) => (isGsm7(ch) ? ch : ch.normalize('NFD').replace(/[\u0300-\u036f]/g, ''))).join('')
+    .replace(/[^A-Za-z\u00C0-\u00FF'-]/g, '').slice(0, 20);
 }
-
 function readyVariant(p: PassengerCtx): string {
   if (p.return_operator === 'ASCEND') return 'CUSTOMS_WELCOME';
   if (p.return_operator === 'MAKERS') return p.delivery_at_customs ? 'CUSTOMS_EXCEPTION' : 'HANGAR19_WELCOME_BACK';
@@ -113,21 +118,17 @@ function readyVariant(p: PassengerCtx): string {
 const notArchived = (p: PassengerCtx) => (p.status === 'DELIVERED' || p.status === 'ARCHIVED' ? 'NOT_IN_CUSTODY' : null);
 
 export const TEMPLATES: Record<MessageType, Template> = {
-  // Replaces WELCOME_CONFIRMED / _NO_DATE / _NOT_RETURNING. Short, with the
-  // passenger link (real read-only page); return details live on the page,
-  // so no pickup instruction is sent before the return flight is confirmed.
-  // Doubles as the opt-in confirmation (program, freq, rates, HELP, STOP).
+  // Owner D1 (2026-10-25): short welcome + valet pass link + STOP line.
+  // Must stay ONE GSM-7 segment with the real link length. The wording is
+  // shortened step by step first; the name is dropped only as the last step.
   CHECK_IN: {
-    type: 'CHECK_IN', status: 'PENDING_APPROVAL', version: null, freeText: false, allowedRoles: OPS,
+    type: 'CHECK_IN', status: 'APPROVED', version: 'checkin-d1-2026-10-25', freeText: false, allowedRoles: OPS,
     needsPassLink: true,
     defaultEventRef: () => 'checkin',
     guard: notArchived,
-    render: (_p, env) => {
+    render: (p, env) => {
       if (!env.passUrl) throw new TemplateError('PASS_LINK_MISSING', 'passenger link not available');
-      return {
-        variant: 'CHECK_IN_LINK',
-        body: `${SENDER}: Your car is checked in. Tap to view your valet details: ${env.passUrl} Questions? Just reply to this text. Msg freq varies. Msg&data rates may apply. Reply HELP for help, STOP to opt out.`,
-      };
+      return { variant: 'CHECK_IN_D1', body: welcomeBody(firstName(p.name), env.passUrl) };
     },
   },
   // Replaces RETURN_CONFIRMATION + TASK_CONFIRMATION. When the return flight
@@ -185,6 +186,26 @@ export const TEMPLATES: Record<MessageType, Template> = {
       body: `${SENDER}: Your vehicle has been delivered. Thank you for choosing us, we look forward to welcoming you on your next trip!`,
     }),
   },
+  // Sent by staff (with preview) after approving a passenger's return change.
+  RETURN_UPDATED: {
+    type: 'RETURN_UPDATED', status: 'PENDING_APPROVAL', version: null, freeText: false, allowedRoles: OPS,
+    defaultEventRef: (_now, p) => 'ret:' + String(p.ret || '').replace(/[^0-9]/g, '') + ':' + String(p.ret_time || '').replace(/[^0-9]/g, ''),
+    guard: (p) => notArchived(p) || (!p.ret ? 'RETURN_NOT_SET' : null),
+    render: (p) => ({
+      variant: 'RETURN_UPDATED',
+      body: `${SENDER}: Your return is updated to ${formatReturn(p.ret!, p.ret_time ?? null)}. Reply here if anything changes.`,
+    }),
+  },
+  // After-hours pickup confirmed by staff. Never contains the lockbox code.
+  AFTER_HOURS_CONFIRMED: {
+    type: 'AFTER_HOURS_CONFIRMED', status: 'PENDING_APPROVAL', version: null, freeText: false, allowedRoles: OPS,
+    defaultEventRef: () => 'afterhours',
+    guard: notArchived,
+    render: () => ({
+      variant: 'AFTER_HOURS_CONFIRMED',
+      body: `${SENDER}: Your after-hours pickup is confirmed. Pickup instructions will appear on your valet page on your return day.`,
+    }),
+  },
   // Inbox: a staff member answers the passenger. Free text, double-tap safe
   // via the compose id. Today's GENERIC "Text" button + FREEFORM land here.
   REPLY: {
@@ -236,4 +257,39 @@ export function countSegments(body: string): number {
     }
   }
   return septets <= 160 ? 1 : Math.ceil(septets / 153);
+}
+
+export function isGsm7(ch: string): boolean { return GSM7.includes(ch) || GSM7_EXT.includes(ch); }
+
+// Twilio US price per segment (read from the account pricing API on
+// 2026-10-25) + an ESTIMATE of the 10DLC carrier pass-through fee.
+export const SMS_PRICE_PER_SEGMENT_USD = 0.0083;
+export const SMS_CARRIER_FEE_EST_USD = 0.003;
+export function estimateCostUsd(segments: number): number {
+  return Math.round(segments * (SMS_PRICE_PER_SEGMENT_USD + SMS_CARRIER_FEE_EST_USD) * 10000) / 10000;
+}
+
+// D1 welcome, optimised to ONE segment: wording first, the name last.
+export function welcomeBody(name: string, link: string): string {
+  const hi = name ? `Hi ${name}, ` : 'Hi, ';
+  const variants = [
+    `${hi}welcome to Makers Air! Your vehicle is checked in.\nYour valet pass: ${link}\nReply STOP to opt out.`,
+    `${hi}welcome to Makers Air! Your car is checked in.\nYour valet pass: ${link}\nReply STOP to opt out.`,
+    `${hi}welcome to Makers Air! Your car is checked in.\nValet pass: ${link}\nReply STOP to opt out.`,
+    `${hi}welcome to Makers Air! Your car is checked in.\nValet pass: ${link}\nReply STOP to opt out`,
+  ];
+  for (const v of variants) if (countSegments(v) === 1) return v;
+  return `Hi, welcome to Makers Air! Your vehicle is checked in.\nYour valet pass: ${link}\nReply STOP to opt out.`;
+}
+
+// "10/31/2026" + "18:00" → "Fri, Oct 31, 6:00 PM" (time only when set).
+export function formatReturn(ret: string, time: string | null): string {
+  const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(String(ret).trim());
+  if (!m) return String(ret);
+  const d = new Date(Date.UTC(+m[3], +m[1] - 1, +m[2], 12));
+  const day = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' });
+  const t = /^(\d{2}):(\d{2})/.exec(String(time || ''));
+  if (!t) return day;
+  const h = +t[1];
+  return `${day}, ${((h + 11) % 12) + 1}:${t[2]} ${h < 12 ? 'AM' : 'PM'}`;
 }

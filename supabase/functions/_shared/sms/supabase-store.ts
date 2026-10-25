@@ -17,7 +17,7 @@ async function call<T>(db: Rpc, fn: string, args: Record<string, unknown>): Prom
 export function supabaseSmsStore(db: Rpc): SmsStore & WebhookStore {
   return {
     async getPassenger(id: number): Promise<Passenger | null> {
-      const { data, error } = await db.from('passengers').select('id,name,phone,ticket,ret,car,status,return_operator,delivery_at_customs,customs_exception_requested_at,delivery_type,customs_welcome_sent,tip_received').eq('id', id).maybeSingle();
+      const { data, error } = await db.from('passengers').select('id,name,phone,ticket,ret,ret_time,car,status,return_operator,delivery_at_customs,customs_exception_requested_at,delivery_type,customs_welcome_sent,tip_received').eq('id', id).maybeSingle();
       if (error) throw new Error(`passenger lookup failed (${error.code || 'db'})`);
       return data;
     },
@@ -43,6 +43,15 @@ export function supabaseSmsStore(db: Rpc): SmsStore & WebhookStore {
     },
     async reconcile(): Promise<number> {
       return call<number>(db, 'airvalet_sms_reconcile', { p_minutes: 10 });
+    },
+    async previewStatus(passengerId: number, phoneE164: string, deviceKeyHash: string | null) {
+      return call<{ would_send: boolean; block: string | null; consent: boolean; opted_out: boolean }>(db, 'airvalet_sms_preview_status', {
+        p_passenger_id: passengerId, p_phone_e164: phoneE164,
+        p_device_key_hash: deviceKeyHash && /^[0-9a-f]{64}$/.test(deviceKeyHash) ? '\\x' + deviceKeyHash : null,
+      });
+    },
+    async isAdminAlertPhone(phoneE164: string): Promise<boolean> {
+      return !!(await call<boolean>(db, 'airvalet_is_admin_alert_phone', { p_phone_e164: phoneE164 }));
     },
     mintPassLink(passengerId: number): Promise<string | null> {
       return call<string | null>(db, 'airvalet_pass_mint', { p_passenger_id: passengerId });

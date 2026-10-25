@@ -229,13 +229,14 @@ select pg_temp.check(public.airvalet_admin_alerts_confirm('000000x') ->> 'result
 select pg_temp.check(public.airvalet_admin_alerts_confirm(current_setting('t.code')) ->> 'result' = 'VERIFIED', 'right code verifies');
 select pg_temp.check((public.airvalet_admin_alerts_set('{"enabled":true,"daily_cap":2}') ->> 'enabled')::boolean, 'alerts enabled');
 reset role;
-select pg_temp.check(public.airvalet_admin_alert_target('GUEST_MESSAGE', 900001, '+13055550142') = '+17545550101', 'guest message → admin phone');
-select pg_temp.check(public.airvalet_admin_alert_target('GUEST_MESSAGE', null, '+17545550101') is null, 'admin phone never alerts about itself (no loop)');
-select pg_temp.check(public.airvalet_admin_alert_target('PASS_REQUEST', 900001, null) is null, 'pass requests off by default');
-select pg_temp.check(public.airvalet_notify_claim('admin:GUEST_MESSAGE:p900001:m1', 'admin_sms') and not public.airvalet_notify_claim('admin:GUEST_MESSAGE:p900001:m1', 'admin_sms'), 'one claim per event (dedupe)');
-select pg_temp.check(public.airvalet_admin_alert_target('GUEST_MESSAGE', 900001, '+13055550142') is null, 'same guest within 10 min → no second alert');
-select public.airvalet_notify_claim('admin:GUEST_MESSAGE:p900002:m2', 'admin_sms');
-select pg_temp.check(public.airvalet_admin_alert_target('GUEST_MESSAGE', 900003, '+13055550144') is null, 'daily cap reached → no more alerts');
+select pg_temp.check(public.airvalet_admin_alert_claim('GUEST_MESSAGE', null, '+17545550101', 'admin:GUEST_MESSAGE:px:m0') is null, 'admin phone never alerts about itself (no loop)');
+select pg_temp.check(public.airvalet_admin_alert_claim('PASS_REQUEST', 900001, null, 'admin:PASS_REQUEST:p900001:r0') is null, 'pass requests off by default');
+select pg_temp.check(public.airvalet_admin_alert_claim('GUEST_MESSAGE', 900001, '+13055550142', 'admin:GUEST_MESSAGE:p900001:m1') = '+17545550101', 'guest message → admin phone (claimed)');
+select pg_temp.check(public.airvalet_admin_alert_claim('GUEST_MESSAGE', 900002, '+13055550143', 'admin:GUEST_MESSAGE:p900001:m1') is null, 'same event twice → claimed once (dedupe)');
+select pg_temp.check(public.airvalet_admin_alert_claim('GUEST_MESSAGE', 900001, '+13055550142', 'admin:GUEST_MESSAGE:p900001:m9') is null, 'same guest within 10 min → no second alert');
+select pg_temp.check(public.airvalet_admin_alert_claim('GUEST_MESSAGE', 900002, '+13055550143', 'admin:GUEST_MESSAGE:p900002:m2') = '+17545550101', 'another guest → alert');
+select pg_temp.check(public.airvalet_admin_alert_claim('GUEST_MESSAGE', 900003, '+13055550144', 'admin:GUEST_MESSAGE:p900003:m3') is null, 'daily cap (2) reached → no more alerts');
+select pg_temp.check(public.airvalet_notify_claim('push:GUEST_MESSAGE:m1', 'push') and not public.airvalet_notify_claim('push:GUEST_MESSAGE:m1', 'push'), 'push claimed once per event');
 select pg_temp.check(public.airvalet_is_admin_alert_phone('+17545550101'), 'admin phone recognised (inbound is not a guest message)');
 
 -- ── 10. TV alerts + alert signals ────────────────────────────────────────
@@ -273,6 +274,6 @@ select pg_temp.check((select array_agg(tablename::text order by tablename) from 
                      = array['airvalet_alert_events','airvalet_pass_requests','airvalet_sms_messages','passengers','payments'], 'realtime publication');
 select pg_temp.check(not has_function_privilege('anon', 'public.airvalet_portal_view(text,text)', 'execute')
                      and not has_function_privilege('authenticated', 'public.airvalet_portal_view(text,text)', 'execute'), 'portal view only via the Edge Function');
-select pg_temp.check(not has_function_privilege('authenticated', 'public.airvalet_admin_alert_target(text,bigint,text)', 'execute'), 'alert gate service-only');
+select pg_temp.check(not has_function_privilege('authenticated', 'public.airvalet_admin_alert_claim(text,bigint,text,text)', 'execute'), 'alert gate service-only');
 
 rollback;

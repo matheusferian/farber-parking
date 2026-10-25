@@ -714,10 +714,11 @@ returns void language sql security definer set search_path = '' as $$
    where n.dedupe_key = p_dedupe_key;
 $$;
 
--- Admin SMS copy gate: returns the verified phone when this event may be
--- texted (enabled, event type on, daily cap, per-guest window), else null.
+-- Admin SMS copy gate + claim in ONE transaction: returns the verified phone
+-- and records the claim when this event may be texted (enabled, event type
+-- on, daily cap, per-guest window, not already claimed), else null.
 -- Serialized so two events at the same moment can't both pass the cap.
-create or replace function public.airvalet_admin_alert_target(p_event text, p_passenger_id bigint, p_phone_e164 text)
+create or replace function public.airvalet_admin_alert_claim(p_event text, p_passenger_id bigint, p_phone_e164 text, p_dedupe_key text)
 returns text language plpgsql security definer set search_path = '' as $$
 declare a public.airvalet_admin_alerts%rowtype;
 begin
@@ -736,6 +737,9 @@ begin
         where n.channel = 'admin_sms' and n.status in ('claimed', 'sent')
           and n.dedupe_key like 'admin:%:p' || p_passenger_id || ':%'
           and n.created_at > now() - make_interval(mins => a.per_guest_window_min)) then return null; end if;
+  insert into public.airvalet_notify_log (dedupe_key, channel) values (p_dedupe_key, 'admin_sms')
+  on conflict (dedupe_key) do nothing;
+  if not found then return null; end if;
   return a.phone_e164;
 end $$;
 
@@ -848,6 +852,29 @@ begin
   return jsonb_build_object('result', 'VERIFIED');
 end $$;
 
+-- ── SMS preview gate (send-sms preview, service_role): what the real claim
+-- would refuse, WITHOUT claiming or sending. The claim stays the authority.
+create or replace function public.airvalet_sms_preview_status(p_passenger_id bigint, p_phone_e164 text, p_device_key_hash bytea)
+returns jsonb language plpgsql stable security definer set search_path = '' as $$
+declare
+  st public.airvalet_sms_settings%rowtype;
+  v_consent boolean := public.airvalet_sms_has_consent(p_phone_e164);
+  v_opted   boolean := coalesce((select o.opted_out from public.airvalet_sms_opt_outs o where o.phone_e164 = p_phone_e164), false);
+  v_block   text;
+begin
+  select * into st from public.airvalet_sms_settings;
+  v_block := case
+    when not coalesce(st.sending_enabled, false) then 'SMS_PAUSED'
+    when p_device_key_hash is null or not exists (select 1 from public.airvalet_sms_devices d
+           where d.key_hash = p_device_key_hash and d.status = 'approved') then 'DEVICE_NOT_AUTHORIZED'
+    when st.test_only and not (p_phone_e164 = any (coalesce(st.test_phones, '{}'))) then 'TEST_MODE_NUMBER'
+    when v_opted then 'OPTED_OUT'
+    when not v_consent then 'NO_CONSENT'
+    when not exists (select 1 from public.airvalet_sms_enrollments e where e.passenger_id = p_passenger_id) then 'TICKET_NOT_ELIGIBLE'
+  end;
+  return jsonb_build_object('would_send', v_block is null, 'block', v_block, 'consent', v_consent, 'opted_out', v_opted);
+end $$;
+
 -- ── Alert signals: inserted by triggers, consumed through Realtime ────────
 create or replace function public.airvalet_alert_on_inbound()
 returns trigger language plpgsql security definer set search_path = '' as $$
@@ -897,13 +924,14 @@ revoke all on function public.airvalet_push_targets() from public, anon, authent
 revoke all on function public.airvalet_push_result(uuid, boolean, boolean) from public, anon, authenticated;
 revoke all on function public.airvalet_notify_claim(text, text) from public, anon, authenticated;
 revoke all on function public.airvalet_notify_finish(text, text, integer, text, text) from public, anon, authenticated;
-revoke all on function public.airvalet_admin_alert_target(text, bigint, text) from public, anon, authenticated;
+revoke all on function public.airvalet_admin_alert_claim(text, bigint, text, text) from public, anon, authenticated;
 revoke all on function public.airvalet_is_admin_alert_phone(text) from public, anon, authenticated;
 revoke all on function public.airvalet_notify_details(text, uuid) from public, anon, authenticated;
 revoke all on function public.airvalet_admin_alerts_get() from public, anon;
 revoke all on function public.airvalet_admin_alerts_set(jsonb) from public, anon;
 revoke all on function public.airvalet_admin_alerts_start_verify(uuid, text) from public, anon, authenticated;
 revoke all on function public.airvalet_admin_alerts_confirm(text) from public, anon;
+revoke all on function public.airvalet_sms_preview_status(bigint, text, bytea) from public, anon, authenticated;
 revoke all on function public.airvalet_alert_on_inbound() from public, anon, authenticated;
 revoke all on function public.airvalet_alert_on_request() from public, anon, authenticated;
 
@@ -926,9 +954,10 @@ grant execute on function public.airvalet_push_targets() to service_role;
 grant execute on function public.airvalet_push_result(uuid, boolean, boolean) to service_role;
 grant execute on function public.airvalet_notify_claim(text, text) to service_role;
 grant execute on function public.airvalet_notify_finish(text, text, integer, text, text) to service_role;
-grant execute on function public.airvalet_admin_alert_target(text, bigint, text) to service_role;
+grant execute on function public.airvalet_admin_alert_claim(text, bigint, text, text) to service_role;
 grant execute on function public.airvalet_is_admin_alert_phone(text) to service_role;
 grant execute on function public.airvalet_notify_details(text, uuid) to service_role;
 grant execute on function public.airvalet_admin_alerts_start_verify(uuid, text) to service_role;
+grant execute on function public.airvalet_sms_preview_status(bigint, text, bytea) to service_role;
 
 commit;

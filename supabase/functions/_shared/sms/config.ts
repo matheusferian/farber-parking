@@ -8,7 +8,7 @@
 //   TWILIO_API_KEY_SID / _SECRET      restricted/standard API key used to SEND
 //   TWILIO_AUTH_TOKEN                 ONLY to validate webhook signatures
 //   TWILIO_MESSAGING_SERVICE_SID      "AirValet SMS" service (MG…)
-//   AIRVALET_PASS_BASE_URL            passenger link base, default https://farberos.com/a#
+//   AIRVALET_PASS_BASE_URL            passenger link base, default https://airvalet.farberos.com/a#
 //                                     (token in the #fragment: never sent to servers/logs)
 
 import { normalizePhoneE164 } from './phone.ts';
@@ -43,8 +43,8 @@ export function readSmsConfig(get: (k: string) => string | undefined): SmsConfig
   const publicFunctionsUrl = (get('AIRVALET_SMS_PUBLIC_FUNCTIONS_URL') || '').replace(/\/+$/, '') || null;
   if (publicFunctionsUrl && !/^https:\/\//.test(publicFunctionsUrl)) problems.push('public functions URL must be https');
 
-  const rawPass = (get('AIRVALET_PASS_BASE_URL') || 'https://farberos.com/a#').trim();
-  const passBaseUrl = /^https:\/\/[^\s#]+[#/]$/.test(rawPass) ? rawPass : 'https://farberos.com/a#';
+  const rawPass = (get('AIRVALET_PASS_BASE_URL') || 'https://airvalet.farberos.com/a#').trim();
+  const passBaseUrl = /^https:\/\/[^\s#]+[#/]$/.test(rawPass) ? rawPass : 'https://airvalet.farberos.com/a#';
   if (rawPass !== passBaseUrl) problems.push('AIRVALET_PASS_BASE_URL must be https and end with # or / → default used');
 
   const accountSid = get('TWILIO_ACCOUNT_SID') || '';

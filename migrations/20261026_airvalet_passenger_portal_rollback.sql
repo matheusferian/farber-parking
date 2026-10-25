@@ -22,6 +22,7 @@ end $$;
 drop trigger if exists airvalet_alert_inbound on public.airvalet_sms_messages;
 drop trigger if exists airvalet_alert_request on public.airvalet_pass_requests;
 
+drop function if exists public.airvalet_sms_preview_status(bigint, text, bytea);
 drop function if exists public.airvalet_alert_on_inbound();
 drop function if exists public.airvalet_alert_on_request();
 drop function if exists public.airvalet_admin_alerts_confirm(text);
@@ -30,7 +31,7 @@ drop function if exists public.airvalet_admin_alerts_set(jsonb);
 drop function if exists public.airvalet_admin_alerts_get();
 drop function if exists public.airvalet_notify_details(text, uuid);
 drop function if exists public.airvalet_is_admin_alert_phone(text);
-drop function if exists public.airvalet_admin_alert_target(text, bigint, text);
+drop function if exists public.airvalet_admin_alert_claim(text, bigint, text, text);
 drop function if exists public.airvalet_notify_finish(text, text, integer, text, text);
 drop function if exists public.airvalet_notify_claim(text, text);
 drop function if exists public.airvalet_push_result(uuid, boolean, boolean);

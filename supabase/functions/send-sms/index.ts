@@ -1,6 +1,8 @@
 // send-sms — authenticated AirValet staff ask the server to send ONE SMS.
 //
-// POST { passenger_id, message_type, event_ref?, custom_body?, staff_name? }
+// POST { passenger_id, message_type, event_ref?, custom_body?, staff_name?, preview? }
+// preview: true → returns the exact text, characters, segments and estimated
+// cost plus what would block it (consent, opt-out, device, test mode). Sends nothing.
 // Header x-airvalet-device: this device's random key (localStorage). Logins are
 // shared, so the server only sends from a device an ADMIN APPROVED (the DB
 // compares the SHA-256; the key itself is never stored). staff_name = the
@@ -23,7 +25,7 @@ import { readSmsConfig } from '../_shared/sms/config.ts';
 import { MockProvider, TwilioProvider } from '../_shared/sms/provider.ts';
 import { deviceKeyHash, staffLabel } from '../_shared/sms/device.ts';
 import { makeRedactor } from '../_shared/sms/sanitize.ts';
-import { sendAirValetSms } from '../_shared/sms/service.ts';
+import { previewAirValetSms, sendAirValetSms } from '../_shared/sms/service.ts';
 import { supabaseSmsStore } from '../_shared/sms/supabase-store.ts';
 import type { Role } from '../_shared/sms/templates.ts';
 
@@ -73,7 +75,7 @@ Deno.serve(async (req) => {
     ? new TwilioProvider({ ...cfg.twilio!, timeoutMs: 10_000 })
     : new MockProvider();
 
-  const result = await sendAirValetSms({
+  const deps = {
     mode: cfg.mode,
     store: supabaseSmsStore(admin),
     provider,
@@ -81,14 +83,16 @@ Deno.serve(async (req) => {
     passBaseUrl: cfg.passBaseUrl,
     statusCallbackUrl: provider.name === 'twilio' ? `${cfg.publicFunctionsUrl}/twilio-status-callback` : undefined,
     log,
-  }, {
+  };
+  const input = {
     passengerId: Number(payload.passenger_id),
     type: String(payload.message_type || ''),
     eventRef: typeof payload.event_ref === 'string' ? payload.event_ref : undefined,
     customBody: typeof payload.custom_body === 'string' ? payload.custom_body : undefined,
     actor: { userId: userData.user.id, role: (role as Role) ?? null, name: staffLabel(payload.staff_name) || profile?.display_name || profile?.username || null },
     deviceKeyHash: await deviceKeyHash(req.headers.get('x-airvalet-device')),
-  });
-
-  return json(200, result);
+  };
+  // Mandatory preview: same renderer and data, nothing claimed or sent.
+  if (payload.preview === true) return json(200, await previewAirValetSms(deps, input));
+  return json(200, await sendAirValetSms(deps, input));
 });
