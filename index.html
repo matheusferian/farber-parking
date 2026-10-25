@@ -96,7 +96,7 @@
   <div class="tab" data-t="logs"><i class="fa-solid fa-clipboard-list"></i><span>Logs</span></div>
   <div class="tab-group-label">Administration</div>
   <div class="tab" data-t="debug"><i class="fa-solid fa-screwdriver-wrench"></i><span>Debug</span></div>
-  <div class="tab" data-t="useraccess" onclick="loadUserAccessList();loadSmsAdmin()"><i class="fa-solid fa-user-shield"></i><span>User Access</span></div>
+  <div class="tab" data-t="useraccess" onclick="loadUserAccessList();loadSmsAdmin();vpAdminLoad()"><i class="fa-solid fa-user-shield"></i><span>User Access</span></div>
 </div>
 <div class="nav-backdrop" id="navBackdrop" onclick="closeSidebarDrawer()"></div>
 <div class="pane" id="pane-all">
@@ -215,12 +215,15 @@
   <!-- THIS DEVICE — AirValet texting status (device approval, staff). Hidden
        on the TV. See renderSmsDeviceCard(). -->
   <div id="smsDeviceCard" class="smsdev" style="display:none"></div>
+  <!-- Device alerts (Web Push) — same gate as the device card. See renderVpAlertsCard(). -->
+  <div id="vpAlertsCard" class="smsdev" style="display:none"></div>
   <div class="dsec" id="returnReviewList"></div>
   <!-- AIRVALET SMS INBOX — only when SMS_PROVIDER === 'twilio' (server-side
        sending through the send-sms Edge Function). See initSmsInbox(). -->
   <div id="smsInbox" class="ibx" style="display:none">
     <div class="ibx-list">
       <div class="ibx-search"><input id="ibxSearch" type="text" placeholder="Search name, ticket, phone..." autocomplete="off" oninput="renderInboxList()"></div>
+      <div id="ibxRequests"></div>
       <div id="ibxReview"></div>
       <div class="ibx-sec-t">Conversations</div>
       <div id="ibxConvs"></div>
@@ -1150,6 +1153,15 @@ https://buy.stripe.com/8x214mccK0uh9TjgIM6Vq00</div>
     <div id="smsAdmProgram"></div>
     <div id="smsAdmDevices"></div>
   </div>
+  <!-- VALET PASS (passenger page) — ADMIN settings; Super Admin SMS alerts.
+       Every value is re-checked by the server (airvalet_portal_settings_set /
+       airvalet_admin_alerts_set). See vpAdminLoad(). -->
+  <div class="smsadm" id="vpAdminSec" style="display:none">
+    <div class="smsadm-t">&#127915; Valet Pass (passenger page)</div>
+    <div class="smsadm-sub">The page passengers open from their check-in text. Starts off; turning it off makes every link show "not active".</div>
+    <div id="vpAdmPortal"></div>
+    <div id="vpAdmAlerts"></div>
+  </div>
 </div>
 
 <!-- CREATE USER MODAL -->
@@ -1591,6 +1603,17 @@ https://buy.stripe.com/8x214mccK0uh9TjgIM6Vq00</div>
 
 <footer id="appFooter">AirValet v1.0 &middot; Developed by Matt Solutions &middot; Built exclusively for Makers Air &copy; 2026</footer>
 
+<!-- In-app alert for a new guest message / passenger request (vpShowBanner). -->
+<div id="vpBanner" class="vp-banner" style="display:none" role="alert"></div>
+<!-- MANDATORY SMS PREVIEW (server-rendered, see serverPreviewConfirm()). -->
+<div class="ov" id="svPrevOv" onclick="if(event.target===this)svPrevCancel()">
+  <div class="modal svp">
+    <h2>SMS preview</h2>
+    <p class="msub">Exactly what the passenger receives. Nothing is sent until you press Send.</p>
+    <div id="svPrevBody"></div>
+    <div class="mact"><button class="btnc" type="button" onclick="svPrevCancel()">Edit / Cancel</button><button class="btnp" id="svPrevSend" type="button" onclick="svPrevSend()" disabled>Send text</button></div>
+  </div>
+</div>
 <!-- ══ TV MODE ══ read-only operations dashboard, see isTvMode()/initTvMode() ══ -->
 <div id="tvMode">
   <div class="tv-header">
@@ -1607,6 +1630,7 @@ https://buy.stripe.com/8x214mccK0uh9TjgIM6Vq00</div>
         <div class="tv-date" id="tvDate">&mdash;</div>
         <div class="tv-clock" id="tvClock">&mdash;</div>
       </div>
+      <div class="tv-msgs" id="tvMsgs" style="display:none"></div>
       <div class="tv-conn-wrap">
         <div class="tv-conn-label tv-conn-reconnecting" id="tvConnLabel"><span class="tv-conn-dot"></span><span id="tvConnText">CONNECTING</span></div>
         <div class="tv-last-update" id="tvLastUpdate">&mdash;</div>
@@ -1614,6 +1638,7 @@ https://buy.stripe.com/8x214mccK0uh9TjgIM6Vq00</div>
     </div>
   </div>
 
+  <div class="tv-msg-toast" id="tvMsgToast" style="display:none" role="status"></div>
   <div class="tv-stale-banner" id="tvStaleBanner">&#9888; STALE DATA — last update <span id="tvStaleElapsed">&mdash;</span> ago</div>
 
   <div class="tv-kpi-row" id="tvKpiRow"></div>
@@ -4054,6 +4079,10 @@ async function sendPassengerSms(options) {
     openInboxThread(options.passengerId);
     return { ok: false, status: 'compose_in_inbox', sid: null, provider: 'twilio' };
   }
+  if (!options._previewed) {
+    var go = await serverPreviewConfirm(options, serverType);
+    if (!go) return { ok: false, status: 'cancelled', sid: null, provider: 'twilio' };
+  }
   var sres = await sendServerSms(options.passengerId, serverType);
   if (sres && sres.ok) {
     showMsg(sres.duplicate ? ('Already sent' + whoS + ' — not sent again.') : ('✓ Text sent' + whoS + '.'), false);
@@ -4420,7 +4449,7 @@ function ibxTypeLabel(m){
 function updateMessagesBadge(){
   var unread = _ibx.convs.reduce(function(s, c){ return s + (Number(c.unread_count) || 0); }, 0);
   var review = _ibx.review.filter(function(m){ return !m.read_at; }).length;
-  var n = unread + review + _ibx.alerts.length + (typeof _returnReviews !== 'undefined' ? _returnReviews.length : 0);
+  var n = unread + review + _ibx.alerts.length + (typeof _returnReviews !== 'undefined' ? _returnReviews.length : 0) + (typeof vpPendingCount === 'function' ? vpPendingCount() : 0);
   var badge = document.getElementById('rrTabBadge');
   if (badge){ badge.textContent = n; badge.style.display = n ? '' : 'none'; }
 }
@@ -4445,6 +4474,7 @@ async function loadInbox(){
   } finally { _ibx.loading = false; }
   renderInboxList(); updateMessagesBadge();
   if (_ibx.open != null) await loadThread(_ibx.open, true);
+  loadPassRequests();
 }
 function paxById(id){ for (var i = 0; i < data.length; i++) if (data[i].id === id) return data[i]; return null; }
 function renderInboxList(){
@@ -4621,7 +4651,8 @@ function onInboxDraft(passengerId){
   var ta = document.getElementById('ibxText'); if (!ta) return;
   var c = _ibx.compose[passengerId] || (_ibx.compose[passengerId] = { id: newComposeId(), text: '' });
   if (c.text !== ta.value){ c.text = ta.value; }
-  var cnt = document.getElementById('ibxCount'); if (cnt) cnt.textContent = ta.value.length + '/480 · ' + smsSegmentsEstimate(ta.value) + ' seg';
+  var seg = smsSegmentsEstimate(ta.value);
+  var cnt = document.getElementById('ibxCount'); if (cnt) cnt.textContent = ta.value.length + '/480 · ' + seg + ' seg · ~$' + (seg * SMS_COST_PER_SEGMENT_EST).toFixed(seg ? 3 : 2);
 }
 function useQuickReply(passengerId, text){
   var ta = document.getElementById('ibxText'); if (!ta) return;
@@ -4668,12 +4699,450 @@ function initSmsInbox(){
     if (ib) ib.style.display = 'none';
     if (ws) ws.style.display = '';
     if (_ibx.timer) { clearInterval(_ibx.timer); _ibx.timer = null; }
+    vpStopRealtime(); renderVpAlertsCard();
     return;
   }
+  vpStartRealtime(); renderVpAlertsCard();
   if (ib) ib.style.display = '';
   if (ws) ws.style.display = 'none';
   if (!_ibx.timer) _ibx.timer = setInterval(function(){ if (!document.hidden && _authToken) loadInbox(); }, 15000);
   loadInbox();
+}
+
+// ── PASSENGER PORTAL (VALET PASS) — staff side ───────────────────────────
+// Same gates as AirValet texting: staff panels only on an approved device
+// with texting on (isServerSms()); portal settings for ADMIN; SMS alerts for
+// Super Admins (airvalet_super_admins). The TV only gets anonymous alert
+// signals + airvalet_tv_alerts(). Any failure hides the feature — v46 flows
+// (prints, check-in, iPhone texting, TV board) never depend on this block.
+var _vp = { requests: [], channel: null, debounce: null, settings: null, bannerTimer: null, lastAlertId: 0 };
+var VP_REASON_LABELS = { NEW_DATE_TIME: 'New date or time', FLIGHT_CHANGED: 'Flight changed', OTHER_CARRIER: 'Another airline or company', AFTER_HOURS: 'Arriving after valet hours' };
+var SMS_COST_PER_SEGMENT_EST = 0.0113; // Twilio $0.0083 + carrier fee estimate (send-sms preview uses the same)
+function vpRpc(fn, args){ return smsApi('/rest/v1/rpc/' + fn, { method: 'POST', body: JSON.stringify(args || {}) }); }
+function vpIsoDate(iso){
+  var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || '')); if (!m) return '';
+  return new Date(+m[1], +m[2] - 1, +m[3], 12).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+}
+function vpTime(t){
+  var m = /^(\d{2}):(\d{2})/.exec(String(t || '')); if (!m) return '';
+  var h = +m[1]; return ((h + 11) % 12 + 1) + ':' + m[2] + ' ' + (h < 12 ? 'AM' : 'PM');
+}
+function vpRet(ret, time){ return (ret ? ret : 'Not set') + (time ? ' · ' + vpTime(time) : ''); }
+
+// Passenger requests (Inbox) — PENDING until a staff decision.
+async function loadPassRequests(){
+  if (!isServerSms()) return;
+  try { _vp.requests = (await vpRpc('airvalet_pass_requests_list', { p_days: 7 })) || []; }
+  catch(e) { _vp.requests = _vp.requests || []; }
+  renderPassRequests(); updateMessagesBadge();
+}
+function vpPendingCount(){ return (_vp.requests || []).filter(function(q){ return q.status === 'PENDING'; }).length; }
+function renderPassRequests(){
+  var el = document.getElementById('ibxRequests'); if (!el) return;
+  var pend = _vp.requests.filter(function(q){ return q.status === 'PENDING'; });
+  var done = _vp.requests.filter(function(q){ return q.status !== 'PENDING' && q.status !== 'SUPERSEDED'; }).slice(0, 4);
+  if (!pend.length && !done.length) { el.innerHTML = ''; return; }
+  var card = function(q){
+    var what = q.kind === 'CAR_WASH'
+      ? '<div class="vpq-k">Car wash request</div><div class="vpq-l">Return on file: ' + escapeHTML(vpRet(q.current_ret, q.current_ret_time)) + '. Approving uses the existing Send Price step.</div>'
+      : '<div class="vpq-k">Return change · ' + escapeHTML(VP_REASON_LABELS[q.reason] || q.reason) + '</div>' +
+        '<div class="vpq-l">On file: <b>' + escapeHTML(vpRet(q.current_ret, q.current_ret_time)) + '</b></div>' +
+        '<div class="vpq-l">Requested: <b>' + escapeHTML(vpIsoDate(q.requested_date) + (q.requested_time ? ' · ' + vpTime(q.requested_time) : '')) + '</b>' +
+        (q.carrier ? ' · with ' + escapeHTML(q.carrier) : '') + '</div>' +
+        (q.reason === 'OTHER_CARRIER' || q.reason === 'AFTER_HOURS' ? '<div class="vpq-n">Approving changes only the date/time. Returning with, Customs and lockbox stay as they are — change them yourself if needed.</div>' : '');
+    return '<div class="vpq">' +
+      '<div class="vpq-h"><span class="vpq-name">' + escapeHTML(q.passenger_name || '—') + '</span><span class="vpq-tk">' + escapeHTML(q.ticket || '') + '</span></div>' +
+      '<div class="vpq-l">' + escapeHTML(q.vehicle || '') + ' · ' + escapeHTML(new Date(q.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })) + '</div>' +
+      what + (q.note ? '<div class="vpq-note">"' + escapeHTML(q.note) + '"</div>' : '') +
+      '<div class="vpq-a"><button type="button" class="vpq-ok" onclick="vpDecide(\'' + q.id + '\',\'APPROVE\')">Approve</button>' +
+      '<button type="button" onclick="vpDecide(\'' + q.id + '\',\'DECLINE\')">Decline</button>' +
+      '<button type="button" onclick="openInboxThread(' + Number(q.passenger_id) + ')">Text passenger</button></div></div>';
+  };
+  el.innerHTML = '<div class="ibx-sec-t">Passenger requests' + (pend.length ? ' <span class="vpq-badge">' + pend.length + '</span>' : '') + '</div>' +
+    pend.map(card).join('') +
+    (done.length ? '<div class="vpq-done">' + done.map(function(q){
+      return '<div>' + escapeHTML(q.passenger_name || '') + ' · ' + (q.kind === 'CAR_WASH' ? 'car wash' : 'return change') + ' · <b>' + escapeHTML(q.status.toLowerCase()) + '</b>' +
+        (q.decided_by_email ? ' by ' + escapeHTML(String(q.decided_by_email).split('@')[0]) : '') + '</div>';
+    }).join('') + '</div>' : '');
+}
+async function vpDecide(id, decision, force){
+  var q = _vp.requests.filter(function(x){ return x.id === id; })[0]; if (!q) return;
+  var note = null;
+  if (decision === 'APPROVE' && !force) {
+    var msg = q.kind === 'CAR_WASH'
+      ? 'Approve the car wash request for ' + q.passenger_name + '?\n\nThis sets the existing "Send Price" status. Text the price to the passenger yourself.'
+      : 'Approve the return change for ' + q.passenger_name + '?\n\n' + vpRet(q.current_ret, q.current_ret_time) + '  →  ' + vpIsoDate(q.requested_date) + (q.requested_time ? ' · ' + vpTime(q.requested_time) : '') + '\n\nThe change is saved with its reason in the passenger history.';
+    if (!confirm(msg)) return;
+  }
+  if (decision === 'DECLINE') {
+    note = prompt('Decline this request? Optional note for the history (the passenger is not texted automatically):', '');
+    if (note === null) return;
+  }
+  try {
+    var r = await vpRpc('airvalet_pass_request_decide', { p_id: id, p_decision: decision, p_note: note || null, p_force: !!force });
+    if (r && r.result === 'STALE') {
+      if (confirm('The return date changed after this request (now ' + vpRet(r.current_ret, r.current_ret_time) + ').\n\nApprove the passenger\'s request anyway?')) return vpDecide(id, decision, true);
+      return;
+    }
+    if (r && r.result === 'ALREADY_DECIDED') showMsg('Already decided (' + String(r.status || '').toLowerCase() + ').', false);
+    else showMsg(decision === 'APPROVE' ? '✓ Approved. Nothing was texted — use Text passenger if you want to confirm.' : 'Declined.', false);
+  } catch(e) {
+    showMsg('Could not save the decision: ' + e.message, true);
+  }
+  await loadPassRequests();
+  if (typeof loadData === 'function') loadData();
+}
+
+// Realtime: Inbox refresh + in-app alert banner (polling every 15 s stays).
+function vpStartRealtime(){
+  if (_vp.channel || typeof _supaClient === 'undefined' || !_authToken) return;
+  try {
+    if (_supaClient.realtime && typeof _supaClient.realtime.setAuth === 'function') _supaClient.realtime.setAuth(_authToken);
+    _vp.channel = _supaClient.channel('airvalet-inbox')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'airvalet_sms_messages' }, vpOnChange)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'airvalet_pass_requests' }, vpOnChange)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'airvalet_alert_events' }, vpOnAlert)
+      .subscribe();
+  } catch(e) { _vp.channel = null; }
+}
+function vpStopRealtime(){
+  if (!_vp.channel) return;
+  try { _supaClient.removeChannel(_vp.channel); } catch(e) {}
+  _vp.channel = null;
+}
+function vpOnChange(){
+  if (_vp.debounce) clearTimeout(_vp.debounce);
+  _vp.debounce = setTimeout(function(){ loadInbox(); }, 600);
+}
+async function vpOnAlert(){
+  vpOnChange();
+  try {
+    var a = await vpRpc('airvalet_tv_alerts');
+    var it = a && a.latest && a.latest[0];
+    if (it) vpShowBanner(it);
+  } catch(e) {}
+}
+function vpShowBanner(it){
+  var b = document.getElementById('vpBanner'); if (!b || isTvMode()) return;
+  b.innerHTML = '<div class="vpb-k">' + (it.kind === 'REQUEST' ? 'NEW PASSENGER REQUEST' : 'NEW GUEST MESSAGE') + '</div>' +
+    '<div class="vpb-w">' + escapeHTML(it.who || 'Guest') + (it.ticket ? ' · Ticket #' + escapeHTML(it.ticket) : '') + '</div>' +
+    '<div class="vpb-t">"' + escapeHTML(it.text || '') + '"</div>' +
+    '<div class="vpb-a"><button type="button" class="vpb-open" onclick="vpOpenMessages()">OPEN MESSAGE</button><button type="button" onclick="vpHideBanner()">Later</button></div>';
+  b.style.display = '';
+  if (vpSoundOn()) vpBeep();
+  if (_vp.bannerTimer) clearTimeout(_vp.bannerTimer);
+  _vp.bannerTimer = setTimeout(vpHideBanner, 30000);
+}
+function vpHideBanner(){ var b = document.getElementById('vpBanner'); if (b) b.style.display = 'none'; }
+function vpOpenMessages(){
+  vpHideBanner();
+  var tab = document.querySelector('.tab[data-t="messages"]'); if (tab) tab.click();
+}
+function vpSoundOn(){ try { return localStorage.getItem('airvalet_alert_sound') === '1'; } catch(e) { return false; } }
+function vpBeep(){
+  try {
+    var C = window.AudioContext || window.webkitAudioContext; if (!C) return;
+    var ctx = new C(), o = ctx.createOscillator(), g = ctx.createGain();
+    o.frequency.value = 880; g.gain.value = 0.08; o.connect(g); g.connect(ctx.destination);
+    o.start(); o.stop(ctx.currentTime + 0.18);
+  } catch(e) {}
+}
+if (navigator.serviceWorker) navigator.serviceWorker.addEventListener('message', function(ev){
+  if (ev.data && ev.data.type === 'OPEN_MESSAGES') vpOpenMessages();
+});
+
+// Web Push on this device (iPad on the Home Screen; iPadOS 16.4+).
+function vpB64ToBytes(s){
+  var p = '='.repeat((4 - s.length % 4) % 4), b = atob((s + p).replace(/-/g, '+').replace(/_/g, '/'));
+  var out = new Uint8Array(b.length); for (var i = 0; i < b.length; i++) out[i] = b.charCodeAt(i); return out;
+}
+function vpPushSupport(){
+  if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
+    var ios = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    var standalone = navigator.standalone === true || (window.matchMedia && matchMedia('(display-mode: standalone)').matches);
+    return ios && !standalone ? 'HOME_SCREEN' : 'UNSUPPORTED';
+  }
+  return 'OK';
+}
+async function renderVpAlertsCard(){
+  var el = document.getElementById('vpAlertsCard'); if (!el) return;
+  if (!isServerSms() || isTvMode()) { el.style.display = 'none'; return; }
+  var sup = vpPushSupport(), state = 'off', show = false;
+  try {
+    if (!_vp.settings) _vp.settings = await vpRpc('airvalet_portal_settings_get');
+  } catch(e) { el.style.display = 'none'; return; }
+  if (sup === 'OK') {
+    try {
+      var reg = await navigator.serviceWorker.ready, sub = await reg.pushManager.getSubscription();
+      state = Notification.permission === 'denied' ? 'denied' : (sub ? 'on' : 'off');
+      try { show = localStorage.getItem('airvalet_push_preview') === '1'; } catch(e) {}
+    } catch(e) { state = 'off'; }
+  }
+  var s = _vp.settings || {};
+  var line = !s.push_enabled ? 'Alerts are switched off for AirValet (ADMIN → Valet Pass settings).'
+    : sup === 'HOME_SCREEN' ? 'Add AirValet to the Home Screen (Share → Add to Home Screen), open it from there, then turn alerts on.'
+    : sup !== 'OK' ? 'This browser cannot receive alerts. Messages still appear here live.'
+    : state === 'denied' ? 'Notifications are blocked for AirValet in this device\'s Settings.'
+    : state === 'on' ? 'This device gets an alert for new guest messages and passenger requests, even outside AirValet.'
+    : 'Get an alert for new guest messages and passenger requests, even when AirValet is closed.';
+  el.innerHTML = '<div class="smsdev-t">&#128276; Alerts on this device</div><div class="smsdev-s">' + escapeHTML(line) + '</div>' +
+    (s.push_enabled && sup === 'OK' && state !== 'denied'
+      ? '<div class="vpa-row">' + (state === 'on'
+          ? '<button type="button" class="smsbtn" onclick="vpPushOff()">Turn alerts off</button>'
+          : '<button type="button" class="smsbtn pri" onclick="vpPushOn()">Turn alerts on</button>') + '</div>' +
+        (state === 'on' ? '<label class="vpa-chk"><input type="checkbox" ' + (show ? 'checked ' : '') + 'onchange="vpPushPreview(this.checked)"> Show the message text on the lock screen</label>' : '')
+      : '') +
+    '<label class="vpa-chk"><input type="checkbox" ' + (vpSoundOn() ? 'checked ' : '') + 'onchange="vpSetSound(this.checked)"> Sound for new messages while AirValet is open</label>';
+  el.style.display = '';
+}
+function vpSetSound(on){ try { localStorage.setItem('airvalet_alert_sound', on ? '1' : '0'); } catch(e) {} if (on) vpBeep(); }
+async function vpPushSave(sub, preview){
+  var j = sub.toJSON();
+  return vpRpc('airvalet_push_subscribe', { p_device_key: smsDeviceKey(false), p_endpoint: j.endpoint, p_p256dh: j.keys.p256dh, p_auth: j.keys.auth, p_show_preview: !!preview });
+}
+async function vpPushOn(){
+  try {
+    var key = _vp.settings && _vp.settings.vapid_public; if (!key) { showMsg('Alerts are not configured yet.', true); return; }
+    var perm = await Notification.requestPermission(); if (perm !== 'granted') { renderVpAlertsCard(); return; }
+    var reg = await navigator.serviceWorker.ready;
+    var sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: vpB64ToBytes(key) });
+    var r = await vpPushSave(sub, false);
+    if (r && r.result === 'DEVICE_NOT_AUTHORIZED') { await sub.unsubscribe(); showMsg('Only devices approved for AirValet texting can get alerts.', true); }
+    else showMsg('✓ Alerts are on for this device.', false);
+  } catch(e) { showMsg('Could not turn alerts on: ' + e.message, true); }
+  renderVpAlertsCard();
+}
+async function vpPushOff(){
+  try {
+    var reg = await navigator.serviceWorker.ready, sub = await reg.pushManager.getSubscription();
+    if (sub) { await vpRpc('airvalet_push_unsubscribe', { p_endpoint: sub.endpoint }); await sub.unsubscribe(); }
+  } catch(e) {}
+  renderVpAlertsCard();
+}
+async function vpPushPreview(on){
+  try {
+    localStorage.setItem('airvalet_push_preview', on ? '1' : '0');
+    var reg = await navigator.serviceWorker.ready, sub = await reg.pushManager.getSubscription();
+    if (sub) await vpPushSave(sub, on);
+  } catch(e) {}
+}
+
+// Passenger panel: staff-only Valet Pass state (Ready / Customs / Lockbox / return time).
+async function vpLoadStaff(r){
+  var el = document.getElementById('vpStaffSec'); if (!el) return;
+  if (!isServerSms() || smsRouteFor(r.id) !== 'server' || r.status === 'ARCHIVED' || r.status === 'DELIVERED' || r.isOfflinePending) { el.innerHTML = ''; return; }
+  var st;
+  try { st = await vpRpc('airvalet_pass_state_get', { p_passenger_id: r.id }); } catch(e) { el.innerHTML = ''; return; }
+  var customs = pickupLocation(r) === 'CUSTOMS';
+  var tg = function(field, on, label){
+    return '<button type="button" class="vps-tg' + (on ? ' on' : '') + '" onclick="vpSetState(' + r.id + ',\'' + field + '\',' + (on ? 'false' : 'true') + ')">' + (on ? '✓ ' : '') + label + '</button>';
+  };
+  el.innerHTML = '<div class="htitle" style="margin-top:4px">Valet Pass (passenger page)</div><div class="vps">' +
+    '<div class="vps-r"><span>Ready to Go</span>' + tg('ready', st.ready, st.ready ? 'Ready' : 'Mark Ready') + '</div>' +
+    (customs ? '<div class="vps-r"><span>Customs on the passenger page</span>' + tg('customs_confirmed', st.customs_confirmed, st.customs_confirmed ? 'Confirmed' : 'Confirm Customs') + '</div>' : '') +
+    '<div class="vps-r"><span>After-hours lockbox' + (st.lockbox_authorized ? ' · code shows from ' + escapeHTML(vpIsoDate(st.lockbox_reveal_on)) : '') + '</span>' +
+      (st.lockbox_authorized ? '<button type="button" class="vps-tg on" onclick="vpLockbox(' + r.id + ',false)">Remove</button>'
+                             : '<button type="button" class="vps-tg" onclick="vpLockbox(' + r.id + ',true)">Authorize</button>') + '</div>' +
+    '<div class="vps-r"><span>Return time (optional) · ' + escapeHTML(r.ret_time ? vpTime(r.ret_time) : 'not set') + '</span><button type="button" class="vps-tg" onclick="vpSetRetTime(' + r.id + ')">' + (r.ret_time ? 'Change' : 'Set') + '</button></div>' +
+    '<div class="vps-s">Shown on the passenger\'s page only. Nothing is texted automatically.</div></div>';
+}
+async function vpSetState(pid, field, on){
+  try { await vpRpc('airvalet_pass_state_set', { p_passenger_id: pid, p_field: field, p_value: { on: !!on } }); }
+  catch(e) { showMsg('Could not save: ' + e.message, true); }
+  var r = paxById(pid); if (r) vpLoadStaff(r);
+}
+async function vpLockbox(pid, on){
+  var r = paxById(pid); if (!r) return;
+  var v = { on: !!on };
+  if (on) {
+    var code = prompt('Lockbox code for ' + r.name + ' (letters/numbers, shown to the passenger only from the reveal day):', '');
+    if (!code) return;
+    var d = pd(r.ret), def = d ? d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0') : '';
+    var day = prompt('Show the code from which day? (YYYY-MM-DD — usually the return day)', def);
+    if (!day) return;
+    v.code = code.trim(); v.reveal_on = day.trim();
+  } else if (!confirm('Remove the after-hours lockbox for ' + r.name + '?')) return;
+  try { await vpRpc('airvalet_pass_state_set', { p_passenger_id: pid, p_field: 'lockbox', p_value: v }); }
+  catch(e) { showMsg('Could not save the lockbox: ' + e.message, true); }
+  vpLoadStaff(r);
+}
+async function vpSetRetTime(pid){
+  var r = paxById(pid); if (!r) return;
+  var v = prompt('Return time for ' + r.name + ' (HH:MM, 24-hour; leave empty to clear):', r.ret_time ? String(r.ret_time).slice(0, 5) : '');
+  if (v === null) return;
+  v = v.trim();
+  if (v && !/^([01]\d|2[0-3]):[0-5]\d$/.test(v)) { showMsg('Use HH:MM, e.g. 18:30.', true); return; }
+  try {
+    var before = r.ret_time || null;
+    await sbUpdate(pid, { ret_time: v || null });
+    r.ret_time = v || null;
+    sbLog('EDITED', r.name, r.ticket, r.loc, 'Return time: ' + (before ? String(before).slice(0, 5) : 'not set') + ' → ' + (v || 'not set'), { passenger_id: pid, field_name: 'ret_time', old_value: before, new_value: v || null });
+  } catch(e) { showMsg('Could not save the return time: ' + e.message, true); }
+  vpLoadStaff(r);
+}
+
+// Mandatory preview for every staff-started AirValet text: the server renders
+// it with the same template and link length it will send; nothing is sent
+// until Send is pressed.
+var _svPrev = null;
+function serverPreviewConfirm(options, type){
+  return new Promise(function(resolve){
+    _svPrev = { options: options, type: type, resolve: resolve };
+    document.getElementById('svPrevBody').innerHTML = '<div class="svp-load">Preparing the preview…</div>';
+    var btn = document.getElementById('svPrevSend'); btn.disabled = true; btn.textContent = 'Send text';
+    document.getElementById('svPrevOv').classList.add('on');
+    var headers = sbHeaders(), key = smsDeviceKey(false); if (key) headers['x-airvalet-device'] = key;
+    smsApi('/functions/v1/send-sms', { method: 'POST', headers: headers, body: JSON.stringify({ passenger_id: options.passengerId, message_type: type, preview: true, staff_name: smsStaffName() || undefined }) })
+      .then(renderServerPreview, function(){ renderServerPreview({ ok: false, error: { code: 'NETWORK' } }); });
+  });
+}
+function renderServerPreview(p){
+  if (!_svPrev) return;
+  var o = _svPrev.options, btn = document.getElementById('svPrevSend');
+  if (!p || !p.ok) {
+    document.getElementById('svPrevBody').innerHTML = '<div class="svp-blk">Preview not available: ' + escapeHTML(smsBlockText(p && p.error && p.error.code)) + '. Nothing was sent.</div>';
+    btn.disabled = true; return;
+  }
+  var cost = typeof p.estimated_cost_usd === 'number' ? '$' + p.estimated_cost_usd.toFixed(p.estimated_cost_usd < 0.1 ? 3 : 2) : '—';
+  document.getElementById('svPrevBody').innerHTML =
+    '<div class="svp-meta"><span>To</span><b>' + escapeHTML(p.to || o.phone || '') + '</b><span>Guest</span><b>' + escapeHTML(o.passengerName || '—') + '</b>' +
+    '<span>Ticket</span><b class="svp-tk">' + escapeHTML(o.ticket || '—') + '</b></div>' +
+    '<div class="svp-msg">' + escapeHTML(p.body || '') + '</div>' +
+    '<div class="svp-stats"><div><span>Characters</span><b>' + Number(p.chars || 0) + '</b></div>' +
+      '<div class="' + (p.segments > 1 ? 'svp-warn' : 'svp-ok') + '"><span>Segments</span><b>' + Number(p.segments || 0) + ' · ' + escapeHTML(p.encoding || '') + '</b></div>' +
+      '<div><span>Est. cost</span><b>' + cost + '</b></div></div>' +
+    (p.link_note ? '<div class="svp-note">' + escapeHTML(p.link_note) + '</div>' : '') +
+    (p.would_send
+      ? '<div class="svp-okline">Consent on file · not opted out · ready to send.</div>'
+      : '<div class="svp-blk">Will not be sent: ' + escapeHTML(smsBlockText(p.block)) + '.</div>');
+  btn.disabled = !p.would_send;
+}
+function svPrevSend(){ var c = _svPrev; _svPrev = null; document.getElementById('svPrevOv').classList.remove('on'); if (c) c.resolve(true); }
+function svPrevCancel(){ var c = _svPrev; _svPrev = null; document.getElementById('svPrevOv').classList.remove('on'); if (c) c.resolve(false); }
+
+// TV Mode: "MESSAGES (n)" + a 20-second alert for new items. Polled every
+// 60 s and woken by Realtime; the TV board works the same if this fails.
+var _tvMsg = { timer: null, channel: null, seen: {}, first: true, toastTimer: null, debounce: null };
+function tvAlertsInit(){
+  try {
+    tvAlertsRefresh();
+    if (!_tvMsg.timer) _tvMsg.timer = setInterval(tvAlertsRefresh, 60000);
+    if (!_tvMsg.channel && typeof _supaClient !== 'undefined' && _authToken) {
+      if (_supaClient.realtime && typeof _supaClient.realtime.setAuth === 'function') _supaClient.realtime.setAuth(_authToken);
+      _tvMsg.channel = _supaClient.channel('tv-alert-events')
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'airvalet_alert_events' }, function(){
+          if (_tvMsg.debounce) clearTimeout(_tvMsg.debounce);
+          _tvMsg.debounce = setTimeout(tvAlertsRefresh, 800);
+        })
+        .subscribe();
+    }
+  } catch(e) { /* polling only */ }
+}
+async function tvAlertsRefresh(){
+  var chip = document.getElementById('tvMsgs'); if (!chip) return;
+  var a;
+  try { a = await vpRpc('airvalet_tv_alerts'); } catch(e) { chip.style.display = 'none'; return; }
+  if (!a || !a.enabled) { chip.style.display = 'none'; return; }
+  var n = Number(a.unread || 0) + Number(a.pending_requests || 0);
+  chip.textContent = 'MESSAGES (' + n + ')';
+  chip.className = 'tv-msgs' + (n ? ' tv-msgs-on' : '');
+  chip.style.display = '';
+  var fresh = (a.latest || []).filter(function(it){ return !_tvMsg.seen[it.id]; });
+  (a.latest || []).forEach(function(it){ _tvMsg.seen[it.id] = true; });
+  if (!_tvMsg.first && fresh.length) tvShowMsgToast(fresh[0]);
+  _tvMsg.first = false;
+}
+function tvShowMsgToast(it){
+  var t = document.getElementById('tvMsgToast'); if (!t) return;
+  t.innerHTML = '<div class="tvm-k">' + (it.kind === 'REQUEST' ? 'NEW REQUEST' : 'NEW MESSAGE') + '</div>' +
+    '<div class="tvm-w">' + escapeHTML(it.who || 'Guest') + (it.ticket ? ' · Ticket #' + escapeHTML(it.ticket) : '') + '</div>' +
+    '<div class="tvm-t">"' + escapeHTML(it.text || '') + '"</div>' +
+    '<div class="tvm-s">Answer on the iPad or a staff phone</div>';
+  t.style.display = '';
+  if (_tvMsg.toastTimer) clearTimeout(_tvMsg.toastTimer);
+  _tvMsg.toastTimer = setTimeout(function(){ t.style.display = 'none'; }, 20000);
+}
+
+// ADMIN: Valet Pass settings; Super Admin: SMS alert copy.
+async function vpAdminLoad(){
+  var sec = document.getElementById('vpAdminSec'); if (!sec) return;
+  if (_currentUserRole !== 'ADMIN') { sec.style.display = 'none'; return; }
+  var s;
+  try { s = await vpRpc('airvalet_portal_settings_get'); } catch(e) { sec.style.display = 'none'; return; }
+  _vp.settings = s;
+  var h = s.valet_hours && s.valet_hours.mon ? s.valet_hours.mon : null;
+  var chk = function(k, label, note){ return '<label class="vpa-chk"><input type="checkbox" id="vpS_' + k + '" ' + (s[k] ? 'checked' : '') + '> ' + label + (note ? ' <span class="vpa-n">' + note + '</span>' : '') + '</label>'; };
+  document.getElementById('vpAdmPortal').innerHTML =
+    chk('portal_enabled', 'Passenger page on', '(off = every link shows "not active")') +
+    chk('requests_enabled', 'Passengers may send requests', '(return change, car wash)') +
+    chk('push_enabled', 'Device alerts (Web Push)') +
+    chk('tv_alerts_enabled', 'Message alerts on the TV') +
+    chk('terms_published', 'Show Valet Terms link', '(only after the legal review)') +
+    '<div class="vpa-grid">' +
+      '<label>Text number shown to passengers<input id="vpS_text_phone" value="' + escapeHTML(s.text_phone || '') + '" placeholder="only when replies reach the Inbox"></label>' +
+      '<label>Makers Air Reservations<input id="vpS_reservations_phone" value="' + escapeHTML(s.reservations_phone || '') + '" placeholder="verified number only"></label>' +
+      '<label>Valet hours (same every day)<span class="vpa-hrs"><input id="vpS_h_open" type="time" value="' + escapeHTML(h ? h[0] : '') + '"> – <input id="vpS_h_close" type="time" value="' + escapeHTML(h ? h[1] : '') + '"></span></label>' +
+      '<label>Car wash notice (hours)<input id="vpS_car_wash_lead_hours" type="number" min="1" max="240" value="' + Number(s.car_wash_lead_hours || 48) + '"></label>' +
+    '</div>' +
+    '<div class="vpa-n">Gratuity: Matt Solutions Payment Link ' + (s.gratuity_url ? '✓ set' : '— not set') + '. Valet phone: ' + escapeHTML(s.valet_phone || '—') + '.</div>' +
+    '<button type="button" class="smsbtn pri" onclick="vpAdminSave()">Save Valet Pass settings</button> <span id="vpAdmMsg" class="vpa-n"></span>';
+  sec.style.display = '';
+  var isSuper = false;
+  try { isSuper = (await vpRpc('airvalet_is_super_admin')) === true; } catch(e) {}
+  var box = document.getElementById('vpAdmAlerts');
+  if (!isSuper) { box.innerHTML = ''; return; }
+  var a;
+  try { a = await vpRpc('airvalet_admin_alerts_get'); } catch(e) { box.innerHTML = ''; return; }
+  var c = function(k, label){ return '<label class="vpa-chk"><input type="checkbox" id="vpA_' + k + '" ' + (a[k] ? 'checked' : '') + '> ' + label + '</label>'; };
+  box.innerHTML = '<div class="smsadm-t" style="margin-top:14px">&#128241; Admin SMS alerts <span class="vpa-n">(Super Admin only)</span></div>' +
+    '<div class="vpa-grid"><label>Phone number<input id="vpA_phone" value="' + escapeHTML(a.phone_e164 || '') + '" placeholder="+1…"></label>' +
+    '<label>' + (a.phone_verified ? '✓ Verified' : 'Not verified') + '<span class="vpa-hrs"><button type="button" class="smsbtn" onclick="vpAlertsSendCode()">Send code</button><input id="vpA_code" inputmode="numeric" maxlength="6" placeholder="6-digit code"><button type="button" class="smsbtn" onclick="vpAlertsConfirm()">Confirm</button></span></label></div>' +
+    c('enabled', 'Enabled') + c('notify_guest_messages', 'New guest messages') + c('notify_pass_requests', 'Passenger requests') + c('notify_sms_failures', 'SMS delivery failures') +
+    '<div class="vpa-grid"><label>Max alerts per day<input id="vpA_daily_cap" type="number" min="1" max="200" value="' + Number(a.daily_cap) + '"></label>' +
+    '<label>Same guest — one alert per (minutes)<input id="vpA_per_guest_window_min" type="number" min="1" max="240" value="' + Number(a.per_guest_window_min) + '"></label></div>' +
+    '<div class="vpa-n">Last 24 h: ' + Number(a.last_24h || 0) + ' alerts · last 30 days: ' + Number(a.last_30d_segments || 0) + ' segments (about $' + (Number(a.last_30d_segments || 0) * SMS_COST_PER_SEGMENT_EST).toFixed(2) + '). Each alert is one segment (about $0.01).</div>' +
+    '<button type="button" class="smsbtn pri" onclick="vpAlertsSave()">Save alerts</button> <button type="button" class="smsbtn" onclick="vpAlertsTest()">Send test alert</button> <span id="vpAlMsg" class="vpa-n"></span>';
+}
+async function vpAdminSave(){
+  var g = function(id){ return document.getElementById(id); }, msg = g('vpAdmMsg');
+  var open = g('vpS_h_open').value, close = g('vpS_h_close').value, hours = {};
+  if (open && close) ['mon','tue','wed','thu','fri','sat','sun'].forEach(function(d){ hours[d] = [open, close]; });
+  var patch = {
+    portal_enabled: g('vpS_portal_enabled').checked, requests_enabled: g('vpS_requests_enabled').checked,
+    push_enabled: g('vpS_push_enabled').checked, tv_alerts_enabled: g('vpS_tv_alerts_enabled').checked,
+    terms_published: g('vpS_terms_published').checked, text_phone: g('vpS_text_phone').value.trim(),
+    reservations_phone: g('vpS_reservations_phone').value.trim(), valet_hours: hours,
+    car_wash_lead_hours: Number(g('vpS_car_wash_lead_hours').value) || 48
+  };
+  if (patch.portal_enabled && !_vp.settings.portal_enabled && !confirm('Turn the passenger page ON? Links already sent start working immediately.')) return;
+  try { _vp.settings = await vpRpc('airvalet_portal_settings_set', { p_patch: patch }); msg.textContent = '✓ Saved'; }
+  catch(e) { msg.textContent = 'Not saved: ' + e.message; }
+}
+async function vpAlertsCall(body){
+  return smsApi('/functions/v1/airvalet-admin-alerts', { method: 'POST', body: JSON.stringify(body) });
+}
+async function vpAlertsSendCode(){
+  var m = document.getElementById('vpAlMsg');
+  try { var r = await vpAlertsCall({ action: 'start_verify', phone: document.getElementById('vpA_phone').value.trim() }); m.textContent = r && r.ok ? 'Code sent (1 text).' : 'Not sent: ' + ((r && r.error) || 'error'); }
+  catch(e) { m.textContent = 'Not sent: ' + e.message; }
+}
+async function vpAlertsConfirm(){
+  var m = document.getElementById('vpAlMsg');
+  try { var r = await vpRpc('airvalet_admin_alerts_confirm', { p_code: document.getElementById('vpA_code').value.trim() }); m.textContent = r.result === 'VERIFIED' ? '✓ Phone verified' : 'Code ' + r.result.toLowerCase().replace('_', ' '); if (r.result === 'VERIFIED') vpAdminLoad(); }
+  catch(e) { m.textContent = e.message; }
+}
+async function vpAlertsSave(){
+  var g = function(id){ return document.getElementById(id); }, m = g('vpAlMsg');
+  var patch = { enabled: g('vpA_enabled').checked, notify_guest_messages: g('vpA_notify_guest_messages').checked,
+    notify_pass_requests: g('vpA_notify_pass_requests').checked, notify_sms_failures: g('vpA_notify_sms_failures').checked,
+    daily_cap: Number(g('vpA_daily_cap').value) || 30, per_guest_window_min: Number(g('vpA_per_guest_window_min').value) || 10 };
+  try { await vpRpc('airvalet_admin_alerts_set', { p_patch: patch }); m.textContent = '✓ Saved'; }
+  catch(e) { m.textContent = 'Not saved: ' + e.message; }
+}
+async function vpAlertsTest(){
+  var m = document.getElementById('vpAlMsg');
+  try { var r = await vpAlertsCall({ action: 'test' }); m.textContent = r && r.ok ? 'Test alert sent (1 text).' : 'Not sent: ' + ((r && r.error) || 'error'); }
+  catch(e) { m.textContent = 'Not sent: ' + e.message; }
 }
 
 // ── NEW ENTRY SMS REVIEW ──────────────────────────────────────────
@@ -4688,6 +5157,9 @@ function initSmsInbox(){
 var _reviewSmsPending = null;
 function openNewEntrySmsPreview(options) {
   options = options || {};
+  // AirValet texting: the server preview (real text, segments, cost, consent)
+  // is the review step; nothing is sent until Send is pressed there.
+  if (smsRouteFor(options.passengerId) === 'server') { sendPassengerSms(options); return; }
   _reviewSmsPending = options;
   logMessageEvent(options, 'Ready to Open');
   document.getElementById('reviewSmsBody').innerHTML =
@@ -4699,36 +5171,11 @@ function openNewEntrySmsPreview(options) {
   var openBtn = document.getElementById('reviewSmsOpenBtn');
   openBtn.disabled = false;
   openBtn.textContent = '📱 Open in Messages';
-  if (smsRouteFor(options.passengerId) === 'server') {
-    // Server mode: the check-in text (with the passenger's personal link)
-    // is rendered by the server; this shows the approved wording.
-    document.getElementById('reviewSmsBody').innerHTML =
-      '<div class="mock-sms-badge">📋 Sent by AirValet as a normal text after you choose Send</div>' +
-      '<div class="mock-sms-row"><span class="mock-sms-lbl">Passenger</span><span class="mock-sms-val">' + escapeHTML(options.passengerName || '—') + '</span></div>' +
-      '<div class="mock-sms-row"><span class="mock-sms-lbl">Phone</span><span class="mock-sms-val">' + escapeHTML(options.phone || '—') + '</span></div>' +
-      '<div class="mock-sms-row"><span class="mock-sms-lbl">SMS consent</span><span class="mock-sms-val">' + (options.consent ? '✓ Recorded at check-in' : '✗ Not recorded — the text will be refused') + '</span></div>' +
-      '<div class="mock-sms-msgbox">' + escapeHTML(CHECK_IN_SMS_PREVIEW) + '</div>';
-    openBtn.textContent = '💬 Send text';
-  }
   document.getElementById('reviewSmsOv').classList.add('on');
 }
 // Confirm step for an AirValet text that a workflow (not a Send button)
-// prepared — staff choose Send text or Cancel; nothing goes out otherwise.
-var DELIVERED_SMS_PREVIEW = 'Makers Air Valet: Your vehicle has been delivered. Thank you for choosing us, we look forward to welcoming you on your next trip!';
-function openServerSmsReview(options, preview) {
-  _reviewSmsPending = options;
-  document.getElementById('reviewSmsBody').innerHTML =
-    '<div class="mock-sms-badge">📋 Sent by AirValet as a normal text only if you choose Send</div>' +
-    '<div class="mock-sms-row"><span class="mock-sms-lbl">Passenger</span><span class="mock-sms-val">' + escapeHTML(options.passengerName || '—') + '</span></div>' +
-    '<div class="mock-sms-row"><span class="mock-sms-lbl">Phone</span><span class="mock-sms-val">' + escapeHTML(options.phone || '—') + '</span></div>' +
-    '<div class="mock-sms-msgbox">' + escapeHTML(preview) + '</div>';
-  var openBtn = document.getElementById('reviewSmsOpenBtn');
-  openBtn.disabled = false;
-  openBtn.textContent = '💬 Send text';
-  document.getElementById('reviewSmsOv').classList.add('on');
-}
-// Preview only — the server template (send-sms, CHECK_IN) is the source.
-var CHECK_IN_SMS_PREVIEW = 'Makers Air Valet: Your car is checked in. Tap to view your valet details: https://farberos.com/a#••••••••••••••••• Questions? Just reply to this text. Msg freq varies. Msg&data rates may apply. Reply HELP for help, STOP to opt out.';
+// prepared — the server preview is the confirm step (Send or Cancel).
+function openServerSmsReview(options) { return sendPassengerSms(options); }
 function closeReviewSms() {
   document.getElementById('reviewSmsOv').classList.remove('on');
   _reviewSmsPending = null;
@@ -6154,6 +6601,7 @@ function showDet(id){
         '<div style="font-size:11px;color:var(--gold);font-weight:700;margin-bottom:6px">📅 APPROXIMATE DATE — Confirm Return</div>'+
         (r.phone?'<button type="button" onclick="sendReturnDateConfirmationSms('+r.id+')" style="background:var(--pur);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer;display:inline-block">💬 Send Confirmation Text</button>':'')+
       '</div>':'')+
+    '<div id="vpStaffSec"></div>'+
     '<div class="htitle" style="margin-top:4px">Move Hangar</div>'+
     '<div class="hgrid">'+hangH+'</div>'+
     (r.status!=='DELIVERED'?'<button class="delb" onclick="markDel('+r.id+')">Mark as Delivered</button>':'')+
@@ -6175,6 +6623,7 @@ function showDet(id){
   },50);
   document.getElementById('detOv').classList.add('on');
   loadPassengerChangeHistory(r);
+  vpLoadStaff(r);
 }
 
 document.getElementById('tbody').addEventListener('click', function(e) {
@@ -6310,7 +6759,7 @@ function openTipSms(id, tipReceived){
   };
   // AirValet-texting cars: delivering must not send by itself (in v46 the
   // composer only opens and staff still press Send) → ask first.
-  if(smsRouteFor(r.id)==='server'){ openServerSmsReview(tipOpts, DELIVERED_SMS_PREVIEW); return; }
+  if(smsRouteFor(r.id)==='server'){ openServerSmsReview(tipOpts); return; }
   sendPassengerSms(tipOpts);
 }
 
@@ -7689,13 +8138,13 @@ async function bootstrapAfterAuth(){
   _currentUsername = profile ? (profile.username || '') : '';
   showApp();
   if(_currentUserRole === 'TV_ONLY'){
-    if(!_tvStarted){ _tvStarted = true; initTvMode(); }
+    if(!_tvStarted){ _tvStarted = true; initTvMode(); try { tvAlertsInit(); } catch(e) {} }
     else { tvHideSessionExpired(); refreshTvData(); }
     return;
   }
   applyRoleNavVisibility(_currentUserRole);
   if(isTvMode()){
-    if(!_tvStarted){ _tvStarted = true; initTvMode(); }
+    if(!_tvStarted){ _tvStarted = true; initTvMode(); try { tvAlertsInit(); } catch(e) {} }
     else { tvHideSessionExpired(); refreshTvData(); }
   } else {
     loadData();

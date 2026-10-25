@@ -67,6 +67,10 @@ begin
                  from pg_constraint c where c.conrelid = ('public.' || t)::regclass and c.contype = 'f');
       execute format('alter table public.%I rename to %I', t, t || '_' || sfx);
       execute format('alter table public.%I set schema airvalet_archive', t || '_' || sfx);
+      -- Archived data is never readable by app users (policies dropped, grants revoked).
+      execute (select coalesce(string_agg(format('drop policy %I on airvalet_archive.%I', pol.polname, t || '_' || sfx), '; '), 'select 1')
+                 from pg_policy pol where pol.polrelid = format('airvalet_archive.%I', t || '_' || sfx)::regclass);
+      execute format('revoke all on airvalet_archive.%I from public, anon, authenticated', t || '_' || sfx);
     end if;
   end loop;
 end $$;

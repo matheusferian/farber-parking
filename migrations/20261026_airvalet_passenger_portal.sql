@@ -39,6 +39,7 @@ create table public.airvalet_portal_settings (
   terms_published       boolean not null default false,
   push_enabled          boolean not null default false,
   tv_alerts_enabled     boolean not null default true,
+  vapid_public          text check (vapid_public is null or vapid_public ~ '^[A-Za-z0-9_-]{80,100}$'),  -- Web Push public key (not secret)
   updated_at            timestamptz not null default now(),
   updated_by            uuid,
   check (jsonb_typeof(valet_hours) = 'object')
@@ -593,7 +594,7 @@ begin
   perform public.airvalet_portal_require_admin();
   for k in select jsonb_object_keys(p_patch) loop
     if k not in ('portal_enabled', 'requests_enabled', 'valet_hours', 'valet_phone', 'text_phone', 'reservations_phone',
-                 'car_wash_lead_hours', 'gratuity_url', 'terms_published', 'push_enabled', 'tv_alerts_enabled') then
+                 'car_wash_lead_hours', 'gratuity_url', 'terms_published', 'push_enabled', 'tv_alerts_enabled', 'vapid_public') then
       raise exception 'unknown setting %', k using errcode = '22023';
     end if;
   end loop;
@@ -609,7 +610,9 @@ begin
     terms_published     = coalesce((p_patch ->> 'terms_published')::boolean, s.terms_published),
     push_enabled        = coalesce((p_patch ->> 'push_enabled')::boolean, s.push_enabled),
     tv_alerts_enabled   = coalesce((p_patch ->> 'tv_alerts_enabled')::boolean, s.tv_alerts_enabled),
-    updated_at = now(), updated_by = auth.uid();
+    vapid_public        = case when p_patch ? 'vapid_public' then nullif(btrim(p_patch ->> 'vapid_public'), '') else s.vapid_public end,
+    updated_at = now(), updated_by = auth.uid()
+  where s.id;
   return public.airvalet_portal_settings_get();
 end $$;
 
@@ -622,7 +625,9 @@ begin
      or not (v_role = any (array['ADMIN','IPAD_OPS','IPHONE_OPS','MANAGER','TV_ONLY']::public.account_role[])) then
     raise exception 'not allowed' using errcode = '42501';
   end if;
-  if not coalesce((select s.tv_alerts_enabled from public.airvalet_portal_settings s), false) then
+  -- Dark launch: nothing on the TV until AirValet texting is ON.
+  if not coalesce((select s.tv_alerts_enabled from public.airvalet_portal_settings s), false)
+     or not coalesce((select x.sending_enabled from public.airvalet_sms_settings x where x.id), false) then
     return jsonb_build_object('enabled', false, 'unread', 0, 'pending_requests', 0, 'latest', '[]'::jsonb);
   end if;
   return jsonb_build_object(
@@ -811,7 +816,8 @@ begin
     notify_operational    = coalesce((p_patch ->> 'notify_operational')::boolean, s.notify_operational),
     daily_cap             = coalesce((p_patch ->> 'daily_cap')::int, s.daily_cap),
     per_guest_window_min  = coalesce((p_patch ->> 'per_guest_window_min')::int, s.per_guest_window_min),
-    updated_at = now(), updated_by = auth.uid();
+    updated_at = now(), updated_by = auth.uid()
+  where s.id;
   return public.airvalet_admin_alerts_get();
 end $$;
 
@@ -831,7 +837,8 @@ begin
     phone_e164 = p_phone_e164, phone_verified_at = case when a.phone_e164 = p_phone_e164 then a.phone_verified_at end,
     enabled = case when a.phone_e164 = p_phone_e164 then a.enabled else false end,
     verify_code_hash = extensions.digest(v_code || ':' || p_phone_e164, 'sha256'),
-    verify_expires_at = now() + interval '10 minutes', verify_attempts = 0, updated_at = now(), updated_by = p_user;
+    verify_expires_at = now() + interval '10 minutes', verify_attempts = 0, updated_at = now(), updated_by = p_user
+  where a.id;
   return v_code;
 end $$;
 
@@ -845,10 +852,10 @@ begin
     return jsonb_build_object('result', 'EXPIRED');
   end if;
   if extensions.digest(coalesce(p_code, '') || ':' || a.phone_e164, 'sha256') <> a.verify_code_hash then
-    update public.airvalet_admin_alerts s set verify_attempts = s.verify_attempts + 1;
+    update public.airvalet_admin_alerts s set verify_attempts = s.verify_attempts + 1 where s.id;
     return jsonb_build_object('result', 'WRONG_CODE');
   end if;
-  update public.airvalet_admin_alerts s set phone_verified_at = now(), verify_code_hash = null, verify_expires_at = null, verify_attempts = 0;
+  update public.airvalet_admin_alerts s set phone_verified_at = now(), verify_code_hash = null, verify_expires_at = null, verify_attempts = 0 where s.id;
   return jsonb_build_object('result', 'VERIFIED');
 end $$;
 

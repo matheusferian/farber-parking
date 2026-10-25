@@ -55,7 +55,7 @@ Deno.test({ name: 'db integration (service + SQL + webhooks)', ignore: !url, san
     await sql`insert into public.passengers (id, name, phone, ticket, status) values (3001, 'Ana Souza', '(305) 555-3001', '0901-1', 'PENDING')`;
     await enroll(3001, '+13055553001');
     const provider = new MockProvider();
-    const deps = { mode: 'live' as const, store, provider, allowlist: [], templates: T, passBaseUrl: 'https://farberos.com/a#' };
+    const deps = { mode: 'live' as const, store, provider, allowlist: [], templates: T, passBaseUrl: 'https://airvalet.farberos.com/a#' };
     const actor = { userId: STAFF, role: 'IPAD_OPS' as const };
     const manager = { userId: STAFF, role: 'MANAGER' as const };
 
@@ -65,15 +65,15 @@ Deno.test({ name: 'db integration (service + SQL + webhooks)', ignore: !url, san
       assertEquals(rs.filter((r) => !r.duplicate).length, 1);
       assertEquals((await one(sql`select count(*)::int n from public.airvalet_sms_messages where passenger_id = 3001`)).n, 1);
       assertEquals((await one(sql`select count(*)::int n from public.airvalet_pass_links where passenger_id = 3001`)).n, 1);
-      const token = provider.calls[0].body.match(/https:\/\/farberos\.com\/a#([A-Za-z0-9]{17}) /)![1];
+      const token = provider.calls[0].body.match(/https:\/\/airvalet\.farberos\.com\/a#([A-Za-z0-9]{17})\s/)![1];
       const stored = (await one(sql`select body, token_hash = extensions.digest(${token}, 'sha256') as hashed from public.airvalet_sms_messages m, public.airvalet_pass_links l where m.passenger_id = 3001 and l.passenger_id = 3001 and l.revoked_at is null`));
       assertEquals(stored.hashed, true);                 // DB keeps only SHA-256(token)
       assertEquals(stored.body.includes(token), false);  // SMS log keeps the masked link
-      assertStringIncludes(stored.body, 'https://farberos.com/a#*****************');
+      assertStringIncludes(stored.body, 'https://airvalet.farberos.com/a#*****************');
     });
 
     await t.step('passenger link follows return_operator live (default Makers → Other → Ascend); opens recorded', async () => {
-      const token = provider.calls[0].body.match(/https:\/\/farberos\.com\/a#([A-Za-z0-9]{17}) /)![1];
+      const token = provider.calls[0].body.match(/https:\/\/airvalet\.farberos\.com\/a#([A-Za-z0-9]{17})\s/)![1];
       const v1 = await one(sql`select * from public.airvalet_pass_view(${token})`);
       assertEquals([v1.first_name, v1.return_location], ['Ana', 'HANGAR_19']); // check-in default = departure (Makers)
       await sql`update public.passengers set return_operator = 'OTHER' where id = 3001`;

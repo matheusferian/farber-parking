@@ -51,7 +51,7 @@
 // v46: Returning with / pickup model, Makers Customs exception, Needs Review
 //      (index.html, utils.js, styles.css changed). Same SHELL_FILES.
 // v47: AirValet SMS inbox + server-side texts (only when SMS_PROVIDER = 'twilio').
-var CACHE_VERSION = 'v47';
+var CACHE_VERSION = 'v48';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 var SHELL_FILES = [
@@ -149,4 +149,33 @@ self.addEventListener('message', function(event){
   if(event.data && event.data.type === 'SKIP_WAITING'){
     self.skipWaiting();
   }
+});
+
+// v48: Web Push for staff alerts (new guest message / passenger request).
+// Only devices that an ADMIN approved for AirValet texting can subscribe,
+// and only after the iPad/iPhone user allows notifications. The payload is
+// already privacy-trimmed by the server (no name or text on the lock screen
+// unless that device turned previews on). Tapping opens the Messages tab.
+self.addEventListener('push', function(event){
+  var d = {};
+  try { d = event.data ? event.data.json() : {}; } catch(e) { d = {}; }
+  var title = typeof d.title === 'string' ? d.title.slice(0, 60) : 'AirValet';
+  var body = typeof d.body === 'string' ? d.body.slice(0, 200) : 'Open AirValet';
+  event.waitUntil(self.registration.showNotification(title, {
+    body: body,
+    tag: typeof d.tag === 'string' ? d.tag : 'airvalet-alert',
+    renotify: true,
+    icon: './icon-192.png',
+    badge: './icon-192.png',
+    data: { url: './#messages' }
+  }));
+});
+self.addEventListener('notificationclick', function(event){
+  event.notification.close();
+  event.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(list){
+    for (var i = 0; i < list.length; i++) {
+      if ('focus' in list[i]) { list[i].postMessage({ type: 'OPEN_MESSAGES' }); return list[i].focus(); }
+    }
+    return self.clients.openWindow('./#messages');
+  }));
 });

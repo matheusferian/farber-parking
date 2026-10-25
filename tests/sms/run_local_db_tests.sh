@@ -12,8 +12,8 @@ cd "$(dirname "$0")/../.."
 IMAGE=public.ecr.aws/supabase/postgres:17.11.0.004
 REL_MIGS="migrations/20261010_add_passenger_return_operator.sql migrations/20261010_tv_mode_rpc_return_operator.sql"
 REL_RBS="migrations/20261010_tv_mode_rpc_return_operator_rollback.sql migrations/20261010_add_passenger_return_operator_rollback.sql"
-MIGS="migrations/20261010_add_passenger_return_operator.sql migrations/20261010_tv_mode_rpc_return_operator.sql migrations/20261009_create_airvalet_sms_messages.sql migrations/20261010_create_airvalet_pass_links.sql migrations/20261011_return_reviews_include_sms.sql migrations/20261012_airvalet_sms_audit.sql"
-RBS="migrations/20261012_airvalet_sms_audit_rollback.sql migrations/20261011_return_reviews_include_sms_rollback.sql migrations/20261010_create_airvalet_pass_links_rollback.sql migrations/20261009_create_airvalet_sms_messages_rollback.sql migrations/20261010_tv_mode_rpc_return_operator_rollback.sql migrations/20261010_add_passenger_return_operator_rollback.sql"
+MIGS="migrations/20261010_add_passenger_return_operator.sql migrations/20261010_tv_mode_rpc_return_operator.sql migrations/20261009_create_airvalet_sms_messages.sql migrations/20261010_create_airvalet_pass_links.sql migrations/20261011_return_reviews_include_sms.sql migrations/20261012_airvalet_sms_audit.sql ${EXTRA_MIGS:-}"
+RBS="${EXTRA_RBS:-} migrations/20261012_airvalet_sms_audit_rollback.sql migrations/20261011_return_reviews_include_sms_rollback.sql migrations/20261010_create_airvalet_pass_links_rollback.sql migrations/20261009_create_airvalet_sms_messages_rollback.sql migrations/20261010_tv_mode_rpc_return_operator_rollback.sql migrations/20261010_add_passenger_return_operator_rollback.sql"
 
 NAME=""
 cleanup() { [ -n "$NAME" ] && docker rm -f "$NAME" >/dev/null 2>&1 || true; }

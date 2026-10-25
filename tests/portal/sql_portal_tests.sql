@@ -245,6 +245,12 @@ values ('inbound', 900001, '+13055550142', 'INBOUND', 'Hi, my flight is delayed,
        ('inbound', 900001, '+13055550142', 'INBOUND_STOP', 'STOP', 'twilio', 'SMportaltest000000000000000000002', 'received', now());
 select pg_temp.check((select count(*) from public.airvalet_alert_events e join public.airvalet_sms_messages m on m.id = e.ref_id where m.provider_message_sid like 'SMportaltest%') = 1,
                      'guest message emits a signal; STOP does not');
+update public.airvalet_sms_settings set sending_enabled = false where id;
+select pg_temp.act('localtv');
+select pg_temp.check((public.airvalet_tv_alerts() ->> 'enabled')::boolean = false, 'TV shows nothing while AirValet texting is OFF (dark launch)');
+reset role;
+insert into public.airvalet_sms_settings (id) values (true) on conflict do nothing;
+update public.airvalet_sms_settings set sending_enabled = true where id;
 select pg_temp.act('localtv');
 select set_config('t.tv', public.airvalet_tv_alerts()::text, true);
 reset role;
