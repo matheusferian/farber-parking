@@ -66,12 +66,15 @@ try {
   check(t7.body?.ignored === true, 'unpaid session → ignored', t7);
   const t8 = await post('checkout.session.completed', sess({ payment_link: null, metadata: { source: 'AIRVALET', type: 'TIP', passenger_id: '934001', ticket: 'X-TIP-1' }, client_reference_id: null, payment_intent: `pi_localdeep_${RUN}_2` }), ev('g'));
   check(t8.body?.recorded === true && await sql(`select ticket from public.payments where stripe_event_id='${ev('g')}'`) === 'X-TIP-1', 'AirValet checkout (metadata) → recorded with ticket', t8);
-  const t9 = await post('checkout.session.completed', sess({ client_reference_id: 'pax-999999999' }), ev('h'));
-  check(t9.status === 500, 'unknown passenger id (FK) → 500 so Stripe retries (documented)', t9);
+  const t9 = await post('checkout.session.completed', sess({ client_reference_id: 'pax-999999999', payment_intent: `pi_localdeep_${RUN}_fk` }), ev('h'));
+  check(t9.status === 200 && await sql(`select coalesce(passenger_id::text, 'null') || '|' || amount_cents from public.payments where stripe_event_id='${ev('h')}'`) === 'null|1500',
+    'unknown passenger id (FK) → tip kept without the passenger link, no endless retries (audit ADM-05)', t9);
   const r1 = await post('charge.refunded', { object: 'charge', payment_intent: `pi_localdeep_${RUN}_1`, amount: 1500, amount_refunded: 500, refunded: false }, ev('r1'));
   check(r1.body?.updated === 1 && await sql(`select amount_cents || '|' || status from public.payments where stripe_event_id='${ev('a')}'`) === '1000|succeeded', 'partial refund → tip lowered to $10.00', r1);
   const r2 = await post('charge.refunded', { object: 'charge', payment_intent: `pi_localdeep_${RUN}_1`, amount: 1500, amount_refunded: 1500, refunded: true }, ev('r2'));
   check(r2.body?.updated === 1 && await sql(`select status from public.payments where stripe_event_id='${ev('a')}'`) === 'refunded', 'full refund → tip refunded', r2);
+  const r2b = await post('charge.refunded', { object: 'charge', payment_intent: `pi_localdeep_${RUN}_1`, amount: 1500, amount_refunded: 500, refunded: false }, ev('r2b'));
+  check(r2b.status === 200 && await sql(`select amount_cents || '|' || status from public.payments where stripe_event_id='${ev('a')}'`) === '1500|refunded', 'older partial refund arriving after the full refund → tip stays refunded (audit ADM-04)', r2b);
   const r3 = await post('charge.refunded', { object: 'charge', payment_intent: 'pi_not_a_tip', amount: 900, amount_refunded: 900, refunded: true }, ev('r3'));
   check(r3.body?.updated === 0, 'refund of a non-tip payment touches nothing', r3);
   const o1 = await post('payment_intent.succeeded', { object: 'payment_intent' }, ev('o1'));

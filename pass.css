@@ -4,7 +4,7 @@
    perforation, white stub with Pickup / Return); everything else stays quiet.
    Mobile-first, 44px targets, left-aligned text, reduced motion respected. */
 :root{
-  --navy:#011532;--navy2:#0B2547;--blue:#1B66FD;--gold:#FFC547;--brass:#C79A2B;--green:#0E6A4C;
+  --navy:#011532;--navy2:#0B2547;--blue:#1557E0;--gold:#FFC547;--brass:#C79A2B;--green:#0E6A4C;
   --ink:#0E1B33;--mu:#5A6782;--soft:#EEF2F8;--bg:#F2F5FA;--line:#DCE3EE;--card:#FFFFFF;
   --amber-bg:#FFF4D6;--amber-ink:#6B4300;--ok-bg:#E7F6EF;--ok-ink:#0B4D37;
 }
@@ -132,3 +132,9 @@ label.f textarea{min-height:5rem;resize:vertical}
 .mavc.endon .sh,.mavc.endon .end img,.mavc.endon .end h2,.mavc.endon .end p{opacity:1;transform:none}
 .mavc .skip{position:absolute;top:calc(env(safe-area-inset-top,0px) + 12px);right:calc(env(safe-area-inset-right,0px) + 14px);min-width:64px;min-height:44px;padding:0 18px;border-radius:22px;border:1px solid rgba(255,255,255,.6);background:rgba(0,0,0,.35);color:#fff;font:600 14px/1 Inter,-apple-system,sans-serif;letter-spacing:.08em;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);cursor:pointer}
 .mavc .skip:focus-visible{outline:2px solid #fff;outline-offset:3px}
+
+/* Audit 2026-10-25: touch targets, long names, contrast, stale note */
+.contact-line a{display:inline-flex;align-items:center;min-height:44px}
+footer a{display:inline-block;padding:.55rem 0}
+header.top h1,.pass-car,.v{overflow-wrap:anywhere}
+.stale{margin:0 0 .6rem;padding:.55rem .8rem;border-radius:.7rem;background:#FFF4D6;color:#5A4500;font-size:.85rem;text-align:center}

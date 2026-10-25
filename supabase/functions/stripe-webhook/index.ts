@@ -108,7 +108,13 @@ export async function handle(req: Request, deps: Deps): Promise<Response> {
   if (event.type !== 'checkout.session.completed') return json(200, { received: true, skipped: event.type });
   const row = tipFromSession(event.data.object as unknown as Session, event.id, deps.links);
   if (!row) return json(200, { received: true, ignored: true });
-  const { error } = await deps.save(row);
+  let { error } = await deps.save(row);
+  // client_reference_id comes from the payer's URL: an unknown passenger must
+  // not block the tip forever (FK violation → keep the tip, without the link).
+  if (error && error.code === '23503' && row.passenger_id !== null) {
+    deps.log('stripe_tip_unknown_passenger', { event: event.id, passenger_id: row.passenger_id });
+    ({ error } = await deps.save({ ...row, passenger_id: null }));
+  }
   if (error && error.code !== '23505') {
     deps.log('stripe_tip_insert_failed', { event: event.id, error: error.message });
     return json(500, { received: false }); // Stripe retries later
@@ -131,9 +137,13 @@ if (import.meta.main) {
       return { error: error ? { message: error.message, code: (error as { code?: string }).code } : null };
     },
     // Only AirValet tips are touched (car wash payments are never stored here).
+    // Refunds only ever lower a tip: an older partial-refund event arriving
+    // after the full refund never brings it back (Stripe does not order events).
     refund: async (pi, status, amountCents) => {
-      const { data, error } = await admin.from('payments').update({ status, amount_cents: amountCents })
-        .eq('stripe_payment_intent_id', pi).eq('type', 'TIP').select('id');
+      let q = admin.from('payments').update({ status, amount_cents: amountCents })
+        .eq('stripe_payment_intent_id', pi).eq('type', 'TIP');
+      if (status === 'succeeded') q = q.neq('status', 'refunded').gt('amount_cents', amountCents);
+      const { data, error } = await q.select('id');
       return { updated: Array.isArray(data) ? data.length : 0, error: error ? { message: error.message } : null };
     },
     log: (event, data) => console.log(JSON.stringify({ event, ...data })),

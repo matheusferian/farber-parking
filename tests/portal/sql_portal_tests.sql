@@ -62,7 +62,7 @@ update public.airvalet_portal_settings set portal_enabled = true;
 select set_config('t.v1', pg_temp.pv(current_setting('t.t1'))::text, true);
 select pg_temp.check((current_setting('t.v1')::jsonb ->> 'state') = 'ok', 'view ok');
 select pg_temp.check((select array_agg(k order by k) from jsonb_object_keys(current_setting('t.v1')::jsonb -> 'pass') k)
-  = array['arrival_time','car_wash','car_wash_lead_hours','chat_enabled','contacts','first_name','gratuity_url','lockbox','pending_return','pickup','requests_enabled',
+  = array['arrival_time','car_wash','car_wash_lead_hours','chat_enabled','contacts','first_name','gratuity_url','lockbox','pending_return','pickup','ready_by_staff','requests_enabled',
           'return_date','return_flight','return_time','status','terms_published','valet_hours','vehicle'], 'view: exact key set (no ticket, phone, ids)');
 select pg_temp.check(position('1025-91' in current_setting('t.v1')) = 0 and position('555' in current_setting('t.v1')) = 0
                      and position('900001' in current_setting('t.v1')) = 0, 'view: ticket, phone digits, passenger id absent from the whole JSON');

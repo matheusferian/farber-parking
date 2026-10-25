@@ -61,6 +61,19 @@ create or replace function public.airvalet_pickup_stamp()
 returns trigger language plpgsql set search_path = '' as $$
 declare v_who text := nullif(btrim(coalesce(auth.jwt() ->> 'email', '')), '');
 begin
+  if tg_op = 'UPDATE' then
+    -- The release record of a delivered car is final; undo the delivery to change it.
+    if old.status = 'DELIVERED' and new.status = 'DELIVERED'
+       and (new.released_to_name is distinct from old.released_to_name
+            or new.released_to_kind is distinct from old.released_to_kind
+            or new.released_id_checked is distinct from old.released_id_checked) then
+      raise exception 'RELEASE_RECORD_LOCKED: undo the delivery to change who took the car'
+        using errcode = '23514';
+    end if;
+    -- *_by / *_at are never written by the client directly.
+    new.pickup_auth_by := old.pickup_auth_by; new.pickup_auth_at := old.pickup_auth_at;
+    new.released_by := old.released_by; new.released_at := old.released_at;
+  end if;
   if tg_op = 'INSERT' or new.pickup_auth_name is distinct from old.pickup_auth_name
      or new.pickup_auth_phone is distinct from old.pickup_auth_phone
      or new.pickup_auth_location is distinct from old.pickup_auth_location
@@ -72,6 +85,7 @@ begin
     end if;
   end if;
   if tg_op = 'INSERT' or new.released_to_name is distinct from old.released_to_name
+     or new.released_to_kind is distinct from old.released_to_kind
      or new.released_id_checked is distinct from old.released_id_checked then
     if new.released_to_name is null and new.released_id_checked is null then
       new.released_by := null; new.released_at := null;
@@ -85,7 +99,9 @@ revoke all on function public.airvalet_pickup_stamp() from public;
 
 drop trigger if exists airvalet_pickup_stamp on public.passengers;
 create trigger airvalet_pickup_stamp
-  before insert or update of pickup_auth_name, pickup_auth_phone, pickup_auth_location, pickup_auth_notes, released_to_name, released_id_checked
+  before insert or update of pickup_auth_name, pickup_auth_phone, pickup_auth_location, pickup_auth_notes,
+    pickup_auth_by, pickup_auth_at, released_to_name, released_to_kind, released_id_checked,
+    released_by, released_at, status
   on public.passengers
   for each row execute function public.airvalet_pickup_stamp();
 commit;

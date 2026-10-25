@@ -42,7 +42,8 @@ Deno.test('token sealing: round trip, wrong secret and tampering fail closed', a
   assertEquals(await openToken('client-secret', sealed), 'farberos-token-123');
   assertEquals(await openToken('other-secret', sealed), null);
   const [iv, ct] = sealed.split('.');
-  assertEquals(await openToken('client-secret', `${iv}.A${ct.slice(1)}`), null);
+  // Always change the first character (it could already be 'A': flaky 1 in 64).
+  assertEquals(await openToken('client-secret', `${iv}.${ct[0] === 'A' ? 'B' : 'A'}${ct.slice(1)}`), null);
 });
 
 Deno.test('session id from a Supabase access token', () => {

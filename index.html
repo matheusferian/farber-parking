@@ -1804,7 +1804,7 @@ async function sbInsert(obj) {
   return res.json();
 }
 
-async function sbUpdate(id, obj) {
+async function sbUpdate(id, obj, opts) {
   // Centralized guard: a pending (not-yet-synced) offline check-in has a
   // negative local id (see offlineLocalIdFromSyncId in offline-db.js) and
   // no real row on the server yet — sending it through PATCH would 404 at
@@ -1813,7 +1813,9 @@ async function sbUpdate(id, obj) {
   // the two RPC-based paths that bypass sbUpdate() (changePassengerReturnDate,
   // deletePassengerWithLog) carry the identical check themselves.
   if (isOfflinePendingId(id)) throw offlinePendingBlockError();
-  var res = await fetch(SUPABASE_URL + '/rest/v1/' + TABLE + '?id=eq.' + id, {
+  // opts.filter: extra PostgREST condition (e.g. '&status=neq.DELIVERED');
+  // opts.zeroRowsMessage: what to say when that condition matched nothing.
+  var res = await fetch(SUPABASE_URL + '/rest/v1/' + TABLE + '?id=eq.' + id + ((opts && opts.filter) || ''), {
     method: 'PATCH',
     headers: sbHeaders(),
     body: JSON.stringify(obj)
@@ -1822,7 +1824,11 @@ async function sbUpdate(id, obj) {
     var err = await res.text();
     throw new Error('Update failed: ' + err);
   }
-  return res.json();
+  // 0 rows = nothing was saved (ticket removed on another device, or this
+  // session lost access). Never report that as success.
+  var rows = await res.json();
+  if (Array.isArray(rows) && rows.length === 0) throw new Error((opts && opts.zeroRowsMessage) || 'Update failed: not saved. This ticket may have been removed, or your session expired. Reload and try again.');
+  return rows;
 }
 
 async function sbDelete(id) {
@@ -1839,11 +1845,16 @@ async function sbDelete(id) {
 // ── EPSON SHARED FETCH (URL logging + 1 automatic retry) ───────
 var EPSON_CONN_FAIL_MSG = 'Printer connection failed. If Safari blocks the Epson certificate, tap Reconnect Printer, choose Show Details, then Visit This Website. Then return to the app and try again.';
 
+var EPSON_TIMEOUT_MS = 20000;
 async function epsonFetch(xml) {
   var url = epsonUrl();
   var attempt = 0;
   while (true) {
     console.log('EPSON URL:', url);
+    // No answer in 20 s: stop "Printing…" and do NOT retry (the job may
+    // have printed; an automatic retry could print it twice).
+    var ctl = typeof AbortController === 'function' ? new AbortController() : null;
+    var timer = ctl ? setTimeout(function(){ ctl.abort(); }, EPSON_TIMEOUT_MS) : null;
     try {
       var res = await fetch(url, {
         method:  'POST',
@@ -1851,11 +1862,13 @@ async function epsonFetch(xml) {
           'Content-Type': 'text/xml; charset=utf-8',
           'SOAPAction':   '"http://www.epson-pos.com/schemas/2011/03/epos-print"'
         },
-        body: xml
+        body: xml,
+        signal: ctl ? ctl.signal : undefined
       });
       if (!res.ok) throw new Error('Printer responded: HTTP ' + res.status);
       return res;
     } catch (e) {
+      if (ctl && ctl.signal.aborted) throw new Error('The printer did not answer. Check whether the tag printed before you reprint.');
       if (attempt === 0) {
         attempt++;
         console.warn('EPSON fetch failed, retrying once in 1s:', e.message);
@@ -1863,7 +1876,7 @@ async function epsonFetch(xml) {
         continue;
       }
       throw e;
-    }
+    } finally { if (timer) clearTimeout(timer); }
   }
 }
 
@@ -2346,10 +2359,27 @@ async function printDashboardTicket(r) {
   return epsonSend(buildDashboardTicketXml(r), 'Dashboard');
 }
 
+// Car-panel print buttons: one job at a time (a double tap used to print twice).
+var _panelPrinting = false;
+async function panelPrintOnce(btn, fn, id) {
+  if (_panelPrinting) return;
+  _panelPrinting = true;
+  var btns = btn && btn.parentElement ? btn.parentElement.querySelectorAll('button') : [];
+  Array.prototype.forEach.call(btns, function(b){ b.disabled = true; b.style.opacity = '.55'; });
+  try { await fn(data.find(function(x){ return x.id === id; })); }
+  finally {
+    _panelPrinting = false;
+    Array.prototype.forEach.call(btns, function(b){ b.disabled = false; b.style.opacity = ''; });
+  }
+}
 async function printAllTickets(r) {
-  await printCustomerTicket(r);
-  await printKeyTicket(r);
-  await printDashboardTicket(r);
+  var failed = [];
+  if (!(await printCustomerTicket(r))) failed.push('Customer copy');
+  if (!(await printKeyTicket(r))) failed.push('Key tag');
+  if (!(await printDashboardTicket(r))) failed.push('Dashboard tag');
+  // The last success toast must not hide an earlier failure.
+  if (failed.length) showMsg(failed.join(', ') + ' did not print. Check the printer and reprint ' + (failed.length > 1 ? 'them' : 'it') + '.', true);
+  return failed.length === 0;
 }
 
 async function testPrintAllTickets() {
@@ -3601,7 +3631,9 @@ function selMode(el, mode) {
 }
 
 // ── SAVE RENTAL LOG ────────────────────────────────────────────
+var _rentalSaving = false;  // one save at a time (a double tap used to create two rows)
 async function saveRentalLog(doPrint) {
+  if (_rentalSaving) return;
   var name    = (document.getElementById('rlName').value || '').trim();
   var company = document.getElementById('rlCompany').value;
   var fdate   = document.getElementById('rlFlightDate').value;
@@ -3624,6 +3656,7 @@ async function saveRentalLog(doPrint) {
     logged_at:       new Date().toISOString(),
     logged_by:       _currentUserEmail || null
   };
+  _rentalSaving = true;
   try {
     showMsg('Saving...', false);
     var res = await fetch(SUPABASE_URL + '/rest/v1/rental_logs', {
@@ -3632,7 +3665,7 @@ async function saveRentalLog(doPrint) {
       body:    JSON.stringify(payload)
     });
     if (!res.ok) { var e = await res.text(); throw new Error(e); }
-    showMsg('&#128273; Rental log saved!', false);
+    showMsg('\uD83D\uDD11 Rental log saved!', false);
     if (doPrint) {
       var xml = buildRentalLogXml({name:name,company:company,flight_date:fdate,vehicle:vehicle,color:color});
       await epsonSend(xml, 'Rental Log');
@@ -3640,7 +3673,7 @@ async function saveRentalLog(doPrint) {
     document.getElementById('addOv').classList.remove('on');
   } catch(e) {
     showMsg('Error saving rental log: ' + e.message, true);
-  }
+  } finally { _rentalSaving = false; }
 }
 
 // ── BUILD RENTAL LOG TICKET XML ────────────────────────────────
@@ -4129,7 +4162,9 @@ async function sendPassengerSms(options) {
     openSmsFallback(options, scode);
     return { ok: false, status: 'native_fallback_offered', sid: null, provider: 'twilio', error: sres && sres.error };
   }
-  showMsg('Text not sent' + whoS + ': ' + smsBlockText(scode) + '.', true);
+  // send_unknown: the carrier may have the text — never call it "not sent".
+  if (sres && sres.status === 'send_unknown') showMsg('Text unconfirmed' + whoS + ': ' + smsBlockText(scode || 'UNCONFIRMED') + '.', true);
+  else showMsg('Text not sent' + whoS + ': ' + smsBlockText(scode) + '.', true);
   return { ok: false, status: (sres && sres.status) || 'error', sid: null, provider: 'twilio', error: sres && sres.error };
 }
 // iPhone Messages composer — the v46 behaviour, unchanged.
@@ -4214,6 +4249,9 @@ var SMS_BLOCK_TEXT = {
   LINK_NOT_ALLOWED: 'links to other websites are not allowed in texts',
   PREVIOUS_UNCONFIRMED: 'an earlier text of this kind is still unconfirmed — resolve it in Messages first',
   UNCONFIRMED: 'not confirmed yet — check Messages before sending again',
+  TIMEOUT: 'the carrier did not answer in time — it may have been sent; check Messages before sending again',
+  INTERNAL: 'not confirmed — it may have been sent; check Messages before sending again',
+  NO_SID: 'not confirmed — it may have been sent; check Messages before sending again',
   DUPLICATE_RECENT: 'the same text was just sent to this number',
   DEVICE_RATE_LIMIT: 'too many texts from this device in the last hour',
   '21211': 'the phone number is not valid for texting',
@@ -4706,6 +4744,13 @@ async function sendInboxReply(passengerId){
   var ta = document.getElementById('ibxText'); if (!ta) return;
   var text = ta.value.trim(); if (!text) return;
   var c = _ibx.compose[passengerId] || (_ibx.compose[passengerId] = { id: newComposeId(), text: text });
+  // Edited after an attempt that may have gone out: the same id would make the
+  // server answer "already sent" with the OLD words. Ask, then send as new.
+  if (c.tried && c.tried !== text) {
+    if (!confirm('The earlier version may already have been sent. Send this edited text as a new message?')) return;
+    c = _ibx.compose[passengerId] = { id: newComposeId(), text: text };
+  }
+  c.tried = text;
   _ibx.sending = true;
   var btn = document.getElementById('ibxSendBtn'); if (btn){ btn.disabled = true; btn.textContent = '…'; }
   // Chat-only reply (no SMS cost): shown in the passenger's valet pass chat.
@@ -6838,7 +6883,7 @@ async function ci2Create(withText){
 }
 // Welcome SMS status on the ticket card. "Sent" only once the backend says
 // sent/delivered (Twilio status callback); accepted/queued stays "Sending".
-var CI2_SMS_LABEL = { sending: 'Sending', sent: 'Sent', failed: 'Failed', noconsent: 'No consent', notsent: 'Not sent' };
+var CI2_SMS_LABEL = { sending: 'Sending', sent: 'Sent', failed: 'Failed', noconsent: 'No consent', notsent: 'Not sent', unconfirmed: 'Unconfirmed' };
 function ci2Sms(state, detail, action){
   var c = ci2El('ci2Sms'); if (!c) return;
   _ci.smsState = state;
@@ -6862,6 +6907,11 @@ async function ci2SendWelcome(){
   // The server guarantees nothing went out → iPhone Messages is safe. Otherwise
   // no fallback (a retry could double-text); the reason is shown instead.
   if (notSent) ci2Sms('failed', smsBlockText(code), 'Send from iPhone');
+  else if (r && r.status === 'send_unknown') {
+    // The carrier may have it: stay "Unconfirmed" and keep watching the row.
+    _ci.msgId = r.messageId || null; ci2Sms('unconfirmed', 'It may have been sent. Check the inbox before resending.');
+    if (_ci.msgId) ci2PollSms(); return;
+  }
   else ci2Sms('notsent', smsBlockText(code));
 }
 function ci2PollSms(now){
@@ -6875,7 +6925,7 @@ function ci2PollSms(now){
       if (m && m.status === 'sent') { ci2Sms('sent', 'Waiting for delivery'); ci2PollAgain(); return; }
       if (m && (m.status === 'failed' || m.status === 'undelivered')) { ci2Sms('failed', 'Not delivered' + (m.error_code ? ' (' + m.error_code + ')' : ''), 'Send from iPhone'); return; }
       if (m && m.status === 'blocked') { ci2Sms('notsent', smsBlockText(m.error_code)); return; }
-      if (m && m.status === 'send_unknown') { ci2Sms('sending', 'Unconfirmed — check the inbox before resending'); return; }
+      if (m && m.status === 'send_unknown') { ci2Sms('unconfirmed', 'It may have been sent. Check the inbox before resending.'); return; }
     } catch(e) { /* keep the last status on screen */ }
     ci2PollAgain();
   }, now ? 600 : 3000);
@@ -7015,8 +7065,9 @@ function ci2SaveFlight(v){
 }
 
 // ── Details: progressive saving into the same ticket ──
+function ci2LocalOnly(){ return !!(_ci && (_ci.offline || !_ci.id || isOfflinePendingId(_ci.id))); }
 function ci2CanSave(){
-  if (_ci.offline || !_ci.id || isOfflinePendingId(_ci.id)) { ci2Toast('Saved offline. Add details from the car card after it syncs.', true); return false; }
+  if (ci2LocalOnly()) { ci2Toast('Saved offline. Add details from the car card after it syncs.', true); return false; }
   return true;
 }
 function ci2Save(patch, secId, logDetail){
@@ -7054,6 +7105,7 @@ function ci2RenderHangars(){
   var counts = computeHangarCounts();
   ci2ChipSet(ci2El('ci2Hangars'), HANGARS, _ci.hangar, async function(h){
     var prev = _ci.hangar; _ci.hangar = h; ci2RenderHangars(); ci2HangarSum(); ci2Need(); ci2RenderCard();
+    if (_ci.created && ci2LocalOnly()) { ci2Toast('Offline: kept on this iPad for the tags. Add the hangar on the car card after it syncs.', true); return; }
     if (_ci.created && !(await ci2Save({ loc: h }, 'ci2SHangar', 'Location ' + (prev || '—') + ' → ' + h))) { _ci.hangar = prev; ci2RenderHangars(); ci2HangarSum(); ci2Need(); }
   }, function(h){ return escapeHTML(h) + (counts[h] ? '<small>' + counts[h] + '</small>' : ''); });
 }
@@ -7091,6 +7143,7 @@ function ci2VehLine(){ return [_ci.color, ci2VehCar()].filter(Boolean).join(' ')
 function ci2VehSum(save){
   var s = ci2VehLine(), v = ci2El('ci2SVehV'); v.textContent = s || 'Not set'; v.className = 'v' + (s ? ' done' : '');
   ci2RenderCard(); ci2Need();
+  if (save && _ci.created && ci2LocalOnly()) return;  // offline: kept for the tags only
   if (save && _ci.created) ci2Save({ car: ci2VehCar(), color: _ci.color || null }, 'ci2SVeh', 'Vehicle → ' + (s || '—'));
 }
 function ci2RenderWash(){
@@ -7172,7 +7225,9 @@ function ci2ReprintEsc(e){ if (e.key === 'Escape') { e.stopPropagation(); ci2Rep
 function ci2ReprintOutside(e){ var w = e.target.closest && e.target.closest('.ci2-printw'); if (!w) ci2ReprintMenu(false); }
 function ci2PrintRec(){
   var r = data.find(function(x){ return x.id === _ci.id; });
-  return r || { ticket: _ci.ticket, name: ci2El('ci2Who').textContent.split(' · ')[0], phone: ci2El('ci2Phone').value.trim(), ret: _ci.ret ? d2us(_ci.ret) : '',
+  // The tags follow the card (also offline, where details are not saved yet).
+  if (r) return Object.assign({}, r, { loc: _ci.hangar || r.loc, car: ci2VehCar() || r.car, color: _ci.color || r.color });
+  return { ticket: _ci.ticket, name: ci2El('ci2Who').textContent.split(' · ')[0], phone: ci2El('ci2Phone').value.trim(), ret: _ci.ret ? d2us(_ci.ret) : '',
                 car: ci2VehCar(), color: _ci.color, loc: _ci.hangar, return_operator: _ci.other ? 'OTHER' : _ci.op };
 }
 async function ci2Print(which){
@@ -7182,8 +7237,9 @@ async function ci2Print(which){
   try {
     if (which !== 'dash' && !(await printKeyTicket(rec))) failed.push('Key tag');
     if (which !== 'key' && !(await printDashboardTicket(rec))) failed.push('Dashboard tag');
-    _ci.printed = true;
-  } catch(e) { failed.push(which === 'key' ? 'Key tag' : which === 'dash' ? 'Dashboard tag' : 'Tags'); _ci.printed = true; }
+    // Only a tag that actually printed counts; with nothing printed, Done still warns.
+    if (failed.length < (which === 'both' ? 2 : 1)) _ci.printed = true;
+  } catch(e) { failed.push(which === 'key' ? 'Key tag' : which === 'dash' ? 'Dashboard tag' : 'Tags'); }
   finally { _ci.printing = false; ci2Need(); }
   if (failed.length) ci2Toast(failed.join(' and ') + ' did not print. Check the printer and use Reprint.', true);
 }
@@ -7373,10 +7429,10 @@ function showDet(id){
       (r.phone?'<a href="tel:'+r.phone.replace(/\D/g,'')+'" style="background:var(--ok);color:#000;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;text-decoration:none;font-family:Sora,sans-serif;">📞 CALL</a>':'')+
       (r.phone?'<button type="button" onclick="sendGenericTextSms('+r.id+')" style="background:var(--pur);color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;cursor:pointer;font-family:Sora,sans-serif;">💬 TEXT</button>':'')+
       (r.phone?'<button onclick="sendWelcomeSms('+r.id+')" style="background:linear-gradient(135deg,#1a5c3a,#1a9e6a);color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;font-family:Sora,sans-serif;cursor:pointer;">💬 Welcome</button>':'')+
-      '<button onclick="printCustomerCopyForRecord(data.find(function(x){return x.id==='+r.id+'}))" style="background:var(--navy);color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;font-family:Sora,sans-serif;cursor:pointer;">🧾 Customer Copy</button>'+
-      '<button onclick="printKeyTicket(data.find(function(x){return x.id==='+r.id+'}))" style="background:var(--navy);color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;font-family:Sora,sans-serif;cursor:pointer;">🔑 Key Copy</button>'+
-      '<button onclick="printDashboardTicket(data.find(function(x){return x.id==='+r.id+'}))" style="background:var(--navy);color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;font-family:Sora,sans-serif;cursor:pointer;">🚗 Dashboard</button>'+
-      '<button onclick="printAllTickets(data.find(function(x){return x.id==='+r.id+'}))" style="background:var(--navy);color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;font-family:Sora,sans-serif;cursor:pointer;">🖨 Print All</button>'+
+      '<button onclick="panelPrintOnce(this,printCustomerCopyForRecord,'+r.id+')" style="background:var(--navy);color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;font-family:Sora,sans-serif;cursor:pointer;">🧾 Customer Copy</button>'+
+      '<button onclick="panelPrintOnce(this,printKeyTicket,'+r.id+')" style="background:var(--navy);color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;font-family:Sora,sans-serif;cursor:pointer;">🔑 Key Copy</button>'+
+      '<button onclick="panelPrintOnce(this,printDashboardTicket,'+r.id+')" style="background:var(--navy);color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;font-family:Sora,sans-serif;cursor:pointer;">🚗 Dashboard</button>'+
+      '<button onclick="panelPrintOnce(this,printAllTickets,'+r.id+')" style="background:var(--navy);color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;font-family:Sora,sans-serif;cursor:pointer;">🖨 Print All</button>'+
     '</div>'+
     '<div id="saveEditsWrap"><button class="save-edits-btn" id="saveEditsBtn" data-rid="'+r.id+'">💾 Save Changes</button></div>'+
     '<div class="dgrid">'+
@@ -7607,7 +7663,9 @@ async function deliverWithTip(id, deliveryType, tipReceived){
       var eo=((r.obs||'').replace('APPROX DATE','').replace(' | ','').trim());
       upd.ret=todayStr; upd.obs=(eo?eo+' | ':'')+'EARLY RETURN'; tipNote+=' | Early return';
     }
-    await sbUpdate(r.id,upd);
+    // Only one device can deliver a car: a second delivery matches nothing
+    // (no duplicate history, no second delivered text).
+    await sbUpdate(r.id,upd,{filter:'&status=neq.DELIVERED',zeroRowsMessage:'Already delivered on another device. Reload to see the latest.'});
     if(rel) Object.assign(r,rel);
     if(!isCustoms){
       await sbLog('DELIVERED_FROM_LOCATION',r.name,r.ticket,'HANGAR 19','Delivered as '+deliveryType+'. Previous location: '+prevLoc+'. Final location automatically changed to HANGAR 19.'+(isLateDeliver?' (late)':'')+tipNote,{passenger_id:r.id});

@@ -615,6 +615,15 @@ select pg_temp.check((select claimed from e2c1), 'welcome claimed');
 select pg_temp.check((select error_code from pg_temp.claim('e2:c1b', 6102, null, '+13055556102', 'CHECK_IN', 'CHECK_IN', 'v1', 'b', 1, 'mock', '00000000-0000-0000-0000-0000000000a1')) = 'PREVIOUS_UNCONFIRMED', 'same passenger welcome while the first is in flight → held');
 select public.airvalet_sms_mark_result((select message_id from e2c1), 'queued', 'SM_E2C1', 'MG', null, null, 1);
 select pg_temp.check((select error_code from pg_temp.claim('e2:c2', 6102, null, '+13055556102', 'CHECK_IN', 'CHECK_IN', 'v1', 'b', 1, 'mock', '00000000-0000-0000-0000-0000000000a1')) = 'DUPLICATE_RECENT', 'same passenger welcome again with a NEW key, < 2 min → DUPLICATE_RECENT');
+-- 20261105: the delivered text carries each passenger's own link → a companion on the same phone gets it too.
+insert into public.passengers (id, name, phone, ticket, status) values
+  (6111, 'Companion A', '3055556111', '1501-11', 'DELIVERED'), (6112, 'Companion B', '3055556111', '1501-12', 'DELIVERED');
+insert into public.airvalet_sms_consents (phone_e164, status, method, disclosure_version) values ('+13055556111', 'granted', 'checkin_attendant', 'test-v1');
+create temp table e2d1 as select * from pg_temp.claim('e2:d:A', 6111, null, '+13055556111', 'VEHICLE_DELIVERED', 'TIP_NO', 'v1', 'b', 1, 'mock', '00000000-0000-0000-0000-0000000000a1');
+select pg_temp.check((select claimed from e2d1), 'delivered text, companion A claimed');
+select pg_temp.check((select claimed from pg_temp.claim('e2:d:B', 6112, null, '+13055556111', 'VEHICLE_DELIVERED', 'TIP_NO', 'v1', 'b', 1, 'mock', '00000000-0000-0000-0000-0000000000a1')), 'delivered text, companion B on the same phone also claimed (own link)');
+select public.airvalet_sms_mark_result((select message_id from e2d1), 'queued', 'SM_E2D1', 'MG', null, null, 1);
+select pg_temp.check((select error_code from pg_temp.claim('e2:d:A2', 6111, null, '+13055556111', 'VEHICLE_DELIVERED', 'TIP_NO', 'v1', 'b', 1, 'mock', '00000000-0000-0000-0000-0000000000a1')) = 'DUPLICATE_RECENT', 'same passenger delivered text again, < 2 min → DUPLICATE_RECENT');
 
 -- Unconfirmed (timeout): blocks a blind resend until staff resolve it.
 create temp table u1 as select * from pg_temp.claim('e2:u:CHECK_IN', 6101, null, '+13055556101', 'CHECK_IN', 'CHECK_IN', 'v1', 'b', 1, 'mock', '00000000-0000-0000-0000-0000000000a1');

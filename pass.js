@@ -43,9 +43,13 @@
     var h = +m[1];
     return ((h + 11) % 12 + 1) + ':' + m[2] + ' ' + (h < 12 ? 'AM' : 'PM');
   }
+  // The valet works on Florida time: "today" is the ET date, whatever the phone's zone.
   function todayIso() {
-    var d = new Date(); var z = function (n) { return (n < 10 ? '0' : '') + n; };
-    return d.getFullYear() + '-' + z(d.getMonth() + 1) + '-' + z(d.getDate());
+    try { return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()); }
+    catch (e) {
+      var d = new Date(); var z = function (n) { return (n < 10 ? '0' : '') + n; };
+      return d.getFullYear() + '-' + z(d.getMonth() + 1) + '-' + z(d.getDate());
+    }
   }
   function hoursText(h) {
     if (!h || typeof h !== 'object') return '';
@@ -65,17 +69,30 @@
   }
 
   async function load() {
-    try {
-      var r = await post({ t: TOKEN });
-      if (r.status === 429) return renderMessage('Too many attempts', 'Please wait a few minutes and try again.');
-      if (!r.data || r.data.state === 'error') return renderMessage('Something went wrong', 'Please try again in a moment.', true);
-      if (r.data.state !== 'ok') return renderMessage('This valet link is not active', 'Questions about your car? Call our valet team at ' + VALET_PHONE_FALLBACK + '.');
-      pass = r.data.pass;
+    var r;
+    try { r = await post({ t: TOKEN }); } catch (e) { r = null; }
+    if (r && r.data && r.data.state === 'ok') {
+      pass = r.data.pass; lastOk = new Date();
       render();
       startIntro();
-    } catch (e) {
-      renderMessage('No connection', 'Check your connection and try again.', true);
+      return;
     }
+    if (r && r.data && r.data.state && r.data.state !== 'error' && r.status !== 429 && r.data.state !== 'limited') {
+      // Link revoked or expired: stop refreshing (a forgotten tab must not count failures).
+      pass = null;
+      return renderMessage('This valet link is not active', 'Questions about your car? Call our valet team at ' + VALET_PHONE_FALLBACK + '.');
+    }
+    // Temporary problem: an open pass stays on screen with a quiet note.
+    if (pass) return showStale(!r ? 'Offline' : 'Could not refresh');
+    if (!r) return renderMessage('No connection', 'Check your connection and try again.', true);
+    if (r.status === 429 || (r.data && r.data.state === 'limited')) return renderMessage('Too many attempts', 'Please wait a few minutes and try again.', true);
+    renderMessage('Something went wrong', 'Please try again in a moment.', true);
+  }
+  var lastOk = null;
+  function showStale(what) {
+    var el = document.getElementById('stale');
+    if (!el) { el = document.createElement('p'); el.id = 'stale'; el.className = 'stale'; el.setAttribute('role', 'status'); var host = app.querySelector('main') || app; host.insertBefore(el, host.firstChild); }
+    el.textContent = what + (lastOk ? ' \u2014 last updated ' + lastOk.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '') + '.';
   }
 
   // At most once per page load (the 30 s refresh never replays it); the film
@@ -100,7 +117,9 @@
     if (p.status === 'READY') {
       return { tone: 'ready', word: 'Ready',
         line: p.pickup === 'HANGAR_19'
-          ? (p.lockbox ? 'After-hours pickup confirmed by our team.' : 'A/C running. We will help with your luggage.')
+          ? (p.lockbox ? 'After-hours pickup confirmed by our team.'
+            : p.ready_by_staff === false ? 'Your car is at Hangar\u00a019 for your return today.'
+            : 'A/C running. We will help with your luggage.')
           : 'Your car is ready for your arrival.' };
     }
     if (p.status === 'CUSTOMS_CONFIRMED') {
@@ -127,6 +146,7 @@
     }).join(' ');
   }
   function pickupText(p) {
+    if (p.status === 'CUSTOMS_CONFIRMED') return 'Customs';
     if (p.pickup === 'HANGAR_19') return 'Hangar 19';
     if (p.pickup === 'CUSTOMS_EXCEPTION' || p.pickup === 'CUSTOMS_ASCEND') return 'Customs';
     return '';
@@ -177,7 +197,7 @@
     var html = '<header class="top"><img src="assets/makers-air-valet-lockup-white.png" alt="Makers Air Valet" width="200" height="52">' +
       '<h1>' + (p.first_name ? 'Welcome, ' + esc(p.first_name) : 'Welcome') + '</h1></header><main>';
     html += passCard(p);
-    if (p.lockbox && !done) html += '<button class="btn primary green" type="button" data-open="lockbox">View after-hours pickup instructions</button>';
+    if (p.lockbox && !done && p.status !== 'CUSTOMS_CONFIRMED') html += '<button class="btn primary green" type="button" data-open="lockbox">View after-hours pickup instructions</button>';
     if (p.chat_enabled) html += '<button class="btn primary" type="button" data-open="chat">Message our valet team</button>';
     // Gratuity as a full button too (owner 2026-10-25); after delivery it lives in the pass card.
     if (!done && p.gratuity_url) html += '<button class="btn brass solo" type="button" data-open="gratuity">Leave a gratuity</button>';
@@ -333,6 +353,7 @@
   async function loadChat() {
     try {
       var r = await post({ t: TOKEN, action: 'messages' });
+      if (r.data && r.data.state === 'expired') { closeSheet(); return load(); }
       if (r.data && r.data.state === 'ok') {
         var changed = JSON.stringify(r.data.messages) !== JSON.stringify(chatMsgs);
         chatMsgs = r.data.messages || [];
@@ -350,6 +371,7 @@
       var r = await post({ t: TOKEN, action: 'send', body: text, ck: form.ck });
       form.busy = false;
       var res = r.data && r.data.result;
+      if (r.data && r.data.state === 'expired') { closeSheet(); return load(); }
       if (r.status === 429 || res === 'LIMITED') form.err = 'Too many messages. Please wait a little or call our valet team.';
       else if (res === 'OK') { form.draft = ''; form.ck = clientKey(); await loadChat(); }
       else if (res === 'UNAVAILABLE') form.err = 'Chat is not available right now. Please call our valet team.';
@@ -382,7 +404,7 @@
 
   // A different link opened in the same tab: show that pass, never the previous one.
   window.addEventListener('hashchange', function () {
-    TOKEN = String(location.hash || '').replace(/^#/, ''); pass = null;
+    TOKEN = String(location.hash || '').replace(/^#/, ''); pass = null; chatMsgs = []; lastOk = null;
     if (!sheetBg.hidden) closeSheet();
     app.innerHTML = '<div class="center"><p class="muted">Loading your valet pass…</p></div>';
     load();

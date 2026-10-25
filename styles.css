@@ -2064,6 +2064,7 @@ body.tv-stale .tv-stale-banner{display:block;}
 .ci2-sms.sent i{background:#3DD68C;} .ci2-sms.sent b{color:#7CE7B3;}
 .ci2-sms.failed i{background:#FF7A6E;} .ci2-sms.failed b{color:#FFB3AB;}
 .ci2-sms.noconsent i,.ci2-sms.notsent i{background:#FFC547;} .ci2-sms.notsent b,.ci2-sms.noconsent b{color:#FFE3A3;}
+.ci2-sms.unconfirmed i{background:#FFC547;} .ci2-sms.unconfirmed b{color:#FFE3A3;}
 @keyframes ci2pulse{50%{opacity:.35}}
 @media (prefers-reduced-motion:reduce){.ci2-sms.sending i{animation:none;}}
 .ci2-passup{margin-top:8px;font-size:12px;color:var(--gold);}

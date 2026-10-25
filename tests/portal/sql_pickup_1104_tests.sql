@@ -55,8 +55,20 @@ begin
   perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000c1","email":"real.staff@airvalet.local","role":"authenticated"}', true);
   update public.passengers set pickup_auth_name = 'BRUNO LIMA', pickup_auth_by = 'someone.else@forged' where id = v_id;
   perform pg_temp.ok((select pickup_auth_by = 'real.staff@airvalet.local' and pickup_auth_at > now() - interval '1 minute' from public.passengers where id = v_id), 'pickup_auth_by comes from the session (forged value ignored)');
-  update public.passengers set released_to_name = 'BRUNO LIMA', released_by = 'forged', released_at = '2000-01-01' where id = v_id;
+  -- the release record of a delivered car is final
+  begin
+    update public.passengers set released_to_name = 'BRUNO LIMA' where id = v_id;
+    v_err := 'none';
+  exception when check_violation then v_err := sqlerrm; end;
+  perform pg_temp.ok(v_err like 'RELEASE_RECORD_LOCKED%', 'release record of a delivered car cannot be edited');
+  update public.passengers set released_by = 'forged', released_at = '2000-01-01' where id = v_id;
+  perform pg_temp.ok((select released_by is distinct from 'forged' and released_at > '2001-01-01' from public.passengers where id = v_id), 'released_by / released_at cannot be overwritten directly');
+  update public.passengers set pickup_auth_by = 'forged', pickup_auth_at = '2000-01-01' where id = v_id;
+  perform pg_temp.ok((select pickup_auth_by = 'real.staff@airvalet.local' and pickup_auth_at > '2001-01-01' from public.passengers where id = v_id), 'pickup_auth_by / pickup_auth_at cannot be overwritten directly');
+  update public.passengers set status = 'PENDING' where id = v_id;
+  update public.passengers set status = 'DELIVERED', released_to_name = 'BRUNO LIMA', released_to_kind = 'AUTHORIZED', released_id_checked = true, released_by = 'forged', released_at = '2000-01-01' where id = v_id;
   perform pg_temp.ok((select released_by = 'real.staff@airvalet.local' and released_at > now() - interval '1 minute' from public.passengers where id = v_id), 'released_by / released_at come from the session');
+  update public.passengers set status = 'PENDING' where id = v_id;
   update public.passengers set pickup_auth_name = null, pickup_auth_phone = null where id = v_id;
   perform pg_temp.ok((select pickup_auth_by is null and pickup_auth_at is null from public.passengers where id = v_id), 'revoking clears who/when');
   perform pg_temp.ok((select bool_and(is_nullable = 'YES' and column_default is null) from information_schema.columns
