@@ -4754,8 +4754,8 @@ function vpPendingCount(){ return (_vp.requests || []).filter(function(q){ retur
 function renderPassRequests(){
   var el = document.getElementById('ibxRequests'); if (!el) return;
   var pend = _vp.requests.filter(function(q){ return q.status === 'PENDING'; });
-  var done = _vp.requests.filter(function(q){ return q.status !== 'PENDING' && q.status !== 'SUPERSEDED'; }).slice(0, 4);
-  if (!pend.length && !done.length) { el.innerHTML = ''; return; }
+  // Only what still needs a decision; decided requests stay in the passenger history.
+  if (!pend.length) { el.innerHTML = ''; return; }
   var card = function(q){
     var isWash = q.kind === 'CAR_WASH';
     var title = isWash ? 'Car wash'
@@ -4777,11 +4777,7 @@ function renderPassRequests(){
       '<button type="button" class="vpq-ic" aria-label="Text passenger" title="Text passenger" onclick="openInboxThread(' + Number(q.passenger_id) + ')">&#128172;</button></div></div>';
   };
   el.innerHTML = '<div class="ibx-sec-t">Passenger requests' + (pend.length ? ' <span class="vpq-badge">' + pend.length + '</span>' : '') + '</div>' +
-    pend.map(card).join('') +
-    (done.length ? '<div class="vpq-done">' + done.map(function(q){
-      return '<div>' + escapeHTML(q.passenger_name || '') + ' · ' + (q.kind === 'CAR_WASH' ? 'car wash' : 'return change') + ' · <b>' + escapeHTML(q.status.toLowerCase()) + '</b>' +
-        (q.decided_by_email ? ' by ' + escapeHTML(String(q.decided_by_email).split('@')[0]) : '') + '</div>';
-    }).join('') + '</div>' : '');
+    pend.map(card).join('');
 }
 async function vpDecide(id, decision, force){
   var q = _vp.requests.filter(function(x){ return x.id === id; })[0]; if (!q) return;
@@ -4886,9 +4882,8 @@ async function renderVpAlertsCard(){
   var el = document.getElementById('vpAlertsCard'); if (!el) return;
   if (!isServerSms() || isTvMode()) { el.style.display = 'none'; return; }
   var sup = vpPushSupport(), state = 'off', show = false;
-  try {
-    if (!_vp.settings) _vp.settings = await vpRpc('airvalet_portal_settings_get');
-  } catch(e) { el.style.display = 'none'; return; }
+  try { _vp.settings = await vpRpc('airvalet_portal_settings_get'); } // fresh: an ADMIN switch shows without a reload
+  catch(e) { if (!_vp.settings) { el.style.display = 'none'; return; } }
   if (sup === 'OK') {
     try {
       var reg = await navigator.serviceWorker.ready, sub = await reg.pushManager.getSubscription();
