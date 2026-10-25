@@ -24,3 +24,6 @@ cp events/makers-halloween-2026/index.html events/makers-halloween-2026/t.html \
 # Makers Air Valet passenger page (/a#<token>, see vercel.json rewrite).
 # Static, not an app-shell file, not in SHELL_FILES.
 cp pass.html pass.js pass.css dist/
+# Intro films for the passenger page (versioned names: a change = new version, never overwrite).
+mkdir -p dist/cine
+cp cine/cinematic-v1.js cine/*.mp4 cine/*.jpg cine/*.png dist/cine/

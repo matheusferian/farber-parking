@@ -12,6 +12,8 @@
   var lastFocus = null;
   var form = {};           // current sheet state
   var VALET_PHONE_FALLBACK = '(954) 352-1010'; // printed on the customer ticket
+  // Intro film (cine/cinematic-v1.js): one switch; false = never plays.
+  var CINEMATIC_ON = true, CINEMATIC_VERSION = 'p3', cineTried = false;
 
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
@@ -50,7 +52,7 @@
     var days = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
     var vals = days.map(function (d) { return Array.isArray(h[d]) && h[d].length === 2 ? fmtTime(h[d][0]) + ' – ' + fmtTime(h[d][1]) : null; });
     if (vals.every(function (v) { return v === null; })) return '';
-    if (vals.every(function (v) { return v === vals[0]; })) return 'Valet hours: ' + vals[0] + ', daily';
+    if (vals.every(function (v) { return v === vals[0]; })) return 'Open every day, ' + vals[0].replace(' – ', ' to ');
     var names = { mon: 'Mon', tue: 'Tue', wed: 'Wed', thu: 'Thu', fri: 'Fri', sat: 'Sat', sun: 'Sun' };
     return 'Valet hours: ' + days.map(function (d, i) { return names[d] + ' ' + (vals[i] || 'closed'); }).join(' · ');
   }
@@ -69,9 +71,20 @@
       if (r.data.state !== 'ok') return renderMessage('This valet link is not active', 'Questions about your car? Call our valet team at ' + VALET_PHONE_FALLBACK + '.');
       pass = r.data.pass;
       render();
+      startIntro();
     } catch (e) {
       renderMessage('No connection', 'Check your connection and try again.', true);
     }
+  }
+
+  // At most once per page load (the 30 s refresh never replays it); the film
+  // itself also plays only once per trip leg on this device.
+  function startIntro() {
+    if (cineTried || !CINEMATIC_ON || !window.MAVCinematic || !pass) return;
+    cineTried = true;
+    var kind = pass.status === 'DELIVERED' ? null
+      : (pass.status === 'READY' || pass.status === 'CUSTOMS_CONFIRMED') ? 'RETURN' : 'DEPARTURE';
+    if (kind) window.MAVCinematic.start({ kind: kind, v: CINEMATIC_VERSION }, TOKEN, 'cine/');
   }
 
   function renderMessage(title, text, retry) {
@@ -81,26 +94,22 @@
     var b = document.getElementById('retry'); if (b) b.addEventListener('click', load);
   }
 
-  function statusCard(p) {
-    var cls = 'status', big = 'Parked', line = 'Your car is safely parked.', extra = '';
+  // ── Valet pass (boarding-pass layout, 2026-10-25) ──
+  function statusInfo(p) {
     if (p.status === 'READY') {
-      cls += ' ready'; big = 'Ready to Go'; line = 'Your car is ready for your arrival.';
-      if (p.pickup === 'HANGAR_19') {
-        extra = '<p class="lbl mt">Waiting for you at</p><p class="place">Hangar 19</p>' +
-          (p.lockbox ? '<p class="perk">After-hours pickup confirmed by our team.</p>' : '<p class="perk">A/C running. We will help with your luggage.</p>');
-      }
-    } else if (p.status === 'CUSTOMS_CONFIRMED') {
-      cls += ' customs'; big = 'Customs Confirmed';
-      line = p.pickup === 'CUSTOMS_ASCEND'
-        ? 'Your vehicle will be at Customs. An Ascend team member will hand you your key.'
-        : 'As arranged, your vehicle will be at Customs. When you arrive, reply to our text or call ' + esc(contactValet(p)) + ' for your key.';
-    } else if (p.status === 'DELIVERED') {
-      cls += ' done'; big = 'Delivered'; line = 'Thank you for choosing Makers Air Valet. We look forward to your next trip.';
+      return { tone: 'ready', word: 'Ready',
+        line: p.pickup === 'HANGAR_19'
+          ? (p.lockbox ? 'After-hours pickup confirmed by our team.' : 'A/C running. We will help with your luggage.')
+          : 'Your car is ready for your arrival.' };
     }
-    return '<section class="' + cls + '" aria-label="Vehicle status">' +
-      '<p class="lbl">Your vehicle' + (p.vehicle ? ' · ' + esc(niceVehicle(p.vehicle)) : '') + '</p>' +
-      (p.vehicle ? '' : '<p class="line soft">Vehicle details will be updated soon.</p>') +
-      '<p class="big">' + esc(big) + '</p><p class="line">' + line + '</p>' + extra + '</section>';
+    if (p.status === 'CUSTOMS_CONFIRMED') {
+      return { tone: 'customs', word: 'At Customs',
+        line: p.pickup === 'CUSTOMS_ASCEND'
+          ? 'An Ascend team member will hand you your key.'
+          : 'As arranged, your car will be at Customs. When you arrive, reply to our text or call ' + esc(contactValet(p)) + ' for your key.' };
+    }
+    if (p.status === 'DELIVERED') return { tone: 'done', word: 'Delivered', line: 'Thank you for choosing Makers Air Valet.' };
+    return { tone: 'parked', word: 'Parked', line: 'Your car is safely parked.' };
   }
   function contactValet(p) { return (p.contacts && p.contacts.valet_phone) || VALET_PHONE_FALLBACK; }
   // "Black MERCEDES GLE" → "Black Mercedes GLE" (short / numbered model codes stay upper case).
@@ -109,64 +118,75 @@
       return /\d/.test(w) || w.length <= 3 ? w.toUpperCase() : w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
     }).join(' ');
   }
-
-  function pickupBlock(p) {
-    if (p.status === 'DELIVERED') return '';
-    if (p.pickup === 'HANGAR_19') {
-      if (p.status === 'READY') return ''; // the status card already says Hangar 19
-      // One quiet line; the four steps open on tap (owner 2026-10-25: cleaner page).
-      return '<details class="card pickup" aria-label="Getting to your car"><summary><span class="lbl">Pickup</span><span class="pk-place">Hangar 19</span><span class="pk-how">How to get there</span></summary><ol class="steps mt">' +
-        '<li><span class="n">1</span>Land with Makers Air</li><li><span class="n">2</span>Complete Customs</li>' +
-        '<li><span class="n">3</span>Go back to your pilots and aircraft</li><li class="last"><span class="n">4</span><strong>Hangar 19</strong></li></ol></details>';
-    }
-    if (p.pickup === 'TO_BE_CONFIRMED' || p.pickup === 'OTHER' || !p.pickup) return '<section class="card"><p class="lbl">Pickup information</p><p class="ptext">To be confirmed by our valet team.</p></section>';
-    if ((p.pickup === 'CUSTOMS_EXCEPTION' || p.pickup === 'CUSTOMS_ASCEND') && p.status === 'PARKED') {
-      return '<section class="card"><p class="lbl">Pickup information</p><p class="ptext">Customs. Our team will confirm when your vehicle is ready.</p></section>';
-    }
+  function pickupText(p) {
+    if (p.pickup === 'HANGAR_19') return 'Hangar 19';
+    if (p.pickup === 'CUSTOMS_EXCEPTION' || p.pickup === 'CUSTOMS_ASCEND') return 'Customs';
     return '';
   }
 
-  function render() {
-    var p = pass;
-    var name = p.first_name ? 'Welcome, ' + esc(p.first_name) : 'Welcome';
-    var date = fmtDate(p.return_date), time = fmtTime(p.return_time);
-    var retText = date ? date + (time ? ' · ' + time : '') : 'Not available yet.';
+  function passCard(p) {
+    var st = statusInfo(p), done = p.status === 'DELIVERED';
+    var html = '<section class="pass tone-' + st.tone + '" aria-label="Your valet pass">' +
+      '<div class="pass-top">' +
+        '<p class="pass-car">' + (p.vehicle ? esc(niceVehicle(p.vehicle)) : 'Vehicle details will be updated soon.') + '</p>' +
+        '<p class="pass-status">' + esc(st.word) + '</p>' +
+        '<p class="pass-line">' + st.line + '</p>' +
+      '</div><div class="pass-tear" aria-hidden="true"></div><div class="pass-bottom">';
+    if (done) {
+      html += '<p class="k">A note from your valet team</p>' +
+        '<p class="note-text">Thank you for trusting us with your car' + (p.first_name ? ', ' + esc(p.first_name) : '') + '. It was a pleasure taking care of it. Safe travels, and see you on your next trip!</p>' +
+        (p.gratuity_url ? '<button class="btn brass" type="button" data-open="gratuity">Leave a gratuity for the team</button><p class="fine">Always optional.</p>' : '');
+      return html + '</div></section>';
+    }
+    var date = fmtDate(p.return_date), time = fmtTime(p.return_time), place = pickupText(p);
+    var steps = p.pickup === 'HANGAR_19' && p.status === 'PARKED';
+    html += '<div class="pass-grid">' +
+      '<div><p class="k">Pickup</p><p class="v' + (place ? '' : ' v-soft') + '">' + (place ? esc(place) : 'To be confirmed by our valet team.') + '</p>' +
+        (steps ? '<button class="link" type="button" id="howBtn" aria-expanded="false" aria-controls="howSteps">How to get there</button>' : '') + '</div>' +
+      '<div><p class="k">Return</p><p class="v' + (date ? '' : ' v-soft') + '">' + (date ? esc(date) : 'Not available yet.') + '</p>' +
+        (date && time ? '<p class="v2">' + esc(time) + '</p>' : '') +
+        (p.requests_enabled ? '<button class="link" type="button" data-open="return">Change return</button>' : '') + '</div>' +
+      '</div>';
+    if (steps) {
+      html += '<ol class="steps howto" id="howSteps" hidden>' +
+        '<li>Land with Makers Air</li><li>Complete Customs</li><li>Go back to your pilots and aircraft</li><li><strong>Walk to Hangar 19</strong></li></ol>';
+    }
     var pend = p.pending_return;
+    if (pend) html += '<p class="pending">Change requested: ' + esc(fmtIsoDate(pend.date) || '') + (pend.time ? ', ' + esc(fmtTime(pend.time)) : '') +
+      (pend.carrier ? ' with ' + esc(pend.carrier) : '') + '. Waiting for our team to confirm.</p>';
+    return html + '</div></section>';
+  }
+
+  function render() {
+    var p = pass, done = p.status === 'DELIVERED';
     var html = '<header class="top"><img src="assets/makers-valet-lockup-white.png" alt="Makers Air Valet by Farber Parking" width="200" height="64">' +
-      '<h1>' + name + '</h1></header><main>';
-    html += statusCard(p) + pickupBlock(p);
-    // After delivery: the note the delivered text promises + Gratuity up front.
-    if (p.status === 'DELIVERED') {
-      html += '<section class="card note" aria-label="A note from your valet team"><p class="lbl">A note from your valet team</p>' +
-        '<p class="ptext">Thank you for trusting us with your car' + (p.first_name ? ', ' + esc(p.first_name) : '') + '. It was a pleasure taking care of it. Safe travels, and see you on your next trip!</p>' +
-        (p.gratuity_url ? '<button class="btn primary gold" type="button" data-open="gratuity">Leave a gratuity for the team</button><p class="soft-note">Always optional.</p>' : '') +
-        '</section>';
-    }
-    if (p.lockbox && p.status !== 'DELIVERED') {
-      html += '<button class="btn primary green" type="button" data-open="lockbox">View after-hours pickup instructions</button>';
-    }
-    if (p.status !== 'DELIVERED') {
-      html += '<section class="card" aria-label="Expected return"><div class="row"><div><p class="lbl">Expected return</p><p class="ret">' + esc(retText) + '</p></div>' +
-        (p.requests_enabled ? '<button class="btn outline" type="button" data-open="return">Change return</button>' : '') + '</div>' +
-        (pend ? '<p class="pending">Change requested: ' + esc(fmtIsoDate(pend.date) || '') + (pend.time ? ' · ' + esc(fmtTime(pend.time)) : '') +
-          (pend.carrier ? ' with ' + esc(pend.carrier) : '') + '. Waiting for our team to confirm.</p>' : '') + '</section>';
-    }
+      '<h1>' + (p.first_name ? 'Welcome, ' + esc(p.first_name) : 'Welcome') + '</h1></header><main>';
+    html += passCard(p);
+    if (p.lockbox && !done) html += '<button class="btn primary green" type="button" data-open="lockbox">View after-hours pickup instructions</button>';
+    if (p.chat_enabled) html += '<button class="btn primary" type="button" data-open="chat">Message our valet team</button>';
     var rows = '';
     var wash = { REQUEST: 'Request', CONTACT: 'Ask our team', REQUESTED: 'Requested', PRICE_PENDING: 'Price coming', SCHEDULED: 'Scheduled', DONE: 'Done' }[p.car_wash];
-    if (wash && p.requests_enabled !== false) rows += '<button type="button" data-open="wash"><span>Car wash</span><small>' + wash + '</small></button>';
-    if (p.gratuity_url && p.status !== 'DELIVERED') rows += '<button type="button" data-open="gratuity"><span>Gratuity</span><small>Optional</small></button>';
+    if (!done && wash && p.requests_enabled !== false) rows += '<button type="button" data-open="wash"><span>Car wash</span><small>' + wash + '</small></button>';
+    if (!done && p.gratuity_url) rows += '<button type="button" data-open="gratuity"><span>Gratuity</span><small>Optional</small></button>';
     if (rows) html += '<div class="list">' + rows + '</div>';
     var c = p.contacts || {};
-    if (p.chat_enabled) html += '<button class="btn primary chatbtn" type="button" data-open="chat">Message our valet team</button>';
-    // One contact line (the chat covers texting); reservations / hours only when set.
+    // Valet hours + the after-hours rule (owner 2026-10-25).
+    var hrs = hoursText(p.valet_hours);
+    if (hrs && !done) html += '<section class="hours" aria-label="Valet hours"><p class="k">Valet hours</p><p class="hours-t">' + esc(hrs) + '</p>' +
+      '<p class="fine">Flying back with Makers Air? Don\u2019t worry, we\u2019ll be here to meet you.</p>' +
+      '<p class="fine">Arriving after hours without letting us know? We can\u2019t guarantee your car will be ready.</p></section>';
     html += '<p class="contact-line">Questions? <a href="' + esc(tel(contactValet(p))) + '">Call ' + esc(contactValet(p)) + '</a></p>' +
-      (c.reservations_phone ? '<p class="muted note center-note">Flights: <a href="' + esc(tel(c.reservations_phone)) + '">Makers Air ' + esc(c.reservations_phone) + '</a></p>' : '') +
-      (hoursText(p.valet_hours) ? '<p class="muted note center-note">' + esc(hoursText(p.valet_hours)) + '</p>' : '');
-    html += '<footer><p>Makers Air Valet · Hangar 19, Fort Lauderdale' + (p.terms_published ? ' · <a href="terms.html">Valet Terms</a>' : '') + '</p>' +
+      (c.reservations_phone ? '<p class="fine">Flights: <a href="' + esc(tel(c.reservations_phone)) + '">Makers Air ' + esc(c.reservations_phone) + '</a></p>' : '');
+    html += '<footer><p>Makers Air Valet, Hangar 19, Fort Lauderdale' + (p.terms_published ? ' · <a href="terms.html">Valet Terms</a>' : '') + '</p>' +
       '<p><a href="sms.html">SMS program</a> · <a href="privacy.html">Privacy</a></p></footer></main>';
     app.innerHTML = html;
     Array.prototype.forEach.call(app.querySelectorAll('[data-open]'), function (b) {
       b.addEventListener('click', function () { openSheet(b.getAttribute('data-open')); });
+    });
+    var how = document.getElementById('howBtn'), list = document.getElementById('howSteps');
+    if (how && list) how.addEventListener('click', function () {
+      var open = list.hidden; list.hidden = !open; how.setAttribute('aria-expanded', String(open));
+      how.textContent = open ? 'Hide directions' : 'How to get there';
     });
   }
 
