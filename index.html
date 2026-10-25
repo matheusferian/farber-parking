@@ -4323,11 +4323,10 @@ function renderSmsDeviceCard(){
   if (!d.sending_enabled && d.status !== 'approved' && _currentUserRole !== 'ADMIN') { el.style.display = 'none'; return; }
   var staff = smsStaffName();
   if (d.status === 'approved' && d.sending_enabled) {
-    cls = 'ok'; ic = '&#9989;'; t = 'This device is authorized for AirValet texts';
-    sub = (d.cutover_at ? 'New check-ins: texts are sent by AirValet.' : 'New check-ins are not using AirValet texts yet.')
-        + ' Cars checked in before keep using iPhone Messages.'
-        + (d.test_only ? ' <b>Test mode</b> — only test numbers.' : '');
-    if (staff) sub += ' Texts are sent as <b>' + escapeHTML(staff) + '</b>.';
+    el.className = 'smsdev-line';
+    el.innerHTML = '<span class="smsdev-dot"></span>Texting on' + (staff ? ' · sent as <b>' + escapeHTML(staff) + '</b>' : '') + (d.test_only ? ' · <b>test mode</b>' : '');
+    el.style.display = '';
+    return;
   } else if (d.status === 'approved') {
     cls = 'wait'; ic = '&#9208;'; t = 'Authorized — AirValet texting is paused';
     sub = 'Texts open in iPhone Messages as usual.';
@@ -4489,19 +4488,14 @@ function renderInboxList(){
     return [c.passenger_name, c.ticket, c.phone_e164, c.last_body].some(function(v){ return String(v || '').toLowerCase().indexOf(q) !== -1; });
   });
   box.innerHTML = rows.length ? rows.map(function(c){
-    var p = paxById(c.passenger_id) || {};
-    var ret = returnOperator(Object.assign({}, p, { ticket: c.ticket }));
-    var tags = '<span class="ibx-tag">#' + escapeHTML(c.ticket || '—') + '</span>' +
-      (ret ? '<span class="ibx-tag">BACK: ' + escapeHTML(RETURN_OPERATOR_LABELS[ret] || ret) + (pickupLocation(p) ? ' · ' + (pickupLocation(p) === 'HANGAR_19' ? 'H19' : 'CUSTOMS') : '') + '</span>' : '') +
-      (c.opted_out ? '<span class="ibx-tag bad">OPTED OUT</span>' : '') +
-      (_returnReviews.some(function(v){ return v.passenger_id === c.passenger_id; }) ? '<span class="ibx-tag warn">&#9888; RETURN CHANGED</span>' : '') +
-      (c.unread_count > 0 ? '<span class="ibx-unread">' + c.unread_count + '</span>' : '');
+    var tags = (c.opted_out ? '<span class="ibx-tag bad">Opted out</span>' : '') +
+      (_returnReviews.some(function(v){ return v.passenger_id === c.passenger_id; }) ? '<span class="ibx-tag warn">&#9888; Return changed</span>' : '');
     var initials = String(c.passenger_name || '?').split(/\s+/).map(function(w){ return w.charAt(0); }).join('').slice(0, 2);
     return '<div class="ibx-row' + (c.unread_count > 0 ? ' unread' : '') + (_ibx.open === c.passenger_id ? ' on' : '') + '" onclick="openInboxThread(' + c.passenger_id + ')">' +
       '<div class="ibx-av">' + escapeHTML(initials) + '</div>' +
-      '<div class="ibx-row-main"><div class="ibx-row-top"><span class="ibx-name">' + escapeHTML(c.passenger_name || '') + '</span><span class="ibx-when">' + escapeHTML(ibxTime(c.last_message_at)) + '</span></div>' +
-      '<div class="ibx-last">' + (c.last_direction === 'outbound' ? 'You: ' : '') + escapeHTML(c.last_body || '') + '</div>' +
-      '<div class="ibx-tags">' + tags + '</div></div></div>';
+      '<div class="ibx-row-main"><div class="ibx-row-top"><span class="ibx-name">' + escapeHTML(c.passenger_name || '') + ' <span class="ibx-tk">' + escapeHTML(c.ticket || '') + '</span></span><span class="ibx-when">' + escapeHTML(ibxTime(c.last_message_at)) + '</span></div>' +
+      '<div class="ibx-row-bot"><span class="ibx-last">' + (c.last_direction === 'outbound' ? 'You: ' : '') + escapeHTML(c.last_body || '') + '</span>' + (c.unread_count > 0 ? '<span class="ibx-unread">' + c.unread_count + '</span>' : '') + '</div>' +
+      (tags ? '<div class="ibx-tags">' + tags + '</div>' : '') + '</div></div>';
   }).join('') : '<div class="ibx-empty">' + (_ibx.loadError ? 'Could not load texts — retrying.' : q ? 'No conversation matches.' : 'No text conversations yet.') + '</div>';
   if (_ibx.loadError && rows.length) box.insertAdjacentHTML('afterbegin', '<div class="ibx-rv-note">Could not refresh texts — showing the last loaded list, retrying.</div>');
   renderInboxReview();
@@ -4617,27 +4611,27 @@ function renderThread(passengerId, keepComposer){
       var sys = (kw === 'STOP' || kw === 'START' || kw === 'HELP')
         ? '<div class="ibx-sys">' + (kw === 'STOP' ? 'Passenger replied STOP — opted out. Texts are blocked.' : kw === 'START' ? 'Passenger replied START — texts allowed again.' : 'Passenger asked for HELP — automatic help reply sent by the carrier service.') + '</div>' : '';
       return '<div class="ibx-msg in"><div class="ibx-bub">' + escapeHTML(m.body || '') + '</div>' +
-        '<div class="ibx-meta">' + escapeHTML(ibxTime(m.received_at || m.created_at)) + (m.provider === 'portal' ? ' · via valet pass chat' : '') + ' · ' + (m.read_at ? 'Read ' + escapeHTML(ibxTime(m.read_at)) : '<b>Unread</b>') + '</div></div>' + sys;
+        '<div class="ibx-meta">' + (m.provider === 'portal' ? '&#128172; ' : '') + escapeHTML(ibxTime(m.received_at || m.created_at)) + '</div></div>' + sys;
     }
     var openInfo = (m.id === lastCheckin && opened && opened.first_opened_at)
-      ? ' · <span class="ibx-st ok">&#128279; Link opened ' + escapeHTML(ibxTime(opened.last_opened_at)) + (opened.open_count > 1 ? ' (' + opened.open_count + '×)' : '') + '</span>' : '';
+      ? ' · <span class="ibx-st ok">link opened</span>' : '';
     return '<div class="ibx-msg out' + (m.status === 'blocked' ? ' blocked' : '') + '"><div class="ibx-bub">' + escapeHTML(m.body || '') + '</div>' +
-      '<div class="ibx-meta">' + escapeHTML(ibxTypeLabel(m)) + ' · ' + escapeHTML(m.sent_by_name || 'AirValet') + ' · ' + escapeHTML(ibxTime(m.created_at)) + ' · ' + (m.provider === 'portal' ? '<span class="ibx-st ok">Chat only (no text)</span>' : smsStatusHtml(m)) + openInfo + '</div></div>';
+      '<div class="ibx-meta">' + escapeHTML(m.sent_by_name || 'AirValet') + ' · ' + escapeHTML(ibxTime(m.created_at)) + ' · ' + (m.provider === 'portal' ? '&#128172; chat' : smsStatusHtml(m)) + openInfo + '</div></div>';
   }).join('');
   var optedOut = !!conv.opted_out;
   var header = '<div class="ibx-th-h"><button class="ibx-back" onclick="closeInboxThread()" aria-label="Back">&#8249;</button>' +
     '<div class="ibx-th-who"><div class="ibx-th-name">' + escapeHTML(p.name || conv.passenger_name || '') + '</div>' +
-    '<div class="ibx-th-sub">#' + escapeHTML(p.ticket || conv.ticket || '') + (p.car ? ' · ' + escapeHTML(p.car) : '') + (p.loc ? ' · ' + escapeHTML(p.loc) : '') + (p.ret ? ' · returns ' + escapeHTML(p.ret) : '') + '</div>' +
-    '<div class="ibx-tags">' + (p.id ? '<span class="ibx-tag">Returning with ' + escapeHTML(RETURN_OPERATOR_LABELS[returnOperator(p)] || '—') + ' · ' + escapeHTML(pickupLabel(p)) + '</span>' : '') +
-      (optedOut ? '<span class="ibx-tag bad">OPTED OUT (STOP)</span>' : conv.has_consent ? '<span class="ibx-tag ok">&#10003; SMS consent</span>' : '<span class="ibx-tag warn">No SMS consent</span>') + '</div></div>' +
-    (p.id ? '<button class="rp-btn" onclick="showDet(' + p.id + ');document.getElementById(\'detOv\').classList.add(\'on\')">Open passenger</button>' : '') + '</div>';
+    '<div class="ibx-th-sub">' + escapeHTML(p.ticket || conv.ticket || '') + (p.car ? ' · ' + escapeHTML(p.car) : '') + (p.ret ? ' · returns ' + escapeHTML(p.ret) : '') + '</div>' +
+    (optedOut ? '<div class="ibx-tags"><span class="ibx-tag bad">Opted out (STOP)</span></div>' : !conv.has_consent ? '<div class="ibx-tags"><span class="ibx-tag warn">No SMS consent</span></div>' : '') + '</div>' +
+    (p.id ? '<button class="ibx-det" onclick="showDet(' + p.id + ');document.getElementById(\'detOv\').classList.add(\'on\')">Details</button>' : '') + '</div>';
   var draft = (_ibx.compose[passengerId] && _ibx.compose[passengerId].text) || '';
   var composer = optedOut
     ? '<div class="ibx-blocked">Passenger replied STOP. Texts are blocked until they reply START.</div>'
-    : '<div class="ibx-comp"><textarea id="ibxText" rows="2" maxlength="480" placeholder="Reply to ' + escapeHTML(String(p.name || '').split(' ')[0] || 'passenger') + '… (sent as a normal SMS)" oninput="onInboxDraft(' + passengerId + ')">' + escapeHTML(draft) + '</textarea>' +
-      '<div class="ibx-comp-row"><span class="ibx-quick" onclick="useQuickReply(' + passengerId + ',\'No problem, see you then!\')">No problem, see you then!</span><span class="ibx-quick" onclick="useQuickReply(' + passengerId + ',\'Noted, thank you!\')">Noted, thank you!</span>' +
-      '<label class="ibx-sms-chk"><input type="checkbox" id="ibxAlsoSms" checked> Also send as text message</label>' +
-      '<span class="ibx-count" id="ibxCount"></span><button class="rp-btn rp-btn-primary" id="ibxSendBtn" onclick="sendInboxReply(' + passengerId + ')"' + (_ibx.sending ? ' disabled' : '') + '>' + (_ibx.sending ? 'Sending…' : 'Send') + '</button></div></div>';
+    : '<div class="ibx-comp"><div class="ibx-comp-main"><textarea id="ibxText" rows="1" maxlength="480" placeholder="Message" oninput="onInboxDraft(' + passengerId + ')">' + escapeHTML(draft) + '</textarea>' +
+      '<button class="ibx-send" id="ibxSendBtn" onclick="sendInboxReply(' + passengerId + ')"' + (_ibx.sending ? ' disabled' : '') + '>' + (_ibx.sending ? '…' : 'Send') + '</button></div>' +
+      '<div class="ibx-comp-row"><label class="ibx-sms-chk"><input type="checkbox" id="ibxAlsoSms" checked> Also by SMS</label>' +
+      '<span class="ibx-quick" onclick="useQuickReply(' + passengerId + ',\'No problem, see you then!\')">See you then!</span><span class="ibx-quick" onclick="useQuickReply(' + passengerId + ',\'Noted, thank you!\')">Noted, thanks!</span>' +
+      '<span class="ibx-count" id="ibxCount"></span></div></div>';
   if (keepComposer && document.getElementById('ibxText') && !optedOut){
     var list = box.querySelector('.ibx-msgs'); if (list){ list.innerHTML = msgs || '<div class="ibx-empty">No texts yet.</div>'; }
     var h = box.querySelector('.ibx-th-h'); if (h) h.outerHTML = header;
@@ -4657,7 +4651,8 @@ function onInboxDraft(passengerId){
   var c = _ibx.compose[passengerId] || (_ibx.compose[passengerId] = { id: newComposeId(), text: '' });
   if (c.text !== ta.value){ c.text = ta.value; }
   var seg = smsSegmentsEstimate(ta.value);
-  var cnt = document.getElementById('ibxCount'); if (cnt) cnt.textContent = ta.value.length + '/480 · ' + seg + ' seg · ~$' + (seg * SMS_COST_PER_SEGMENT_EST).toFixed(seg ? 3 : 2);
+  var cnt = document.getElementById('ibxCount'); if (cnt) cnt.textContent = seg > 1 ? seg + ' texts' : '';
+  ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, 140) + 'px'; ta.style.overflowY = ta.scrollHeight > 140 ? 'auto' : 'hidden';
 }
 function useQuickReply(passengerId, text){
   var ta = document.getElementById('ibxText'); if (!ta) return;
@@ -4672,7 +4667,7 @@ async function sendInboxReply(passengerId){
   var text = ta.value.trim(); if (!text) return;
   var c = _ibx.compose[passengerId] || (_ibx.compose[passengerId] = { id: newComposeId(), text: text });
   _ibx.sending = true;
-  var btn = document.getElementById('ibxSendBtn'); if (btn){ btn.disabled = true; btn.textContent = 'Sending…'; }
+  var btn = document.getElementById('ibxSendBtn'); if (btn){ btn.disabled = true; btn.textContent = '…'; }
   // Chat-only reply (no SMS cost): shown in the passenger's valet pass chat.
   var alsoSms = document.getElementById('ibxAlsoSms');
   if (alsoSms && !alsoSms.checked) {
@@ -4759,20 +4754,24 @@ function renderPassRequests(){
   var done = _vp.requests.filter(function(q){ return q.status !== 'PENDING' && q.status !== 'SUPERSEDED'; }).slice(0, 4);
   if (!pend.length && !done.length) { el.innerHTML = ''; return; }
   var card = function(q){
-    var what = q.kind === 'CAR_WASH'
-      ? '<div class="vpq-k">Car wash request</div><div class="vpq-l">Return on file: ' + escapeHTML(vpRet(q.current_ret, q.current_ret_time)) + '. Approving uses the existing Send Price step.</div>'
-      : '<div class="vpq-k">Return change · ' + escapeHTML(VP_REASON_LABELS[q.reason] || q.reason) + '</div>' +
-        '<div class="vpq-l">On file: <b>' + escapeHTML(vpRet(q.current_ret, q.current_ret_time)) + '</b></div>' +
-        '<div class="vpq-l">Requested: <b>' + escapeHTML(vpIsoDate(q.requested_date) + (q.requested_time ? ' · ' + vpTime(q.requested_time) : '')) + '</b>' +
-        (q.carrier ? ' · with ' + escapeHTML(q.carrier) : '') + '</div>' +
+    var isWash = q.kind === 'CAR_WASH';
+    var title = isWash ? 'Car wash'
+      : 'New return: ' + escapeHTML(vpIsoDate(q.requested_date) + (q.requested_time ? ' · ' + vpTime(q.requested_time) : ''));
+    var details = isWash
+      ? '<div class="vpq-l">Return on file: ' + escapeHTML(vpRet(q.current_ret, q.current_ret_time)) + '. Approving uses the existing Send Price step.</div>'
+      : '<div class="vpq-l">' + escapeHTML(VP_REASON_LABELS[q.reason] || q.reason) + (q.carrier ? ' · with ' + escapeHTML(q.carrier) : '') + '</div>' +
+        '<div class="vpq-l">On file: ' + escapeHTML(vpRet(q.current_ret, q.current_ret_time)) + '</div>' +
         (q.reason === 'OTHER_CARRIER' || q.reason === 'AFTER_HOURS' ? '<div class="vpq-n">Approving changes only the date/time. Returning with, Customs and lockbox stay as they are — change them yourself if needed.</div>' : '');
     return '<div class="vpq">' +
       '<div class="vpq-h"><span class="vpq-name">' + escapeHTML(q.passenger_name || '—') + '</span><span class="vpq-tk">' + escapeHTML(q.ticket || '') + '</span></div>' +
-      '<div class="vpq-l">' + escapeHTML(q.vehicle || '') + ' · ' + escapeHTML(new Date(q.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })) + '</div>' +
-      what + (q.note ? '<div class="vpq-note">"' + escapeHTML(q.note) + '"</div>' : '') +
+      '<div class="vpq-k">' + (isWash ? '&#129533; ' : '&#128197; ') + title + '</div>' +
+      (q.note ? '<div class="vpq-note">' + escapeHTML(q.note) + '</div>' : '') +
+      '<details class="vpq-more"><summary>Details</summary>' +
+        '<div class="vpq-l">' + escapeHTML(q.vehicle || '') + ' · requested ' + escapeHTML(new Date(q.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })) + '</div>' + details +
+      '</details>' +
       '<div class="vpq-a"><button type="button" class="vpq-ok" onclick="vpDecide(\'' + q.id + '\',\'APPROVE\')">Approve</button>' +
       '<button type="button" onclick="vpDecide(\'' + q.id + '\',\'DECLINE\')">Decline</button>' +
-      '<button type="button" onclick="openInboxThread(' + Number(q.passenger_id) + ')">Text passenger</button></div></div>';
+      '<button type="button" class="vpq-ic" aria-label="Text passenger" title="Text passenger" onclick="openInboxThread(' + Number(q.passenger_id) + ')">&#128172;</button></div></div>';
   };
   el.innerHTML = '<div class="ibx-sec-t">Passenger requests' + (pend.length ? ' <span class="vpq-badge">' + pend.length + '</span>' : '') + '</div>' +
     pend.map(card).join('') +
@@ -4901,14 +4900,16 @@ async function renderVpAlertsCard(){
     : state === 'denied' ? 'Notifications are blocked for AirValet in this device\'s Settings.'
     : state === 'on' ? 'This device gets an alert for new guest messages and passenger requests, even outside AirValet.'
     : 'Get an alert for new guest messages and passenger requests, even when AirValet is closed.';
-  el.innerHTML = '<div class="smsdev-t">&#128276; Alerts on this device</div><div class="smsdev-s">' + escapeHTML(line) + '</div>' +
+  var short = !s.push_enabled ? 'off' : sup !== 'OK' ? 'not available' : state === 'denied' ? 'blocked' : state === 'on' ? 'on' : 'off';
+  el.className = 'smsdev-fold';
+  el.innerHTML = '<details' + (el.querySelector && el.querySelector('details[open]') ? ' open' : '') + '><summary>&#128276; Alerts: ' + short + '</summary><div class="smsdev-fold-in"><div class="smsdev-s">' + escapeHTML(line) + '</div>' +
     (s.push_enabled && sup === 'OK' && state !== 'denied'
       ? '<div class="vpa-row">' + (state === 'on'
           ? '<button type="button" class="smsbtn" onclick="vpPushOff()">Turn alerts off</button>'
           : '<button type="button" class="smsbtn pri" onclick="vpPushOn()">Turn alerts on</button>') + '</div>' +
         (state === 'on' ? '<label class="vpa-chk"><input type="checkbox" ' + (show ? 'checked ' : '') + 'onchange="vpPushPreview(this.checked)"> Show the message text on the lock screen</label>' : '')
       : '') +
-    '<label class="vpa-chk"><input type="checkbox" ' + (vpSoundOn() ? 'checked ' : '') + 'onchange="vpSetSound(this.checked)"> Sound for new messages while AirValet is open</label>';
+    '<label class="vpa-chk"><input type="checkbox" ' + (vpSoundOn() ? 'checked ' : '') + 'onchange="vpSetSound(this.checked)"> Sound for new messages while AirValet is open</label></div></details>';
   el.style.display = '';
 }
 function vpSetSound(on){ try { localStorage.setItem('airvalet_alert_sound', on ? '1' : '0'); } catch(e) {} if (on) vpBeep(); }
