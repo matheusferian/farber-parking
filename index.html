@@ -2603,7 +2603,8 @@ function getFiltered() {
   var rows=data.slice();
   if(srchTerm){
     var q=srchTerm.toLowerCase();
-    rows=rows.filter(function(r){return r.name.toLowerCase().indexOf(q)>=0||r.phone.indexOf(q)>=0||r.ticket.toLowerCase().indexOf(q)>=0||r.car.toLowerCase().indexOf(q)>=0||r.loc.toLowerCase().indexOf(q)>=0||(r.color&&r.color.toLowerCase().indexOf(q)>=0);});
+    var qd=q.replace(/\D/g,''); // "8385", "754 270 8385" → match the phone digits
+    rows=rows.filter(function(r){return r.name.toLowerCase().indexOf(q)>=0||r.phone.indexOf(q)>=0||(qd.length>=4&&String(r.phone||'').replace(/\D/g,'').indexOf(qd)>=0)||r.ticket.toLowerCase().indexOf(q)>=0||r.car.toLowerCase().indexOf(q)>=0||r.loc.toLowerCase().indexOf(q)>=0||(r.color&&r.color.toLowerCase().indexOf(q)>=0);});
   }
   if(curFilter==='PENDING') rows=rows.filter(function(r){return r.status==='PENDING';});
   else if(curFilter==='NO DATE') rows=rows.filter(function(r){return r.status==='NO DATE';});
@@ -4486,7 +4487,9 @@ function renderInboxList(){
   var rows = _ibx.convs.filter(function(c){
     if (/^TEST-/i.test(String(c.ticket || ''))) return false; // archived owner tests stay in history, off the list
     if (!q) return true;
-    return [c.passenger_name, c.ticket, c.phone_e164, c.last_body].some(function(v){ return String(v || '').toLowerCase().indexOf(q) !== -1; });
+    var qd = q.replace(/\D/g, '');
+    return [c.passenger_name, c.ticket, c.phone_e164, c.last_body].some(function(v){ return String(v || '').toLowerCase().indexOf(q) !== -1; })
+      || (qd.length >= 4 && String(c.phone_e164 || '').replace(/\D/g, '').indexOf(qd) !== -1);
   });
   box.innerHTML = rows.length ? rows.map(function(c){
     var tags = (c.opted_out ? '<span class="ibx-tag bad">Opted out</span>' : '') +
@@ -4494,7 +4497,7 @@ function renderInboxList(){
     var initials = String(c.passenger_name || '?').split(/\s+/).map(function(w){ return w.charAt(0); }).join('').slice(0, 2);
     return '<div class="ibx-row' + (c.unread_count > 0 ? ' unread' : '') + (_ibx.open === c.passenger_id ? ' on' : '') + '" onclick="openInboxThread(' + c.passenger_id + ')">' +
       '<div class="ibx-av">' + escapeHTML(initials) + '</div>' +
-      '<div class="ibx-row-main"><div class="ibx-row-top"><span class="ibx-name">' + escapeHTML(c.passenger_name || '') + ' <span class="ibx-tk">' + escapeHTML(c.ticket || '') + '</span></span><span class="ibx-when">' + escapeHTML(ibxTime(c.last_message_at)) + '</span></div>' +
+      '<div class="ibx-row-main"><div class="ibx-row-top"><span class="ibx-name">' + escapeHTML(c.passenger_name || '') + ' <span class="ibx-tk">' + escapeHTML(c.ticket || '') + (c.phone_e164 ? ' · •' + escapeHTML(String(c.phone_e164).slice(-4)) : '') + '</span></span><span class="ibx-when">' + escapeHTML(ibxTime(c.last_message_at)) + '</span></div>' +
       '<div class="ibx-row-bot"><span class="ibx-last">' + (c.last_direction === 'outbound' ? 'You: ' : '') + escapeHTML(c.last_body || '') + '</span>' + (c.unread_count > 0 ? '<span class="ibx-unread">' + c.unread_count + '</span>' : '') + '</div>' +
       (tags ? '<div class="ibx-tags">' + tags + '</div>' : '') + '</div></div>';
   }).join('') : '<div class="ibx-empty">' + (_ibx.loadError ? 'Could not load texts — retrying.' : q ? 'No conversation matches.' : 'No text conversations yet.') + '</div>';
@@ -4630,7 +4633,7 @@ function renderThread(passengerId, keepComposer){
   var optedOut = !!conv.opted_out;
   var header = '<div class="ibx-th-h"><button class="ibx-back" onclick="closeInboxThread()" aria-label="Back">&#8249;</button>' +
     '<div class="ibx-th-who"><div class="ibx-th-name">' + escapeHTML(p.name || conv.passenger_name || '') + '</div>' +
-    '<div class="ibx-th-sub">' + escapeHTML(p.ticket || conv.ticket || '') + (p.car ? ' · ' + escapeHTML(p.car) : '') + (p.ret ? ' · returns ' + escapeHTML(p.ret) : '') + '</div>' +
+    '<div class="ibx-th-sub">' + escapeHTML(p.ticket || conv.ticket || '') + (conv.phone_e164 ? ' · •' + escapeHTML(String(conv.phone_e164).slice(-4)) : '') + (p.car ? ' · ' + escapeHTML(p.car) : '') + (p.ret ? ' · returns ' + escapeHTML(p.ret) : '') + '</div>' +
     (optedOut ? '<div class="ibx-tags"><span class="ibx-tag bad">Opted out (STOP)</span></div>' : !conv.has_consent ? '<div class="ibx-tags"><span class="ibx-tag warn">No SMS consent</span></div>' : '') + '</div>' +
     (p.id ? '<button class="ibx-det" onclick="showDet(' + p.id + ');document.getElementById(\'detOv\').classList.add(\'on\')">Details</button>' : '') + '</div>';
   var draft = (_ibx.compose[passengerId] && _ibx.compose[passengerId].text) || '';
