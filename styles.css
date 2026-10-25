@@ -2178,3 +2178,9 @@ body.tv-stale .tv-stale-banner{display:block;}
   .ci2-cal-g button{min-width:44px;height:46px;}
 }
 @media (prefers-reduced-motion:reduce){.ci2-track i{transition:none!important;}}
+
+/* Offline sync banner actions (Phase 3) */
+#offlineModeBanner{gap:10px;flex-wrap:wrap;align-items:center;}
+.off-sync-btn{min-height:44px;padding:0 16px;border-radius:10px;border:0;background:#FFC547;color:#1A1300;font-weight:700;font-size:14px;cursor:pointer;}
+.off-sync-btn.ghost{background:transparent;color:#fff;border:1px solid rgba(255,255,255,.55);}
+.off-sync-btn:focus-visible{outline:2px solid #fff;outline-offset:2px;}

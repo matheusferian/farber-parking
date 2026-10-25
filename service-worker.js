@@ -51,7 +51,7 @@
 // v46: Returning with / pickup model, Makers Customs exception, Needs Review
 //      (index.html, utils.js, styles.css changed). Same SHELL_FILES.
 // v47: AirValet SMS inbox + server-side texts (only when SMS_PROVIDER = 'twilio').
-var CACHE_VERSION = 'v72';
+var CACHE_VERSION = 'v73';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 var SHELL_FILES = [
@@ -124,11 +124,13 @@ self.addEventListener('fetch', function(event){
     var normalized = f.replace(/^\.\//, '');
     return requestedRelative === normalized || (requestedRelative === '' && normalized === '');
   }) || event.request.url === scopePath;
-
-  if(!isShellRequest) return;
+  // The app opened with a query (e.g. /?checkin=v2, /?mode=tv) is the same
+  // page: serve the cached shell offline too (audit: v2 did not open offline).
+  var isAppNavigation = event.request.mode === 'navigate' && (url.pathname === new URL(scopePath).pathname || /\/index\.html$/.test(url.pathname));
+  if(!isShellRequest && !isAppNavigation) return;
 
   event.respondWith(
-    caches.match(event.request, {cacheName: CACHE_NAME}).then(function(cached){
+    caches.match(isAppNavigation && !isShellRequest ? scopePath : event.request, {cacheName: CACHE_NAME}).then(function(cached){
       if(cached) return cached;
       return fetch(event.request).then(function(networkResponse){
         if(networkResponse && networkResponse.ok){

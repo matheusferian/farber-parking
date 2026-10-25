@@ -980,6 +980,47 @@ exception when insufficient_privilege then raise notice 'ok  anon cannot read th
 end $$;
 reset role;
 
+-- ── 20261106 (audit F4 / F5 / F7) ───────────────────────────────────────
+reset role;
+select set_config('request.jwt.claims', '', true);
+-- F4: a reply after an old trip's text never lands on that trip over a NEW active ticket.
+insert into public.passengers (id, name, phone, ticket, status) values
+  (7101, 'Old Trip', '3055557101', '1601-1', 'DELIVERED'), (7102, 'New Trip', '3055557101', '1601-2', 'PENDING'),
+  (7103, 'Only Old', '3055557103', '1601-3', 'ARCHIVED');
+insert into public.airvalet_sms_messages (direction, passenger_id, phone_e164, message_type, provider, status, idempotency_key, body, created_at) values
+  ('outbound', 7101, '+13055557101', 'VEHICLE_DELIVERED', 'mock', 'delivered', 'f4:7101', 'b', now() - interval '2 hours'),
+  ('outbound', 7103, '+13055557103', 'VEHICLE_DELIVERED', 'mock', 'delivered', 'f4:7103', 'b', now() - interval '2 hours');
+create temp table f4a as select * from public.airvalet_sms_record_inbound('SM_F4_A', '+13055557101', 'hi again', 'MG_TEST', null);
+select pg_temp.check((select inserted and passenger_id is null and match_method = 'ambiguous' from f4a), 'F4: old delivered trip + new active ticket on the phone → review, not the old trip');
+select pg_temp.check((select match_candidates = '[7102, 7101]'::jsonb from public.airvalet_sms_messages where provider_message_sid = 'SM_F4_A'), 'F4: both trips offered to link');
+select pg_temp.check((select passenger_id = 7103 and match_method = 'last_outbound' from public.airvalet_sms_record_inbound('SM_F4_B', '+13055557103', 'thanks', 'MG_TEST', null)), 'F4: old trip with no other active ticket → still that trip');
+insert into public.airvalet_sms_messages (direction, passenger_id, phone_e164, message_type, provider, status, idempotency_key, body, created_at) values
+  ('outbound', 7102, '+13055557101', 'CHECK_IN', 'mock', 'delivered', 'f4:7102', 'b', now() - interval '1 minute');
+select pg_temp.check((select passenger_id = 7102 and match_method = 'last_outbound' from public.airvalet_sms_record_inbound('SM_F4_C', '+13055557101', 'ok', 'MG_TEST', null)), 'F4: last text to the active ticket → that ticket');
+-- F5: Twilio accepted (SID) but the status callback never came.
+insert into public.airvalet_sms_messages (direction, passenger_id, phone_e164, message_type, provider, status, idempotency_key, body, provider_message_sid, created_at) values
+  ('outbound', 7102, '+13055557101', 'RETURN_CONFIRMATION', 'mock', 'accepted', 'f5:old', 'b', 'SM_F5_OLD', now() - interval '50 minutes'),
+  ('outbound', 7102, '+13055557101', 'RETURN_CONFIRMATION', 'mock', 'sending', 'f5:new', 'b', 'SM_F5_NEW', now() - interval '20 minutes'),
+  ('outbound', 7102, '+13055557101', 'RETURN_CONFIRMATION', 'mock', 'queued', 'f5:ancient', 'b', 'SM_F5_ANCIENT', now() - interval '10 days');
+select pg_temp.check(public.airvalet_sms_reconcile() >= 1, 'F5: reconcile counts the NO_STATUS flags');
+select pg_temp.check((select attention = 'NO_STATUS' and status = 'accepted' from public.airvalet_sms_messages where idempotency_key = 'f5:old'), 'F5: SID + no callback for 45+ min → NO_STATUS');
+select pg_temp.check((select attention is null from public.airvalet_sms_messages where idempotency_key = 'f5:new'), 'F5: 20 min → not yet');
+select pg_temp.check((select attention is null from public.airvalet_sms_messages where idempotency_key = 'f5:ancient'), 'F5: old history is not flooded with alerts');
+select pg_temp.check(public.airvalet_sms_reconcile() = 0, 'F5: reconcile stays idempotent');
+select pg_temp.check(public.airvalet_sms_apply_status('SM_F5_OLD', 'sent', null, null) = 'applied', 'F5: the late callback still applies');
+select pg_temp.check((select attention is null and status = 'sent' from public.airvalet_sms_messages where idempotency_key = 'f5:old'), 'F5: the callback finally arriving clears NO_STATUS');
+-- F7: u2 was marked "not received" and re-sent; Twilio now reports the FIRST attempt delivered.
+select pg_temp.check(public.airvalet_sms_apply_status('SM_F7_LATE', 'delivered', null, null, (select message_id from u2)) = 'applied', 'F7: late delivered (?mid=) after "not received" is adopted (no orphan)');
+select pg_temp.check((select status = 'delivered' and provider_message_sid = 'SM_F7_LATE' and attention = 'DELIVERED_AFTER_RESEND' and resolved_at is null and error_code = 'STAFF_MARKED_NOT_SENT'
+                        from public.airvalet_sms_messages where id = (select message_id from u2)), 'F7: proof kept and alert reopened as DELIVERED_AFTER_RESEND');
+select pg_temp.check((select applied from public.airvalet_sms_status_events where provider_message_sid = 'SM_F7_LATE' and status = 'delivered'), 'F7: status event marked applied');
+select pg_temp.check(public.airvalet_sms_apply_status('SM_F7_LATE', 'delivered', null, null, (select message_id from u2)) = 'duplicate', 'F7: webhook retry is a no-op');
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"00000000-0000-0000-0000-0000000000c1","role":"authenticated"}';
+select pg_temp.check(exists (select 1 from public.airvalet_sms_alerts where id = (select message_id from u2) and attention = 'DELIVERED_AFTER_RESEND'), 'F7: ops see it in Text alerts');
+select pg_temp.check(public.airvalet_sms_resolve_alert((select message_id from u2), 'acknowledged') = 'acknowledged', 'F7: ops acknowledge it');
+reset role;
+
 select pg_temp.check(pg_temp.flags_consistent(), 'invariant holds at the end of the whole suite');
 \echo ALL_SQL_TESTS_PASSED
 rollback;

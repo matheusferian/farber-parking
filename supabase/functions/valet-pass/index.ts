@@ -27,6 +27,7 @@ import { makeRedactor } from '../_shared/sms/sanitize.ts';
 import { notifyEvent } from '../_shared/notify/notify.ts';
 import { makeNotifyDeps } from '../_shared/notify/runtime.ts';
 import { isGsm7 } from '../_shared/sms/templates.ts';
+import { clientAddress } from './client_ip.ts';
 
 declare const EdgeRuntime: { waitUntil(p: Promise<unknown>): void } | undefined;
 
@@ -39,7 +40,7 @@ const MAX_BODY = 2048;
 
 const enc = new TextEncoder();
 async function clientKey(req: Request): Promise<string | null> {
-  const ip = (req.headers.get('x-forwarded-for') || '').split(',')[0].trim() || req.headers.get('x-real-ip') || '';
+  const ip = clientAddress(req.headers);  // audit F-2: never the caller-written first XFF value
   if (!ip) return null;
   const salt = Deno.env.get('AIRVALET_PASS_RATE_SALT') || Deno.env.get('SUPABASE_URL') || 'airvalet';
   const d = new Uint8Array(await crypto.subtle.digest('SHA-256', enc.encode(salt + '|' + ip)));

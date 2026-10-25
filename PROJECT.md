@@ -309,7 +309,18 @@ Two confirmed CSS bugs found during the same audit, both fixed independently of 
 
 ## Offline Mode
 
-**Status: Phase 2 (real emergency Offline Check-In) — implemented 2026-08-24, tested on desktop only, NOT YET deployed.** `saveEntry()` now has a real offline branch: on a known-offline device (or a genuine network-level failure of the online attempt), a new check-in is written to IndexedDB first and only counted as saved once that write is confirmed — see "Phase 2 — real Offline Check-In" below for the full mechanics. Online New Entry's own code path is byte-for-byte what it was before this phase; nothing about a normal, connected check-in changed.
+**Status: Phase 3 (automatic upload) — implemented 2026-10-25 on branch feature/checkin-v2, NOT deployed.** Phase 3 summary (details in the paragraphs below, which describe Phase 2):
+- **Upload:** pending check-ins upload by themselves when the server is reachable again (reconnect, sign-in, every 15 s while pending, or Debug → Pending Sync → Sync now). A record leaves PENDING SYNC only after the server returned its passenger row; then it is deleted from the device (nothing personal stays).
+- **Idempotent:** each record keeps the `client_key` of its check-in (the same key an online attempt used), so retries, two tabs or a lost online answer never create a second passenger (`passengers_client_key_unique`). One upload at a time per device (Web Locks).
+- **Ticket numbers:** unchanged format. A number already used by another device is renumbered by the server (`airvalet_ticket_assign`); free numbers upload first so the new number never lands on another printed ticket of the batch. The banner asks the staff to reprint (Reprint tags / Done) until confirmed.
+- **Texts:** only after the server row exists. v2 with consent → consent recorded, then the welcome goes out once through the server (if within 6 h of the check-in; otherwise "send from the car card"). Classic form → consent recorded, the staff review and send. No consent → nothing.
+- **Failures:** network → SYNC_RETRY with backoff (5 s doubling, max 5 min); expired session → stops, keeps the records, banner "Sign in to upload"; server rejection (4xx) → SYNC_ERROR with the reason, retried by Sync now; 5xx/429 → retry with backoff.
+- **Device code:** now only a label (no longer required to save offline).
+- **Printing offline:** works when the Epson printer is reachable on the local network (it is called directly, not through the server).
+- **Session:** the access token is renewed on wake and before it expires; a raw "JWT expired" is shown as "Your session timed out. Reconnecting".
+- Tests: `tests/portal/e2e_offline_sync_browser.py` (Chromium + WebKit).
+
+**Phase 2 status (historical): implemented 2026-08-24, tested on desktop only.** `saveEntry()` now has a real offline branch: on a known-offline device (or a genuine network-level failure of the online attempt), a new check-in is written to IndexedDB first and only counted as saved once that write is confirmed — see "Phase 2 — real Offline Check-In" below for the full mechanics. Online New Entry's own code path is byte-for-byte what it was before this phase; nothing about a normal, connected check-in changed.
 
 **Full design:** a 22-point audit and architecture report, followed by a focused follow-up on ticket format/device identity/auth window, preceded implementation — see this repository's development history for the complete reasoning (ticket collision analysis, idempotency strategy, sync state machine, RLS/RPC considerations, iPad/Safari-specific risk analysis, etc.). Summarized here is only what Phase 1 actually built.
 

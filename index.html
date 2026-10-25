@@ -81,7 +81,7 @@
      locally, ONLINE — X CHECK-INS PENDING SERVER SYNC once back online
      with unsynced records still on this device, hidden otherwise. See
      updateOfflineModeBanner(). -->
-<div id="offlineModeBanner" style="display:none;align-items:center;gap:10px;color:#fff;padding:8px 16px;font-family:'Inter',sans-serif;font-size:12.5px;font-weight:600;"></div>
+<div id="offlineModeBanner" role="status" aria-live="polite" style="display:none;align-items:center;gap:10px;color:#fff;padding:8px 16px;font-family:'Inter',sans-serif;font-size:12.5px;font-weight:600;"></div>
 <div class="tabs">
   <div class="sidebar-brand"><img src="assets/logo-icon.png" alt="AirValet"><div class="sb-name">AirValet</div></div>
   <div class="tab-group-label">Operations</div>
@@ -1002,17 +1002,18 @@ https://buy.stripe.com/8x214mccK0uh9TjgIM6Vq00</div>
     </details>
   </div>
 
-  <!-- PENDING SYNC — Phase 2 real (non-diagnostic) offline check-in
-       queue. Read-only: no Delete, no fake Sync Now, no way to mark a
-       record SYNCED from here — that only happens in Phase 3, which does
-       not exist yet. See PROJECT.md, Offline Mode. -->
+  <!-- PENDING SYNC — offline check-ins saved on this device (Phase 3:
+       uploaded automatically when the connection is back; Sync now forces
+       an attempt). A record disappears from here only after the server
+       confirmed its passenger row. Nothing can be deleted from here. -->
   <div id="offlinePendingCard" class="epson-card" style="margin-top:16px;">
     <div class="epson-card-title">🟠 Pending Sync (<span id="offlinePendingPanelCount">0</span>)</div>
-    <div class="epson-card-sub">Server synchronization is not enabled yet. These emergency check-ins are saved on this device only, exactly as entered, until a future Phase 3 uploads them — nothing here can be deleted, marked synced, or resolved from this screen.</div>
+    <div class="epson-card-sub">Check-ins saved on this device while offline. They upload by themselves when the connection is back; a row leaves this list only after the server confirms it.</div>
+    <button type="button" class="epson-btn epson-btn-gold" id="offlineSyncNowBtn" onclick="offlineSyncNow()" style="margin:8px 0;">Sync now</button>
     <div class="epson-history-wrap">
       <table class="epson-history-table">
-        <thead><tr><th>Ticket</th><th>Name</th><th>Vehicle</th><th>Saved</th><th>Device</th></tr></thead>
-        <tbody id="offlinePendingPanelBody"><tr><td colspan="5" style="text-align:center;color:var(--mu);padding:10px;">No pending offline check-ins on this device.</td></tr></tbody>
+        <thead><tr><th>Ticket</th><th>Name</th><th>Vehicle</th><th>Saved</th><th>Device</th><th>Status</th></tr></thead>
+        <tbody id="offlinePendingPanelBody"><tr><td colspan="6" style="text-align:center;color:var(--mu);padding:10px;">No pending offline check-ins on this device.</td></tr></tbody>
       </table>
     </div>
   </div>
@@ -2317,9 +2318,10 @@ function commitDepTime(input, id) {
 // ── SAVE DEPARTURE TIME ──────────────────────────────────────────
 async function saveDepartureTime(id, value) {
   value = String(value || '').trim();
+  // Returns true only when the value is on the server (callers show "saved" on true).
   var r = data.find(function(x){ return x.id === id; });
-  if (!r) return;
-  if ((r.departure_time || '') === value) return;
+  if (!r) return false;
+  if ((r.departure_time || '') === value) return true;
   var oldValue = r.departure_time || '';
   r.departure_time = value;
   renderDay();
@@ -2331,11 +2333,13 @@ async function saveDepartureTime(id, value) {
       });
     }
     showMsg(value ? 'Departure time saved: ' + value : 'Departure time cleared', false);
+    return true;
   } catch(e) {
     r.departure_time = oldValue;
     renderDay();
-    showMsg('Could not save departure time — add the "departure_time" column in Supabase. (' + e.message + ')', true);
+    showMsg('Could not save the departure time. Check the connection and try again. (' + e.message + ')', true);
     console.error('saveDepartureTime error:', e);
+    return false;
   }
 }
 
@@ -2480,13 +2484,22 @@ var dateFilterValue = ''; // independent refinement, ANDed onto curFilter — se
 
 // ── LOAD DATA ──────────────────────────────────────────────────
 function loading(on) { document.getElementById('bar').style.display=on?'block':'none'; }
+var _msgTimer = null;
 function showMsg(txt,err) {
   var el=document.getElementById('msg');
+  // A raw "JWT expired" answer means the session timed out (iPad asleep):
+  // say so plainly and renew it in the background.
+  if(err && /JWT expired|PGRST30[123]/.test(String(txt))){
+    txt='Your session timed out. Reconnecting — try again in a moment.';
+    if(typeof authEnsureFresh==='function') authEnsureFresh(true);
+  }
   el.textContent=txt;
   el.style.background=err?'#5a1a1a':'#1a3a2a';
   el.style.color=err?'#ff9999':'#6fc898';
   el.style.display='block';
-  setTimeout(function(){el.style.display='none';},4000);
+  // One timer: an earlier message must not hide a newer one early.
+  clearTimeout(_msgTimer);
+  _msgTimer=setTimeout(function(){el.style.display='none';},err?6000:4000);
 }
 
 function updateSyncStatus() {
@@ -2563,6 +2576,8 @@ function mapOfflinePendingRow(record){
   row.deviceId = record.deviceId;
   row.deviceCode = record.deviceCode;
   row.offlineCreatedAt = record.createdAt;
+  row.offlineSyncState = record.syncState;
+  row.offlineLastError = record.lastError || null;
   return row;
 }
 
@@ -2577,7 +2592,7 @@ async function loadPendingOfflineRows(){
   try{
     var records = await offlineCheckinGetAll();
     return records
-      .filter(function(rec){ return rec.syncState === 'LOCAL_PENDING'; })
+      .filter(function(rec){ return offlineIsUnsynced(rec); })
       .map(mapOfflinePendingRow);
   }catch(e){
     console.error('Could not read pending offline check-ins', e);
@@ -4575,7 +4590,9 @@ var SMS_ALERT_TEXT = {
   UNCONFIRMED: 'Not confirmed — we never got an answer from the carrier. It may or may not have been delivered.',
   UNREACHABLE: 'Not delivered — the number cannot receive texts.',
   CARRIER_FILTERED: 'Blocked by the carrier.',
-  FAILED: 'Not delivered.'
+  FAILED: 'Not delivered.',
+  NO_STATUS: 'No delivery report from the carrier after 45 minutes. It may or may not have arrived — check before resending.',
+  DELIVERED_AFTER_RESEND: 'This text was delivered after all (marked "not received" before). If it was resent, the passenger got it twice.'
 };
 function renderSmsAlerts(){
   if (!_ibx.alerts.length) return '';
@@ -6462,14 +6479,18 @@ async function saveEntry(sendSms, printMode, opts){
     resetSaveButtons();
     return {ok:false, error:'OFFLINE ACCESS NOT AVAILABLE'};
   }
-  var deviceCodeForSave = (typeof getOfflineDeviceCode==='function') ? getOfflineDeviceCode() : '';
-  if(!deviceCodeForSave){
-    showMsg('OFFLINE ACCESS NOT AVAILABLE — DEVICE CODE NOT CONFIGURED (see Debug tab)', true);
-    resetSaveButtons();
-    return {ok:false, error:'OFFLINE DEVICE CODE NOT CONFIGURED'};
-  }
+  // Phase 3: the device code is only a label now (it is not part of the
+  // ticket; a ticket taken by another device is renumbered by the server
+  // at sync and the staff are asked to reprint), so it no longer blocks an
+  // emergency check-in.
 
-  var record = offlineBuildCheckinRecord(payload);
+  // SMS intent only — nothing is texted until the server has the row.
+  // v2 sends the welcome automatically after sync (it is automatic online
+  // too); the classic form keeps its manual review step.
+  var smsIntent = (opts && opts.smsIntent) ? opts.smsIntent
+    : { consent: !!(document.getElementById('fSmsConsent')||{}).checked, auto: false };
+  smsIntent.staff = (typeof smsStaffName==='function') ? smsStaffName() : null;
+  var record = offlineBuildCheckinRecord(payload, smsIntent);
   try{
     await offlineCheckinPut(record);
   }catch(idbErr){
@@ -6481,6 +6502,7 @@ async function saveEntry(sendSms, printMode, opts){
     resetSaveButtons();
     return {ok:false, error:'CHECK-IN NOT SAVED — '+idbErr.message};
   }
+  _checkinKey = newCheckinKey(); // the next form must never reuse this record's key
 
   // IndexedDB confirmed the write — from here on this check-in IS saved,
   // even if a step below (render, printing) has a problem of its own.
@@ -6488,7 +6510,7 @@ async function saveEntry(sendSms, printMode, opts){
     data.push(mapOfflinePendingRow(record));
     if(!v2) resetFormFields();
     render();
-    var savedMsg='🟠 OFFLINE MODE — Saved locally as PENDING SYNC (Ticket '+ticket+').';
+    var savedMsg='🟠 OFFLINE MODE — Saved locally as PENDING SYNC (Ticket '+ticket+'). It uploads by itself when the connection is back.';
     if(sendSms && phoneFull) savedMsg+=' SMS NOT COMPLETED — OFFLINE.';
     showMsg(savedMsg, false);
     if(typeof offlineDiagRefresh==='function') offlineDiagRefresh();
@@ -6520,7 +6542,7 @@ async function saveEntry(sendSms, printMode, opts){
   }
 
   resetSaveButtons();
-  return {ok:true, offline:true, ticket:ticket, consent:false};
+  return {ok:true, offline:true, id:record.localId, syncId:record.offline_sync_id, ticket:ticket, consent:false};
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -6851,7 +6873,7 @@ async function ci2Create(withText){
   document.getElementById('fLoc').value = _ci.hangar || '';
   var fsc = document.getElementById('fSmsConsent'); if (fsc) fsc.checked = !!withText && smsProgramOpen();
   var res = null, mine = _ci;
-  try { res = await saveEntry(false, null, { v2: true }); } catch(e) { res = { ok: false, error: e.message }; }
+  try { res = await saveEntry(false, null, { v2: true, smsIntent: { consent: !!withText, auto: true } }); } catch(e) { res = { ok: false, error: e.message }; }
   if (_ci !== mine) {
     // The sheet was closed or reopened while saving: report, never write into another form.
     if (res && res.ok) ci2Toast('Ticket ' + (res.ticket || '') + ' was saved. Open it from the list to add details' + (withText ? ' (no text was sent).' : '.'));
@@ -6866,7 +6888,7 @@ async function ci2Create(withText){
     ci2Toast(why, true);
     return;
   }
-  _ci.created = true; _ci.id = res.id || null; _ci.ticket = res.ticket || ''; _ci.offline = !!res.offline;
+  _ci.created = true; _ci.id = res.id || null; _ci.ticket = res.ticket || ''; _ci.offline = !!res.offline; _ci.syncId = res.syncId || null;
   ci2El('ci2Step').hidden = true; ci2El('ci2Created').hidden = false; ci2El('ci2Details').hidden = false; ci2El('ci2Dock').hidden = false;
   ci2El('ci2Who').textContent = name + (ci2Digits(phone) ? ' · •••-' + ci2Digits(phone).slice(-4) : '');
   ci2El('ci2Num').textContent = _ci.ticket;
@@ -6875,7 +6897,7 @@ async function ci2Create(withText){
   document.getElementById('modalSub').textContent = 'Saved. Add details below — each one saves to this ticket.';
   ci2RenderCard(); ci2Need();
   var sc = ci2El('ci2Sms');
-  if (_ci.offline) { ci2Sms('notsent', 'Saved offline — no text sent'); return; }
+  if (_ci.offline) { ci2Sms('notsent', withText ? 'Saved offline — the welcome text goes out after it uploads' : 'Saved offline — guest chose no texts'); return; }
   if (!withText) { ci2Sms('noconsent', 'Guest chose no texts'); return; }
   if (res.consent && smsRouteFor(_ci.id) === 'server') { ci2SendWelcome(); return; }
   // Not in AirValet texting (or the consent could not be saved): one tap opens iPhone Messages.
@@ -7056,7 +7078,7 @@ function ci2SaveTime(v){
   if (v && /^\d:\d{2}$/.test(v)) v = '0' + v;
   if (v && !isValidDepTime(v)) { ci2Toast('Use a time like 17:30.', true); return; }
   if (!ci2CanSave()) return;
-  saveDepartureTime(_ci.id, v || '').then(function(){ ci2Saved('ci2SRet'); ci2PassUpdated(); });
+  saveDepartureTime(_ci.id, v || '').then(function(ok){ if (ok) { ci2Saved('ci2SRet'); ci2PassUpdated(); } });
 }
 function ci2SaveFlight(v){
   var sv = ci2El('ci2SFlightV'); sv.textContent = v || 'Not set'; sv.className = 'v' + (v ? ' done' : '');
@@ -7066,6 +7088,19 @@ function ci2SaveFlight(v){
 
 // ── Details: progressive saving into the same ticket ──
 function ci2LocalOnly(){ return !!(_ci && (_ci.offline || !_ci.id || isOfflinePendingId(_ci.id))); }
+// Offline ticket: hangar / vehicle / color go into the record saved on this
+// device, so the upload carries them (and the tags print them now).
+function ci2OfflinePatch(patch){
+  var sid = _ci && _ci.syncId; if (!sid || typeof offlineCheckinUpdate !== 'function') return;
+  offlineCheckinUpdate(sid, function(rec){ if (offlineIsUnsynced(rec)) Object.assign(rec.payload, patch); })
+    .then(function(rec){
+      if (!rec) return;
+      var row = data.find(function(x){ return x.offline_sync_id === sid; });
+      if (row) Object.assign(row, patch);
+      render(); ci2Toast('Saved on this iPad. It uploads with the check-in.');
+    })
+    .catch(function(e){ ci2Toast('Not saved on this iPad: ' + e.message, true); });
+}
 function ci2CanSave(){
   if (ci2LocalOnly()) { ci2Toast('Saved offline. Add details from the car card after it syncs.', true); return false; }
   return true;
@@ -7105,7 +7140,7 @@ function ci2RenderHangars(){
   var counts = computeHangarCounts();
   ci2ChipSet(ci2El('ci2Hangars'), HANGARS, _ci.hangar, async function(h){
     var prev = _ci.hangar; _ci.hangar = h; ci2RenderHangars(); ci2HangarSum(); ci2Need(); ci2RenderCard();
-    if (_ci.created && ci2LocalOnly()) { ci2Toast('Offline: kept on this iPad for the tags. Add the hangar on the car card after it syncs.', true); return; }
+    if (_ci.created && ci2LocalOnly()) { ci2OfflinePatch({ loc: h }); return; }
     if (_ci.created && !(await ci2Save({ loc: h }, 'ci2SHangar', 'Location ' + (prev || '—') + ' → ' + h))) { _ci.hangar = prev; ci2RenderHangars(); ci2HangarSum(); ci2Need(); }
   }, function(h){ return escapeHTML(h) + (counts[h] ? '<small>' + counts[h] + '</small>' : ''); });
 }
@@ -7143,7 +7178,7 @@ function ci2VehLine(){ return [_ci.color, ci2VehCar()].filter(Boolean).join(' ')
 function ci2VehSum(save){
   var s = ci2VehLine(), v = ci2El('ci2SVehV'); v.textContent = s || 'Not set'; v.className = 'v' + (s ? ' done' : '');
   ci2RenderCard(); ci2Need();
-  if (save && _ci.created && ci2LocalOnly()) return;  // offline: kept for the tags only
+  if (save && _ci.created && ci2LocalOnly()) { ci2OfflinePatch({ car: ci2VehCar(), color: _ci.color || null }); return; }
   if (save && _ci.created) ci2Save({ car: ci2VehCar(), color: _ci.color || null }, 'ci2SVeh', 'Vehicle → ' + (s || '—'));
 }
 function ci2RenderWash(){
@@ -8810,7 +8845,10 @@ async function fetchCurrentUserProfile(){
 var TAB_VISIBILITY_BY_ROLE = {
   ADMIN:      ['all','day','tasks','messages','tvmode','closingreport','report','logs','debug','useraccess'],
   IPAD_OPS:   ['all','day','tasks','messages','tvmode','closingreport','report','logs','debug'],
-  IPHONE_OPS: ['all','day','tasks','messages','tvmode'],
+  // closingreport: the daily closing is done on the operation phones (owner
+  // 2026-10-25 emergency, hotfix main 14e191d); server RLS allows IPHONE_OPS
+  // on daily_closing_reports.
+  IPHONE_OPS: ['all','day','tasks','messages','tvmode','closingreport'],
   MANAGER:    ['all','day','tasks','messages','tvmode','closingreport','report','logs'],
   TV_ONLY:    []
 };
@@ -9141,7 +9179,12 @@ async function bootstrapAfterAuth(){
     if(!_tvStarted){ _tvStarted = true; initTvMode(); try { tvAlertsInit(); } catch(e) {} }
     else { tvHideSessionExpired(); refreshTvData(); }
   } else {
-    loadData();
+    // Signed in: upload anything saved offline (also after a sign-in that an
+    // expired session required), and show tickets still waiting for a reprint.
+    Promise.resolve(loadData()).then(function(){
+      if(typeof offlineSyncLoadRenumbered==='function') offlineSyncLoadRenumbered();
+      if(typeof offlineSyncPending==='function') offlineSyncPending(false);
+    });
   }
 }
 
@@ -10077,10 +10120,14 @@ function getTailBadgeColor(tail){
 var VLH_TABLE = 'vehicle_location_history';
 
 function vlhInsert(entry) {
+  // Background history write: never blocks the operation, but a refusal is
+  // logged instead of silently ignored (it used to fail unseen).
   fetch(SUPABASE_URL + '/rest/v1/' + VLH_TABLE, {
     method: 'POST',
     headers: Object.assign({}, sbHeaders(), {'Prefer': 'return=minimal'}),
     body: JSON.stringify(entry)
+  }).then(function(res){
+    if(!res.ok) res.text().then(function(t){ console.warn('VLH insert refused (' + res.status + '):', t); });
   }).catch(function(e){ console.warn('VLH insert error:', e); });
 }
 // ── PASSENGER CHANGE HISTORY ────────────────────────────────────
@@ -14915,6 +14962,9 @@ function offlineRegisterServiceWorker(){
         }
       });
     });
+    // An update already waiting (the staff reloaded instead of tapping the
+    // banner): show the banner again, so the iPad never stays on an old version.
+    if(reg.waiting && navigator.serviceWorker.controller){ _offlineSw.updateAvailable = true; offlineShowUpdateBanner(); }
     setInterval(function(){ reg.update().catch(function(){}); }, OFFLINE_SW_UPDATE_POLL_INTERVAL_MS);
   }).catch(function(e){
     _offlineSw.status = 'error';
@@ -14981,25 +15031,48 @@ function updateOfflineModeBanner(){
   var el = document.getElementById('offlineModeBanner');
   if(!el) return;
   var pendingCount = offlinePendingRecordsInData().length;
+  var renum = (typeof _offlineSync!=='undefined') ? _offlineSync.renumbered : [];
 
   if(isKnownOfflineForCheckin()){
     var authStatus = (typeof getOfflineAuthStatus==='function') ? getOfflineAuthStatus() : {valid:false};
-    var deviceCode = (typeof getOfflineDeviceCode==='function') ? getOfflineDeviceCode() : '';
-    if(!authStatus.valid || !deviceCode){
+    if(!authStatus.valid){
       el.style.display='flex';
       el.style.background='#5a1a1a';
-      el.textContent='🔴 OFFLINE ACCESS NOT AVAILABLE — CONNECT TO INTERNET AND SIGN IN';
+      el.textContent='🔴 OFFLINE ACCESS NOT AVAILABLE — CONNECT TO INTERNET AND SIGN IN'+(pendingCount?(' · '+pendingCount+' check-in'+(pendingCount>1?'s':'')+' kept on this device'):'');
       return;
     }
     el.style.display='flex';
     el.style.background='#7a4a12';
-    el.textContent='🟠 OFFLINE MODE — New check-ins are saved locally as PENDING SYNC.'+(pendingCount?(' '+pendingCount+' on this device.'):'');
+    el.textContent='🟠 OFFLINE MODE — New check-ins are saved on this device and upload when the connection is back.'+(pendingCount?(' '+pendingCount+' waiting.'):'');
+    return;
+  }
+  // A ticket number taken by another device was renumbered at sync: the
+  // printed tags are wrong until the staff reprint them.
+  if(renum && renum.length){
+    var r0 = renum[0];
+    el.style.display='flex';
+    el.style.background='#7a3a0a';
+    el.innerHTML='<span>⚠️ Ticket '+escapeHTML(r0.oldTicket)+' was already used on another device. '+escapeHTML(r0.name)+' is now <b>'+escapeHTML(r0.newTicket)+'</b>. Reprint the key and dashboard tags.'+(renum.length>1?(' ('+renum.length+' to reprint)'):'')+'</span>'+
+      '<button type="button" class="off-sync-btn" onclick="offlineSyncReprint(\''+escapeHTML(r0.syncId)+'\')">Reprint tags</button>'+
+      '<button type="button" class="off-sync-btn ghost" onclick="offlineSyncAckRenumber(\''+escapeHTML(r0.syncId)+'\')">Done</button>';
     return;
   }
   if(pendingCount>0){
     el.style.display='flex';
-    el.style.background='#1a3a2a';
-    el.textContent='🟢 ONLINE — '+pendingCount+' CHECK-INS PENDING SERVER SYNC';
+    var st = (typeof _offlineSync!=='undefined') ? _offlineSync : {};
+    if(st.authNeeded){
+      el.style.background='#5a1a1a';
+      el.textContent='🔴 Sign in to upload '+pendingCount+' offline check-in'+(pendingCount>1?'s':'')+'. They stay saved on this device.';
+    } else if(st.running){
+      el.style.background='#1a3a5a';
+      el.textContent='🔄 Uploading '+pendingCount+' offline check-in'+(pendingCount>1?'s':'')+'…';
+    } else {
+      var errs = offlinePendingRecordsInData().filter(function(r){ return r.offlineSyncState==='SYNC_ERROR'; }).length;
+      el.style.background= errs ? '#5a1a1a' : '#1a3a2a';
+      var wait = st.nextAt && st.nextAt>Date.now() ? Math.ceil((st.nextAt-Date.now())/1000) : 0;
+      el.textContent= (errs ? ('🔴 '+errs+' offline check-in'+(errs>1?'s':'')+' could not be uploaded — open Debug → Pending Sync. ') : '🟠 ')+
+        pendingCount+' offline check-in'+(pendingCount>1?'s':'')+' waiting to upload'+(wait?(' · retry in '+wait+' s'):'')+'.';
+    }
     return;
   }
   el.style.display='none';
@@ -15008,6 +15081,247 @@ function updateOfflinePendingPanel(){
   updateOfflineModeBanner();
   offlineDiagRenderPendingPanel();
 }
+
+// ── OFFLINE SYNC (Phase 3) ────────────────────────────────────────────
+// Uploads check-ins saved on this device while offline. Rules:
+// • A record leaves PENDING SYNC only after the server returned its row.
+// • Idempotent: each record keeps the client_key of its check-in, so a
+//   retry (or a second tab, or an online answer that was lost) never
+//   creates a second passenger — the server refuses the duplicate key and
+//   the existing row is used.
+// • The server keeps one ticket number per car: if another device already
+//   used this number, the database gives the next free one and the staff
+//   are asked to reprint the tags (shown in the banner until done).
+// • Texts only after the row exists: consent is recorded, then (v2 only,
+//   within OFFLINE_SYNC_AUTO_WELCOME_HOURS) the welcome goes out through
+//   the server, which sends at most one welcome per passenger.
+// • Network failure → retry with backoff. Expired session → stop and ask
+//   to sign in; records stay on the device. Server rejection → kept as
+//   SYNC_ERROR with the reason (Debug → Pending Sync → Retry).
+var OFFLINE_SYNC_AUTO_WELCOME_HOURS = 6;
+var _offlineSync = { running:false, authNeeded:false, nextAt:0, timer:null, renumbered:[] };
+function offlineSyncBackoffMs(n){ return Math.min(300000, 5000*Math.pow(2, Math.max(0, n-1))); }
+function offlineSyncIsAuthError(status, text){ return status===401 || /JWT expired|PGRST30[123]/.test(String(text||'')); }
+
+async function offlineSyncInsert(payload){
+  var res = await fetch(SUPABASE_URL+'/rest/v1/'+TABLE, { method:'POST', headers:sbHeaders(), body:JSON.stringify(payload) });
+  var text = await res.text();
+  if(res.ok){ var rows = []; try { rows = JSON.parse(text||'[]'); } catch(e){} return { ok:true, row:rows[0]||null }; }
+  if(/passengers_client_key_unique/.test(text)){
+    var ex = await fetch(SUPABASE_URL+'/rest/v1/'+TABLE+'?client_key=eq.'+encodeURIComponent(payload.client_key)+'&select=*', { headers:sbHeaders() });
+    if(ex.ok){ var er = await ex.json(); if(er && er.length) return { ok:true, row:er[0], existing:true }; }
+  }
+  return { ok:false, status:res.status, text:text };
+}
+
+async function offlineSyncOne(rec){
+  var res = await offlineSyncInsert(rec.payload);   // TypeError (network) propagates
+  if(!res.ok) return res;
+  var row = res.row || {};
+  var id = row.id, ticket = row.ticket || rec.payload.ticket;
+  var saved = new Date(rec.createdAt);
+  if(!res.existing){
+    sbLog('CREATED', row.name||rec.payload.name, ticket, row.loc||'', 'Passenger added to system (offline check-in saved '+saved.toLocaleString('en-US')+(rec.deviceCode?' on '+rec.deviceCode:'')+', uploaded now)', {passenger_id:id});
+    if(id) vlhInsert({passenger_id:id, ticket:ticket, passenger_name:row.name||rec.payload.name, from_location:'', to_location:row.loc||'', action:'CHECK-IN', note:'Offline check-in uploaded', created_by:_currentUserEmail});
+  }
+  var out = { ok:true, id:id, ticket:ticket, renumbered: ticket !== rec.payload.ticket, sms:null };
+  // Texts: only now that the server has the passenger.
+  if(rec.sms && rec.sms.consent && id && !(typeof smsProgramOpen==='function' && smsProgramOpen())) out.sms = 'not_in_texting';
+  else if(rec.sms && rec.sms.consent && id){
+    var c = await offlineSyncConsent(id, rec.sms.staff);
+    out.sms = c ? 'consent' : 'no_consent_saved';
+    var ageH = (Date.now() - saved.getTime()) / 3600000;
+    if(c && rec.sms.auto && ageH <= OFFLINE_SYNC_AUTO_WELCOME_HOURS){
+      var r = await sendServerSms(id, 'CHECK_IN');
+      out.sms = (r && r.ok) ? 'welcome_requested' : 'welcome_not_sent';
+    } else if(c && rec.sms.auto){ out.sms = 'welcome_too_late'; }
+    else if(c){ out.sms = 'manual_review'; }   // classic form: the staff review and send it
+  }
+  return out;
+}
+// Quiet consent (no toasts in the middle of a batch upload).
+async function offlineSyncConsent(passengerId, staff){
+  try {
+    var rows = await smsApi('/rest/v1/rpc/airvalet_sms_record_consent', { method:'POST', body: JSON.stringify({
+      p_passenger_id: passengerId, p_disclosure_version: SMS_CONSENT_VERSION,
+      p_device_key: smsDeviceKey(false), p_staff_name: staff || smsStaffName() }) });
+    var row = Array.isArray(rows) ? rows[0] : rows;
+    if(row && row.enrolled){ _smsEnrolled[passengerId] = true; return true; }
+  } catch(e){}
+  return false;
+}
+
+function offlineSyncSchedule(){
+  clearTimeout(_offlineSync.timer);
+  if(!_offlineSync.nextAt) return;
+  _offlineSync.timer = setTimeout(function(){ offlineSyncPending(false); }, Math.max(1000, _offlineSync.nextAt - Date.now()));
+}
+
+async function offlineSyncPending(manual){
+  if(_offlineSync.running && !manual) return { skipped:'running' };
+  if(isKnownOfflineForCheckin() || typeof offlineCheckinGetAll!=='function') return { skipped:'offline' };
+  if(!_authToken){ _offlineSync.authNeeded = true; updateOfflineModeBanner(); return { skipped:'auth' }; }
+  // After an auth refusal, wait for a new session before trying again.
+  if(!manual && _offlineSync.authNeeded && _offlineSync.authToken === _authToken) return { skipped:'auth' };
+  var run = async function(){
+    _offlineSync.running = true; _offlineSync.authNeeded = false; updateOfflineModeBanner();
+    var done = 0, renum = 0, failed = 0, stopped = null, smsSent = 0, smsLater = 0;
+    try {
+      if(typeof authEnsureFresh==='function') await authEnsureFresh();
+      var all = await offlineCheckinGetAll();
+      var now = Date.now();
+      // Texting status of this device must be known before any consent/welcome.
+      if(all.some(function(r){ return offlineIsUnsynced(r) && r.sms && r.sms.consent; }) && typeof resolveSmsProvider==='function'){
+        try { await resolveSmsProvider(); } catch(e){}
+      }
+      var todo = all.filter(function(r){
+        if(r.syncState==='LOCAL_PENDING') return true;
+        if(r.syncState==='SYNC_RETRY') return manual || !r.nextAttemptAt || Date.parse(r.nextAttemptAt) <= now;
+        if(r.syncState==='SYNC_ERROR') return !!manual;
+        return false;
+      }).sort(function(a,b){ return String(a.createdAt).localeCompare(String(b.createdAt)); });
+      // Upload the tickets whose number is still free first: a number taken
+      // by another device is renumbered by the server to the next free one,
+      // and doing those last keeps that new number clear of this device's
+      // other printed tickets (no chain of reprints).
+      todo = await offlineSyncOrder(todo);
+      for(var i=0; i<todo.length; i++){
+        var rec = todo[i];
+        var result;
+        try { result = await offlineSyncOne(rec); }
+        catch(netErr){
+          // Network dropped mid-batch: retry later with backoff.
+          var n = (rec.attemptCount||0) + 1;
+          await offlineCheckinUpdate(rec.offline_sync_id, function(r){ r.syncState='SYNC_RETRY'; r.attemptCount=n; r.lastAttemptAt=new Date().toISOString(); r.nextAttemptAt=new Date(Date.now()+offlineSyncBackoffMs(n)).toISOString(); r.lastError='No connection'; });
+          _offlineSync.nextAt = Date.now() + offlineSyncBackoffMs(n);
+          stopped = 'network'; break;
+        }
+        if(!result.ok){
+          if(offlineSyncIsAuthError(result.status, result.text)){ _offlineSync.authNeeded = true; _offlineSync.authToken = _authToken; stopped = 'auth'; break; }
+          var n2 = (rec.attemptCount||0) + 1, transient = result.status >= 500 || result.status === 429;
+          await offlineCheckinUpdate(rec.offline_sync_id, function(r){
+            r.attemptCount = n2; r.lastAttemptAt = new Date().toISOString();
+            r.lastError = 'Server: ' + String(result.text||result.status).slice(0, 200);
+            if(transient){ r.syncState='SYNC_RETRY'; r.nextAttemptAt=new Date(Date.now()+offlineSyncBackoffMs(n2)).toISOString(); }
+            else { r.syncState='SYNC_ERROR'; r.nextAttemptAt=null; }
+          });
+          if(transient) _offlineSync.nextAt = Date.now() + offlineSyncBackoffMs(n2);
+          failed++; continue;
+        }
+        done++;
+        if(result.sms==='welcome_requested') smsSent++;
+        else if(result.sms==='welcome_not_sent' || result.sms==='welcome_too_late' || result.sms==='not_in_texting' || result.sms==='no_consent_saved' || result.sms==='manual_review') smsLater++;
+        if(result.renumbered){
+          renum++;
+          // Keep only what the reprint needs until the staff confirm.
+          await offlineCheckinUpdate(rec.offline_sync_id, function(r){ r.syncState='SYNCED_RENUMBERED'; r.serverPassengerId=result.id; r.serverTicket=result.ticket; r.lastError=null; });
+        } else {
+          await offlineCheckinDelete(rec.offline_sync_id);   // nothing personal stays on the device
+        }
+      }
+      // Next automatic attempt = the earliest retry still waiting.
+      var left = await offlineCheckinGetAll(), next = 0;
+      left.forEach(function(r){ if(r.syncState==='SYNC_RETRY' && r.nextAttemptAt){ var t = Date.parse(r.nextAttemptAt); if(!next || t < next) next = t; } });
+      _offlineSync.nextAt = next;
+    } catch(e){
+      console.error('Offline sync failed', e);
+      stopped = stopped || 'error';
+    } finally {
+      _offlineSync.running = false;
+    }
+    await offlineSyncLoadRenumbered();
+    if(done || renum || failed) { try { await loadData(); } catch(e){} }
+    else updateOfflinePendingPanel();
+    offlineSyncSchedule();
+    if(done){
+      var msg = '✓ '+done+' offline check-in'+(done>1?'s':'')+' uploaded.';
+      if(smsSent) msg += ' Welcome text requested for '+smsSent+'.';
+      if(smsLater) msg += ' '+smsLater+' welcome text'+(smsLater>1?'s':'')+' not sent — send from the car card.';
+      if(renum) msg += ' '+renum+' ticket number'+(renum>1?'s':'')+' changed — reprint tags.';
+      showMsg(msg, renum>0 || failed>0);
+    } else if(manual && stopped==='auth') showMsg('Sign in again to upload the offline check-ins. They stay saved on this device.', true);
+    else if(manual && stopped==='network') showMsg('Still no connection. The offline check-ins stay saved and will upload automatically.', true);
+    else if(manual && failed) showMsg(failed+' offline check-in'+(failed>1?'s':'')+' could not be uploaded. See Debug → Pending Sync.', true);
+    return { done:done, renumbered:renum, failed:failed, stopped:stopped };
+  };
+  // One upload at a time across tabs of this device. Automatic attempts skip
+  // when another upload holds the lock; Sync now waits for it, then runs.
+  if(navigator.locks && navigator.locks.request){
+    if(manual) return navigator.locks.request('airvalet-offline-sync', function(){ return run(); });
+    return navigator.locks.request('airvalet-offline-sync', { ifAvailable:true }, function(lock){ return lock ? run() : { skipped:'other-tab' }; });
+  }
+  return run();
+}
+
+async function offlineSyncOrder(todo){
+  if(todo.length < 2) return todo;
+  try {
+    var tickets = todo.map(function(r){ return r.payload && r.payload.ticket; }).filter(Boolean);
+    var res = await fetch(SUPABASE_URL+'/rest/v1/'+TABLE+'?select=ticket,checkin_date,client_key&ticket=in.('+tickets.map(function(t){ return '"'+String(t).replace(/"/g,'')+'"'; }).join(',')+')', { headers:sbHeaders() });
+    if(!res.ok) return todo;
+    var rows = await res.json();
+    var taken = function(rec){
+      var day = String(rec.payload.checkin_date||'').slice(0,10);
+      return rows.some(function(x){ return x.ticket===rec.payload.ticket && x.client_key!==rec.payload.client_key && Math.abs(Date.parse(String(x.checkin_date||'').slice(0,10)) - Date.parse(day)) <= 86400000; });
+    };
+    return todo.filter(function(r){ return !taken(r); }).concat(todo.filter(taken));
+  } catch(e){ return todo; }
+}
+async function offlineSyncLoadRenumbered(){
+  try {
+    var all = await offlineCheckinGetAll();
+    _offlineSync.renumbered = all.filter(function(r){ return r.syncState==='SYNCED_RENUMBERED'; })
+      .sort(function(a,b){ return String(a.createdAt).localeCompare(String(b.createdAt)); }).map(function(r){
+      return { syncId:r.offline_sync_id, id:r.serverPassengerId, oldTicket:r.payload.ticket, newTicket:r.serverTicket, name:r.payload.name||'' };
+    });
+  } catch(e){ _offlineSync.renumbered = []; }
+  updateOfflineModeBanner();
+}
+async function offlineSyncReprint(syncId){
+  var it = _offlineSync.renumbered.find(function(x){ return x.syncId===syncId; });
+  if(!it) return;
+  var r = data.find(function(x){ return x.id===it.id; });
+  if(!r){ showMsg('Reload to see ticket '+it.newTicket+', then reprint from the car card.', true); return; }
+  var k = await printKeyTicket(r), d = await printDashboardTicket(r);
+  if(k && d) showMsg('Tags for ticket '+it.newTicket+' printed. Replace the old '+it.oldTicket+' tags, then tap Done.', false);
+}
+async function offlineSyncAckRenumber(syncId){
+  var it = _offlineSync.renumbered.find(function(x){ return x.syncId===syncId; });
+  if(it && !confirm('Did you replace the old '+it.oldTicket+' tags with '+it.newTicket+'?')) return;
+  try { await offlineCheckinDelete(syncId); } catch(e){}
+  await offlineSyncLoadRenumbered();
+}
+function offlineSyncNow(){
+  if(_offlineSync.running) showMsg('Already uploading — it will try again right after.', false);
+  return offlineSyncPending(true);
+}
+
+// ── Session freshness (iPad asleep → expired token) ───────────────────
+// The access token expires while the iPad sleeps; the first tap after
+// waking used to fail with "JWT expired". Renew it on wake and shortly
+// before it expires. Offline, a failed renewal changes nothing.
+function jwtExpMs(t){
+  try { var p = String(t).split('.')[1].replace(/-/g,'+').replace(/_/g,'/'); while(p.length % 4) p += '='; return JSON.parse(atob(p)).exp * 1000; }
+  catch(e){ return 0; }
+}
+var _authRefreshing = null;
+function authEnsureFresh(force){
+  if(!_authToken) return Promise.resolve(false);
+  if(!force && jwtExpMs(_authToken) - Date.now() > 120000) return Promise.resolve(true);
+  if(_authRefreshing) return _authRefreshing;
+  _authRefreshing = _supaClient.auth.refreshSession().then(function(r){
+    if(r && r.data && r.data.session){ _authToken = r.data.session.access_token; return true; }
+    return false;
+  }).catch(function(){ return false; }).finally(function(){ _authRefreshing = null; });
+  return _authRefreshing;
+}
+document.addEventListener('visibilitychange', function(){ if(document.visibilityState==='visible') authEnsureFresh(); });
+setInterval(function(){ authEnsureFresh(); }, 60000);
+// Pending uploads are retried while the app is open (and on reconnect, below).
+setInterval(function(){
+  if(!_offlineSync.running && offlinePendingRecordsInData().length && (!_offlineSync.nextAt || _offlineSync.nextAt <= Date.now())) offlineSyncPending(false);
+  else updateOfflineModeBanner();
+}, 15000);
 function offlineProbeSupabase(force){
   var now = Date.now();
   if(!force && (_offlineNet.checking || (now-_offlineNet.lastCheckedAt) < OFFLINE_SUPABASE_PROBE_MIN_INTERVAL_MS)){
@@ -15041,7 +15355,8 @@ function offlineProbeSupabase(force){
       // auto-uploads, and never changes a pending record's PENDING SYNC
       // state. That upload step is Phase 3, not this.
       if(_offlineNet.supabaseReachable===true && wasReachable!==true && typeof loadData==='function'){
-        loadData();
+        // Phase 3: back online → refresh, then upload what was saved offline.
+        Promise.resolve(loadData()).then(function(){ offlineSyncPending(false); });
       }
     });
 }
@@ -15131,7 +15446,7 @@ function offlineDiagRenderPendingPanel(){
   var pending = offlinePendingRecordsInData();
   if(countEl) countEl.textContent = pending.length;
   if(!pending.length){
-    body.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--mu);padding:10px;">No pending offline check-ins on this device.</td></tr>';
+    body.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--mu);padding:10px;">No pending offline check-ins on this device.</td></tr>';
     return;
   }
   body.innerHTML = pending.map(function(r){
@@ -15141,6 +15456,8 @@ function offlineDiagRenderPendingPanel(){
       '<td>'+escapeHTML(formatVehicleLine(r))+'</td>'+
       '<td>'+escapeHTML(offlineFmtTime(r.offlineCreatedAt))+'</td>'+
       '<td>'+escapeHTML(r.deviceCode||'—')+'</td>'+
+      '<td>'+escapeHTML(r.offlineSyncState==='SYNC_ERROR' ? ('Not uploaded: '+(r.offlineLastError||'server refused')+' (Sync now retries)')
+                       : r.offlineSyncState==='SYNC_RETRY' ? ('Waiting to retry'+(r.offlineLastError?' — '+r.offlineLastError:'')) : 'Waiting to upload')+'</td>'+
     '</tr>';
   }).join('');
 }

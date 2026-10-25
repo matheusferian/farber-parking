@@ -162,6 +162,29 @@ async def main():
               and int(sql("select count(*) from airvalet_sms_messages where passenger_id = %d and message_type = 'VEHICLE_DELIVERED'" % t3['id'])) == n_sms,
               '… no second history entry and no second delivered text')
 
+        # 9. Keyboard: Name → Phone → … → "Yes, agreed" is reachable with Tab, and Enter on it starts the countdown.
+        await page.evaluate('openAdd()')
+        await page.wait_for_selector('#ci2Name', state='visible')
+        await page.focus('#ci2Name')
+        await page.keyboard.type('E2E KEYBOARD')
+        await page.keyboard.press('Tab')
+        f1 = await page.evaluate('document.activeElement.id')
+        await page.keyboard.type('30555' + RUN + '14')
+        seen = []
+        for _ in range(25):
+            await page.keyboard.press('Tab')
+            fid = await page.evaluate('document.activeElement.id || document.activeElement.textContent.trim().slice(0, 20)')
+            seen.append(fid)
+            if fid == 'ci2Yes':
+                break
+        check(f1 == 'ci2Phone' and 'ci2Yes' in seen, 'keyboard: Tab goes Name → Phone and reaches "Yes, agreed"', (f1, seen))
+        vis = await page.evaluate("getComputedStyle(document.activeElement).outlineStyle !== 'none' || getComputedStyle(document.activeElement).boxShadow !== 'none'")
+        check(vis, 'keyboard: focused button shows a visible focus ring')
+        await page.keyboard.press('Enter')
+        await page.wait_for_selector('#ci2Created:not([hidden])', timeout=15000)
+        check(True, 'keyboard: Enter on "Yes, agreed" creates the ticket after the countdown')
+        await page.evaluate('closeAll()')
+
         check(not errors, 'no page errors', errors)
         await b.close()
     sql("""do $$ declare r record; begin

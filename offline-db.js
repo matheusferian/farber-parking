@@ -153,7 +153,12 @@ function offlinePendingBlockError(){
 // deldate) — kept identical on purpose so mapPassengerRow() in
 // index.html can shape a pending record exactly like a server row once
 // localId is substituted for id.
-function offlineBuildCheckinRecord(payload){
+// Phase 3: payload.client_key is the SAME key the online attempt used, so
+// a check-in whose online answer was lost is never inserted twice (the
+// server refuses a second row with that key). `sms` records only the
+// intent captured at check-in (consent yes/no, auto-send or manual) — the
+// text itself is sent only after the server confirmed the passenger row.
+function offlineBuildCheckinRecord(payload, sms){
   var syncId = (crypto && crypto.randomUUID) ? crypto.randomUUID() : (String(Date.now())+'-'+Math.random());
   return {
     offline_sync_id: syncId,
@@ -164,11 +169,45 @@ function offlineBuildCheckinRecord(payload){
     isOfflinePending: true,
     attemptCount: 0,
     lastAttemptAt: null,
+    nextAttemptAt: null,
     lastError: null,
+    sms: sms ? { consent: !!sms.consent, auto: !!sms.auto, staff: sms.staff || null } : null,
     deviceId: (typeof getOfflineDeviceId === 'function') ? getOfflineDeviceId() : null,
     deviceCode: (typeof getOfflineDeviceCode === 'function') ? getOfflineDeviceCode() : '',
     localId: offlineLocalIdFromSyncId(syncId)
   };
+}
+
+// Records that still have no server row (shown as PENDING SYNC).
+var OFFLINE_UNSYNCED_STATES = { LOCAL_PENDING: 1, SYNC_RETRY: 1, SYNC_ERROR: 1 };
+function offlineIsUnsynced(rec){ return !!(rec && OFFLINE_UNSYNCED_STATES[rec.syncState]); }
+
+function offlineCheckinGet(offlineSyncId){
+  return offlineDbTx(OFFLINE_STORE_CHECKINS, 'readonly').then(function(store){
+    return new Promise(function(resolve, reject){
+      var req = store.get(offlineSyncId);
+      req.onsuccess = function(e){ resolve(e.target.result || null); };
+      req.onerror = function(e){ reject(e.target.error); };
+    });
+  });
+}
+
+// Read-modify-write of one record in a single readwrite transaction.
+function offlineCheckinUpdate(offlineSyncId, mutate){
+  return offlineDbTx(OFFLINE_STORE_CHECKINS, 'readwrite').then(function(store){
+    return new Promise(function(resolve, reject){
+      var req = store.get(offlineSyncId);
+      req.onsuccess = function(e){
+        var rec = e.target.result;
+        if(!rec){ resolve(null); return; }
+        mutate(rec);
+        var put = store.put(rec);
+        put.onsuccess = function(){ resolve(rec); };
+        put.onerror = function(ev){ reject(ev.target.error); };
+      };
+      req.onerror = function(e){ reject(e.target.error); };
+    });
+  });
 }
 
 // Builds a synthetic, clearly-fake diagnostics-only test record —

@@ -1,6 +1,8 @@
 {
   "name": "AirValet",
   "short_name": "AirValet",
+  "start_url": "./",
+  "scope": "./",
   "display": "standalone",
   "background_color": "#0a0f1e",
   "theme_color": "#1a3d7c",
