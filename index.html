@@ -6017,10 +6017,13 @@ async function sendCustomsGratuitySms(id){
   }
   if(!r.phone){ showMsg('No phone number on file for '+r.name, true); return; }
   var smsBody=buildCustomsGratuitySms(r);
+  // AirValet-texting cars get the delivered text with the valet pass link
+  // (thank-you note + gratuity button), sent through Twilio after the preview.
+  var viaServer=smsRouteFor(r.id)==='server';
   var sendOpts={
     passengerId:r.id, passengerName:r.name, phone:r.phone, ticket:r.ticket,
     vehicle:formatVehicleLine(r), brand:isAscend(r)?'Ascend':'Makers Air',
-    templateKey:'CUSTOMS_GRATUITY', messageType:SMS_MESSAGE_TYPES.CUSTOMS_GRATUITY,
+    templateKey:viaServer?'TIP_NO':'CUSTOMS_GRATUITY', messageType:viaServer?SMS_MESSAGE_TYPES.TIP_NO:SMS_MESSAGE_TYPES.CUSTOMS_GRATUITY,
     body:smsBody, metadata:{trigger:'Customs Communication modal — Send Gratuity'}
   };
 
@@ -6788,7 +6791,10 @@ async function deliverWithTip(id, deliveryType, tipReceived){
     // AirValet-texting cars (owner 2026-10-25): one delivered text for everyone,
     // sent at once (no tip choice, no preview) — it carries the valet pass link
     // with the thank-you note and Gratuity. Older cars keep the flow below.
-    if(smsRouteFor(r.id)==='server'){
+    // Customs is excluded (owner 2026-10-25): the car waits at Customs, so the
+    // Customs workflow below runs (Welcome Back, then the gratuity link reminder
+    // 10 min after the filled time).
+    if(smsRouteFor(r.id)==='server' && !isCustoms){
       sendPassengerSms({passengerId:r.id, passengerName:r.name, phone:r.phone, ticket:r.ticket,
         templateKey:'TIP_NO', messageType:SMS_MESSAGE_TYPES.TIP_NO, _previewed:true,
         vehicle:formatVehicleLine(r), body:buildTipSms(r, tipReceived), // body = iPhone fallback only

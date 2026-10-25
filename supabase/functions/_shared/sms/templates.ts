@@ -151,7 +151,9 @@ export const TEMPLATES: Record<MessageType, Template> = {
     type: 'VEHICLE_READY', status: 'APPROVED', version: 'ready-2026-10-25b', freeText: false, allowedRoles: OPS,
     defaultEventRef: (_now, p) => 'ready:' + readyVariant(p),
     guard: (p) => {
-      if (p.status === 'ARCHIVED' || p.status === 'DELIVERED') return 'NOT_IN_CUSTODY';
+      // A car left at Customs is marked DELIVERED (delivery_type CUSTOMS) before
+      // the guest lands: its Customs Welcome Back may still go out (owner 2026-10-25).
+      if (p.status === 'ARCHIVED' || (p.status === 'DELIVERED' && p.delivery_type !== 'CUSTOMS')) return 'NOT_IN_CUSTODY';
       if (!p.return_operator) return 'RETURN_NOT_SET';
       if (p.return_operator === 'OTHER') return 'RETURN_OTHER_MANUAL';
       // A Customs request under review: no definitive pickup instruction.

@@ -153,6 +153,13 @@ Deno.test('Makers Customs exception: 8 owner scenarios (template + pickup rules)
   // Makers return unless approved.
   for (const t of ['CHECK_IN', 'RETURN_CONFIRMATION']) assertFalse(/Customs/.test(renderMessage(A[t], P({ return_operator: 'MAKERS' }), ENV).body), t);
 });
+Deno.test('Welcome Back: a car left at Customs (DELIVERED, CUSTOMS) can still get its Customs text; other deliveries cannot', () => {
+  const r = (o: Partial<PassengerCtx>) => { try { return renderMessage(A.VEHICLE_READY, P(o), ENV).variant; } catch (e) { return (e as TemplateError).code; } };
+  assertEquals(r({ return_operator: 'MAKERS', delivery_at_customs: true, status: 'DELIVERED', delivery_type: 'CUSTOMS' }), 'CUSTOMS_EXCEPTION');
+  assertEquals(r({ return_operator: 'ASCEND', status: 'DELIVERED', delivery_type: 'CUSTOMS' }), 'CUSTOMS_WELCOME');
+  assertEquals(r({ return_operator: 'MAKERS', status: 'DELIVERED', delivery_type: 'NORMAL' }), 'NOT_IN_CUSTODY');
+  assertEquals(r({ return_operator: 'ASCEND', status: 'ARCHIVED', delivery_type: 'CUSTOMS' }), 'NOT_IN_CUSTODY');
+});
 Deno.test('ready idempotency key follows the instruction variant (exception ≠ Ascend Customs ≠ Hangar 19)', () => {
   const k = (o: Partial<PassengerCtx>) => TEMPLATES.VEHICLE_READY.defaultEventRef!(new Date(), P(o));
   assertEquals(k({ return_operator: 'MAKERS' }), 'ready:HANGAR19_WELCOME_BACK');
