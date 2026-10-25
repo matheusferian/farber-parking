@@ -54,12 +54,17 @@ async def guard(route):
 async def login(page):
     await page.goto(APP)
     await page.wait_for_selector('#loginEmail', state='visible', timeout=15000)
-    await page.wait_for_load_state('networkidle')
-    await page.wait_for_timeout(1500)  # the login screen resets its fields once on start
-    await page.fill('#loginEmail', 'localipad')
-    await page.fill('#loginPwd', PW)
-    await page.press('#loginPwd', 'Enter')
-    await page.wait_for_function('typeof _currentUserEmail !== "undefined" && !!_currentUserEmail && Array.isArray(data) && data.length > 0', timeout=30000)
+    for attempt in range(3):
+        await page.wait_for_timeout(2000)  # the login screen resets its fields once on start
+        await page.fill('#loginEmail', 'localipad')
+        await page.fill('#loginPwd', PW)
+        await page.press('#loginPwd', 'Enter')
+        try:
+            await page.wait_for_function('typeof _currentUserEmail !== "undefined" && !!_currentUserEmail && Array.isArray(data) && data.length > 0', timeout=15000)
+            break
+        except Exception:
+            if attempt == 2:
+                raise
     await page.wait_for_timeout(1500)
     # Approve this browser for AirValet texting (IPAD_OPS is auto-approved by 20261029).
     await page.evaluate('''async () => {
@@ -195,14 +200,56 @@ async def main():
         check(sql(f"select pickup_auth_name || '|' || pickup_auth_phone || '|' || pickup_auth_location from passengers where id = {r['id']}") == 'ANA SOUZA & CO|7865550111|Customs', 'authorization saved on the same ticket')
         check(sql("select count(*) from airvalet_sms_messages where phone_e164 = '+17865550111'") == '0', 'nothing texted to the pickup person')
         check(int(sql(f"select count(*) from passengers where phone like '%{phone[-4:]}' and name = 'E2E GUEST ONE'")) == 1, 'no second check-in created')
+        sms_before = sql(f"select count(*) from airvalet_sms_messages where passenger_id = {r['id']}")
+        pre = await page.evaluate('window.__prints.map(p => [p.label, String(p.xml).slice(0, 160)])')
+        check(pre == [], 'nothing printed before the tap', pre)
+        # Slow simulated printer (300 ms per job) so repeated taps land mid-print.
+        await page.evaluate('() => { window.epsonSend = async (xml, label) => { window.__prints.push({ xml, label }); await new Promise(r => setTimeout(r, 300)); return true; } }')
         await page.click('#ci2Print')
-        await page.wait_for_timeout(500)
+        await page.evaluate("document.getElementById('ci2Print').click(); document.getElementById('ci2Print').click();")
+        check(await page.inner_text('#ci2Print') == 'Printing…' and await page.is_disabled('#ci2Print'), 'while printing: button shows Printing… and is locked')
+        await page.wait_for_timeout(1200)
         prints = await page.evaluate('window.__prints')
-        check([p['label'] for p in prints] == ['Key', 'Dashboard'], 'one tap prints the operational tags (Key + Dashboard), no customer copy', [p['label'] for p in prints])
+        labels = [p['label'] for p in prints]
+        check(labels == ['Key', 'Dashboard'], 'Print key tag (3 fast taps) → exactly one Key tag + one Dashboard tag, no customer copy', labels)
         check(all(well_formed(p['xml']) for p in prints), 'print XML well-formed with "&" in the pickup name')
         check('AUTHORIZED PICKUP' in prints[0]['xml'] and 'ANA SOUZA &amp; CO' in prints[0]['xml'], 'key tag shows AUTHORIZED PICKUP + name (escaped)')
-        check(await page.inner_text('#ci2Print') == 'Reprint key tag', 'button becomes Reprint')
-        await shot(page, 'v2-ipad-4-pickup')
+        check('DASHBOARD COPY' in prints[1]['xml'] and r['ticket'] in prints[1]['xml'], 'dashboard tag has the ticket number')
+        check(await page.inner_text('#ci2Print') == 'Reprint ▾', 'button becomes Reprint')
+        check(await page.is_hidden('#ci2Reprint'), 'reprint options closed until tapped')
+        await page.click('#ci2Print')
+        check(await page.is_visible('#ci2Reprint'), 'Reprint opens three options')
+        await shot(page, 'v2-ipad-4-reprint')
+        opts = await page.eval_on_selector_all('#ci2Reprint [data-print]', 'els => els.map(e => e.dataset.print)')
+        check(opts == ['both', 'key', 'dash'], 'options: Print both / Key tag only / Dashboard tag only', opts)
+
+        async def reprint(kind):
+            await page.evaluate('window.__prints = []')
+            if await page.is_hidden('#ci2Reprint'):
+                await page.click('#ci2Print')
+            await page.click(f'#ci2Reprint [data-print="{kind}"]')
+            await page.wait_for_timeout(900)
+            return [p['label'] for p in await page.evaluate('window.__prints')]
+        check(await reprint('key') == ['Key'], 'Reprint → Key tag only')
+        check(await page.is_hidden('#ci2Reprint'), 'menu closes after a choice')
+        check(await reprint('dash') == ['Dashboard'], 'Reprint → Dashboard tag only')
+        check(await reprint('both') == ['Key', 'Dashboard'], 'Reprint → Print both')
+        await page.click('#ci2Print')
+        await page.click('.ci2-sec-h >> text=Hangar')
+        check(await page.is_hidden('#ci2Reprint'), 'tapping elsewhere closes the reprint menu')
+        # A failed job is reported and can be reprinted on its own.
+        await page.evaluate("() => { window.__prints = []; window.epsonSend = async (xml, label) => { window.__prints.push({ xml, label }); return label !== 'Dashboard'; } }")
+        await page.click('#ci2Print'); await page.click('#ci2Reprint [data-print="both"]')
+        await page.wait_for_timeout(600)
+        check('Dashboard tag did not print' in await page.inner_text('#msg'), 'printer failure on the dashboard tag is reported', await page.inner_text('#msg'))
+        await page.evaluate("() => { window.epsonSend = async (xml, label) => { window.__prints.push({ xml, label }); return true; } }")
+        check(sql(f"select count(*) from airvalet_sms_messages where passenger_id = {r['id']}") == sms_before, 'printing never sends a text')
+        # Data reloaded (as after a refresh of the list) → print uses the server row.
+        await page.evaluate('loadData()')
+        await page.wait_for_timeout(500)
+        check(await reprint('both') == ['Key', 'Dashboard'], 'after reloading data → Print both still works')
+        xml_after = (await page.evaluate('window.__prints'))[0]['xml']
+        check('CADILLAC ESCALADE' in xml_after and 'ANA SOUZA &amp; CO' in xml_after and well_formed(xml_after), 'reloaded row prints vehicle + escaped pickup name')
         await page.evaluate('closeAll()')
 
         # 6. Delivery: ID check required; the database refuses a delivery without it.
@@ -275,6 +322,30 @@ async def main():
             check(await page.input_value('#ci2Name') == 'E2E OFFLINE', 'offline without offline access → NOT saved, typed entry kept')
         check(int(sql("select count(*) from passengers")) == n1, 'offline → nothing written to the server')
         await page.evaluate('closeAll()')
+
+        # 10b. Full page reload: session kept, car panel prints both tags; classic form intact.
+        await page.reload()
+        await page.wait_for_function('typeof _currentUserEmail !== "undefined" && !!_currentUserEmail && Array.isArray(data) && data.length > 0', timeout=30000)
+        await page.evaluate('() => { window.__prints = []; window.epsonSend = async (xml, label) => { window.__prints.push({ xml, label }); return true; } }')
+        await page.evaluate(f'(async () => {{ const r = data.find(x => x.id === {r["id"]}); await printKeyTicket(r); await printDashboardTicket(r); }})()')
+        await page.wait_for_timeout(400)
+        labels = [p['label'] for p in await page.evaluate('window.__prints')]
+        check(labels == ['Key', 'Dashboard'] and all(well_formed(p['xml']) for p in await page.evaluate('window.__prints')), 'after a page reload: Key + Dashboard print from the car record', labels)
+        await page.evaluate("localStorage.setItem('airvalet_checkin_classic', '1'); openAdd();")
+        check(await page.is_visible('#fName') and await page.is_hidden('#ci2') and await page.is_visible('#saveBtnPrint'), 'classic form: shown with its own Save + Print button')
+        await page.evaluate('window.__prints = []')
+        await page.fill('#fName', 'E2E CLASSIC & SON')
+        await page.click('#fPhone'); await page.keyboard.type('30555' + RUN + '07')
+        await page.fill('#fCar', 'B&W MINI')
+        res = await page.evaluate("(async () => { document.getElementById('fStatus').value = 'NO DATE'; const r = await saveEntry(false, 'both'); return r; })()")
+        await page.wait_for_timeout(500)
+        labels = [p['label'] for p in await page.evaluate('window.__prints')]
+        check(bool(res and res.get('ok')) and labels == ['Key', 'Dashboard'], 'classic Save + Print unchanged: Key + Dashboard', [res, labels])
+        check(all(well_formed(p['xml']) for p in await page.evaluate('window.__prints')), 'classic print XML well-formed with "&"')
+        check(not await page.evaluate("document.getElementById('addOv').classList.contains('on')"), 'classic save closes the form as before')
+        cl = sql("select count(*) from airvalet_sms_messages m join passengers p on p.id = m.passenger_id where p.name = 'E2E CLASSIC & SON'")
+        check(cl == '0', 'classic save without SMS sends nothing', cl)
+        await page.evaluate("localStorage.removeItem('airvalet_checkin_classic'); closeAll();")
 
         # 11. iPhone layout smoke.
         await page.set_viewport_size({'width': 390, 'height': 844})

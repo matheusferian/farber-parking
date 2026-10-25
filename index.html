@@ -6525,6 +6525,7 @@ function ci2Close(){
   if (leg) leg.hidden = false;
   if (_ci && _ci.timer) clearInterval(_ci.timer);
   if (_ci && _ci.pollTimer) clearTimeout(_ci.pollTimer);
+  document.removeEventListener('click', ci2ReprintOutside, true);
   _ci = null;
 }
 function ci2Open(){
@@ -6592,7 +6593,10 @@ function ci2Html(){
   +   ci2Sec('ci2SMore', 'More', 'Car wash, notes', '<p class="ci2-sub">Car wash</p><div class="ci2-chipset" id="ci2Wash"></div><p class="ci2-sub">Notes</p><textarea class="ci2-search ci2-ta" id="ci2Notes" placeholder="Anything the team should know"></textarea>')
   + '</div>'
   + '<div class="ci2-dock" id="ci2Dock" hidden><div class="ci2-need"><span id="ci2NH">Hangar</span><span id="ci2NM">Make or model</span><span id="ci2NC">Color</span></div>'
-  +   '<button type="button" class="ci2-btn line" onclick="ci2Done()">Done</button><button type="button" class="ci2-print" id="ci2Print" disabled>Print key tag</button></div>'
+  +   '<button type="button" class="ci2-btn line" onclick="ci2Done()">Done</button>'
+  +   '<div class="ci2-printw"><button type="button" class="ci2-print" id="ci2Print" disabled aria-haspopup="menu" aria-expanded="false">Print key tag</button>'
+  +     '<div class="ci2-rpm" id="ci2Reprint" role="menu" hidden><button type="button" role="menuitem" data-print="both">Print both<small>Key + dashboard</small></button>'
+  +     '<button type="button" role="menuitem" data-print="key">Key tag only</button><button type="button" role="menuitem" data-print="dash">Dashboard tag only</button></div></div></div>'
   + '</div>';
 }
 function ci2Sec(id, title, val, inner){
@@ -6635,7 +6639,8 @@ function ci2Bind(){
   ci2El('ci2PName').addEventListener('input', function(){ this.value = this.value.toUpperCase(); });
   ci2El('ci2PSave').addEventListener('click', ci2PickSave);
   ci2El('ci2PRevoke').addEventListener('click', ci2PickRevoke);
-  ci2El('ci2Print').addEventListener('click', ci2Print);
+  ci2El('ci2Print').addEventListener('click', ci2PrintTap);
+  ci2El('ci2Reprint').querySelectorAll('[data-print]').forEach(function(b){ b.addEventListener('click', function(){ ci2ReprintMenu(false); ci2Print(b.dataset.print); }); });
   ci2El('ci2Native').hidden = smsProgramOpen();
 }
 function ci2Digits(v){ return String(v || '').replace(/\D/g, '').replace(/^1(?=\d{10}$)/, ''); }
@@ -7037,21 +7042,50 @@ async function ci2PickRevoke(){
   ci2RenderPickLoc(); ci2RenderCard(); ci2Toast('Authorization revoked.');
 }
 
-// ── Print: manual, one tap, only with Hangar + Make/Model + Color ──
+// ── Print: manual, only with Hangar + Make/Model + Color ──
+// First tap prints both operational tags: the Key tag (keys) and the
+// Dashboard tag (the car's dashboard, how valets find the car). After that the
+// button offers Reprint: both, key only or dashboard only. One job at a time:
+// taps while printing are ignored. Printing never sends a text.
 function ci2Need(){
   if (!_ci) return;
   var h = !!_ci.hangar, m = !!ci2VehCar(), c = !!_ci.color;
   ci2El('ci2NH').className = h ? 'ok' : ''; ci2El('ci2NM').className = m ? 'ok' : ''; ci2El('ci2NC').className = c ? 'ok' : '';
-  var b = ci2El('ci2Print'); b.disabled = !(h && m && c && _ci.created); b.textContent = _ci.printed ? 'Reprint key tag' : 'Print key tag';
+  var b = ci2El('ci2Print');
+  b.disabled = !!_ci.printing || !(h && m && c && _ci.created);
+  b.textContent = _ci.printing ? 'Printing…' : (_ci.printed ? 'Reprint ▾' : 'Print key tag');
+  b.setAttribute('aria-expanded', String(!ci2El('ci2Reprint').hidden));
 }
-async function ci2Print(){
-  if (!_ci || !_ci.created) return;
+function ci2PrintTap(){
+  if (!_ci || _ci.printing) return;
+  if (!_ci.printed) { ci2Print('both'); return; }
+  ci2ReprintMenu(ci2El('ci2Reprint').hidden);
+}
+function ci2ReprintMenu(open){
+  var m = ci2El('ci2Reprint'); if (!m) return;
+  m.hidden = !open; ci2El('ci2Print').setAttribute('aria-expanded', String(!!open));
+  if (open) {
+    m.querySelector('button').focus();
+    setTimeout(function(){ document.addEventListener('click', ci2ReprintOutside, true); }, 0);
+  } else document.removeEventListener('click', ci2ReprintOutside, true);
+}
+function ci2ReprintOutside(e){ var w = e.target.closest && e.target.closest('.ci2-printw'); if (!w) ci2ReprintMenu(false); }
+function ci2PrintRec(){
   var r = data.find(function(x){ return x.id === _ci.id; });
-  var rec = r || { ticket: _ci.ticket, name: ci2El('ci2Who').textContent.split(' · ')[0], phone: ci2El('ci2Phone').value.trim(), ret: _ci.ret ? d2us(_ci.ret) : '',
-                   car: ci2VehCar(), color: _ci.color, loc: _ci.hangar, return_operator: _ci.other ? 'OTHER' : _ci.op };
-  ci2El('ci2Print').disabled = true;
-  try { await printKeyTicket(rec); await printDashboardTicket(rec); _ci.printed = true; }
-  finally { ci2Need(); }
+  return r || { ticket: _ci.ticket, name: ci2El('ci2Who').textContent.split(' · ')[0], phone: ci2El('ci2Phone').value.trim(), ret: _ci.ret ? d2us(_ci.ret) : '',
+                car: ci2VehCar(), color: _ci.color, loc: _ci.hangar, return_operator: _ci.other ? 'OTHER' : _ci.op };
+}
+async function ci2Print(which){
+  if (!_ci || !_ci.created || _ci.printing) return;
+  _ci.printing = true; ci2Need();
+  var rec = ci2PrintRec(), failed = [];
+  try {
+    if (which !== 'dash' && !(await printKeyTicket(rec))) failed.push('Key tag');
+    if (which !== 'key' && !(await printDashboardTicket(rec))) failed.push('Dashboard tag');
+    _ci.printed = true;
+  } catch(e) { failed.push(which === 'key' ? 'Key tag' : which === 'dash' ? 'Dashboard tag' : 'Tags'); _ci.printed = true; }
+  finally { _ci.printing = false; ci2Need(); }
+  if (failed.length) ci2Toast(failed.join(' and ') + ' did not print. Check the printer and use Reprint.', true);
 }
 
 // ── DETAIL PANEL ───────────────────────────────────────────────

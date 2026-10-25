@@ -31,6 +31,7 @@ begin
   begin update public.passengers set released_to_kind = 'FRIEND' where id = v_id; v_err := 'none';
   exception when check_violation then v_err := 'refused'; end;
   perform pg_temp.ok(v_err = 'refused', 'released_to_kind only GUEST or AUTHORIZED');
-  perform pg_temp.ok((select count(*) from public.passengers where pickup_auth_name is not null and id <> v_id) = 0, 'existing rows have no authorization (additive migration)');
+  perform pg_temp.ok((select bool_and(is_nullable = 'YES' and column_default is null) from information_schema.columns
+                      where table_schema = 'public' and table_name = 'passengers' and (column_name like 'pickup_auth%' or column_name like 'released%')), 'new columns are nullable with no default (existing rows untouched)');
 end $$;
 rollback;
