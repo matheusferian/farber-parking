@@ -4642,7 +4642,8 @@ function renderThread(passengerId, keepComposer){
       '<div class="ibx-comp-row"><label class="ibx-sms-chk"><input type="checkbox" id="ibxAlsoSms" checked> Also by SMS</label>' +
       '<span class="ibx-quick" onclick="useQuickReply(' + passengerId + ',\'No problem, see you then!\')">See you then!</span><span class="ibx-quick" onclick="useQuickReply(' + passengerId + ',\'Noted, thank you!\')">Noted, thanks!</span>' +
       // Staff-chosen reply only (owner 2026-10-25): automatic texts never say where a key is.
-      '<span class="ibx-quick" onclick="useQuickReply(' + passengerId + ',\'Welcome back! Your key is on the driver\\x27s side tire. Have a safe drive!\')">&#128273; Key on tire</span>' +
+      // Not for Ascend returns: an Ascend team member hands over the key.
+      (returnOperator(p) === 'ASCEND' ? '' : '<span class="ibx-quick" onclick="useQuickReply(' + passengerId + ',\'Welcome back! Your key is on the driver\\x27s side tire. Have a safe drive!\')">&#128273; Key on tire</span>') +
       '<span class="ibx-count" id="ibxCount"></span></div></div>';
   if (keepComposer && document.getElementById('ibxText') && !optedOut){
     var list = box.querySelector('.ibx-msgs'); if (list){ list.innerHTML = msgs || '<div class="ibx-empty">No texts yet.</div>'; }
