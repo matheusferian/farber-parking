@@ -264,6 +264,22 @@ async def main():
         dbg = await page.evaluate("(async () => JSON.stringify({net: _offlineNet, st: (await offlineCheckinGetAll()).map(r => [r.payload.name, r.syncState, r.lastError])}))()")
         check(n_pax(TAG + 'ECHO') == 1, 'server 400: Sync now after the fix uploads it once', (rr, dbg, sql("select string_agg(name||':'||ticket, ',') from passengers where name like '%sECHO%%'" % TAG)))
 
+        # ── 8b. A check-in saved by an older app version is NOT auto-uploaded ──
+        await page.evaluate("""async () => {
+          const r = offlineBuildCheckinRecord(Object.assign({}, data.find(x => x.id > 0) ? {} : {}, {
+            ts: 'x', checkin_date: new Date().toISOString(), name: '%sLEGACY', phone: '(305) 555-%s9', ticket: '9999-%s',
+            ret: '', car: '', color: null, loc: '', status: 'NO DATE', block: '', obs: '', deldate: '', client_key: 'ck_legacy_%s' }), null);
+          delete r.v; await offlineCheckinPut(r); await loadData();
+        }""" % (TAG, RUN, RUN, RUN))
+        await page.evaluate('offlineSyncPending(false)')
+        await page.wait_for_timeout(1500)
+        check(n_pax(TAG + 'LEGACY') == 0, 'older-version offline record: not uploaded automatically')
+        banner = await page.inner_text('#offlineModeBanner')
+        check('older offline check-in' in banner, 'older-version record: banner asks to review it', banner)
+        await page.evaluate('offlineSyncNow()')
+        await wait_synced(page)
+        check(n_pax(TAG + 'LEGACY') == 1, 'older-version record: uploaded once after review + Sync now')
+
         check(not errors, 'no page errors', errors)
 
         # ── 9. Two devices offline at the same time, same ticket number ──

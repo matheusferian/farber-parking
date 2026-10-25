@@ -161,6 +161,7 @@ function offlinePendingBlockError(){
 function offlineBuildCheckinRecord(payload, sms){
   var syncId = (crypto && crypto.randomUUID) ? crypto.randomUUID() : (String(Date.now())+'-'+Math.random());
   return {
+    v: 3,                       // Phase 3 record: uploads automatically
     offline_sync_id: syncId,
     payload: payload,
     createdAt: new Date().toISOString(),

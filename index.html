@@ -2577,6 +2577,7 @@ function mapOfflinePendingRow(record){
   row.deviceCode = record.deviceCode;
   row.offlineCreatedAt = record.createdAt;
   row.offlineSyncState = record.syncState;
+  row.offlineLegacy = !record.v;   // saved before automatic upload existed
   row.offlineLastError = record.lastError || null;
   return row;
 }
@@ -15070,6 +15071,8 @@ function updateOfflineModeBanner(){
       var errs = offlinePendingRecordsInData().filter(function(r){ return r.offlineSyncState==='SYNC_ERROR'; }).length;
       el.style.background= errs ? '#5a1a1a' : '#1a3a2a';
       var wait = st.nextAt && st.nextAt>Date.now() ? Math.ceil((st.nextAt-Date.now())/1000) : 0;
+      var legacyN = offlinePendingRecordsInData().filter(function(r){ return r.offlineLegacy; }).length;
+      if(legacyN && legacyN===pendingCount){ el.style.background='#7a4a12'; el.textContent='🟠 '+legacyN+' older offline check-in'+(legacyN>1?'s':'')+' on this device — review in Debug → Pending Sync, then tap Sync now.'; return; }
       el.textContent= (errs ? ('🔴 '+errs+' offline check-in'+(errs>1?'s':'')+' could not be uploaded — open Debug → Pending Sync. ') : '🟠 ')+
         pendingCount+' offline check-in'+(pendingCount>1?'s':'')+' waiting to upload'+(wait?(' · retry in '+wait+' s'):'')+'.';
     }
@@ -15175,6 +15178,10 @@ async function offlineSyncPending(manual){
         try { await resolveSmsProvider(); } catch(e){}
       }
       var todo = all.filter(function(r){
+        // A check-in saved by an older app version (before automatic upload)
+        // may already have been re-entered online by the staff: upload it only
+        // from Sync now, after a person checked the list.
+        if(!r.v && offlineIsUnsynced(r) && !manual) return false;
         if(r.syncState==='LOCAL_PENDING') return true;
         if(r.syncState==='SYNC_RETRY') return manual || !r.nextAttemptAt || Date.parse(r.nextAttemptAt) <= now;
         if(r.syncState==='SYNC_ERROR') return !!manual;
@@ -15292,6 +15299,8 @@ async function offlineSyncAckRenumber(syncId){
   await offlineSyncLoadRenumbered();
 }
 function offlineSyncNow(){
+  var legacy = offlinePendingRecordsInData().filter(function(r){ return r.offlineLegacy; });
+  if(legacy.length && !confirm(legacy.length+' check-in'+(legacy.length>1?'s were':' was')+' saved offline by an older version of the app ('+legacy.map(function(r){ return r.ticket+' '+r.name; }).join(', ')+').\n\nUpload only if '+(legacy.length>1?'they are':'it is')+' NOT already in the list (re-entered online). Upload now?')) return Promise.resolve({ skipped:'cancelled' });
   if(_offlineSync.running) showMsg('Already uploading — it will try again right after.', false);
   return offlineSyncPending(true);
 }
@@ -15457,7 +15466,8 @@ function offlineDiagRenderPendingPanel(){
       '<td>'+escapeHTML(offlineFmtTime(r.offlineCreatedAt))+'</td>'+
       '<td>'+escapeHTML(r.deviceCode||'—')+'</td>'+
       '<td>'+escapeHTML(r.offlineSyncState==='SYNC_ERROR' ? ('Not uploaded: '+(r.offlineLastError||'server refused')+' (Sync now retries)')
-                       : r.offlineSyncState==='SYNC_RETRY' ? ('Waiting to retry'+(r.offlineLastError?' — '+r.offlineLastError:'')) : 'Waiting to upload')+'</td>'+
+                       : r.offlineSyncState==='SYNC_RETRY' ? ('Waiting to retry'+(r.offlineLastError?' — '+r.offlineLastError:''))
+                       : r.offlineLegacy ? 'Older version — check it is not already in the list, then Sync now' : 'Waiting to upload')+'</td>'+
     '</tr>';
   }).join('');
 }
