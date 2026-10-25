@@ -516,8 +516,6 @@
         </label>
         <div class="sms-by">
           <span class="sms-by-dev">&#9989; AirValet texting on this device</span>
-          <label for="fSmsStaff">Texted by</label>
-          <select id="fSmsStaff" onchange="smsSetStaff(this.value)"><option value="">Choose staff&hellip;</option></select>
         </div>
       </div>
     </div>
@@ -4260,13 +4258,11 @@ async function loadSmsEnrollments(){
     (rows || []).forEach(function(r){ _smsEnrolled[r.passenger_id] = true; });
   } catch(e) { /* unknown → native for those tickets (never a double text) */ }
 }
-// ── Staff picked in the UI ("who is texting") — a label for the audit
-// trail, from today's Clock In. Kept per device for the business day.
+// ── Who is texting = the signed-in account (owner 2026-10-25): the iPad or
+// iPhone login, or a person's own login. No name to pick.
 function smsStaffName(){
-  try {
-    var v = JSON.parse(localStorage.getItem(SMS_STAFF_LS) || 'null');
-    return v && v.date === vsBusinessDateET() && v.name ? v.name : null;
-  } catch(e) { return null; }
+  var u = String(_currentUserEmail || '').split('@')[0].trim();
+  return u ? u.slice(0, 60) : null;
 }
 function smsSetStaff(name){
   try {
@@ -4293,6 +4289,7 @@ var _smsStaffResolve = null;
 // selected on this device today.
 async function smsEnsureStaff(){
   var cur = smsStaffName(); if (cur) return cur;
+  return null;
   var names = await smsTodayStaff();
   var box = document.getElementById('smsStaffList');
   box.innerHTML = names.length
@@ -4328,7 +4325,7 @@ function renderSmsDeviceCard(){
     sub = (d.cutover_at ? 'New check-ins: texts are sent by AirValet.' : 'New check-ins are not using AirValet texts yet.')
         + ' Cars checked in before keep using iPhone Messages.'
         + (d.test_only ? ' <b>Test mode</b> — only test numbers.' : '');
-    acts = '<button class="smsbtn" onclick="smsPickStaffFromCard()">' + (staff ? ('Texting as: <b>' + escapeHTML(staff) + '</b>') : 'Choose who is texting') + '</button>';
+    if (staff) sub += ' Texts are sent as <b>' + escapeHTML(staff) + '</b>.';
   } else if (d.status === 'approved') {
     cls = 'wait'; ic = '&#9208;'; t = 'Authorized — AirValet texting is paused';
     sub = 'Texts open in iPhone Messages as usual.';
