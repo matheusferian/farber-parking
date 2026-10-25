@@ -165,10 +165,11 @@
     html += passCard(p);
     if (p.lockbox && !done) html += '<button class="btn primary green" type="button" data-open="lockbox">View after-hours pickup instructions</button>';
     if (p.chat_enabled) html += '<button class="btn primary" type="button" data-open="chat">Message our valet team</button>';
+    // Gratuity as a full button too (owner 2026-10-25); after delivery it lives in the pass card.
+    if (!done && p.gratuity_url) html += '<button class="btn brass solo" type="button" data-open="gratuity">Leave a gratuity</button>';
     var rows = '';
     var wash = { REQUEST: 'Request', CONTACT: 'Ask our team', REQUESTED: 'Requested', PRICE_PENDING: 'Price coming', SCHEDULED: 'Scheduled', DONE: 'Done' }[p.car_wash];
     if (!done && wash && p.requests_enabled !== false) rows += '<button type="button" data-open="wash"><span>Car wash</span><small>' + wash + '</small></button>';
-    if (!done && p.gratuity_url) rows += '<button type="button" data-open="gratuity"><span>Gratuity</span><small>Optional</small></button>';
     if (rows) html += '<div class="list">' + rows + '</div>';
     var c = p.contacts || {};
     // Valet hours + the after-hours rule (owner 2026-10-25).

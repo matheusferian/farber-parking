@@ -59,6 +59,7 @@ main{padding:0 1.1rem 2.4rem;margin-top:-2.4rem;display:flex;flex-direction:colu
 .btn.outline{background:#fff;color:var(--blue);border:1.5px solid var(--blue)}
 .btn.quiet{background:var(--soft);color:var(--navy)}
 .btn.brass{width:100%;min-height:3.3rem;margin-top:1rem;background:var(--gold);color:var(--navy);font-size:1.02rem}
+.btn.brass.solo{margin-top:0}
 .btn:disabled{opacity:.55;cursor:default}
 .green{background:var(--green)!important}
 .list{background:var(--card);border-radius:1.1rem;padding:0 1.2rem}
