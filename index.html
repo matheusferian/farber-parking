@@ -7895,7 +7895,10 @@ async function fetchCurrentUserProfile(){
 var TAB_VISIBILITY_BY_ROLE = {
   ADMIN:      ['all','day','tasks','messages','tvmode','closingreport','report','logs','debug','useraccess'],
   IPAD_OPS:   ['all','day','tasks','messages','tvmode','closingreport','report','logs','debug'],
-  IPHONE_OPS: ['all','day','tasks','messages','tvmode'],
+  // closingreport: the daily closing is done on the operation phones (owner
+  // 2026-10-25 emergency); server RLS already allows IPHONE_OPS on
+  // daily_closing_reports.
+  IPHONE_OPS: ['all','day','tasks','messages','tvmode','closingreport'],
   MANAGER:    ['all','day','tasks','messages','tvmode','closingreport','report','logs'],
   TV_ONLY:    []
 };
