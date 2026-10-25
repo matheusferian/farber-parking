@@ -6320,7 +6320,8 @@ async function saveEntry(sendSms, printMode){
                       ret:finalDate,car:carVal,color:colorVal,loc:locVal,
                       not_returning_with_makers_air:notReturning,
                       delivery_at_customs:deliveryAtCustoms, return_operator:returnOp};
-        if(!isAscend(savedRec)){await printCustomerTicket(savedRec);}
+        // Customer copy is no longer automatic (owner 2026-10-25: the digital
+        // pass replaces it); print it on request from the car's 🧾 Customer Copy.
         await printKeyTicket(savedRec);
         await printDashboardTicket(savedRec);
       }
@@ -6421,7 +6422,6 @@ async function saveEntry(sendSms, printMode){
                     ret:finalDate,car:carVal,color:colorVal,loc:locVal,
                     not_returning_with_makers_air:notReturning,
                     delivery_at_customs:deliveryAtCustoms, return_operator:returnOp};
-      if(!isAscend(savedRecOff)){await printCustomerTicket(savedRecOff);}
       await printKeyTicket(savedRecOff);
       await printDashboardTicket(savedRecOff);
     }catch(printErr){
