@@ -17,9 +17,9 @@ button,a.btn{font:inherit}
 :focus-visible{outline:2px solid var(--blue);outline-offset:2px}
 .wrap{max-width:28rem;margin:0 auto}
 
-header.top{background:var(--navy);color:#fff;padding:calc(1.3rem + env(safe-area-inset-top)) 1.35rem 3.6rem}
-header.top img{display:block;width:9.5rem;height:auto;opacity:.95}
-header.top h1{margin:1.35rem 0 0;font-size:1.75rem;font-weight:700;line-height:1.1;letter-spacing:-.01em}
+header.top{background:var(--navy);color:#fff;padding:calc(1.5rem + env(safe-area-inset-top)) 1.35rem 3.6rem;text-align:center}
+header.top img{display:block;width:10.5rem;height:auto;margin:0 auto}
+header.top h1{margin:1.3rem 0 0;font-size:1.75rem;font-weight:700;line-height:1.1;letter-spacing:-.01em}
 main{padding:0 1.1rem 2.4rem;margin-top:-2.4rem;display:flex;flex-direction:column;gap:.9rem}
 
 /* The pass */
@@ -75,6 +75,10 @@ main{padding:0 1.1rem 2.4rem;margin-top:-2.4rem;display:flex;flex-direction:colu
 .muted{margin:0;font-size:.9rem;color:var(--mu)}
 footer{margin-top:1.2rem;padding-top:1rem;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:.25rem;font-size:.78rem;color:var(--mu)}
 footer p{margin:0}
+.operator{display:flex;align-items:center;gap:.75rem;margin-bottom:.5rem}
+.operator img{width:2.75rem;height:2.75rem;flex:none;border-radius:50%}
+.operator p{font-size:.85rem;color:var(--ink)}
+.operator a{color:var(--blue);font-weight:600}
 footer a{color:var(--mu)}
 .p0{margin:0}
 .mt{margin-top:.4rem}

@@ -52,7 +52,8 @@
     var days = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
     var vals = days.map(function (d) { return Array.isArray(h[d]) && h[d].length === 2 ? fmtTime(h[d][0]) + ' – ' + fmtTime(h[d][1]) : null; });
     if (vals.every(function (v) { return v === null; })) return '';
-    if (vals.every(function (v) { return v === vals[0]; })) return 'Open every day, ' + vals[0].replace(' – ', ' to ');
+    // Times never break inside ("5:30 PM" stays on one line).
+    if (vals.every(function (v) { return v === vals[0]; })) return 'Open every day, ' + vals[0].replace(' – ', ' to ').replace(/ (AM|PM)/g, '\u00a0$1');
     var names = { mon: 'Mon', tue: 'Tue', wed: 'Wed', thu: 'Thu', fri: 'Fri', sat: 'Sat', sun: 'Sun' };
     return 'Valet hours: ' + days.map(function (d, i) { return names[d] + ' ' + (vals[i] || 'closed'); }).join(' · ');
   }
@@ -159,7 +160,7 @@
 
   function render() {
     var p = pass, done = p.status === 'DELIVERED';
-    var html = '<header class="top"><img src="assets/makers-valet-lockup-white.png" alt="Makers Air Valet by Farber Parking" width="200" height="64">' +
+    var html = '<header class="top"><img src="assets/makers-air-valet-lockup-white.png" alt="Makers Air Valet" width="200" height="52">' +
       '<h1>' + (p.first_name ? 'Welcome, ' + esc(p.first_name) : 'Welcome') + '</h1></header><main>';
     html += passCard(p);
     if (p.lockbox && !done) html += '<button class="btn primary green" type="button" data-open="lockbox">View after-hours pickup instructions</button>';
@@ -177,7 +178,10 @@
       '<p class="fine">Arriving after hours without letting us know? We can\u2019t guarantee your car will be ready.</p></section>';
     html += '<p class="contact-line">Questions? <a href="' + esc(tel(contactValet(p))) + '">Call ' + esc(contactValet(p)) + '</a></p>' +
       (c.reservations_phone ? '<p class="fine">Flights: <a href="' + esc(tel(c.reservations_phone)) + '">Makers Air ' + esc(c.reservations_phone) + '</a></p>' : '');
-    html += '<footer><p>Makers Air Valet, Hangar 19, Fort Lauderdale' + (p.terms_published ? ' · <a href="terms.html">Valet Terms</a>' : '') + '</p>' +
+    // Operator credit (owner 2026-10-25): Farber Parking badge + office phone in the footer only.
+    html += '<footer><div class="operator"><img src="assets/farber-parking-badge.png" alt="Farber Parking" width="44" height="44">' +
+      '<div><p>Operated by Farber Parking</p><p><a href="tel:+15617740494">(561) 774-0494</a></p></div></div>' +
+      '<p>Makers Air Valet, Hangar 19, Fort Lauderdale' + (p.terms_published ? ' · <a href="terms.html">Valet Terms</a>' : '') + '</p>' +
       '<p><a href="sms.html">SMS program</a> · <a href="privacy.html">Privacy</a></p></footer></main>';
     app.innerHTML = html;
     Array.prototype.forEach.call(app.querySelectorAll('[data-open]'), function (b) {
