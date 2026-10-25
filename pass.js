@@ -133,6 +133,13 @@
     var html = '<header class="top"><img src="assets/makers-valet-lockup-white.png" alt="Makers Air Valet by Farber Parking" width="200" height="64">' +
       '<h1>' + name + '</h1></header><main>';
     html += statusCard(p) + pickupBlock(p);
+    // After delivery: the note the delivered text promises + Gratuity up front.
+    if (p.status === 'DELIVERED') {
+      html += '<section class="card note" aria-label="A note from your valet team"><p class="lbl">A note from your valet team</p>' +
+        '<p class="ptext">Thank you for trusting us with your car' + (p.first_name ? ', ' + esc(p.first_name) : '') + '. It was a pleasure taking care of it. Safe travels, and see you on your next trip!</p>' +
+        (p.gratuity_url ? '<button class="btn primary gold" type="button" data-open="gratuity">Leave a gratuity for the team</button><p class="soft-note">Always optional.</p>' : '') +
+        '</section>';
+    }
     if (p.lockbox && p.status !== 'DELIVERED') {
       html += '<button class="btn primary green" type="button" data-open="lockbox">View after-hours pickup instructions</button>';
     }
@@ -145,7 +152,7 @@
     var rows = '';
     var wash = { REQUEST: 'Request', CONTACT: 'Ask our team', REQUESTED: 'Requested', PRICE_PENDING: 'Price coming', SCHEDULED: 'Scheduled', DONE: 'Done' }[p.car_wash];
     if (wash && p.requests_enabled !== false) rows += '<button type="button" data-open="wash"><span>Car wash</span><small>' + wash + '</small></button>';
-    if (p.gratuity_url) rows += '<button type="button" data-open="gratuity"><span>Gratuity</span><small>Optional</small></button>';
+    if (p.gratuity_url && p.status !== 'DELIVERED') rows += '<button type="button" data-open="gratuity"><span>Gratuity</span><small>Optional</small></button>';
     if (rows) html += '<div class="list">' + rows + '</div>';
     var c = p.contacts || {};
     if (p.chat_enabled) html += '<button class="btn primary chatbtn" type="button" data-open="chat">Message our valet team</button>';

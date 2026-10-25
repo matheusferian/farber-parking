@@ -179,13 +179,17 @@ export const TEMPLATES: Record<MessageType, Template> = {
   // Delivery confirmation (replaces TIP_YES / TIP_NO / CUSTOMS_GRATUITY):
   // one operational thank-you, never a gratuity link.
   VEHICLE_DELIVERED: {
-    type: 'VEHICLE_DELIVERED', status: 'PENDING_APPROVAL', version: null, freeText: false, allowedRoles: OPS,
+    // Owner 2026-10-25: one text for everyone (tip or not), sent at delivery,
+    // with the valet pass link (a thank-you note + Gratuity button). That
+    // link ends 7 days after delivery. 156 GSM-7 chars with the link = 1 segment.
+    type: 'VEHICLE_DELIVERED', status: 'APPROVED', version: 'delivered-2026-10-25', freeText: false, allowedRoles: OPS,
+    needsPassLink: true,
     defaultEventRef: () => 'delivered',
     guard: (p) => (p.status !== 'DELIVERED' ? 'NOT_DELIVERED' : null),
-    render: () => ({
-      variant: 'DELIVERED',
-      body: `${SENDER}: Your vehicle has been delivered. Thank you for choosing us. We look forward to your next trip!`,
-    }),
+    render: (_p, env) => {
+      if (!env.passUrl) throw new TemplateError('PASS_LINK_MISSING', 'passenger link not available');
+      return { variant: 'DELIVERED', body: `${SENDER}: Your car has been delivered. Thank you for choosing us! Your valet team left you a note: ${env.passUrl}` };
+    },
   },
   // Sent by staff (with preview) after approving a passenger's return change.
   RETURN_UPDATED: {

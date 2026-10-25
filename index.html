@@ -6786,6 +6786,16 @@ async function deliverWithTip(id, deliveryType, tipReceived){
     loading(false);
   }
   if(deliveryOk){
+    // AirValet-texting cars (owner 2026-10-25): one delivered text for everyone,
+    // sent at once (no tip choice, no preview) — it carries the valet pass link
+    // with the thank-you note and Gratuity. Older cars keep the flow below.
+    if(smsRouteFor(r.id)==='server'){
+      sendPassengerSms({passengerId:r.id, passengerName:r.name, phone:r.phone, ticket:r.ticket,
+        templateKey:'TIP_NO', messageType:SMS_MESSAGE_TYPES.TIP_NO, _previewed:true,
+        vehicle:formatVehicleLine(r), body:buildTipSms(r, tipReceived), // body = iPhone fallback only
+        metadata:{trigger:'Delivered text (automatic)'}});
+      return deliveryOk;
+    }
     // Customs keeps its own Welcome Back → Gratuity sequence — never open
     // the generic tip SMS on top of it (would duplicate the gratuity ask).
     if(isCustoms){

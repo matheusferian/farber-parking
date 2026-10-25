@@ -62,12 +62,13 @@ const PASS = 'https://airvalet.farberos.com/a#Ab3dE6gH9jK2mN4pQ'; // 17-char tok
 const ENV = { passUrl: PASS };
 const seg = (b: string) => countSegments(b);
 
-Deno.test('templates: REPLY, CHECK_IN (D1) and VEHICLE_READY (owner 2026-10-25) are APPROVED; every other template refuses', () => {
+Deno.test('templates: REPLY, CHECK_IN (D1), VEHICLE_READY and VEHICLE_DELIVERED (owner 2026-10-25) are APPROVED; every other template refuses', () => {
   assertEquals(Object.keys(TEMPLATES).sort(), ['AFTER_HOURS_CONFIRMED', 'CHECK_IN', 'CUSTOM_OPERATIONAL', 'REPLY', 'RETURN_CONFIRMATION', 'RETURN_UPDATED', 'VEHICLE_DELIVERED', 'VEHICLE_READY']);
   for (const t of Object.values(TEMPLATES)) {
     if (t.type === 'REPLY') { assertEquals(t.status, 'APPROVED'); assert(t.freeText); continue; }
     if (t.type === 'CHECK_IN') { assertEquals(t.status, 'APPROVED'); assertEquals(t.version, 'checkin-2026-10-25-golive'); continue; }
     if (t.type === 'VEHICLE_READY') { assertEquals(t.status, 'APPROVED'); assertEquals(t.version, 'ready-2026-10-25'); continue; }
+    if (t.type === 'VEHICLE_DELIVERED') { assertEquals(t.status, 'APPROVED'); assertEquals(t.version, 'delivered-2026-10-25'); continue; }
     assertEquals(t.status, 'PENDING_APPROVAL');
     assertEquals(codeOf(() => renderMessage(t, P({ status: 'DELIVERED', delivery_type: 'CUSTOMS', customs_welcome_sent: true, return_operator: 'MAKERS' }), ENV, 'x')), 'TEMPLATE_NOT_APPROVED');
   }
@@ -184,7 +185,7 @@ Deno.test('return location derived from the return operator only', () => {
   assertEquals(returnLocation('OTHER'), null); assertEquals(returnLocation(null), null);
   assertEquals(departureOperator('A-0714-1'), 'ASCEND'); assertEquals(departureOperator('0714-3'), 'MAKERS'); assertEquals(departureOperator(null), 'MAKERS');
 });
-Deno.test('VEHICLE_DELIVERED: one plain confirmation, never a gratuity / tip link; no Customs gratuity type', () => {
+Deno.test('VEHICLE_DELIVERED: one text for everyone (tip or not) with the valet pass link only, 1 segment; no Customs gratuity type', () => {
   assertEquals(codeOf(() => renderMessage(A.VEHICLE_DELIVERED, P(), ENV)), 'NOT_DELIVERED');
   const bodies = [
     renderMessage(A.VEHICLE_DELIVERED, P({ status: 'DELIVERED', delivery_type: 'NORMAL', tip_received: true }), ENV),
@@ -193,9 +194,13 @@ Deno.test('VEHICLE_DELIVERED: one plain confirmation, never a gratuity / tip lin
   ];
   for (const b of bodies) {
     assertEquals(b.variant, 'DELIVERED');
-    assertFalse(/https?:|www\.|stripe|gratuity|tip\b|generosity/i.test(b.body), b.body);
+    assertStringIncludes(b.body, PASS);
+    assertEquals(b.body.match(/https?:\/\//g)!.length, 1);
+    assertFalse(/stripe|buy\.|pay\.|gratuity|tip\b/i.test(b.body), b.body);
+    assertEquals(seg(b.body), 1);
   }
   assertEquals(new Set(bodies.map((b) => b.body)).size, 1);
+  assertEquals(A.VEHICLE_DELIVERED.needsPassLink, true);
   assertFalse('CUSTOMS_GRATUITY' in TEMPLATES);
 });
 Deno.test('RETURN_CONFIRMATION: asks Makers Air or Ascend while the return is unconfirmed (1 segment)', () => {
