@@ -4616,8 +4616,14 @@ function renderThread(passengerId, keepComposer){
       return '<div class="ibx-msg in"><div class="ibx-bub">' + escapeHTML(m.body || '') + '</div>' +
         '<div class="ibx-meta">' + (m.provider === 'portal' ? '&#128172; ' : '') + escapeHTML(ibxTime(m.received_at || m.created_at)) + '</div></div>' + sys;
     }
-    var openInfo = (m.id === lastCheckin && opened && opened.first_opened_at)
-      ? ' · <span class="ibx-st ok">link opened</span>' : '';
+    // Welcome text: did the passenger tap the link? Chat replies: did they open
+    // the valet pass after the reply (SMS itself has no read receipts).
+    var openInfo = '';
+    if (m.id === lastCheckin) openInfo = (opened && opened.first_opened_at)
+      ? ' · <span class="ibx-st ok">&#128279; Link opened ' + escapeHTML(ibxTime(opened.first_opened_at)) + (opened.last_opened_at && ibxTime(opened.last_opened_at) !== ibxTime(opened.first_opened_at) ? ' · last seen ' + escapeHTML(ibxTime(opened.last_opened_at)) : '') + '</span>'
+      : ' · <span class="ibx-st">&#128279; Link not opened yet</span>';
+    else if (m.provider === 'portal') openInfo = (opened && opened.last_opened_at && new Date(opened.last_opened_at) > new Date(m.created_at))
+      ? ' · <span class="ibx-st ok">Seen</span>' : ' · <span class="ibx-st">Not seen yet</span>';
     return '<div class="ibx-msg out' + (m.status === 'blocked' ? ' blocked' : '') + '"><div class="ibx-bub">' + escapeHTML(m.body || '') + '</div>' +
       '<div class="ibx-meta">' + escapeHTML(m.sent_by_name || 'AirValet') + ' · ' + escapeHTML(ibxTime(m.created_at)) + ' · ' + (m.provider === 'portal' ? '&#128172; chat' : smsStatusHtml(m)) + openInfo + '</div></div>';
   }).join('');
