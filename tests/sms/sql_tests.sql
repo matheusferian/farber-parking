@@ -674,8 +674,12 @@ select pg_temp.check(public.airvalet_sms_resolve_alert((select message_id from u
 select pg_temp.check(public.airvalet_sms_resolve_alert((select message_id from u2), 'marked_not_sent') = 'marked_not_sent', 'unconfirmed send marked NOT received by ops');
 -- Devices: request from an ops device; only ADMIN approves; status per key.
 create temp table dr1 as select * from public.airvalet_sms_device_request('phone_device_key_dddddddddddddddddddddddddddddddddddddddd', 'iPhone Ana', 'Mozilla/5.0 (iPhone)');
-select pg_temp.check((select status = 'pending' from dr1), 'ops device requests texting → pending (not usable yet)');
-select pg_temp.check((select status = 'pending' and label = 'iPhone Ana' and not sending_enabled is null from public.airvalet_sms_device_status('phone_device_key_dddddddddddddddddddddddddddddddddddddddd')), 'device_status: this device is pending');
+-- 20261029 (owner 2026-10-25): devices requested by the ADMIN / iPad / iPhone
+-- logins are approved at once. Without that migration they wait for an ADMIN.
+create temp table dr1x as select case when position('IPAD_OPS' in pg_get_functiondef('public.airvalet_sms_device_request(text,text,text)'::regprocedure)) > 0
+                                      then 'approved' else 'pending' end as expected;
+select pg_temp.check((select status = (select expected from dr1x) from dr1), 'ops (iPad) device requests texting → approved at once with trusted logins (20261029), otherwise pending');
+select pg_temp.check((select status = (select expected from dr1x) and label = 'iPhone Ana' and not sending_enabled is null from public.airvalet_sms_device_status('phone_device_key_dddddddddddddddddddddddddddddddddddddddd')), 'device_status: this device is approved (trusted login) or pending');
 select pg_temp.check((select status = 'unknown' from public.airvalet_sms_device_status('never_seen_key_' || repeat('e', 40))), 'device_status: unknown key → unknown (nothing revealed)');
 do $$ begin
   perform public.airvalet_sms_device_decide((select device_id from dr1), 'approved');
@@ -773,7 +777,15 @@ select pg_temp.check((select bool_and(state = 'expired' and ticket is null and f
     select * from pg_temp.pv('0714-3') union all select * from pg_temp.pv('A-0714-1') union all select * from pg_temp.pv('07143')) x),
   'ticket number is NOT a key: a ticket instead of the token returns nothing');
 select pg_temp.check(not exists (select 1 from pg_proc where proname like 'airvalet_pass%' and pg_get_function_arguments(oid) ilike '%ticket%'), 'no pass function accepts a ticket argument');
-select pg_temp.check(pg_temp.mint(1003) is null, 'no link for a service already DELIVERED');
+-- 20261030 (delivered week, owner 2026-10-25): a DELIVERED service may get a
+-- link that expires 7 days later (the delivered text carries it). Before it: none.
+create temp table dlx as select position('''DELIVERED''' in pg_get_functiondef('public.airvalet_pass_mint(bigint)'::regprocedure)) > 0 as week;
+create temp table dl1 as select pg_temp.mint(1003) as t;
+select pg_temp.check(case when (select week from dlx)
+    then (select t is not null from dl1) and exists (select 1 from public.airvalet_pass_links l where l.passenger_id = 1003 and l.revoked_at is null
+                                                     and l.expires_at between now() + interval '6 days 23 hours' and now() + interval '7 days 1 minute')
+    else (select t is null from dl1) end,
+  'DELIVERED service: link only with the 7-day end (20261030), otherwise no link');
 select pg_temp.check(pg_temp.mint(999999) is null, 'no link for an unknown passenger');
 update public.passengers set return_operator = 'ASCEND' where id = 1001;
 select pg_temp.check((select return_location from pg_temp.pv((select t from pl))) = 'CUSTOMS', 'page follows the changed return immediately (Ascend → Customs)');
@@ -788,7 +800,7 @@ select pg_temp.check((select bool_and(to_jsonb(y) = (select j from uni)) from (
     union all select * from pg_temp.pv('AAAAAAAAAAAA') union all select * from pg_temp.pv((select t from toks where extensions.digest(t, 'sha256') <> (select token_hash from public.airvalet_pass_links where passenger_id = 1004 and revoked_at is null) limit 1))) y)
   and (select j->>'state' from uni) = 'expired', 'unknown / malformed / empty / old-format / rotated → the same "expired" answer');
 
--- Validity: first DELIVERED fixes expires_at = delivery + 3h, ONCE.
+-- Validity after delivery: 7 days (20261030) or, before it, delivery + 3h ONCE.
 insert into public.passengers (id, name, phone, ticket, status) values
   (9101, 'Val One', '3055559101', '1401-1', 'PENDING'),
   (9102, 'Val Two', '3055559102', '1401-2', 'NO DATE'),
@@ -796,6 +808,26 @@ insert into public.passengers (id, name, phone, ticket, status) values
   (9104, 'Val Four', '3055559104', '1401-4', 'PENDING');
 create temp table vt as select id, pg_temp.mint(id) t from unnest(array[9101, 9102, 9103, 9104]) id;
 select pg_temp.check((select bool_and(state = 'ok') from vt, pg_temp.pv(vt.t)), 'PENDING and NO DATE services: link active');
+select position('7 days' in pg_get_functiondef('public.airvalet_pass_on_passenger_change()'::regprocedure)) > 0 as delivered_week \gset
+\if :delivered_week
+-- 20261030 (owner 2026-10-25): the link ends 7 days after delivery (was 3 hours),
+-- undoing the delivery clears that end, and the delivered text may carry a new
+-- link that also ends 7 days after delivery. Covered in depth by
+-- tests/portal/sql_delivered_week_tests.sql.
+update public.passengers set status = 'DELIVERED', checkout_date = now() where id = 9101;
+select pg_temp.check((select expires_at between now() + interval '6 days 23 hours' and now() + interval '7 days 1 minute' from public.airvalet_pass_links where passenger_id = 9101 and revoked_at is null), 'DELIVERED → link ends 7 days after delivery (20261030)');
+select pg_temp.check((select state = 'ok' and delivered and expires_at is not null from pg_temp.pv((select t from vt where id = 9101))), 'after delivery: page still available (delivered view)');
+update public.passengers set status = 'DELIVERED', checkout_date = now() where id = 9102;
+update public.airvalet_pass_links set expires_at = now() - interval '1 second' where passenger_id = 9102 and revoked_at is null;   -- 7 days later
+select pg_temp.check((select state from pg_temp.pv((select t from vt where id = 9102))) = 'expired', '7 days after delivery → "This valet link has expired."');
+update public.passengers set status = 'PENDING', checkout_date = null where id = 9101;              -- undo delivery: the car is parked again
+select pg_temp.check((select expires_at is null from public.airvalet_pass_links where passenger_id = 9101 and revoked_at is null), 'undo delivery clears the end date (link works while parked)');
+update public.passengers set status = 'DELIVERED', checkout_date = now() + interval '5 days' where id = 9103;
+select pg_temp.check((select expires_at <= now() + interval '7 days 1 minute' from public.airvalet_pass_links where passenger_id = 9103 and revoked_at is null), 'future checkout_date cannot extend the window (anchored at now)');
+update public.passengers set status = 'DELIVERED', checkout_date = now() where id = 9101;
+create temp table nl as select pg_temp.mint(9101) as t;
+select pg_temp.check((select t is not null from nl) and (select expires_at between now() + interval '6 days 23 hours' and now() + interval '7 days 1 minute' from public.airvalet_pass_links where passenger_id = 9101 and revoked_at is null), 'a link minted after delivery also ends 7 days after delivery');
+\else
 create temp table d1 as select now() - interval '2 hours 59 minutes' as at;
 update public.passengers set status = 'DELIVERED', checkout_date = (select at from d1) where id = 9101;
 select pg_temp.check((select expires_at = (select at from d1) + interval '3 hours' from public.airvalet_pass_links where passenger_id = 9101 and revoked_at is null), 'DELIVERED → expires_at = delivery time + exactly 3 hours');
@@ -813,6 +845,7 @@ select pg_temp.check((select state from pg_temp.pv((select t from vt where id = 
 update public.passengers set status = 'DELIVERED', checkout_date = now() + interval '5 days' where id = 9103;
 select pg_temp.check((select expires_at <= now() + interval '3 hours' from public.airvalet_pass_links where passenger_id = 9103 and revoked_at is null), 'future checkout_date cannot extend the window (anchored at now)');
 select pg_temp.check(pg_temp.mint(9101) is null, 'no new link can be minted after delivery');
+\endif
 
 -- Immediate kills: archive, phone change, staff revoke.
 update public.passengers set status = 'ARCHIVED' where id = 9103;
@@ -950,7 +983,11 @@ reset role;
 select pg_temp.check((select string_agg(action, ',' order by id) from public.airvalet_sms_audit where id > (select m from aud0)) =
   'DEVICE_REQUESTED,DEVICE_APPROVED,DEVICE_REVOKED,DEVICE_RENAMED,TEXTING_OFF,TEST_PHONES_CHANGED,LIMITS_CHANGED,CHECKINS_STOPPED,CHECKINS_STARTED',
   'audit trail records every device decision and program change, in order');
-select pg_temp.check((select actor = '00000000-0000-0000-0000-0000000000a1' and actor_role = 'ADMIN' from public.airvalet_sms_audit where id > (select m from aud0) and action = 'DEVICE_APPROVED'), 'audit: who approved (login + role)');
+-- With 20261029 the iPad login's own request is approved at once (actor = the iPad login).
+select pg_temp.check((select case when position('IPAD_OPS' in pg_get_functiondef('public.airvalet_sms_device_request(text,text,text)'::regprocedure)) > 0
+                                  then actor = '00000000-0000-0000-0000-0000000000c1' and actor_role = 'IPAD_OPS'
+                                  else actor = '00000000-0000-0000-0000-0000000000a1' and actor_role = 'ADMIN' end
+                      from public.airvalet_sms_audit where id > (select m from aud0) and action = 'DEVICE_APPROVED'), 'audit: who approved (login + role; trusted iPad login since 20261029)');
 select pg_temp.check((select actor_role = 'IPAD_OPS' and device_label = 'Audit iPhone' from public.airvalet_sms_audit where id > (select m from aud0) and action = 'DEVICE_REQUESTED'), 'audit: who requested, which device');
 select pg_temp.check((select details = '{"last4": ["0123"], "count": 1}'::jsonb from public.airvalet_sms_audit where id > (select m from aud0) and action = 'TEST_PHONES_CHANGED'), 'audit: test numbers only as count + last 4 digits');
 select pg_temp.check((select (details -> 'max_messages_day' ->> 1) = '250' and (details -> 'max_messages_day' ->> 0) <> '250' from public.airvalet_sms_audit where id > (select m from aud0) and action = 'LIMITS_CHANGED'), 'audit: limit changes keep old → new');
