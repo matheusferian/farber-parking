@@ -13,7 +13,8 @@
   var form = {};           // current sheet state
   var VALET_PHONE_FALLBACK = '(954) 352-1010'; // printed on the customer ticket
   // Intro film (cine/cinematic-v1.js): one switch; false = never plays.
-  var CINEMATIC_ON = true, CINEMATIC_VERSION = 'p3', cineTried = false;
+  // OFF 2026-10-26 (owner): p3 films carry a 'PROVISIONAL MEDIA · NOT FINAL' badge.
+  var CINEMATIC_ON = false, CINEMATIC_VERSION = 'p3', cineTried = false;
 
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
