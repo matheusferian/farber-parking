@@ -360,14 +360,21 @@ async def main():
                 await page.wait_for_function("getComputedStyle(document.getElementById('offlineUpdateBanner')).display !== 'none'", timeout=20000)
                 check(True, 'update: "new version" banner shown with records pending')
                 check(await unsynced(page) == 2, 'update: the 2 records are still pending before reload')
-                await page.evaluate('window.__oldDoc = 1; offlineApplyUpdate()')
-                t0 = time.time()
+                SWSTATE = '''(async () => { const r = await navigator.serviceWorker.getRegistration(); const s = w => w ? (w.state + ' ' + (w.scriptURL||'').split('/').pop()) : null;
+                  return JSON.stringify({ oldDoc: window.__oldDoc === 1, controller: s(navigator.serviceWorker.controller), active: s(r && r.active), waiting: s(r && r.waiting), installing: s(r && r.installing),
+                    swApp: (typeof _offlineSw !== 'undefined') ? { reloading: _offlineSw.reloading, updateAvailable: _offlineSw.updateAvailable, hasWaiting: !!(_offlineSw.registration && _offlineSw.registration.waiting) } : null,
+                    caches: await caches.keys() }); })()'''
+                print('     DEBUG before Reload now:', await page.evaluate(SWSTATE))
+                await page.evaluate('window.__oldDoc = 1; window.__ccEvents = 0; navigator.serviceWorker.addEventListener("controllerchange", () => { window.__ccEvents++; }); offlineApplyUpdate()')
+                t0 = time.time(); reloaded = False
                 while time.time() - t0 < 30:   # the new version reloads the page (controllerchange)
                     try:
-                        if not await page.evaluate('window.__oldDoc === 1'): break
+                        if not await page.evaluate('window.__oldDoc === 1'): reloaded = True; break
                     except Exception:
                         pass
                     await asyncio.sleep(0.5)
+                if not reloaded:
+                    print('     DEBUG no reload after 30 s:', await page.evaluate(SWSTATE), 'controllerchange events:', await page.evaluate('window.__ccEvents'))
                 await page.wait_for_load_state('load'); await page.wait_for_timeout(3000)
                 await login(page, app=APP2, goto=False)
                 await wait_synced(page)
