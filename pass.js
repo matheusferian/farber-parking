@@ -365,15 +365,18 @@
   async function sendChat() {
     var ta = document.getElementById('chatText'); if (!ta || form.busy) return;
     var text = ta.value.trim(); if (!text) return;
+    // Same key on retries of this exact text → stored once. Edited after a
+    // failed try → new key, or the server would keep only the first text.
+    if (form.ckText != null && form.ckText !== text) form.ck = clientKey();
+    form.ckText = text;
     form.draft = ta.value; form.busy = true; form.err = null; drawSheet();
     try {
-      // Same key on retries of this draft → the message is stored once.
       var r = await post({ t: TOKEN, action: 'send', body: text, ck: form.ck });
       form.busy = false;
       var res = r.data && r.data.result;
       if (r.data && r.data.state === 'expired') { closeSheet(); return load(); }
       if (r.status === 429 || res === 'LIMITED') form.err = 'Too many messages. Please wait a little or call our valet team.';
-      else if (res === 'OK') { form.draft = ''; form.ck = clientKey(); await loadChat(); }
+      else if (res === 'OK') { form.draft = ''; form.ck = clientKey(); form.ckText = null; await loadChat(); }
       else if (res === 'UNAVAILABLE') form.err = 'Chat is not available right now. Please call our valet team.';
       else form.err = 'Could not send. Please try again.';
     } catch (e) { form.busy = false; form.err = 'No connection. Your message was not sent yet; please try again.'; }

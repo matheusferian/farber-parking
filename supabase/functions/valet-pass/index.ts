@@ -41,15 +41,6 @@ const MAX_BODY = 2048;
 const enc = new TextEncoder();
 async function clientKey(req: Request): Promise<string | null> {
   const ip = clientAddress(req.headers);  // audit F-2: CF-Connecting-IP when present, else first XFF
-  // Header diagnostics on request only (x-airvalet-diag: 1): which source exists
-  // and how they relate. Never logs an address.
-  if (req.headers.get('x-airvalet-diag') === '1') {
-    const cf = (req.headers.get('cf-connecting-ip') || '').trim();
-    const hops = (req.headers.get('x-forwarded-for') || '').split(',').map((s) => s.trim()).filter(Boolean);
-    console.log(JSON.stringify({ event: 'valet_pass_ip_diag', cf_present: !!cf, xff_hops: hops.length,
-      cf_eq_first_xff: !!cf && cf === hops[0], cf_eq_last_xff: !!cf && cf === hops[hops.length - 1],
-      real_ip_present: !!req.headers.get('x-real-ip'), used: cf ? 'cf' : hops.length ? 'xff_first' : 'none' }));
-  }
   if (!ip) return null;
   const salt = Deno.env.get('AIRVALET_PASS_RATE_SALT') || Deno.env.get('SUPABASE_URL') || 'airvalet';
   const d = new Uint8Array(await crypto.subtle.digest('SHA-256', enc.encode(salt + '|' + ip)));
@@ -107,14 +98,6 @@ Deno.serve(async (req) => {
   const get = (k: string) => Deno.env.get(k);
   const admin = createClient(get('SUPABASE_URL')!, get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false } });
   const client = await clientKey(req);
-  // Diagnostics (x-airvalet-diag: 1): echo only a short hash of the address the
-  // function sees, so the caller can compare it with its own public IP.
-  if (req.headers.get('x-airvalet-diag') === '1') {
-    const ip = clientAddress(req.headers) || '';
-    const d = new Uint8Array(await crypto.subtle.digest('SHA-256', enc.encode(ip)));
-    headers['X-Airvalet-Diag'] = Array.from(d.slice(0, 4), (b) => b.toString(16).padStart(2, '0')).join('') + (req.headers.get('cf-connecting-ip') ? ';cf' : ';xff');
-    headers['Access-Control-Expose-Headers'] = 'X-Airvalet-Diag';
-  }
 
   if (body.action === 'request') {
     const kind = body.kind === 'RETURN_CHANGE' || body.kind === 'CAR_WASH' ? body.kind : '';

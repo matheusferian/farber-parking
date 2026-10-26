@@ -105,7 +105,12 @@ async function profileRun(engine, label, opts) {
   const tookMs = Date.now() - t0;
   const r = await page.evaluate(() => ({ id: _ci.id, ticket: _ci.ticket }));
   check(!!r.id, `${tag} ticket created by touch flow (${tookMs} ms incl. 3 s undo)`, r);
-  check(sql(`select count(*) from airvalet_sms_messages where passenger_id = ${r.id} and message_type = 'CHECK_IN'`) === '1', `${tag} one welcome`);
+  // The welcome is requested right after the card appears: wait for it, then make sure no second one follows.
+  const nWelcome = () => sql(`select count(*) from airvalet_sms_messages where passenger_id = ${r.id} and message_type = 'CHECK_IN'`);
+  for (let i = 0; i < 20 && nWelcome() === '0'; i++) await page.waitForTimeout(250);
+  await page.waitForTimeout(1500);
+  const nw = nWelcome();
+  check(nw === '1', `${tag} one welcome`, nw);
   await tapOrClick(page, '.ci2-sec-h >> text=Hangar', touch); await tapOrClick(page, '#ci2Hangars button >> nth=0', touch);
   await tapOrClick(page, '#ci2Created [data-open="ci2SVeh"]', touch);
   await tapOrClick(page, '#ci2Makes button >> text=Toyota', touch); await tapOrClick(page, '#ci2Models button >> text=Sienna', touch); await tapOrClick(page, '#ci2Colors button >> text=Silver', touch);

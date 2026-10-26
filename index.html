@@ -419,7 +419,7 @@
     </div>
     <div class="fr full">
       <div class="fg">
-        <label>Returning with</label>
+        <label for="fReturnOp">Returning with</label>
         <select id="fReturnOp" onchange="onReturnOpPicked()" style="width:100%">
           <option value="MAKERS">Makers Air</option>
           <option value="ASCEND">Ascend</option>
@@ -430,12 +430,12 @@
     </div>
     <div class="fi" id="freqInfo"></div>
     <div class="fr two">
-      <div class="fg"><label>Full Name <span style="color:var(--red)">*</span></label><div class="ac-wrap"><input type="text" id="fName" oninput="this.value=this.value.toUpperCase();chkFreq();acSearch(this.value)" autocomplete="off" placeholder="" style="text-transform:uppercase;width:100%"><div class="ac-drop" id="acDrop"></div></div></div>
-      <div class="fg"><label>Phone <span style="color:var(--red)">*</span></label><input type="tel" inputmode="numeric" pattern="[0-9]*" id="fPhone" oninput="fmtPhoneInput(this);chkFreq()" placeholder="" maxlength="14"></div>
+      <div class="fg"><label for="fName">Full Name <span style="color:var(--red)">*</span></label><div class="ac-wrap"><input type="text" id="fName" oninput="this.value=this.value.toUpperCase();chkFreq();acSearch(this.value)" autocomplete="off" placeholder="" style="text-transform:uppercase;width:100%"><div class="ac-drop" id="acDrop"></div></div></div>
+      <div class="fg"><label for="fPhone">Phone <span style="color:var(--red)">*</span></label><input type="tel" inputmode="numeric" pattern="[0-9]*" id="fPhone" oninput="fmtPhoneInput(this);chkFreq()" placeholder="" maxlength="14"></div>
     </div>
     <div id="erWarn" class="er-warn" style="display:none;">⚠️ HEADS UP: This passenger had an Early Return before. Confirm the return date carefully.</div>
     <div class="fr two">
-      <div class="fg"><label>Ticket # <span style="color:var(--red)">*</span></label><input type="text" id="fTicket" placeholder="" autocomplete="off" style="font-family:'JetBrains Mono',monospace"></div>
+      <div class="fg"><label for="fTicket">Ticket # <span style="color:var(--red)">*</span></label><input type="text" id="fTicket" placeholder="" autocomplete="off" style="font-family:'JetBrains Mono',monospace"></div>
       <div class="fg"><label>Return Date <span style="color:var(--red)" id="retRequired">*</span></label>
         <input type="date" id="fReturn" style="width:100%;background:var(--s2);border:1px solid var(--b);border-radius:10px;padding:11px 14px;font-size:16px;color:var(--tx);outline:none;font-family:'Sora',sans-serif;box-sizing:border-box;">
       </div>
@@ -482,7 +482,7 @@
       </div>
     </div>
     <div class="fr full">
-      <div class="fg"><label>Status</label>
+      <div class="fg"><label for="fStatus">Status</label>
         <select id="fStatus" onchange="onStatusChange(this.value)">
           <option value="PENDING">PENDING</option>
           <option value="NO DATE">NO DATE</option>
@@ -497,7 +497,7 @@
       </div>
     </div>
     <div class="fr full">
-      <div class="fg"><label>OBS</label><input type="text" id="fObs" oninput="this.value=this.value.toUpperCase()" placeholder="" style="text-transform:uppercase"></div>
+      <div class="fg"><label for="fObs">OBS</label><input type="text" id="fObs" oninput="this.value=this.value.toUpperCase()" placeholder="" style="text-transform:uppercase"></div>
     </div>
     <div class="fr full">
       <div class="fg">
@@ -561,8 +561,8 @@
         </div>
       </div>
       <div class="fr two">
-        <div class="fg"><label>Vehicle Model</label><input type="text" id="rlVehicle" placeholder="" autocomplete="off"></div>
-        <div class="fg"><label>Color</label><input type="text" id="rlColor" placeholder="" autocomplete="off"></div>
+        <div class="fg"><label for="rlVehicle">Vehicle Model</label><input type="text" id="rlVehicle" placeholder="" autocomplete="off"></div>
+        <div class="fg"><label for="rlColor">Color</label><input type="text" id="rlColor" placeholder="" autocomplete="off"></div>
       </div>
       <div class="fr full">
         <div class="fg"><label>Notes <span style="color:var(--mu);font-weight:400">(optional)</span></label>
@@ -586,8 +586,8 @@
       <div class="vs-clock-in-card">
         <div class="vs-sec-title"><i class="fa-solid fa-right-to-bracket"></i> CLOCK IN</div>
         <div class="fr two">
-          <div class="fg"><label>Name <span style="color:var(--red)">*</span></label><input type="text" id="vsName" placeholder="Valet name" style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase()"></div>
-          <div class="fg"><label>Arrival</label><input type="time" id="vsTimeIn" step="60"></div>
+          <div class="fg"><label for="vsName">Name <span style="color:var(--red)">*</span></label><input type="text" id="vsName" placeholder="Valet name" style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase()"></div>
+          <div class="fg"><label for="vsTimeIn">Arrival</label><input type="time" id="vsTimeIn" step="60"></div>
         </div>
         <button class="cr-btn-primary" onclick="vsClockIn()" style="margin-top:8px"><i class="fa-solid fa-right-to-bracket"></i> Clock In</button>
       </div>
@@ -610,7 +610,7 @@
     <h2 style="font-size:18px">Clock Out</h2>
     <p class="msub">Record departure time</p>
     <div style="font:800 16px 'Sora',sans-serif;color:var(--navy);margin-bottom:12px" id="vsClockOutName"></div>
-    <div class="fg"><label>Departure</label><input type="time" id="vsTimeOut" step="60"></div>
+    <div class="fg"><label for="vsTimeOut">Departure</label><input type="time" id="vsTimeOut" step="60"></div>
     <button class="cr-btn-primary" onclick="vsConfirmClockOut()" style="margin-top:12px"><i class="fa-solid fa-right-from-bracket"></i> Clock Out</button>
   </div>
 </div>
@@ -1184,7 +1184,7 @@ https://buy.stripe.com/8x214mccK0uh9TjgIM6Vq00</div>
       <input type="password" id="uaCreatePassword" placeholder="At least 8 characters" autocomplete="new-password">
     </div>
     <div class="fg">
-      <label>Role</label>
+      <label for="uaCreateRole">Role</label>
       <select id="uaCreateRole" style="width:100%;background:var(--s);border:1px solid var(--b);border-radius:8px;padding:9px 10px;color:var(--tx);font-size:13px;font-family:'Sora',sans-serif;outline:none;">
         <option value="ADMIN">ADMIN</option>
         <option value="IPAD_OPS" selected>IPAD_OPS</option>
@@ -2577,7 +2577,7 @@ function mapOfflinePendingRow(record){
   row.deviceCode = record.deviceCode;
   row.offlineCreatedAt = record.createdAt;
   row.offlineSyncState = record.syncState;
-  row.offlineLegacy = !record.v;   // saved before automatic upload existed
+  row.offlineLegacy = record.v !== 3;   // saved before automatic upload existed
   row.offlineLastError = record.lastError || null;
   return row;
 }
@@ -4479,7 +4479,7 @@ async function sendServerSms(passengerId, type, extra){
   } catch(e) {
     // 404/401/403: the request never reached the SMS function → nothing sent.
     var code = e.status === 404 ? 'SMS_UNAVAILABLE' : (e.status === 401 || e.status === 403) ? 'UNAUTHENTICATED' : 'NETWORK';
-    return { ok: false, status: 'error', error: { code: code, message: e.message } };
+    return { ok: false, status: 'error', error: { code: code, message: e.message, http: e.status || 0 } };
   }
 }
 // Check-in only: records the passenger's consent AND enrolls the ticket in
@@ -4663,6 +4663,10 @@ function openInboxThread(passengerId){
   renderInboxList();
   loadThread(passengerId, false);
 }
+function ibxThreadOnScreen(){
+  var tab = document.querySelector('.tab[data-t="messages"]');
+  return !!(tab && tab.classList.contains('on')) && document.visibilityState !== 'hidden';
+}
 function closeInboxThread(){
   _ibx.open = null;
   var el = document.getElementById('smsInbox'); if (el) el.classList.remove('thread-open');
@@ -4671,13 +4675,18 @@ function closeInboxThread(){
 }
 async function loadThread(passengerId, quiet){
   try {
-    _ibx.thread = await smsApi('/rest/v1/airvalet_sms_messages?passenger_id=eq.' + passengerId + '&select=id,direction,provider,message_type,template_key,body,status,error_code,sent_by_name,created_at,sent_at,delivered_at,read_at,received_at,segments&order=created_at.asc&limit=300');
+    // The newest 300 (a long conversation used to show only its oldest 300).
+    _ibx.thread = (await smsApi('/rest/v1/airvalet_sms_messages?passenger_id=eq.' + passengerId + '&select=id,direction,provider,message_type,template_key,body,status,error_code,sent_by_name,created_at,sent_at,delivered_at,read_at,received_at,segments&order=created_at.desc&limit=300')).reverse();
   } catch(e) { _ibx.thread = []; }
   if (_ibx.open !== passengerId) return;
-  // Opening the conversation registers the read (who + when, server-side).
-  if (_ibx.thread.some(function(m){ return m.direction === 'inbound' && !m.read_at; })){
+  // Opening the conversation registers the read (who + when, server-side) —
+  // only while someone is actually looking at it (Messages tab on screen),
+  // and only the messages drawn now, not one that arrived a second later.
+  var unread = _ibx.thread.filter(function(m){ return m.direction === 'inbound' && !m.read_at; });
+  if (unread.length && ibxThreadOnScreen()){
     try {
-      await smsApi('/rest/v1/rpc/airvalet_sms_mark_read', { method: 'POST', body: JSON.stringify({ p_passenger_id: passengerId }) });
+      if (unread.length <= 10) await Promise.all(unread.map(function(m){ return smsApi('/rest/v1/rpc/airvalet_sms_mark_read', { method: 'POST', body: JSON.stringify({ p_message_id: m.id }) }); }));
+      else await smsApi('/rest/v1/rpc/airvalet_sms_mark_read', { method: 'POST', body: JSON.stringify({ p_passenger_id: passengerId }) });
       var now = new Date().toISOString();
       _ibx.thread.forEach(function(m){ if (m.direction === 'inbound' && !m.read_at) m.read_at = now; });
       _ibx.convs.forEach(function(c){ if (c.passenger_id === passengerId) c.unread_count = 0; });
@@ -7095,12 +7104,20 @@ function ci2OfflinePatch(patch){
   var sid = _ci && _ci.syncId; if (!sid || typeof offlineCheckinUpdate !== 'function') return;
   offlineCheckinUpdate(sid, function(rec){ if (offlineIsUnsynced(rec)) Object.assign(rec.payload, patch); })
     .then(function(rec){
-      if (!rec) return;
+      // Uploaded in the meantime: never claim it was saved.
+      if (!rec || !offlineIsUnsynced(rec)) { ci2Toast('This check-in just uploaded. Tap it again to save it on the server.', true); return; }
       var row = data.find(function(x){ return x.offline_sync_id === sid; });
       if (row) Object.assign(row, patch);
       render(); ci2Toast('Saved on this iPad. It uploads with the check-in.');
     })
     .catch(function(e){ ci2Toast('Not saved on this iPad: ' + e.message, true); });
+}
+// The open card's offline ticket just uploaded: from now on its details save
+// on the server, and the tags print the server's ticket number.
+function ci2AdoptSynced(syncId, id, ticket){
+  if (!_ci || !_ci.syncId || _ci.syncId !== syncId || !id) return;
+  _ci.id = id; _ci.offline = false;
+  if (ticket && ticket !== _ci.ticket) { _ci.ticket = ticket; var nm = ci2El('ci2Num'); if (nm) nm.textContent = ticket; }
 }
 function ci2CanSave(){
   if (ci2LocalOnly()) { ci2Toast('Saved offline. Add details from the car card after it syncs.', true); return false; }
@@ -8724,7 +8741,11 @@ function initStripeTipsRealtime(){
   _stripeTipsRealtimeInit=true;
   _supaClient.channel('payments-changes')
     .on('postgres_changes',{event:'INSERT',schema:'public',table:'payments'},function(){ refreshStripeTipsKpi(); })
+    .on('postgres_changes',{event:'UPDATE',schema:'public',table:'payments'},function(){ refreshStripeTipsKpi(); })
     .subscribe();
+  // "Today" changes at midnight and refunds are updates: refresh now and then too.
+  setInterval(function(){ if(_authToken && document.visibilityState !== 'hidden') refreshStripeTipsKpi(); }, 10*60*1000);
+  document.addEventListener('visibilitychange', function(){ if(_authToken && document.visibilityState === 'visible') refreshStripeTipsKpi(); });
 }
 function showLogin() {
   document.getElementById('loginOv').style.display = 'flex';
@@ -10253,6 +10274,9 @@ function runDiagnostic() {
 async function runTestAppend() {
   var el = document.getElementById('diagLog');
   if(el) el.textContent = '';
+  // Writes a real (fake) passenger into the live list, counts and TV: admins only, after a confirm.
+  if(_currentUserRole !== 'ADMIN'){ diagLog('❌ Test Append is for admins only (it adds a TEST passenger to the live list).', '#ff6b6b'); return; }
+  if(!confirm('Add a TEST PASSENGER row to the live passenger list? Delete it right after.')) return;
   diagLog('Sending TEST row to Supabase...');
   try {
     var result = await sbInsert({
@@ -12463,6 +12487,9 @@ async function crOpenTab(){
   _crStripeTipsError=false;
   _crValetsError=false;
   _crLtIncomplete=false;
+  // A new day must not start with yesterday's "Other Tips" (the PWA stays open overnight).
+  _crOtherTipsCents=0;
+  document.getElementById('crOtherTips').value='';
   _crBusinessDate=crBusinessDateET();
   document.getElementById('crHeaderDate').textContent=crFmtDateLong(_crBusinessDate);
   crShowScreen('crFormScreen');
@@ -12727,7 +12754,22 @@ function crBuildPreviewHTML(){
   return html;
 }
 
-function crShowPreview(){
+// Tips paid since the form was opened must be in the report: read them again
+// right before the preview (the saved report uses this value).
+async function crRefreshStripeTips(){
+  try{
+    var res=await fetch(SUPABASE_URL+'/rest/v1/rpc/get_stripe_tips_for_date_cents',{
+      method:'POST', headers:Object.assign({},sbHeaders(),{'Content-Type':'application/json'}),
+      body:JSON.stringify({target_date:_crBusinessDate})
+    });
+    if(!res.ok) return;
+    _crStripeTipsCents=Number(await res.json())||0;
+    document.getElementById('crStripeTips').textContent=crFmtMoney(_crStripeTipsCents);
+    crUpdateTotal();
+  }catch(e){ /* keep the value read when the form opened */ }
+}
+async function crShowPreview(){
+  if(!_crStripeTipsError) await crRefreshStripeTips();
   if(_crStripeTipsError||_crValetsError){
     showMsg('Cannot generate report — some data failed to load. Reopen Closing Report to retry.',true);
     return;
@@ -15102,17 +15144,26 @@ function updateOfflinePendingPanel(){
 //   to sign in; records stay on the device. Server rejection → kept as
 //   SYNC_ERROR with the reason (Debug → Pending Sync → Retry).
 var OFFLINE_SYNC_AUTO_WELCOME_HOURS = 6;
-var _offlineSync = { running:false, authNeeded:false, nextAt:0, timer:null, renumbered:[] };
+var _offlineSync = { running:false, authNeeded:false, nextAt:0, timer:null, renumbered:[], legacyOk:{} };
 function offlineSyncBackoffMs(n){ return Math.min(300000, 5000*Math.pow(2, Math.max(0, n-1))); }
 function offlineSyncIsAuthError(status, text){ return status===401 || /JWT expired|PGRST30[123]/.test(String(text||'')); }
 
+// A request that never answers (half-open connection) must not hold the
+// upload lock forever: give up after 20 s and retry like a network error.
+function offlineSyncFetch(url, opts){
+  var ctl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+  var t = ctl ? setTimeout(function(){ ctl.abort(); }, 20000) : null;
+  return fetch(url, Object.assign({}, opts, ctl ? { signal:ctl.signal } : {})).finally(function(){ clearTimeout(t); });
+}
 async function offlineSyncInsert(payload){
-  var res = await fetch(SUPABASE_URL+'/rest/v1/'+TABLE, { method:'POST', headers:sbHeaders(), body:JSON.stringify(payload) });
+  var res = await offlineSyncFetch(SUPABASE_URL+'/rest/v1/'+TABLE, { method:'POST', headers:sbHeaders(), body:JSON.stringify(payload) });
   var text = await res.text();
   if(res.ok){ var rows = []; try { rows = JSON.parse(text||'[]'); } catch(e){} return { ok:true, row:rows[0]||null }; }
   if(/passengers_client_key_unique/.test(text)){
-    var ex = await fetch(SUPABASE_URL+'/rest/v1/'+TABLE+'?client_key=eq.'+encodeURIComponent(payload.client_key)+'&select=*', { headers:sbHeaders() });
+    var ex = await offlineSyncFetch(SUPABASE_URL+'/rest/v1/'+TABLE+'?client_key=eq.'+encodeURIComponent(payload.client_key)+'&select=*', { headers:sbHeaders() });
     if(ex.ok){ var er = await ex.json(); if(er && er.length) return { ok:true, row:er[0], existing:true }; }
+    // The check-in IS on the server; only the lookup failed: retry, never "Not uploaded".
+    else return { ok:false, status:ex.status, text:'Checking the uploaded check-in failed (HTTP '+ex.status+')' };
   }
   return { ok:false, status:res.status, text:text };
 }
@@ -15127,22 +15178,33 @@ async function offlineSyncOne(rec){
     sbLog('CREATED', row.name||rec.payload.name, ticket, row.loc||'', 'Passenger added to system (offline check-in saved '+saved.toLocaleString('en-US')+(rec.deviceCode?' on '+rec.deviceCode:'')+', uploaded now)', {passenger_id:id});
     if(id) vlhInsert({passenger_id:id, ticket:ticket, passenger_name:row.name||rec.payload.name, from_location:'', to_location:row.loc||'', action:'CHECK-IN', note:'Offline check-in uploaded', created_by:_currentUserEmail});
   }
-  var out = { ok:true, id:id, ticket:ticket, renumbered: ticket !== rec.payload.ticket, sms:null };
+  var out = { ok:true, id:id, ticket:ticket, row:row, renumbered: ticket !== rec.payload.ticket, sms:null };
   // Texts: only now that the server has the passenger.
-  if(rec.sms && rec.sms.consent && id && !(typeof smsProgramOpen==='function' && smsProgramOpen())) out.sms = 'not_in_texting';
-  else if(rec.sms && rec.sms.consent && id){
-    var c = await offlineSyncConsent(id, rec.sms.staff);
-    out.sms = c ? 'consent' : 'no_consent_saved';
-    var ageH = (Date.now() - saved.getTime()) / 3600000;
-    if(c && rec.sms.auto && ageH <= OFFLINE_SYNC_AUTO_WELCOME_HOURS){
-      var r = await sendServerSms(id, 'CHECK_IN');
-      out.sms = (r && r.ok) ? 'welcome_requested' : 'welcome_not_sent';
-    } else if(c && rec.sms.auto){ out.sms = 'welcome_too_late'; }
-    else if(c){ out.sms = 'manual_review'; }   // classic form: the staff review and send it
-  }
+  if(rec.sms && rec.sms.consent && id) out.sms = await offlineSyncSms(id, rec.sms, saved);
   return out;
 }
-// Quiet consent (no toasts in the middle of a batch upload).
+// Consent + welcome of one uploaded check-in. 'retry' / 'retry_welcome': the
+// device got no answer (or does not know its texting state yet), so the
+// guest's consent is kept and tried again later, never dropped by a network
+// blip. Sending again is safe: the server sends one welcome per passenger.
+async function offlineSyncSms(id, sms, saved, stage){
+  if(stage !== 'welcome'){
+    if(_smsDev === null && SMS_PROVIDER !== 'mock_twilio') return 'retry';   // texting state check failed
+    if(typeof smsProgramOpen==='function' && !smsProgramOpen()) return 'not_in_texting';
+    var c = await offlineSyncConsent(id, sms.staff);
+    if(c === 'retry') return 'retry';
+    if(!c) return 'no_consent_saved';
+  }
+  if(!sms.auto) return 'manual_review';   // classic form: the staff review and send it
+  if((Date.now() - saved.getTime()) / 3600000 > OFFLINE_SYNC_AUTO_WELCOME_HOURS) return 'welcome_too_late';
+  var r = await sendServerSms(id, 'CHECK_IN');
+  if(r && r.ok) return 'welcome_requested';
+  var http = r && r.error ? r.error.http : 0;
+  if(r && r.error && r.error.code === 'NETWORK' && (!http || http >= 500 || http === 429)) return 'retry_welcome';
+  return 'welcome_not_sent';
+}
+// Quiet consent (no toasts in the middle of a batch upload). true / false /
+// 'retry' (no answer from the server: try again later).
 async function offlineSyncConsent(passengerId, staff){
   try {
     var rows = await smsApi('/rest/v1/rpc/airvalet_sms_record_consent', { method:'POST', body: JSON.stringify({
@@ -15150,8 +15212,30 @@ async function offlineSyncConsent(passengerId, staff){
       p_device_key: smsDeviceKey(false), p_staff_name: staff || smsStaffName() }) });
     var row = Array.isArray(rows) ? rows[0] : rows;
     if(row && row.enrolled){ _smsEnrolled[passengerId] = true; return true; }
-  } catch(e){}
+  } catch(e){ if(!e.status || e.status >= 500 || e.status === 429) return 'retry'; }
   return false;
+}
+// After an SMS step: schedule the next try, or finish (a record kept only
+// for its texts is deleted once they are done).
+async function offlineSyncSmsSettle(syncId, outcome){
+  var retry = outcome === 'retry' || outcome === 'retry_welcome';
+  var rec = await offlineCheckinUpdate(syncId, function(r){
+    if(retry){
+      var n = (r.smsAttempts||0) + 1;
+      r.smsAttempts = n;
+      if(n > 12){ r.smsPending = null; r.smsNextAt = null; r.lastError = 'Welcome text not sent — send it from the car card'; }
+      else { r.smsPending = outcome === 'retry_welcome' ? 'welcome' : 'consent'; r.smsNextAt = new Date(Date.now() + offlineSyncBackoffMs(n)).toISOString(); }
+    } else { r.smsPending = null; r.smsNextAt = null; }
+  });
+  if(rec && !rec.smsPending && rec.syncState === 'SYNCED_SMS_PENDING') await offlineCheckinDelete(syncId);
+  return rec;
+}
+// Hangar / vehicle added on the V2 card while the record was uploading.
+function offlineSyncLateDetails(payload, row){
+  if(!payload || !row) return null;
+  var diff = null;
+  ['loc', 'car', 'color'].forEach(function(f){ if(payload[f] && payload[f] !== (row[f] || '')){ diff = diff || {}; diff[f] = payload[f]; } });
+  return diff;
 }
 
 function offlineSyncSchedule(){
@@ -15166,22 +15250,34 @@ async function offlineSyncPending(manual){
   if(!_authToken){ _offlineSync.authNeeded = true; updateOfflineModeBanner(); return { skipped:'auth' }; }
   // After an auth refusal, wait for a new session before trying again.
   if(!manual && _offlineSync.authNeeded && _offlineSync.authToken === _authToken) return { skipped:'auth' };
+  // Older-version records reviewed in this Sync now's confirm (kept with this
+  // call, even when it has to wait for another upload to finish).
+  var legacyOk = manual ? _offlineSync.legacyOk : {};
+  if(manual) _offlineSync.legacyOk = {};
   var run = async function(){
     _offlineSync.running = true; _offlineSync.authNeeded = false; updateOfflineModeBanner();
-    var done = 0, renum = 0, failed = 0, stopped = null, smsSent = 0, smsLater = 0;
+    var done = 0, renum = 0, failed = 0, stopped = null, smsSent = 0, smsLater = 0, smsRetryN = 0;
     try {
       if(typeof authEnsureFresh==='function') await authEnsureFresh();
       var all = await offlineCheckinGetAll();
       var now = Date.now();
       // Texting status of this device must be known before any consent/welcome.
-      if(all.some(function(r){ return offlineIsUnsynced(r) && r.sms && r.sms.consent; }) && typeof resolveSmsProvider==='function'){
+      if(all.some(function(r){ return (offlineIsUnsynced(r) || r.smsPending) && r.sms && r.sms.consent; }) && typeof resolveSmsProvider==='function'){
         try { await resolveSmsProvider(); } catch(e){}
       }
+      // Texts still owed to check-ins already on the server (no answer last time).
+      var smsTodo = all.filter(function(r){ return r.smsPending && r.serverPassengerId && (manual || !r.smsNextAt || Date.parse(r.smsNextAt) <= now); });
+      for(var j=0; j<smsTodo.length; j++){
+        var so = await offlineSyncSms(smsTodo[j].serverPassengerId, smsTodo[j].sms || {}, new Date(smsTodo[j].createdAt), smsTodo[j].smsPending);
+        if(so === 'welcome_requested') smsSent++;
+        await offlineSyncSmsSettle(smsTodo[j].offline_sync_id, so);
+      }
       var todo = all.filter(function(r){
+        if(r.payload && r.payload.name === 'DIAGNOSTIC TEST RECORD') return false;   // Debug test record, never a passenger
         // A check-in saved by an older app version (before automatic upload)
         // may already have been re-entered online by the staff: upload it only
-        // from Sync now, after a person checked the list.
-        if(!r.v && offlineIsUnsynced(r) && !manual) return false;
+        // from Sync now, and only the ones a person just reviewed in the confirm.
+        if(r.v !== 3 && offlineIsUnsynced(r) && !legacyOk[r.offline_sync_id]) return false;
         if(r.syncState==='LOCAL_PENDING') return true;
         if(r.syncState==='SYNC_RETRY') return manual || !r.nextAttemptAt || Date.parse(r.nextAttemptAt) <= now;
         if(r.syncState==='SYNC_ERROR') return !!manual;
@@ -15195,6 +15291,11 @@ async function offlineSyncPending(manual){
       for(var i=0; i<todo.length; i++){
         var rec = todo[i];
         var result;
+        // A damaged record (no check-in data) must not block the others: keep it, marked.
+        if(!rec.payload || typeof rec.payload !== 'object' || !rec.payload.name){
+          await offlineCheckinUpdate(rec.offline_sync_id, function(r){ r.syncState='SYNC_ERROR'; r.nextAttemptAt=null; r.lastError='Damaged offline record (no check-in data) — re-enter this car if it is missing'; });
+          failed++; continue;
+        }
         try { result = await offlineSyncOne(rec); }
         catch(netErr){
           // Network dropped mid-batch: retry later with backoff.
@@ -15215,20 +15316,40 @@ async function offlineSyncPending(manual){
           if(transient) _offlineSync.nextAt = Date.now() + offlineSyncBackoffMs(n2);
           failed++; continue;
         }
+        // Hangar / vehicle added on the card while this upload was running.
+        var late = offlineSyncLateDetails((await offlineCheckinGet(rec.offline_sync_id) || {}).payload, result.row);
+        if(late && result.id){
+          try { await sbUpdate(result.id, late); }
+          catch(lateErr){
+            // On the server without those details yet: keep it, the next run finds it by its key and saves them.
+            var n3 = (rec.attemptCount||0) + 1;
+            await offlineCheckinUpdate(rec.offline_sync_id, function(r){ r.syncState='SYNC_RETRY'; r.attemptCount=n3; r.nextAttemptAt=new Date(Date.now()+offlineSyncBackoffMs(n3)).toISOString(); r.lastError='Details not saved yet: '+String(lateErr && lateErr.message || '').slice(0, 120); });
+            _offlineSync.nextAt = Date.now() + offlineSyncBackoffMs(n3);
+            failed++; continue;
+          }
+        }
         done++;
+        var smsRetry = result.sms==='retry' || result.sms==='retry_welcome';
         if(result.sms==='welcome_requested') smsSent++;
+        else if(smsRetry) smsRetryN++;
         else if(result.sms==='welcome_not_sent' || result.sms==='welcome_too_late' || result.sms==='not_in_texting' || result.sms==='no_consent_saved' || result.sms==='manual_review') smsLater++;
-        if(result.renumbered){
-          renum++;
-          // Keep only what the reprint needs until the staff confirm.
-          await offlineCheckinUpdate(rec.offline_sync_id, function(r){ r.syncState='SYNCED_RENUMBERED'; r.serverPassengerId=result.id; r.serverTicket=result.ticket; r.lastError=null; });
+        if(result.renumbered || smsRetry){
+          if(result.renumbered) renum++;
+          // Keep only what the reprint / the owed text needs until done.
+          await offlineCheckinUpdate(rec.offline_sync_id, function(r){ r.syncState = result.renumbered ? 'SYNCED_RENUMBERED' : 'SYNCED_SMS_PENDING'; r.serverPassengerId=result.id; r.serverTicket=result.ticket; r.lastError=null; });
+          if(smsRetry) await offlineSyncSmsSettle(rec.offline_sync_id, result.sms);
         } else {
           await offlineCheckinDelete(rec.offline_sync_id);   // nothing personal stays on the device
         }
+        if(typeof ci2AdoptSynced === 'function') ci2AdoptSynced(rec.offline_sync_id, result.id, result.ticket);
       }
       // Next automatic attempt = the earliest retry still waiting.
       var left = await offlineCheckinGetAll(), next = 0;
-      left.forEach(function(r){ if(r.syncState==='SYNC_RETRY' && r.nextAttemptAt){ var t = Date.parse(r.nextAttemptAt); if(!next || t < next) next = t; } });
+      left.forEach(function(r){
+        var t = (r.syncState==='SYNC_RETRY' && r.nextAttemptAt) ? Date.parse(r.nextAttemptAt) : 0;
+        if(r.smsPending && r.smsNextAt){ var ts = Date.parse(r.smsNextAt); if(!t || ts < t) t = ts; }
+        if(t && (!next || t < next)) next = t;
+      });
       _offlineSync.nextAt = next;
     } catch(e){
       console.error('Offline sync failed', e);
@@ -15244,6 +15365,7 @@ async function offlineSyncPending(manual){
       var msg = '✓ '+done+' offline check-in'+(done>1?'s':'')+' uploaded.';
       if(smsSent) msg += ' Welcome text requested for '+smsSent+'.';
       if(smsLater) msg += ' '+smsLater+' welcome text'+(smsLater>1?'s':'')+' not sent — send from the car card.';
+      if(smsRetryN) msg += ' Texts for '+smsRetryN+' will be sent when the connection is stable.';
       if(renum) msg += ' '+renum+' ticket number'+(renum>1?'s':'')+' changed — reprint tags.';
       showMsg(msg, renum>0 || failed>0);
     } else if(manual && stopped==='auth') showMsg('Sign in again to upload the offline check-ins. They stay saved on this device.', true);
@@ -15295,12 +15417,21 @@ async function offlineSyncReprint(syncId){
 async function offlineSyncAckRenumber(syncId){
   var it = _offlineSync.renumbered.find(function(x){ return x.syncId===syncId; });
   if(it && !confirm('Did you replace the old '+it.oldTicket+' tags with '+it.newTicket+'?')) return;
-  try { await offlineCheckinDelete(syncId); } catch(e){}
+  try {
+    var r0 = await offlineCheckinGet(syncId);
+    if(r0 && r0.smsPending) await offlineCheckinUpdate(syncId, function(r){ r.syncState = 'SYNCED_SMS_PENDING'; });   // its text is still owed
+    else await offlineCheckinDelete(syncId);
+  } catch(e){}
   await offlineSyncLoadRenumbered();
 }
-function offlineSyncNow(){
-  var legacy = offlinePendingRecordsInData().filter(function(r){ return r.offlineLegacy; });
-  if(legacy.length && !confirm(legacy.length+' check-in'+(legacy.length>1?'s were':' was')+' saved offline by an older version of the app ('+legacy.map(function(r){ return r.ticket+' '+r.name; }).join(', ')+').\n\nUpload only if '+(legacy.length>1?'they are':'it is')+' NOT already in the list (re-entered online). Upload now?')) return Promise.resolve({ skipped:'cancelled' });
+async function offlineSyncNow(){
+  // The confirm lists exactly what is on this device now (another tab may
+  // have saved one since the last refresh); only those listed may upload.
+  var all = []; try { all = await offlineCheckinGetAll(); } catch(e){}
+  var legacy = all.filter(function(r){ return r.v !== 3 && offlineIsUnsynced(r) && !(r.payload && r.payload.name === 'DIAGNOSTIC TEST RECORD'); });
+  if(legacy.length && !confirm(legacy.length+' check-in'+(legacy.length>1?'s were':' was')+' saved offline by an older version of the app ('+legacy.map(function(r){ var p = r.payload || {}; return (p.ticket||'?')+' '+(p.name||'?'); }).join(', ')+').\n\nUpload only if '+(legacy.length>1?'they are':'it is')+' NOT already in the list (re-entered online). Upload now?')) return { skipped:'cancelled' };
+  _offlineSync.legacyOk = {};
+  legacy.forEach(function(r){ _offlineSync.legacyOk[r.offline_sync_id] = true; });
   if(_offlineSync.running) showMsg('Already uploading — it will try again right after.', false);
   return offlineSyncPending(true);
 }

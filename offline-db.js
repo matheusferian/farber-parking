@@ -42,15 +42,28 @@ function openOfflineDb(){
         db.createObjectStore(OFFLINE_STORE_SNAPSHOT);
       }
     };
-    req.onsuccess = function(e){ resolve(e.target.result); };
-    req.onerror = function(e){ reject(e.target.error || new Error('IndexedDB open failed')); };
+    req.onsuccess = function(e){
+      var db = e.target.result;
+      // Safari can drop the connection (iPad asleep) and a newer app version
+      // may upgrade the database: open a fresh connection next time.
+      db.onclose = function(){ _offlineDbPromise = null; };
+      db.onversionchange = function(){ db.close(); _offlineDbPromise = null; };
+      resolve(db);
+    };
+    req.onerror = function(e){ _offlineDbPromise = null; reject(e.target.error || new Error('IndexedDB open failed')); };
+    req.onblocked = function(){ _offlineDbPromise = null; reject(new Error('IndexedDB is in use by an older tab: close the other AirValet tabs')); };
   });
   return _offlineDbPromise;
 }
 
 function offlineDbTx(storeName, mode){
   return openOfflineDb().then(function(db){
-    return db.transaction(storeName, mode).objectStore(storeName);
+    try { return db.transaction(storeName, mode).objectStore(storeName); }
+    catch(e){
+      // Connection already closed (InvalidStateError): reopen once.
+      _offlineDbPromise = null;
+      return openOfflineDb().then(function(db2){ return db2.transaction(storeName, mode).objectStore(storeName); });
+    }
   });
 }
 
@@ -59,9 +72,10 @@ function offlineDbTx(storeName, mode){
 function offlineCheckinPut(record){
   return offlineDbTx(OFFLINE_STORE_CHECKINS, 'readwrite').then(function(store){
     return new Promise(function(resolve, reject){
-      var req = store.put(record);
-      req.onsuccess = function(){ resolve(record); };
-      req.onerror = function(e){ reject(e.target.error); };
+      var req = store.put(record), tx = store.transaction;
+      // Saved = transaction committed (a quota error or abort arrives after onsuccess).
+      tx.oncomplete = function(){ resolve(record); };
+      tx.onabort = tx.onerror = function(){ reject(tx.error || req.error || new Error('Not saved on this device')); };
     });
   });
 }
@@ -79,9 +93,9 @@ function offlineCheckinGetAll(){
 function offlineCheckinDelete(offlineSyncId){
   return offlineDbTx(OFFLINE_STORE_CHECKINS, 'readwrite').then(function(store){
     return new Promise(function(resolve, reject){
-      var req = store.delete(offlineSyncId);
-      req.onsuccess = function(){ resolve(true); };
-      req.onerror = function(e){ reject(e.target.error); };
+      var req = store.delete(offlineSyncId), tx = store.transaction;
+      tx.oncomplete = function(){ resolve(true); };
+      tx.onabort = tx.onerror = function(){ reject(tx.error || req.error || new Error('Not deleted on this device')); };
     });
   });
 }
@@ -202,11 +216,11 @@ function offlineCheckinUpdate(offlineSyncId, mutate){
         var rec = e.target.result;
         if(!rec){ resolve(null); return; }
         mutate(rec);
-        var put = store.put(rec);
-        put.onsuccess = function(){ resolve(rec); };
-        put.onerror = function(ev){ reject(ev.target.error); };
+        store.put(rec);
+        store.transaction.oncomplete = function(){ resolve(rec); };
       };
       req.onerror = function(e){ reject(e.target.error); };
+      store.transaction.onabort = function(){ reject(store.transaction.error || new Error('Not saved on this device')); };
     });
   });
 }
