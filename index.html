@@ -15274,6 +15274,7 @@ function offlineRegisterServiceWorker(){
             // it, but never auto-activate mid-session.
             _offlineSw.updateAvailable = true;
             offlineShowUpdateBanner();
+            tvAutoApplyUpdate(reg);
           }
           offlineDiagRefresh();
         }
@@ -15281,7 +15282,7 @@ function offlineRegisterServiceWorker(){
     });
     // An update already waiting (the staff reloaded instead of tapping the
     // banner): show the banner again, so the iPad never stays on an old version.
-    if(reg.waiting && navigator.serviceWorker.controller){ _offlineSw.updateAvailable = true; offlineShowUpdateBanner(); }
+    if(reg.waiting && navigator.serviceWorker.controller){ _offlineSw.updateAvailable = true; offlineShowUpdateBanner(); tvAutoApplyUpdate(reg); }
     setInterval(function(){ reg.update().catch(function(){}); }, OFFLINE_SW_UPDATE_POLL_INTERVAL_MS);
   }).catch(function(e){
     _offlineSw.status = 'error';
@@ -15300,6 +15301,14 @@ function offlineRegisterServiceWorker(){
     _offlineSw.reloading = true;
     location.reload();
   });
+}
+// The TV hides the update banner (TV mode shows only the board) and nobody
+// taps it, so it stayed on an old version forever (audit A3-03). It has no
+// forms to lose: apply a waiting update on its own; controllerchange reloads.
+function tvAutoApplyUpdate(reg){
+  if(!isTvMode() || !reg || !reg.waiting) return;
+  _offlineSw.applyRequested = true;
+  reg.waiting.postMessage({type:'SKIP_WAITING'});
 }
 function offlineShowUpdateBanner(){
   var el = document.getElementById('offlineUpdateBanner');
@@ -15810,7 +15819,14 @@ function offlineDiagRefresh(){
   var swEl=document.getElementById('offSwStatus');
   if(swEl) swEl.textContent = {active:'Active',installing:'Installing',error:'Error',unsupported:'Unsupported',missing:'Missing'}[_offlineSw.status] || 'Missing';
   var cacheEl=document.getElementById('offCacheVersion');
-  if(cacheEl) cacheEl.textContent = _offlineSw.registration ? 'airvalet-shell-v1' : '—';
+  // Show the real shell version this device runs (it used to say v1 always).
+  if(cacheEl){
+    cacheEl.textContent = _offlineSw.registration ? '…' : '—';
+    if(_offlineSw.registration && window.caches) caches.keys().then(function(k){
+      var v = k.filter(function(n){ return n.indexOf('airvalet-shell-') === 0; });
+      cacheEl.textContent = v.length ? v.join(', ') : '—';
+    }).catch(function(){});
+  }
 
   var idbEl=document.getElementById('offIdbStatus');
   if(idbEl){
