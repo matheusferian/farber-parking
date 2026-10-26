@@ -878,6 +878,14 @@
 <!-- DEBUG PANE -->
 <div class="pane" id="pane-debug" style="padding:16px 20px 100px">
 
+  <!-- Check-in v2 switch for THIS device only (same as opening ?checkin=v2;
+       the home-screen app cannot open that link). Other devices unchanged. -->
+  <div class="epson-card" style="margin-bottom:16px;">
+    <div class="epson-card-title">📝 New Check-in (v2) on this device</div>
+    <div style="font-size:13px;margin:6px 0 12px;">Status: <b id="ci2DebugState">—</b>. Only this device changes.</div>
+    <button type="button" class="epson-btn epson-btn-navy" id="ci2DebugBtn" onclick="ci2DebugToggle()">Turn on</button>
+  </div>
+
   <!-- EPSON DIAGNOSTICS START -->
   <div id="epsonDiagCard" class="epson-card">
     <div class="epson-card-title">🖨 Epson Printer Diagnostics</div>
@@ -6575,6 +6583,18 @@ var CI2_ON_LS = 'airvalet_checkin_v2';
   } catch(e) {}
 })();
 function ci2Active(){ try { return localStorage.getItem(CI2_ON_LS) === '1'; } catch(e) { return false; } }
+// Debug tab switch: same effect as ?checkin=v2 / ?checkin=classic, this device only.
+function ci2DebugRender(){
+  var s = document.getElementById('ci2DebugState'), b = document.getElementById('ci2DebugBtn');
+  if (s) s.textContent = ci2Active() ? 'ON (new check-in)' : 'OFF (classic form)';
+  if (b) b.textContent = ci2Active() ? 'Turn off (use classic form)' : 'Turn on';
+}
+function ci2DebugToggle(){
+  try { if (ci2Active()) localStorage.removeItem(CI2_ON_LS); else localStorage.setItem(CI2_ON_LS, '1'); } catch(e) {}
+  ci2DebugRender();
+  showMsg(ci2Active() ? 'New check-in is ON on this device. Tap New Entry.' : 'Classic form is back on this device.', false);
+}
+ci2DebugRender();
 function ci2UseClassic(on){
   if (on && _ci && !_ci.created && ci2Dirty() && !confirm('Switch to the classic form? What is typed here will be cleared.')) return;
   try { if (on) localStorage.removeItem(CI2_ON_LS); else localStorage.setItem(CI2_ON_LS, '1'); } catch(e) {}
