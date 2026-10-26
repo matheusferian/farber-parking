@@ -5,7 +5,8 @@ import os, random, subprocess, sys, time
 from playwright.sync_api import sync_playwright
 
 LDB = os.environ.get('LDB') or sys.exit('set LDB to the local psql helper')
-BASE = 'http://127.0.0.1:8781/a#'
+BASE = os.environ.get('PASS_BASE', 'http://127.0.0.1:8781/a#')
+ENGINE = os.environ.get('PASS_ENGINE', 'chromium')
 API = '**/functions/v1/valet-pass'
 ok_n = 0; fails = []
 
@@ -55,7 +56,16 @@ sql("update public.passengers set status = 'DELIVERED', delivery_type = 'CUSTOMS
 
 try:
     with sync_playwright() as pw:
-        b = pw.chromium.launch()
+        b = getattr(pw, ENGINE).launch(**({'executable_path': os.environ['WEBKIT_PATH']} if ENGINE == 'webkit' and os.environ.get('WEBKIT_PATH') else {}))
+        # Ticket number on the pass (owner 2026-10-26): small line at the foot, the guest's own ticket only.
+        c = b.new_context(viewport={'width': 390, 'height': 844}); p = c.new_page(); p.goto(BASE + TOK[1]); p.wait_for_selector('.pass')
+        t = p.inner_text('.pass-ticket') if p.query_selector('.pass-ticket') else ''
+        check('E2EP-01' in t and 'reference' in t, 'ticket: the pass shows the guest\'s ticket number (%s)' % t)
+        check(p.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 1"), 'ticket: no sideways scroll on a 390 px phone')
+        p.screenshot(path=os.environ.get('SHOT_DIR', '/tmp') + '/pass_ticket_%s.png' % ENGINE, full_page=True); c.close()
+        c = b.new_context(viewport={'width': 390, 'height': 844}); p = c.new_page(); p.goto(BASE + TOK[2]); p.wait_for_selector('.pass')
+        check('E2EP-02' in (p.inner_text('.pass-ticket') if p.query_selector('.pass-ticket') else ''), 'ticket: shown while the car waits at Customs too')
+        check('E2EP-01' not in p.inner_text('body'), 'ticket: never another guest\'s ticket'); c.close()
         def ctx(mode=None):
             c = b.new_context(viewport={'width': 390, 'height': 844}, reduced_motion='reduce')
             st = {'mode': mode, 'n': 0}; ip = rip()

@@ -153,6 +153,11 @@
     return '';
   }
 
+  // The guest's own ticket number, small, at the foot of the pass (owner 2026-10-26).
+  function ticketLine(p) {
+    return p.ticket ? '<p class="pass-ticket">Ticket number for your reference: <strong>' + esc(p.ticket) + '</strong></p>' : '';
+  }
+
   function passCard(p) {
     var st = statusInfo(p), done = p.status === 'DELIVERED';
     var html = '<section class="pass tone-' + st.tone + '" aria-label="Your valet pass">' +
@@ -165,7 +170,7 @@
       html += '<p class="k">A note from your valet team</p>' +
         '<p class="note-text">Thank you for trusting us with your car' + (p.first_name ? ', ' + esc(p.first_name) : '') + '. It was a pleasure taking care of it. Safe travels, and see you on your next trip!</p>' +
         (p.gratuity_url ? '<button class="btn brass" type="button" data-open="gratuity">Leave a gratuity for the team</button><p class="fine">Always optional.</p>' : '');
-      return html + '</div></section>';
+      return html + ticketLine(p) + '</div></section>';
     }
     var date = fmtDate(p.return_date), time = fmtTime(p.return_time), place = pickupText(p);
     var steps = p.pickup === 'HANGAR_19' && p.status === 'PARKED';
@@ -190,7 +195,7 @@
     var pend = p.pending_return;
     if (pend) html += '<p class="pending">Change requested: ' + esc(fmtIsoDate(pend.date) || '') + (pend.time ? ', ' + esc(fmtTime(pend.time)) : '') +
       (pend.carrier ? ' with ' + esc(pend.carrier) : '') + '. Waiting for our team to confirm.</p>';
-    return html + '</div></section>';
+    return html + ticketLine(p) + '</div></section>';
   }
 
   function render() {

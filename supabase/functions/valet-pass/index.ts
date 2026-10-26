@@ -14,8 +14,9 @@
 //
 // Requests are stored PENDING; nothing operational changes until staff
 // approve in AirValet. A new request notifies staff (iPad push / Super Admin
-// SMS copy, both optional) in the background. Never returns the ticket,
-// phone, key location or internal ids.
+// SMS copy, both optional) in the background. Returns the guest's own ticket
+// number (pass.ticket, from airvalet_portal_view); never the phone, key
+// location or internal ids.
 //
 // Deploy with --no-verify-jwt (passengers have no login). Never logs the
 // token, the body or the client address. Throttling is server-side in SQL,
