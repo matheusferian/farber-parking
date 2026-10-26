@@ -3147,13 +3147,16 @@ async function bulkAct(newStatus){
   var recs=data.filter(function(r){return selected[r.id];});
   var todayStr=getTodayStr();
   var checkoutIso=new Date().toISOString();
+  var failures=[];
   var results=await Promise.all(recs.map(function(r){
     var upd={status:newStatus};
     if(newStatus==='DELIVERED'){
       upd.deldate=todayStr;upd.checkout_date=checkoutIso;upd.delivery_type='NORMAL';
       upd.loc='HANGAR 19';upd.previous_delivery_location=r.loc||'';
     }
-    return sbUpdate(r.id,upd).then(function(){return r;}).catch(function(e){console.error(e);return null;});
+    // Delivering never overwrites a car already delivered on another device (audit A3-02).
+    var opts=(newStatus==='DELIVERED')?{filter:'&status=neq.DELIVERED',zeroRowsMessage:'Already delivered on another device'}:undefined;
+    return sbUpdate(r.id,upd,opts).then(function(){return r;}).catch(function(e){console.error(e);failures.push((r.ticket||r.name)+': '+e.message);return null;});
   }));
   var succeeded=results.filter(Boolean);
   succeeded.forEach(function(r){
@@ -3172,7 +3175,9 @@ async function bulkAct(newStatus){
     }
   });
   loading(false);
-  showMsg(succeeded.length+' car(s) updated to '+newStatus, false);
+  // Never hide a refusal (pickup ID guard, already delivered, session): say how many were NOT updated.
+  if(failures.length) showMsg(succeeded.length+' car(s) updated to '+newStatus+'. '+failures.length+' NOT updated: '+failures.join(' · '), true);
+  else showMsg(succeeded.length+' car(s) updated to '+newStatus, false);
   clearSel();
   render();
 }
@@ -8055,7 +8060,7 @@ async function markDel(id){
   try{
     var todayStr=getTodayStr();
     var checkoutIso=new Date().toISOString();
-    await sbUpdate(r.id,{status:'DELIVERED',deldate:todayStr,checkout_date:checkoutIso,delivery_type:'NORMAL',loc:'HANGAR 19',previous_delivery_location:prevLoc});
+    await sbUpdate(r.id,{status:'DELIVERED',deldate:todayStr,checkout_date:checkoutIso,delivery_type:'NORMAL',loc:'HANGAR 19',previous_delivery_location:prevLoc},{filter:'&status=neq.DELIVERED',zeroRowsMessage:'Already delivered on another device. Reload to see the latest.'});
     for(var i=0;i<data.length;i++){if(data[i].id===r.id){data[i].status='DELIVERED';data[i].deldate=todayStr;data[i].checkout_date=checkoutIso;data[i].delivery_type='NORMAL';data[i].loc='HANGAR 19';data[i].previous_delivery_location=prevLoc;break;}}
     render(); closeAll();
     sbLog('DELIVERED_FROM_LOCATION',r.name,r.ticket,'HANGAR 19','Delivered as NORMAL. Previous location: '+prevLoc+'. Final location automatically changed to HANGAR 19.'+(isLate(r.ret)?' (late)':''),{passenger_id:r.id});
@@ -8124,7 +8129,7 @@ async function earlyReturn(id){
     var checkoutIso=new Date().toISOString();
     var newObs=((r.obs||'').replace('APPROX DATE','').replace(' | ','').trim());
     newObs=(newObs?newObs+' | ':'')+'EARLY RETURN';
-    await sbUpdate(r.id,{ret:todayStr,status:'DELIVERED',deldate:todayStr,checkout_date:checkoutIso,delivery_type:'NORMAL',obs:newObs,loc:'HANGAR 19',previous_delivery_location:prevLoc});
+    await sbUpdate(r.id,{ret:todayStr,status:'DELIVERED',deldate:todayStr,checkout_date:checkoutIso,delivery_type:'NORMAL',obs:newObs,loc:'HANGAR 19',previous_delivery_location:prevLoc},{filter:'&status=neq.DELIVERED',zeroRowsMessage:'Already delivered on another device. Reload to see the latest.'});
     for(var i=0;i<data.length;i++){if(data[i].id===r.id){data[i].ret=todayStr;data[i].status='DELIVERED';data[i].deldate=todayStr;data[i].checkout_date=checkoutIso;data[i].delivery_type='NORMAL';data[i].obs=newObs;data[i].loc='HANGAR 19';data[i].previous_delivery_location=prevLoc;break;}}
     render(); closeAll();
     sbLog('DELIVERED_FROM_LOCATION',r.name,r.ticket,'HANGAR 19','Delivered as NORMAL (Early Return). Previous location: '+prevLoc+'. Final location automatically changed to HANGAR 19. Was expected: '+fmtD(r.ret),{passenger_id:r.id});
@@ -8166,7 +8171,8 @@ async function deleteRec(id){
 async function moveHangarCore(r, hangar, note){
   if(r.isOfflinePending) throw new Error(OFFLINE_PENDING_SYNC_MSG);
   var oldLoc = r.loc;
-  await sbUpdate(r.id, {loc:hangar});
+  // A car already delivered (maybe on another device) is never moved (audit A3-02).
+  await sbUpdate(r.id, {loc:hangar}, {filter:'&status=neq.DELIVERED', zeroRowsMessage:'This car was already delivered on another device. Reload to see the latest.'});
   r.loc = hangar;
   logFieldChange(r,'loc',oldLoc,hangar);
   vlhInsert({passenger_id:r.id,ticket:r.ticket,passenger_name:r.name,from_location:oldLoc,to_location:hangar,action:'MOVE',note:note||'Manual hangar change',created_by:_currentUserEmail});
@@ -8479,7 +8485,7 @@ async function saveEdits(rid){
     }
 
     var _returnBefore={}; RETURN_FIELD_KEYS.forEach(function(k){ _returnBefore[k]=r[k]; });
-    var _updRows=await sbUpdate(rid,upd);
+    var _updRows=await sbUpdate(rid,upd,upd.status==='DELIVERED'?{filter:'&status=neq.DELIVERED',zeroRowsMessage:'Already delivered on another device. Reload to see the latest.'}:undefined);
 
     // Only now, after the database confirmed the write, apply the exact
     // persisted values to the local record. `r` is already the same object
