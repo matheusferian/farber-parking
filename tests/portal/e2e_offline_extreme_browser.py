@@ -11,7 +11,7 @@
 #   python3 tests/portal/e2e_offline_extreme_browser.py <scratch portal dir> [engine]
 # Needs a second app server for scenario 3 (copy of the app on port 8782):
 #   APP_ROOT=<copy> python3 <scratch>/portal/serve_root.py 8782
-import asyncio, os, shutil, subprocess, sys, tempfile, time
+import asyncio, os, re, shutil, subprocess, sys, tempfile, time
 from playwright.async_api import async_playwright
 
 DIR = sys.argv[1]
@@ -334,7 +334,7 @@ async def main():
             for i in range(2):
                 await v2_create(page, TAG + 'UPD %d' % i, '30555' + RUN + '6%d' % i)
             try:
-                open(swf, 'w').write(orig.replace("CACHE_VERSION = 'v73'", "CACHE_VERSION = 'v73-e2e-update'"))
+                open(swf, 'w').write(re.sub(r"CACHE_VERSION = '([^']+)'", r"CACHE_VERSION = '\1-e2e-update'", orig, count=1))
                 await online(ctx, page)
                 await page.evaluate('_offlineSw.registration.update()')
                 await page.wait_for_function("getComputedStyle(document.getElementById('offlineUpdateBanner')).display !== 'none'", timeout=20000)
@@ -354,7 +354,7 @@ async def main():
                 counts = [n_pax(TAG + 'UPD %d' % i) for i in range(2)]
                 check(counts == [1, 1], 'update: after "Reload now" both records uploaded exactly once', counts)
                 ver = await page.evaluate("caches.keys()")
-                check(any('v73-e2e-update' in c for c in ver), 'update: the new version is the active cache', ver)
+                check(any(c.endswith('-e2e-update') for c in ver), 'update: the new version is the active cache', ver)
             finally:
                 open(swf, 'w').write(orig)
             await browser.close()
