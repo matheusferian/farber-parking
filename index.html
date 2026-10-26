@@ -15234,7 +15234,8 @@ function offlineRegisterServiceWorker(){
   // away what was typed on the login screen (audit v77).
   var hadController = !!navigator.serviceWorker.controller;
   navigator.serviceWorker.addEventListener('controllerchange', function(){
-    if(!hadController){ hadController = true; return; }
+    // "Reload now" on THIS page always reloads, whatever happened before.
+    if(!hadController && !_offlineSw.applyRequested){ hadController = true; return; }
     if(_offlineSw.reloading) return; // avoid a reload loop if this fires more than once
     _offlineSw.reloading = true;
     location.reload();
@@ -15249,6 +15250,7 @@ function offlineApplyUpdate(){
   if(typeof _ci!=='undefined' && _ci && (_ci.busy || ci2Dirty()) &&
      !confirm('A check-in is in progress. Reload now and lose what is typed?')) return;
   if(_offlineSw.registration && _offlineSw.registration.waiting){
+    _offlineSw.applyRequested = true;
     _offlineSw.registration.waiting.postMessage({type:'SKIP_WAITING'});
   }
 }
