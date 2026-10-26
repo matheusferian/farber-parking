@@ -4,8 +4,8 @@
 // All SIDs/tokens below are fake fixtures.
 import { assert, assertEquals, assertFalse, assertStringIncludes } from 'jsr:@std/assert@1';
 import twilio from 'npm:twilio@5'; // reference oracle for the signature algorithm only
-import { maskPhone, normalizePhoneE164 } from './phone.ts';
-import { countSegments, isGsm7, departureOperator, firstName, PassengerCtx, pickupPlace, renderMessage, returnLocation, Template, TemplateError, TEMPLATES } from './templates.ts';
+import { isTwilioDomestic, maskPhone, normalizePhoneE164 } from './phone.ts';
+import { countSegments, isGsm7, departureOperator, firstName, PassengerCtx, pickupPlace, renderMessage, returnLocation, shareWelcomeBody, Template, TemplateError, TEMPLATES } from './templates.ts';
 import { computeTwilioSignature, isValidTwilioSignature } from './twilio-signature.ts';
 import { MOCK_FAULTS, MockProvider, SendOutcome, TwilioProvider } from './provider.ts';
 import { makeRedactor, sanitizeProviderText } from './sanitize.ts';
@@ -819,4 +819,32 @@ Deno.test('service: Twilio rejection â†’ failed (definitely not sent); timeout â
   const r2 = await sendAirValetSms(deps, { passengerId: 1098, type: 'CHECK_IN', actor: ops });
   assertEquals([r1.status, r1.error?.code], ['failed', '30006']);
   assertEquals(r2.status, 'send_unknown');
+});
+
+Deno.test('phone: only US/Canada go through Twilio (international + Caribbean +1 do not)', () => {
+  assert(isTwilioDomestic('+13055550101'));
+  assert(isTwilioDomestic('+14165550101'));   // Toronto
+  assert(isTwilioDomestic('+17875550101'));   // Puerto Rico (US territory)
+  assertFalse(isTwilioDomestic('+4915161461188'));
+  assertFalse(isTwilioDomestic('+442079460958'));
+  assert(isTwilioDomestic('+12423270000'));       // Bahamas: Twilio like the US (owner 2026-10-26)
+  assertFalse(isTwilioDomestic('+18765550101'));  // Jamaica
+  assertFalse(isTwilioDomestic('+1305555010'));   // malformed
+});
+Deno.test('service: an international number is never claimed nor sent through Twilio', async () => {
+  const { deps, provider, store } = setup();
+  store.passengers.set(1201, { id: 1201, phone: '+49 151 61461188', ...P({ name: 'HANS', ticket: 'I-1' }) });
+  store.passengers.set(1202, { id: 1202, phone: '(876) 555-0101', ...P({ name: 'JAMAICA', ticket: 'I-2' }) });
+  for (const id of [1201, 1202]) {
+    const r = await sendAirValetSms(deps, { passengerId: id, type: 'CHECK_IN', actor: ops });
+    assertEquals(r.ok, false); assertEquals(r.error?.code, 'INTERNATIONAL_NO_TWILIO');
+  }
+  assertEquals(provider.calls.length, 0);
+  assertEquals(store.claims.length, 0);
+});
+Deno.test('share welcome: same words as the SMS welcome, link included, no STOP line', () => {
+  const b = shareWelcomeBody('https://airvalet.farberos.com/a#abc');
+  assertStringIncludes(b, 'Welcome to Makers Air Valet!');
+  assertStringIncludes(b, 'https://airvalet.farberos.com/a#abc');
+  assertFalse(b.includes('STOP'));
 });

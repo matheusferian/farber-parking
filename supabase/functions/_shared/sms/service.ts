@@ -8,7 +8,7 @@
 //   * no automatic retry when Twilio may already have sent the message;
 //   * every attempt that reaches the claim step leaves an audit row.
 
-import { normalizePhoneE164 } from './phone.ts';
+import { isTwilioDomestic, normalizePhoneE164 } from './phone.ts';
 import { countSegments, estimateCostUsd, isGsm7, MessageType, PassengerCtx, RenderEnv, renderMessage, Role, Template, TemplateError, TEMPLATES } from './templates.ts';
 import type { SendOutcome, SmsProvider } from './provider.ts';
 
@@ -141,6 +141,8 @@ export async function sendAirValetSms(deps: SendDeps, input: SendInput): Promise
 
     const phone = normalizePhoneE164(passenger.phone);
     if (!phone.valid) return fail('rejected', 'INVALID_PHONE', `invalid phone (${phone.reason})`);
+    // International (incl. +1 Caribbean): never through Twilio. Nothing is claimed or sent.
+    if (!isTwilioDomestic(phone.e164)) return fail('blocked', 'INTERNATIONAL_NO_TWILIO', 'international number: share by WhatsApp or iMessage');
 
     if (deps.mode === 'allowlist' && !deps.allowlist.includes(phone.e164)) {
       return fail('blocked', 'NOT_ALLOWLISTED', 'test mode: number not on the allowlist');
@@ -303,6 +305,7 @@ export async function previewAirValetSms(deps: SendDeps, input: SendInput): Prom
     const segments = countSegments(rendered.body);
     let gate = { would_send: deps.mode !== 'disabled', block: deps.mode === 'disabled' ? 'SMS_DISABLED' : null as string | null, consent: false, opted_out: false };
     if (deps.mode === 'allowlist' && !deps.allowlist.includes(phone.e164)) gate = { ...gate, would_send: false, block: 'NOT_ALLOWLISTED' };
+    if (!isTwilioDomestic(phone.e164)) gate = { ...gate, would_send: false, block: 'INTERNATIONAL_NO_TWILIO' };
     if (deps.store.previewStatus) {
       const s = await deps.store.previewStatus(passenger.id, phone.e164, input.deviceKeyHash ?? null);
       gate = { would_send: gate.would_send && s.would_send, block: gate.block ?? s.block, consent: s.consent, opted_out: s.opted_out };

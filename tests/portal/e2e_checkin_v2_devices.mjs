@@ -84,7 +84,8 @@ async function profileRun(engine, label, opts) {
     return { tel: document.getElementById('ci2Phone').type, mode: document.getElementById('ci2Phone').inputMode, name: px('#ci2Name'), phone: px('#ci2Phone'),
              nameLabel: !!document.querySelector('label[for="ci2Name"]'), phoneLabel: !!document.querySelector('label[for="ci2Phone"]') };
   });
-  check(f.tel === 'tel' && f.mode === 'numeric', `${tag} phone uses the numeric keypad`, f);
+  // Phone keypad (digits + '+') so international numbers can be typed (2026-10-26).
+  check(f.tel === 'tel' && f.mode === 'tel', `${tag} phone uses the phone keypad (digits and +)`, f);
   check(f.name >= 16 && f.phone >= 16, `${tag} inputs ≥16px (no Safari zoom on focus)`, f);
   check(f.nameLabel && f.phoneLabel, `${tag} inputs have visible labels`);
   await tapOrClick(page, '.ci2-retpick[data-n="1"] [data-cal="1"]', touch);

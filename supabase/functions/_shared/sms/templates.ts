@@ -280,6 +280,11 @@ export function estimateCostUsd(segments: number): number {
 export function welcomeBody(link: string): string {
   return `Welcome to Makers Air Valet!\nYour vehicle has been checked in.\nYour digital valet pass:\n${link}\nReply STOP to opt out.`;
 }
+// Same welcome, shared by staff from the device (WhatsApp / iMessage) for an
+// international number: no STOP line (it is not an AirValet SMS).
+export function shareWelcomeBody(link: string): string {
+  return `Welcome to Makers Air Valet!\nYour vehicle has been checked in.\nYour digital valet pass:\n${link}`;
+}
 
 // "10/31/2026" + "18:00" → "Fri, Oct 31, 6:00 PM" (time only when set).
 export function formatReturn(ret: string, time: string | null): string {

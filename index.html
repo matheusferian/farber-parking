@@ -431,7 +431,7 @@
     <div class="fi" id="freqInfo"></div>
     <div class="fr two">
       <div class="fg"><label for="fName">Full Name <span style="color:var(--red)">*</span></label><div class="ac-wrap"><input type="text" id="fName" oninput="this.value=this.value.toUpperCase();chkFreq();acSearch(this.value)" autocomplete="off" placeholder="" style="text-transform:uppercase;width:100%"><div class="ac-drop" id="acDrop"></div></div></div>
-      <div class="fg"><label for="fPhone">Phone <span style="color:var(--red)">*</span></label><input type="tel" inputmode="numeric" pattern="[0-9]*" id="fPhone" oninput="fmtPhoneInput(this);chkFreq()" placeholder="" maxlength="14"></div>
+      <div class="fg"><label for="fPhone">Phone <span style="color:var(--red)">*</span></label><input type="tel" inputmode="tel" id="fPhone" oninput="fmtGuestPhoneInput(this);chkFreq()" placeholder="" maxlength="18"></div>
     </div>
     <div id="erWarn" class="er-warn" style="display:none;">⚠️ HEADS UP: This passenger had an Early Return before. Confirm the return date carefully.</div>
     <div class="fr two">
@@ -3409,6 +3409,76 @@ function fmtPhoneInput(el) {
   else fmt = '(' + digits.slice(0,3) + ') ' + digits.slice(3,6) + '-' + digits.slice(6);
   el.value = fmt;
 }
+// Guest phone: US/Canada, or international. International = another country
+// code (typed with + or 00, or 11+ digits not starting with 1) or a +1
+// Caribbean / Bermuda area code, which Twilio bills as international. Never
+// texted through Twilio: staff send the valet pass by WhatsApp or iMessage from
+// the device. The Bahamas (242) are the exception: texted like the US (owner
+// 2026-10-26). Same list as NANP_INTERNATIONAL_AREA_CODES in
+// supabase/functions/_shared/sms/phone.ts.
+var GUEST_NANP_INTL = ['246','264','268','284','345','441','473','649','658','664','721','758','767','784','809','829','849','868','869','876'];
+// → E.164 digits without '+' for an international number, else null (US/Canada or invalid).
+function guestPhoneIntl(v){
+  var s = String(v == null ? '' : v).trim(), d = s.replace(/\D/g, '');
+  if (!d) return null;
+  if (/^00/.test(s)) d = d.slice(2);
+  else if (!/^\+/.test(s)) {
+    if (d.length === 10) return GUEST_NANP_INTL.indexOf(d.slice(0, 3)) >= 0 ? '1' + d : null;
+    if (d.length < 11 || (d.length === 11 && d.charAt(0) === '1' && GUEST_NANP_INTL.indexOf(d.slice(1, 4)) < 0)) return null;
+  }
+  if (d.length < 8 || d.length > 15 || d.charAt(0) === '0') return null;
+  if (d.charAt(0) === '1') return (d.length === 11 && GUEST_NANP_INTL.indexOf(d.slice(1, 4)) >= 0) ? d : null;
+  return d;
+}
+// Country of a guest phone (flag + name), shown while typing. +1 numbers by
+// area code (Canada, Bahamas and the Caribbean), others by calling code.
+var GUEST_NANP_AREAS = { BS: '242', BB: '246', AI: '264', AG: '268', VG: '284', KY: '345', BM: '441', GD: '473', TC: '649', JM: '658 876', MS: '664',
+  SX: '721', LC: '758', DM: '767', VC: '784', DO: '809 829 849', TT: '868', KN: '869', PR: '787 939', VI: '340', GU: '671',
+  CA: '204 226 236 249 250 263 289 306 343 354 365 367 368 382 387 403 416 418 428 431 437 438 450 468 474 506 514 519 548 579 581 584 587 604 613 639 647 672 683 705 709 742 753 778 780 782 807 819 825 867 873 879 902 905 942' };
+var GUEST_CC = { '7': 'RU', '20': 'EG', '27': 'ZA', '30': 'GR', '31': 'NL', '32': 'BE', '33': 'FR', '34': 'ES', '36': 'HU', '39': 'IT', '40': 'RO', '41': 'CH',
+  '43': 'AT', '44': 'GB', '45': 'DK', '46': 'SE', '47': 'NO', '48': 'PL', '49': 'DE', '51': 'PE', '52': 'MX', '53': 'CU', '54': 'AR', '55': 'BR', '56': 'CL',
+  '57': 'CO', '58': 'VE', '60': 'MY', '61': 'AU', '62': 'ID', '63': 'PH', '64': 'NZ', '65': 'SG', '66': 'TH', '81': 'JP', '82': 'KR', '84': 'VN', '86': 'CN',
+  '90': 'TR', '91': 'IN', '92': 'PK', '94': 'LK', '212': 'MA', '234': 'NG', '297': 'AW', '351': 'PT', '352': 'LU', '353': 'IE', '354': 'IS', '356': 'MT',
+  '357': 'CY', '358': 'FI', '359': 'BG', '370': 'LT', '371': 'LV', '372': 'EE', '380': 'UA', '385': 'HR', '386': 'SI', '420': 'CZ', '421': 'SK',
+  '501': 'BZ', '502': 'GT', '503': 'SV', '504': 'HN', '505': 'NI', '506': 'CR', '507': 'PA', '509': 'HT', '590': 'GP', '591': 'BO', '593': 'EC',
+  '595': 'PY', '596': 'MQ', '598': 'UY', '599': 'CW', '852': 'HK', '886': 'TW', '965': 'KW', '966': 'SA', '971': 'AE', '972': 'IL', '973': 'BH', '974': 'QA' };
+var GUEST_COUNTRY_NAMES = { US: 'US', CA: 'Canada', BS: 'Bahamas', BB: 'Barbados', AI: 'Anguilla', AG: 'Antigua', VG: 'British Virgin Islands', KY: 'Cayman Islands',
+  BM: 'Bermuda', GD: 'Grenada', TC: 'Turks and Caicos', JM: 'Jamaica', MS: 'Montserrat', SX: 'Sint Maarten', LC: 'St Lucia', DM: 'Dominica', VC: 'St Vincent',
+  DO: 'Dominican Republic', TT: 'Trinidad and Tobago', KN: 'St Kitts and Nevis', PR: 'Puerto Rico', VI: 'US Virgin Islands', GU: 'Guam', RU: 'Russia',
+  EG: 'Egypt', ZA: 'South Africa', GR: 'Greece', NL: 'Netherlands', BE: 'Belgium', FR: 'France', ES: 'Spain', HU: 'Hungary', IT: 'Italy', RO: 'Romania',
+  CH: 'Switzerland', AT: 'Austria', GB: 'United Kingdom', DK: 'Denmark', SE: 'Sweden', NO: 'Norway', PL: 'Poland', DE: 'Germany', PE: 'Peru', MX: 'Mexico',
+  CU: 'Cuba', AR: 'Argentina', BR: 'Brazil', CL: 'Chile', CO: 'Colombia', VE: 'Venezuela', MY: 'Malaysia', AU: 'Australia', ID: 'Indonesia', PH: 'Philippines',
+  NZ: 'New Zealand', SG: 'Singapore', TH: 'Thailand', JP: 'Japan', KR: 'South Korea', VN: 'Vietnam', CN: 'China', TR: 'Turkey', IN: 'India', PK: 'Pakistan',
+  LK: 'Sri Lanka', MA: 'Morocco', NG: 'Nigeria', AW: 'Aruba', PT: 'Portugal', LU: 'Luxembourg', IE: 'Ireland', IS: 'Iceland', MT: 'Malta', CY: 'Cyprus',
+  FI: 'Finland', BG: 'Bulgaria', LT: 'Lithuania', LV: 'Latvia', EE: 'Estonia', UA: 'Ukraine', HR: 'Croatia', SI: 'Slovenia', CZ: 'Czechia', SK: 'Slovakia',
+  BZ: 'Belize', GT: 'Guatemala', SV: 'El Salvador', HN: 'Honduras', NI: 'Nicaragua', CR: 'Costa Rica', PA: 'Panama', HT: 'Haiti', GP: 'Guadeloupe',
+  BO: 'Bolivia', EC: 'Ecuador', PY: 'Paraguay', MQ: 'Martinique', UY: 'Uruguay', CW: 'Curaçao', HK: 'Hong Kong', TW: 'Taiwan', KW: 'Kuwait',
+  SA: 'Saudi Arabia', AE: 'United Arab Emirates', IL: 'Israel', BH: 'Bahrain', QA: 'Qatar' };
+// → { iso, name, flag } or null while the number is still incomplete / unknown.
+function guestPhoneCountry(v){
+  var s = String(v == null ? '' : v).trim(), d = s.replace(/\D/g, ''), iso = null;
+  if (/^00/.test(s)) d = d.slice(2);
+  var plus = /^(\+|00)/.test(s);
+  if (!plus && d.length === 10) d = '1' + d;
+  if (d.charAt(0) === '1' && d.length >= 4 && (plus || d.length === 11)) {
+    var area = d.slice(1, 4); iso = 'US';
+    Object.keys(GUEST_NANP_AREAS).forEach(function(k){ if (GUEST_NANP_AREAS[k].split(' ').indexOf(area) >= 0) iso = k; });
+  } else if (plus || d.length > 11) {
+    for (var n = 3; n >= 1 && !iso; n--) if (GUEST_CC[d.slice(0, n)]) iso = GUEST_CC[d.slice(0, n)];
+  }
+  if (!iso) return null;
+  return { iso: iso, name: GUEST_COUNTRY_NAMES[iso] || iso, flag: String.fromCodePoint.apply(null, iso.split('').map(function(c){ return 0x1F1E6 + c.charCodeAt(0) - 65; })) };
+}
+
+// Typing: a number with + / 00 / 11+ digits (not 1…) keeps its country code;
+// anything else gets the US (305) 555-0142 format as before.
+function fmtGuestPhoneInput(el){
+  var s = el.value, d = s.replace(/\D/g, '');
+  if (/^\s*00/.test(s)) { el.value = '+' + d.slice(2, 17); return; }
+  if (/^\s*\+/.test(s)) { el.value = '+' + d.slice(0, 15); return; }
+  if (d.length > 11 || (d.length === 11 && d.charAt(0) !== '1')) { el.value = '+' + d.slice(0, 15); return; }
+  fmtPhoneInput(el);
+}
 function onStatusChange(val) {
   var retReq=document.getElementById('retRequired');
   if(retReq) retReq.style.display=(val==='PENDING')?'':'none';
@@ -4193,6 +4263,7 @@ async function sendPassengerSms(options) {
 }
 // iPhone Messages composer — the v46 behaviour, unchanged.
 function sendNativeSms(options) {
+  if (guestPhoneIntl(options.phone)) { shareChooser(options); return { ok: true, status: 'composer_opened', sid: null, provider: 'native' }; }
   var cleanPhone = String(options.phone || '').replace(/\D/g, '');
   try {
     window.open('sms:' + cleanPhone + '&body=' + encodeURIComponent(options.body || ''), '_self');
@@ -4205,6 +4276,57 @@ function sendNativeSms(options) {
   logMessageEvent(options, 'Opened in Messages');
   return { ok: true, status: 'composer_opened', sid: null, provider: 'native' };
 }
+// ── International guests: WhatsApp / iMessage from this device (no Twilio) ──
+// Real links (not window.open): a tap on a link is what iOS needs to open
+// WhatsApp, also from the home-screen app.
+function shareLinksHtml(phone, body, logKey){
+  var d = guestPhoneIntl(phone) || String(phone || '').replace(/\D/g, ''), t = encodeURIComponent(body || '');
+  var k = logKey ? ' data-sharelog="' + escapeHTML(String(logKey)) + '"' : '';
+  return '<span class="share-btns"><a class="share-wa" href="https://wa.me/' + d + '?text=' + t + '" target="_blank" rel="noopener"' + k + ' data-via="WhatsApp">WhatsApp</a>' +
+    '<a class="share-im" href="sms:+' + d + '&amp;body=' + t + '"' + k + ' data-via="Messages">iMessage / Text</a></span>';
+}
+var _shareLog = {};
+document.addEventListener('click', function(e){
+  var a = e.target && e.target.closest && e.target.closest('a[data-sharelog]'); if (!a) return;
+  var o = _shareLog[a.dataset.sharelog]; if (o) logMessageEvent(o, 'Opened in ' + a.dataset.via);
+  var ov = document.getElementById('shareOv'); if (ov && ov.contains(a)) setTimeout(function(){ ov.remove(); }, 300);
+});
+function shareChooser(options){
+  var old = document.getElementById('shareOv'); if (old) old.remove();
+  var key = 'n' + Date.now(); _shareLog[key] = options;
+  var ov = document.createElement('div'); ov.id = 'shareOv'; ov.className = 'share-ov';
+  ov.innerHTML = '<div class="share-box" role="dialog" aria-label="Send to an international number"><b>Send to ' + escapeHTML(options.passengerName || 'guest') + '</b>' +
+    '<span>International number (+' + escapeHTML(guestPhoneIntl(options.phone)) + '): no AirValet SMS. Choose the app:</span>' +
+    shareLinksHtml(options.phone, options.body, key) + '<button type="button" class="share-x" onclick="this.closest(\'.share-ov\').remove()">Cancel</button></div>';
+  document.body.appendChild(ov);
+}
+// The server makes a NEW valet pass link (the previous one stops working) for
+// an international ticket enrolled at check-in. Never throws.
+async function passShareLink(passengerId){
+  try {
+    var key = smsDeviceKey(false), headers = sbHeaders(); if (key) headers['x-airvalet-device'] = key;
+    var r = await smsApi('/functions/v1/pass-share', { method: 'POST', headers: headers, body: JSON.stringify({ passenger_id: passengerId }) });
+    return r && r.ok ? { ok: true, url: r.url, body: r.body, phone: r.phone } : { ok: false, code: (r && r.error && r.error.code) || 'ERROR' };
+  } catch(e) { return { ok: false, code: e.status === 404 ? 'UNAVAILABLE' : (e.status === 401 || e.status === 403) ? 'UNAUTHENTICATED' : 'NETWORK' }; }
+}
+function passShareErrorText(code){
+  return ({ NO_PASS_LINK: 'No valet pass link: consent was not saved on an approved device', NETWORK: 'No connection — try again',
+    UNAVAILABLE: 'Link service not available — try again', UNAUTHENTICATED: 'Session expired — sign in again',
+    DOMESTIC_USE_SMS: 'US number — use the normal text' })[code] || 'Valet pass link not created — try again';
+}
+// Ticket panel button: new link + WhatsApp / iMessage, for an international guest.
+async function vpShareLink(pid){
+  var r = paxById(pid); if (!r) return;
+  if (!confirm('Create the valet pass link to send to ' + r.name + '? If a link was sent before, that old link stops opening.')) return;
+  var box = document.getElementById('vpShare'); if (box) box.innerHTML = '<span class="vps-s">Creating the link…</span>';
+  var s = await passShareLink(pid);
+  box = document.getElementById('vpShare'); if (!box) return;
+  if (!s.ok) { box.innerHTML = '<span class="vps-s" style="color:var(--red)">' + escapeHTML(passShareErrorText(s.code)) + '</span>'; return; }
+  var key = 'p' + pid + '_' + Date.now();
+  _shareLog[key] = { passengerId: pid, passengerName: r.name, phone: r.phone, ticket: r.ticket, templateKey: 'WELCOME', messageType: 'CHECK_IN', body: s.body };
+  box.innerHTML = '<span class="vps-s">New link ready (the old one no longer opens). Send it:</span>' + shareLinksHtml(r.phone, s.body, key);
+}
+
 // Codes where the server guarantees no text was sent AND iPhone texting is
 // acceptable: program/device/ticket not in AirValet texting, cost caps, or
 // the SMS function unreachable. NOT here (no fallback → no double text):
@@ -4212,7 +4334,7 @@ function sendNativeSms(options) {
 // network errors (a retry is deduplicated by the server instead).
 var SMS_NATIVE_FALLBACK = {
   SMS_PAUSED: 1, SMS_DISABLED: 1, DEVICE_NOT_AUTHORIZED: 1, TICKET_NOT_ELIGIBLE: 1, TEST_MODE_NUMBER: 1,
-  NOT_ALLOWLISTED: 1, NO_CONSENT: 1, DAILY_CAP: 1, DEVICE_RATE_LIMIT: 1, TEMPLATE_NOT_APPROVED: 1,
+  NOT_ALLOWLISTED: 1, NO_CONSENT: 1, DAILY_CAP: 1, DEVICE_RATE_LIMIT: 1, TEMPLATE_NOT_APPROVED: 1, INTERNATIONAL_NO_TWILIO: 1,
   SMS_UNAVAILABLE: 1, UNSUPPORTED: 1
 };
 var _smsFallbackPending = null;
@@ -4249,6 +4371,7 @@ var SMS_SERVER_TYPES = {
 };
 var SMS_CONSENT_VERSION = 'checkin-verbal-2026-10';
 var SMS_BLOCK_TEXT = {
+  INTERNATIONAL_NO_TWILIO: 'international number — send it by WhatsApp or iMessage',
   OPTED_OUT: 'the passenger replied STOP — texts are blocked until they reply START',
   NO_CONSENT: 'no SMS consent on file for this passenger',
   RATE_LIMIT_HOUR: 'too many texts to this number in the last hour',
@@ -4304,7 +4427,13 @@ function smsProgramOpen(){ return isServerSms() && !!(_smsDev && _smsDev.cutover
 // Per ticket: only tickets enrolled at check-in go through the server.
 // Old tickets, and everything when the device/program is off: iPhone SMS.
 function smsRouteFor(passengerId){
+  // International number: never Twilio — this device's WhatsApp / iMessage instead.
+  if (passengerId != null && guestPhoneIntl((paxById(passengerId) || {}).phone)) return 'native';
   return (isServerSms() && passengerId != null && _smsEnrolled[passengerId]) ? 'server' : 'native';
+}
+// The ticket has a valet pass link: texted by AirValet (US) or shared by staff (international).
+function passLinkTicket(r){
+  return !!r && (smsRouteFor(r.id) === 'server' || (isServerSms() && !!_smsEnrolled[r.id] && !!guestPhoneIntl(r.phone)));
 }
 function smsDeviceKey(create){
   try {
@@ -4739,7 +4868,7 @@ function renderThread(passengerId, keepComposer){
     ? '<div class="ibx-blocked">Passenger replied STOP. Texts are blocked until they reply START.</div>'
     : '<div class="ibx-comp"><div class="ibx-comp-main"><textarea id="ibxText" rows="1" maxlength="480" placeholder="Message" oninput="onInboxDraft(' + passengerId + ')">' + escapeHTML(draft) + '</textarea>' +
       '<button class="ibx-send" id="ibxSendBtn" onclick="sendInboxReply(' + passengerId + ')"' + (_ibx.sending ? ' disabled' : '') + '>' + (_ibx.sending ? '…' : 'Send') + '</button></div>' +
-      '<div class="ibx-comp-row"><label class="ibx-sms-chk"><input type="checkbox" id="ibxAlsoSms" checked> Also by SMS</label>' +
+      '<div class="ibx-comp-row">' + (guestPhoneIntl(p.phone) ? '<label class="ibx-sms-chk" title="International number: no AirValet SMS"><input type="checkbox" id="ibxAlsoSms" disabled> Chat only (international)</label>' : '<label class="ibx-sms-chk"><input type="checkbox" id="ibxAlsoSms" checked> Also by SMS</label>') +
       '<span class="ibx-quick" onclick="useQuickReply(' + passengerId + ',\'No problem, see you then!\')">See you then!</span><span class="ibx-quick" onclick="useQuickReply(' + passengerId + ',\'Noted, thank you!\')">Noted, thanks!</span>' +
       // Staff-chosen reply only (owner 2026-10-25): automatic texts never say where a key is.
       // Not for Ascend returns: an Ascend team member hands over the key.
@@ -5062,7 +5191,7 @@ async function vpPushPreview(on){
 // Passenger panel: staff-only Valet Pass state (Ready / Customs / Lockbox / return time).
 async function vpLoadStaff(r){
   var el = document.getElementById('vpStaffSec'); if (!el) return;
-  if (!isServerSms() || smsRouteFor(r.id) !== 'server' || r.status === 'ARCHIVED' || r.status === 'DELIVERED' || r.isOfflinePending) { el.innerHTML = ''; return; }
+  if (!isServerSms() || !passLinkTicket(r) || r.status === 'ARCHIVED' || r.status === 'DELIVERED' || r.isOfflinePending) { el.innerHTML = ''; return; }
   var st;
   try { st = await vpRpc('airvalet_pass_state_get', { p_passenger_id: r.id }); } catch(e) { el.innerHTML = ''; return; }
   var customs = pickupLocation(r) === 'CUSTOMS';
@@ -5070,6 +5199,7 @@ async function vpLoadStaff(r){
     return '<button type="button" class="vps-tg' + (on ? ' on' : '') + '" onclick="vpSetState(' + r.id + ',\'' + field + '\',' + (on ? 'false' : 'true') + ')">' + (on ? '✓ ' : '') + label + '</button>';
   };
   el.innerHTML = '<div class="htitle" style="margin-top:4px">Valet Pass (passenger page)</div><div class="vps">' +
+    (guestPhoneIntl(r.phone) ? '<div class="vps-r"><span>🌍 International number — send the pass by WhatsApp / iMessage</span><button type="button" class="vps-tg" onclick="vpShareLink(' + r.id + ')">Send pass link</button></div><div id="vpShare"></div>' : '') +
     '<div class="vps-r"><span>Ready to Go</span>' + tg('ready', st.ready, st.ready ? 'Ready' : 'Mark Ready') + '</div>' +
     (customs ? '<div class="vps-r"><span>Customs on the passenger page</span>' + tg('customs_confirmed', st.customs_confirmed, st.customs_confirmed ? 'Confirmed' : 'Confirm Customs') + '</div>' : '') +
     '<div class="vps-r"><span>After-hours lockbox' + (st.lockbox_authorized ? ' · code shows from ' + escapeHTML(vpIsoDate(st.lockbox_reveal_on)) : '') + '</span>' +
@@ -6680,7 +6810,7 @@ function ci2Html(){
   + '<div class="ci2-card" id="ci2Step">'
   +   '<div class="ci2-fly" role="group" aria-label="Flying with"><button type="button" data-op="MAKERS" aria-pressed="true">Makers Air</button><button type="button" data-op="ASCEND" aria-pressed="false"><span aria-hidden="true">✈ </span>Ascend</button></div>'
   +   '<div class="ci2-np"><div class="ci2-f"><label for="ci2Name">Name</label><div class="ci2-acw"><input id="ci2Name" class="ci2-inp" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="First and last name"><div class="ci2-ac" id="ci2Ac" hidden></div></div><div class="ci2-hint" id="ci2Freq" hidden></div></div>'
-  +   '<div class="ci2-f"><label for="ci2Phone">Phone</label><div class="ci2-pw"><input id="ci2Phone" class="ci2-inp" type="tel" inputmode="numeric" autocomplete="off" maxlength="14" placeholder="(305) 555-0142" aria-describedby="ci2PhoneHint"><span class="ci2-ok" id="ci2PhoneOk">Valid</span></div><div class="ci2-hint" id="ci2PhoneHint">US number. It can be a companion’s phone.</div></div></div>'
+  +   '<div class="ci2-f"><label for="ci2Phone">Phone</label><div class="ci2-pw"><input id="ci2Phone" class="ci2-inp" type="tel" inputmode="tel" autocomplete="off" maxlength="18" placeholder="(305) 555-0142 or +49 …" aria-describedby="ci2PhoneHint"><span class="ci2-ok" id="ci2PhoneOk">Valid</span></div><div class="ci2-hint" id="ci2PhoneHint">US number, or + country code. It can be a companion’s phone.</div></div></div>'
   +   '<div class="ci2-er" id="ci2Er" hidden>⚠️ This guest had an Early Return before. Confirm the return date carefully.</div>'
   +   '<div class="ci2-f"><div class="ci2-lr"><span class="ci2-lab" id="ci2RetLbl">Return date</span><span class="ci2-opt">Optional</span></div><div class="ci2-retpick" data-n="1"></div>'
   +     '<label class="ci2-check"><input type="checkbox" class="ci2-other"><span>Returning with another airline<small>No automatic pickup instructions; staff set the pickup place</small></span></label></div>'
@@ -6745,15 +6875,16 @@ function ci2Bind(){
   });
   nm.addEventListener('blur', function(){ setTimeout(function(){ var a = ci2El('ci2Ac'); if (a) a.hidden = true; }, 150); });
   ph.addEventListener('blur', function(){
-    var d = ci2Digits(this.value), bad = d.length > 0 && d.length !== 10, h = ci2El('ci2PhoneHint');
+    var d = ci2Digits(this.value), bad = d.length > 0 && !ci2PhoneValid(this.value), h = ci2El('ci2PhoneHint');
     this.setAttribute('aria-invalid', String(bad)); h.classList.toggle('bad', bad);
-    h.textContent = bad ? 'Needs 10 digits (' + d.length + ' typed).' : 'US number. It can be a companion’s phone.';
+    h.textContent = bad ? (/^\+/.test(this.value) ? 'Check the number: + country code and number.' : 'Needs 10 digits (' + d.length + ' typed), or + country code.') : ci2PhoneHintText(this.value);
   });
   ph.addEventListener('input', function(){
-    fmtPhoneInput(this);
-    var d = ci2Digits(this.value);
-    if (d.length === 10) { this.setAttribute('aria-invalid', 'false'); ci2El('ci2PhoneHint').classList.remove('bad'); ci2El('ci2PhoneHint').textContent = 'US number. It can be a companion’s phone.'; }
-    ci2El('ci2PhoneOk').classList.toggle('on', d.length === 10);
+    fmtGuestPhoneInput(this);
+    var ok = ci2PhoneValid(this.value);
+    if (ok) { this.setAttribute('aria-invalid', 'false'); ci2El('ci2PhoneHint').classList.remove('bad'); }
+    ci2El('ci2PhoneHint').textContent = ci2PhoneHintText(this.value);
+    ci2PhoneBadge(this.value);
     if (_ci.timer) ci2Undo('Phone changed — nothing sent.');
     ci2HideDup(); ci2MirrorChecks();
   });
@@ -6781,6 +6912,19 @@ function ci2Bind(){
   ci2El('ci2Native').hidden = smsProgramOpen();
 }
 function ci2Digits(v){ return String(v || '').replace(/\D/g, '').replace(/^1(?=\d{10}$)/, ''); }
+function ci2PhoneValid(v){ return !!guestPhoneIntl(v) || (!/^\s*(\+|00)/.test(String(v || '')) || /^\s*\+1/.test(String(v || ''))) && ci2Digits(v).length === 10; }
+function ci2PhoneHintText(v){
+  var c = ci2PhoneValid(v) ? guestPhoneCountry(v) : null, who = c ? c.flag + ' ' + c.name + ' · ' : '';
+  if (guestPhoneIntl(v)) return who + 'International number: no SMS. After Yes, you send the valet pass by WhatsApp or iMessage.';
+  if (c && c.iso !== 'US') return who + 'texted by AirValet like a US number.';
+  return (c ? who : '') + 'US number, or + country code. It can be a companion’s phone.';
+}
+// "Valid" badge with the country flag.
+function ci2PhoneBadge(v){
+  var b = ci2El('ci2PhoneOk'); if (!b) return;
+  var ok = ci2PhoneValid(v), c = ok ? guestPhoneCountry(v) : null;
+  b.classList.toggle('on', ok); b.textContent = (c ? c.flag + ' ' : '') + 'Valid';
+}
 function ci2Toast(m, bad){ showMsg(m, !!bad); }
 
 // ── Step 1 ──
@@ -6811,7 +6955,7 @@ function ci2Suggest(q){
     b.addEventListener('click', function(){
       var r = matches[parseInt(b.dataset.i, 10)];
       ci2El('ci2Name').value = r.name;
-      if (r.phone) { var p = ci2El('ci2Phone'); p.value = r.phone; fmtPhoneInput(p); ci2El('ci2PhoneOk').classList.toggle('on', ci2Digits(p.value).length === 10); }
+      if (r.phone) { var p = ci2El('ci2Phone'); p.value = r.phone; fmtGuestPhoneInput(p); ci2PhoneBadge(p.value); ci2El('ci2PhoneHint').textContent = ci2PhoneHintText(p.value); }
       if (r.car) { _ci.vehText = String(r.car).toUpperCase(); _ci.make = ''; _ci.model = ''; }
       if (r.color) _ci.color = r.color;
       drop.hidden = true; ci2MirrorChecks(); ci2VehSum(false);
@@ -6863,13 +7007,14 @@ function ci2HideDup(){ if (!_ci) return; _ci.dupOk = false; var b = ci2El('ci2Du
 function ci2ResetConsent(){ _ci.consent = null; ci2El('ci2Yes').setAttribute('aria-pressed', 'false'); }
 function ci2StartCountdown(){
   if (!ci2El('ci2Name').value.trim()) { ci2Toast('Add the guest name first.', true); ci2ResetConsent(); ci2El('ci2Name').focus(); return; }
-  if (ci2Digits(ci2El('ci2Phone').value).length !== 10) { ci2Toast('Enter a valid 10-digit phone.', true); ci2ResetConsent(); ci2El('ci2Phone').focus(); return; }
+  if (!ci2PhoneValid(ci2El('ci2Phone').value)) { ci2Toast('Enter a valid phone: 10 digits (US) or + country code.', true); ci2ResetConsent(); ci2El('ci2Phone').focus(); return; }
   if (!_ci.dupOk) { var dup = ci2RecentSameGuest(); if (dup) { ci2ResetConsent(); ci2ShowDup(dup); return; } }
   if (_ci.timer) clearInterval(_ci.timer);
   var left = 3, cd = ci2El('ci2Cd'), bar = ci2El('ci2CdBar');
   cd.hidden = false; bar.style.transition = 'none'; bar.style.width = '0';
   requestAnimationFrame(function(){ requestAnimationFrame(function(){ bar.style.transition = 'width 3s linear'; bar.style.width = '100%'; }); });
-  var t = function(){ ci2El('ci2CdText').textContent = 'Creating ticket and sending valet pass to •••-' + ci2Digits(ci2El('ci2Phone').value).slice(-4) + ' in ' + left + '…'; };
+  var intl = !!guestPhoneIntl(ci2El('ci2Phone').value);
+  var t = function(){ ci2El('ci2CdText').textContent = (intl ? 'Creating ticket and valet pass link for •••-' : 'Creating ticket and sending valet pass to •••-') + ci2Digits(ci2El('ci2Phone').value).slice(-4) + ' in ' + left + '…'; };
   t();
   _ci.timer = setInterval(function(){
     left--;
@@ -6927,15 +7072,20 @@ async function ci2Create(withText){
   document.getElementById('modalSub').textContent = 'Saved. Add details below — each one saves to this ticket.';
   ci2RenderCard(); ci2Need();
   var sc = ci2El('ci2Sms');
-  if (_ci.offline) { ci2Sms('notsent', withText ? 'Saved offline — the welcome text goes out after it uploads' : 'Saved offline — guest chose no texts'); return; }
+  var intlPhone = !!guestPhoneIntl(phone);
+  if (_ci.offline) { ci2Sms('notsent', !withText ? 'Saved offline — guest chose no texts' : intlPhone ? 'Saved offline — after it uploads, open the ticket and tap Send pass link' : 'Saved offline — the welcome text goes out after it uploads'); return; }
   if (!withText) { ci2Sms('noconsent', 'Guest chose no texts'); return; }
+  if (intlPhone) {
+    if (res.consent) { ci2ShareWelcome(); return; }
+    ci2Sms('notsent', smsProgramOpen() ? 'Consent could not be saved — no valet pass link' : 'This device is not in AirValet texting', 'WhatsApp / iMessage'); return;
+  }
   if (res.consent && smsRouteFor(_ci.id) === 'server') { ci2SendWelcome(); return; }
   // Not in AirValet texting (or the consent could not be saved): one tap opens iPhone Messages.
   ci2Sms('notsent', smsProgramOpen() ? 'Consent could not be saved — no text sent' : 'This device is not in AirValet texting', 'Send from iPhone');
 }
 // Welcome SMS status on the ticket card. "Sent" only once the backend says
 // sent/delivered (Twilio status callback); accepted/queued stays "Sending".
-var CI2_SMS_LABEL = { sending: 'Sending', sent: 'Sent', failed: 'Failed', noconsent: 'No consent', notsent: 'Not sent', unconfirmed: 'Unconfirmed' };
+var CI2_SMS_LABEL = { sending: 'Sending', sent: 'Sent', failed: 'Failed', noconsent: 'No consent', notsent: 'Not sent', unconfirmed: 'Unconfirmed', share: 'Send it now' };
 function ci2Sms(state, detail, action){
   var c = ci2El('ci2Sms'); if (!c) return;
   _ci.smsState = state;
@@ -6943,6 +7093,18 @@ function ci2Sms(state, detail, action){
   c.innerHTML = '<i aria-hidden="true"></i><span class="l">Welcome SMS</span><b>' + CI2_SMS_LABEL[state] + '</b>'
     + (detail ? '<span class="d">' + escapeHTML(detail) + '</span>' : '')
     + (action ? '<button type="button" onclick="ci2NativeWelcome()">' + escapeHTML(action) + '</button>' : '');
+}
+// International number: no SMS. The server makes the valet pass link and the
+// staff send it from this device (WhatsApp or iMessage / text).
+async function ci2ShareWelcome(){
+  ci2Sms('sending', 'Creating the valet pass link');
+  var id = _ci.id, s = await passShareLink(id);
+  if (!_ci || _ci.id !== id) return;
+  if (!s.ok) { ci2Sms('notsent', passShareErrorText(s.code), 'WhatsApp / iMessage'); return; }
+  var key = 'c' + id;
+  _shareLog[key] = { passengerId: id, passengerName: ci2El('ci2Name').value.trim().toUpperCase(), phone: ci2El('ci2Phone').value.trim(), ticket: _ci.ticket, templateKey: 'WELCOME', messageType: 'CHECK_IN', body: s.body };
+  ci2Sms('share', 'International number — no SMS. Send the valet pass:');
+  var c = ci2El('ci2Sms'); if (c) c.insertAdjacentHTML('beforeend', shareLinksHtml(ci2El('ci2Phone').value, s.body, key));
 }
 async function ci2SendWelcome(){
   ci2Sms('sending');

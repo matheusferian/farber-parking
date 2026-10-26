@@ -36,6 +36,20 @@ function checkNanp(e164: string): PhoneResult {
   return { valid: true, e164 };
 }
 
+// Twilio texts only US/Canada numbers. Everything else is international
+// (higher cost): staff share the valet pass by WhatsApp or iMessage from the
+// device instead (pass-share). +1 Caribbean / Bermuda area codes are billed as
+// international too. Exception: the Bahamas (242) are texted by Twilio like the
+// US (owner 2026-10-26: ~$0.09/text, many guests). US territories (Puerto Rico,
+// USVI, Guam…) stay domestic. Same list as GUEST_NANP_INTL in index.html.
+export const NANP_INTERNATIONAL_AREA_CODES = [
+  '246', '264', '268', '284', '345', '441', '473', '649', '658', '664',
+  '721', '758', '767', '784', '809', '829', '849', '868', '869', '876',
+];
+export function isTwilioDomestic(e164: string): boolean {
+  return /^\+1\d{10}$/.test(e164) && !NANP_INTERNATIONAL_AREA_CODES.includes(e164.slice(2, 5));
+}
+
 // For logs: never print a full phone number.
 export function maskPhone(e164: string): string {
   return e164.length > 4 ? e164.slice(0, 2) + '•••' + e164.slice(-4) : '•••';
