@@ -70,9 +70,15 @@ export async function notifyEvent(deps: NotifyDeps, kind: NotifyKind, refId: str
         const { data: targets } = await deps.db.rpc('airvalet_push_targets', {});
         let ok = 0;
         for (const t of (targets ?? []) as { id: string; endpoint: string; p256dh: string; auth: string; show_preview: boolean }[]) {
-          const r: PushResult = await (deps.pushImpl ?? sendPush)(t, pushPayload(details, !!t.show_preview), deps.vapid);
-          await deps.db.rpc('airvalet_push_result', { p_id: t.id, p_ok: r.ok, p_gone: r.gone });
-          if (r.ok) ok += 1;
+          // One device failing (bad keys, network, db) never stops the others
+          // nor the Super Admin SMS copy below.
+          try {
+            const r: PushResult = await (deps.pushImpl ?? sendPush)(t, pushPayload(details, !!t.show_preview), deps.vapid);
+            await deps.db.rpc('airvalet_push_result', { p_id: t.id, p_ok: r.ok, p_gone: r.gone });
+            if (r.ok) ok += 1;
+          } catch (e) {
+            log('notify.push_device_error', { kind, error: (e as Error)?.name || 'Error' });
+          }
         }
         out.push = ok;
         await deps.db.rpc('airvalet_notify_finish', { p_dedupe_key: `push:${kind}:${refId}`, p_status: ok ? 'sent' : 'skipped', p_segments: null, p_sid: null, p_detail: `${ok} device(s)` });

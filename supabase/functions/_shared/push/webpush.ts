@@ -57,7 +57,14 @@ export type PushResult = { ok: boolean; status: number; gone: boolean };
 export async function sendPush(sub: PushSub, data: unknown, vapid: { privateJwk: JsonWebKey; publicKey: string; subject: string },
   fetchImpl: typeof fetch = fetch): Promise<PushResult> {
   if (!/^https:\/\//.test(sub.endpoint)) return { ok: false, status: 0, gone: true };
-  const body = await encryptPayload(sub, enc.encode(JSON.stringify(data)));
+  let body: Bytes;
+  try {
+    body = await encryptPayload(sub, enc.encode(JSON.stringify(data)));
+  } catch {
+    // Malformed p256dh/auth: this subscription can never work. Report it as
+    // gone so it leaves the target list, and never stop the other devices.
+    return { ok: false, status: 0, gone: true };
+  }
   try {
     const r = await fetchImpl(sub.endpoint, {
       method: 'POST',
