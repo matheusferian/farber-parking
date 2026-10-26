@@ -5177,10 +5177,35 @@ async function renderVpAlertsCard(){
       ? '<div class="vpa-row">' + (state === 'on'
           ? '<button type="button" class="smsbtn" onclick="vpPushOff()">Turn alerts off</button>'
           : '<button type="button" class="smsbtn pri" onclick="vpPushOn()">Turn alerts on</button>') + '</div>' +
-        (state === 'on' ? '<label class="vpa-chk"><input type="checkbox" ' + (show ? 'checked ' : '') + 'onchange="vpPushPreview(this.checked)"> Show the message text on the lock screen</label>' : '')
+        (state === 'on' ? '<label class="vpa-chk"><input type="checkbox" ' + (show ? 'checked ' : '') + 'onchange="vpPushPreview(this.checked)"> Show the message text on the lock screen</label>' : '') +
+        // ADMIN phones only (owner 2026-10-26): an alert for every new check-in / Stripe tip.
+        (state === 'on' && _currentUserRole === 'ADMIN' ? '<div class="vpa-admin" id="vpaAdmin">' +
+          '<label class="vpa-chk"><input type="checkbox" id="vpaCheckin" onchange="vpStaffAlert(\'CHECK_IN\', this)"> Every new check-in (admin)</label>' +
+          '<label class="vpa-chk"><input type="checkbox" id="vpaTip" onchange="vpStaffAlert(\'TIP\', this)"> Every Stripe tip (admin)</label></div>' : '')
       : '') +
     '<label class="vpa-chk"><input type="checkbox" ' + (vpSoundOn() ? 'checked ' : '') + 'onchange="vpSetSound(this.checked)"> Sound for new messages while AirValet is open</label></div></details>';
   el.style.display = '';
+  if (state === 'on' && _currentUserRole === 'ADMIN') vpStaffAlertsLoad();
+}
+// This phone's admin alerts (server: airvalet_push_alerts_get / _set).
+async function vpStaffAlertsLoad(){
+  var c = document.getElementById('vpaCheckin'), t = document.getElementById('vpaTip'); if (!c || !t) return;
+  try {
+    var g = await vpRpc('airvalet_push_alerts_get', { p_device_key: smsDeviceKey(false) });
+    c.checked = !!(g && g.check_in); t.checked = !!(g && g.tip);
+  } catch(e) { var box = document.getElementById('vpaAdmin'); if (box) box.style.display = 'none'; }
+}
+async function vpStaffAlert(kind, el){
+  var on = !!el.checked, r = null;
+  try { r = await vpRpc('airvalet_push_alerts_set', { p_device_key: smsDeviceKey(false), p_kind: kind, p_on: on }); } catch(e) { r = { result: 'NETWORK' }; }
+  if (!r || r.result !== 'OK') {
+    el.checked = !on;
+    showMsg(r && r.result === 'DEVICE_NOT_AUTHORIZED' ? 'Only devices approved for AirValet texting can get alerts.'
+      : r && r.result === 'ALERTS_OFF' ? 'Turn alerts on for this device first.'
+      : r && r.result === 'FORBIDDEN' ? 'Only an admin login can turn this on.' : 'Could not save — try again.', true);
+    return;
+  }
+  showMsg(on ? (kind === 'TIP' ? 'This phone will get an alert for every Stripe tip.' : 'This phone will get an alert for every new check-in.') : 'Alert turned off on this phone.', false);
 }
 function vpSetSound(on){ try { localStorage.setItem('airvalet_alert_sound', on ? '1' : '0'); } catch(e) {} if (on) vpBeep(); }
 async function vpPushSave(sub, preview){
