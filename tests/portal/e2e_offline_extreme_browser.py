@@ -45,6 +45,13 @@ def n_pax(name_like):
     return int(sql("select count(*) from passengers where name like '%s'" % name_like))
 
 
+async def dump(page, like):
+    # Evidence when a count is off: what the server has and what the device still holds.
+    print('     DEBUG server:', sql("select coalesce(string_agg(id || ' ' || name || ' ' || ticket || ' ' || coalesce(client_key,'-') || ' ' || to_char(created_at,'HH24:MI:SS.MS'), ' | ' order by id), '-') from passengers where name like '%s'" % like))
+    print('     DEBUG device:', await page.evaluate("(async () => JSON.stringify((await offlineCheckinGetAll()).map(r => [r.payload && r.payload.name, r.payload && r.payload.client_key, r.syncState, r.serverPassengerId, r.lastError])))()"))
+    print('     DEBUG log:', sql("select coalesce(string_agg(action || ':' || passenger || ':' || ticket, ' | '), '-') from activity_log where passenger like '%s' and created_at > now() - interval '10 minutes'" % like))
+
+
 async def guard(route):
     u = route.request.url
     if u.startswith('http://127.0.0.1') or 'fonts.g' in u or 'cdnjs' in u or 'jsdelivr' in u:
@@ -111,7 +118,11 @@ async def v2_create(page, name, phone, consent=False):
     await page.evaluate('openAdd()')
     await page.wait_for_selector('#ci2Name', state='visible')
     await page.fill('#ci2Name', name)
-    await page.click('#ci2Phone'); await page.keyboard.type(phone)
+    await page.click('#ci2Phone')
+    await page.wait_for_function("document.activeElement && document.activeElement.id === 'ci2Phone'", timeout=5000)
+    await page.keyboard.type(phone)
+    typed = await page.input_value('#ci2Name')
+    if typed != name: raise AssertionError('name field changed while typing the phone: %r' % typed)
     await page.click('#ci2Yes' if consent else '#ci2No')
     if not consent:
         await page.click('#ci2NoText')
@@ -248,6 +259,8 @@ async def main():
                              p2.evaluate('window.offlineSyncPending = window.__realSync; Promise.all([offlineSyncPending(false), offlineSyncPending(true)])'))
         await wait_synced(page); await wait_synced(p2)
         counts = [n_pax(TAG + 'TAB A%d' % i) for i in range(3)]
+        if counts != [1, 1, 1]: await dump(page, TAG + 'TAB A%')
+        check(n_pax(TAG + 'TAB A%') == 3 and await unsynced(page) == 0 and await unsynced(p2) == 0, 'two tabs: no record lost (3 on the server, 0 left on either tab)')
         check(counts == [1, 1, 1], 'two tabs syncing together (auto + manual each): every check-in exactly once', counts)
         tickets = sql("select string_agg(ticket, ',') from passengers where name like '%sTAB A%%'" % TAG).split(',')
         check(len(set(tickets)) == 3, 'two tabs: three different ticket numbers', tickets)
@@ -284,6 +297,8 @@ async def main():
             print('     HUNG: Sync now did not finish in 120 s', await state())
         await wait_synced(page, 90)
         counts = [n_pax(TAG + 'FLAP %d' % i) for i in range(5)]
+        if counts != [1] * 5: await dump(page, TAG + 'FLAP %')
+        check(n_pax(TAG + 'FLAP %') == 5 and await unsynced(page) == 0, 'flapping network: no record lost (5 on the server, 0 on the device)')
         check(counts == [1] * 5, 'flapping network: all 5 uploaded exactly once', counts)
 
         check(not errors, 'no page errors (main + second tab)', errors[:3])

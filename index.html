@@ -4047,7 +4047,10 @@ function openAdd(){
   }
   document.getElementById('addOv').classList.add('on');
   if(ci2Active()) ci2Open(); else ci2Close();
-  setTimeout(function(){ var n=document.getElementById(ci2Active()?'ci2Name':'fName'); if(n) n.focus(); },100);
+  // Focus the name only if the attendant has not already tapped another field:
+  // on a slow iPad this timer can fire late and pull the cursor back into the
+  // name while the phone is being typed (audit v78: digits landed in the name).
+  setTimeout(function(){ var a=document.activeElement; if(a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return; var n=document.getElementById(ci2Active()?'ci2Name':'fName'); if(n) n.focus(); },100);
 }
 function eodOpenClosingReport(){
   ci2StopCountdown();
