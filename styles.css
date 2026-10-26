@@ -1924,10 +1924,6 @@ body.tv-stale .tv-stale-banner{display:block;}
 .vpa-row{margin:8px 0}
 .vpa-chk{display:flex;align-items:center;gap:8px;min-height:36px;font-size:13px;color:var(--tx)}
 .vpa-chk input{width:18px;height:18px}
-.vpa-rem{margin:10px 0 4px;padding-top:8px;border-top:1px solid var(--b)}
-.vpa-rem-h{font-size:13px;font-weight:700;color:var(--tx);margin-bottom:2px}
-.vpa-rem .vpa-chk{align-items:flex-start;padding:4px 0}
-.vpa-rem .vpa-chk input{flex:none;margin-top:1px}
 .vpa-dp{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;padding:10px 12px;margin:0 0 10px;border-radius:10px;border:1px solid var(--b)}
 .vpa-dp.on{border-color:var(--ok);background:rgba(46,204,113,.08)}
 .vpa-dp.off{background:rgba(127,127,127,.06)}

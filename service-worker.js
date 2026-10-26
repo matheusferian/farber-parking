@@ -51,7 +51,7 @@
 // v46: Returning with / pickup model, Makers Customs exception, Needs Review
 //      (index.html, utils.js, styles.css changed). Same SHELL_FILES.
 // v47: AirValet SMS inbox + server-side texts (only when SMS_PROVIDER = 'twilio').
-var CACHE_VERSION = 'v82';
+var CACHE_VERSION = 'v82-rollback';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 var SHELL_FILES = [
@@ -169,17 +169,15 @@ self.addEventListener('push', function(event){
     renotify: true,
     icon: './icon-192.png',
     badge: './icon-192.png',
-    // Staff alerts (check-in / tip) open the app's home; guest messages and requests open Messages.
-    data: { url: d.url === '/' ? './' : './#messages' }
+    data: { url: './#messages' }
   }));
 });
 self.addEventListener('notificationclick', function(event){
   event.notification.close();
   event.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(list){
-    var url = (event.notification.data && event.notification.data.url) || './#messages';
     for (var i = 0; i < list.length; i++) {
-      if ('focus' in list[i]) { if (url.indexOf('#messages') >= 0) list[i].postMessage({ type: 'OPEN_MESSAGES' }); return list[i].focus(); }
+      if ('focus' in list[i]) { list[i].postMessage({ type: 'OPEN_MESSAGES' }); return list[i].focus(); }
     }
-    return self.clients.openWindow(url);
+    return self.clients.openWindow('./#messages');
   }));
 });
