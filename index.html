@@ -190,7 +190,7 @@
     <div class="dcards" id="dSunday"></div>
   </div>
   <div class="dsec" id="forgotSection" style="display:none">
-    <div class="dtitle" style="color:var(--red)" id="titleForgot">&#9888; Forgot Yesterday <span class="tbadge" style="background:var(--red);color:#fff">0</span></div>
+    <div class="dtitle" style="color:var(--red)" id="titleForgot">&#9888; Return passed — not delivered <span class="tbadge" style="background:var(--red);color:#fff">0</span></div>
     <div class="dsub">Return date was yesterday — did you forget to deliver?</div>
     <div class="dcards" id="dForgot"></div>
   </div>
@@ -3069,16 +3069,19 @@ function renderDay() {
   if(sunSection) sunSection.parentElement.style.opacity=sunCount>0?'1':'0.5';
   document.getElementById('subSunday').textContent='Return Date = '+sunLabel;
   var _td=getToday(); var yst=new Date(_td.getFullYear(),_td.getMonth(),_td.getDate()-1);
+  // Every return date that has passed (not only yesterday): a car still here
+  // after its date must stay on screen until it is delivered or the date is
+  // corrected (owner 2026-10-26; ticket 1007-4 was 15 days late and hidden).
   var forgot=data.filter(function(r){
     if(r.status==='DELIVERED'||r.status==='NO DATE') return false;
     if(r.status==='ARCHIVED') return false;
     var d=pd(r.ret); if(!d) return false;
-    return sd(d,yst);
-  });
+    return isLate(r.ret);
+  }).sort(function(a,b){ return pd(a.ret)-pd(b.ret); });
   if(forgot.length){
     document.getElementById('forgotSection').style.display='block';
     document.getElementById('dForgot').innerHTML=mkCards(forgot,'cr','late',false,true,false,true,false,false,false);
-    document.getElementById('titleForgot').innerHTML='⚠️ Forgot Yesterday <span class="tbadge" style="background:var(--red);color:#fff">'+forgot.length+'</span>';
+    document.getElementById('titleForgot').innerHTML='⚠️ Return passed — not delivered <span class="tbadge" style="background:var(--red);color:#fff">'+forgot.length+'</span>';
   } else {
     document.getElementById('forgotSection').style.display='none';
   }
@@ -13931,6 +13934,16 @@ function tvReturnDateLabel(r){
 
 // ── RETURN DATE FOLLOW-UP sort — NO DATE, approx overdue, approx today,
 // approx tomorrow, future approx (last) ──────────────────────────────
+// Active car whose return cannot be planned (owner 2026-10-26): status NO DATE
+// or an approximate date, or PENDING with no date / an unreadable date / a
+// return date that has passed (e.g. picked "Wednesday" and Wednesday went by).
+// They go to the Return Follow-Up count and page — never into the Today /
+// Tomorrow lists, so the TV is not filled with the whole lot.
+function tvNeedsFollowUp(r){
+  if(!r || r.status==='DELIVERED' || r.status==='ARCHIVED') return false;
+  if(r.status==='NO DATE' || (typeof isApproxRecord==='function' && isApproxRecord(r))) return true;
+  return r.status==='PENDING' && (!hasRealReturnDate(r.ret) || !pd(r.ret) || isLate(r.ret));
+}
 function tvFollowUpRank(r){
   if(!hasRealReturnDate(r.ret)) return 0;
   if(isLate2(r.ret)) return 1;
@@ -13939,10 +13952,11 @@ function tvFollowUpRank(r){
   return 4;
 }
 function tvFollowUpChip(r){
-  if(!hasRealReturnDate(r.ret)) return {text:'NO DATE — FOLLOW UP', level:'warning'};
-  if(isLate2(r.ret)) return {text:'APPROX OVERDUE', level:'critical'};
+  if(!hasRealReturnDate(r.ret) || !pd(r.ret)) return {text:'NO DATE — FOLLOW UP', level:'warning'};
   var d = pd(r.ret);
   var label = d ? d.toLocaleDateString('en-US',{month:'short',day:'numeric'}).toUpperCase() : '';
+  if(isLate2(r.ret)) return (r.status==='PENDING' && !(typeof isApproxRecord==='function' && isApproxRecord(r)))
+    ? {text:'RETURN PASSED — WAS '+label, level:'critical'} : {text:'APPROX OVERDUE', level:'critical'};
   return {text:'APPROX '+label+' — CONFIRM', level:'warning'};
 }
 
@@ -14074,9 +14088,7 @@ function buildTvViewModel(){
   // from this list — sendReturnDateConfirmationSms() persists no flag
   // (audited: no return_confirmation_sent_at column exists), so there is
   // nothing here to key an exit condition on even if we wanted one.
-  var followUp = active.filter(function(r){
-    return r.status!=='DELIVERED' && (r.status==='NO DATE' || (typeof isApproxRecord==='function' && isApproxRecord(r)));
-  }).sort(function(a,b){
+  var followUp = active.filter(tvNeedsFollowUp).sort(function(a,b){
     var ra=tvFollowUpRank(a), rb=tvFollowUpRank(b);
     if(ra!==rb) return ra-rb;
     return tvCheckinTimestamp(a.checkin_date)-tvCheckinTimestamp(b.checkin_date); // oldest check-in first
