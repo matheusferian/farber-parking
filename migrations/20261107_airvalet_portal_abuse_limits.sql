@@ -17,6 +17,10 @@
 -- Rollback: 20261107_airvalet_portal_abuse_limits_rollback.sql
 
 -- ── 1. Long-window rate buckets ───────────────────────────────────────────
+-- One transaction (audit v77): all of it or nothing. lock_timeout: fail fast, change nothing.
+begin;
+set local lock_timeout = '5s';
+
 create table if not exists public.airvalet_pass_rate_long (
   bucket     text primary key,
   hits       integer not null default 0,
@@ -135,3 +139,5 @@ revoke execute on function public.get_stripe_tips_for_date_cents(date) from publ
 revoke execute on function public.get_stripe_tips_today_cents() from public, anon;
 grant execute on function public.get_stripe_tips_for_date_cents(date) to authenticated;
 grant execute on function public.get_stripe_tips_today_cents() to authenticated;
+
+commit;

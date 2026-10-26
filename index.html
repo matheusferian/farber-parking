@@ -3421,10 +3421,12 @@ var GUEST_NANP_INTL = ['246','264','268','284','345','441','473','649','658','66
 function guestPhoneIntl(v){
   var s = String(v == null ? '' : v).trim(), d = s.replace(/\D/g, '');
   if (!d) return null;
-  if (/^00/.test(s)) d = d.slice(2);
-  else if (!/^\+/.test(s)) {
+  // Without '+' only a 10/11-digit +1 Caribbean number can be international:
+  // the server (normalizePhoneE164) reads any other bare digits as invalid.
+  if (!/^\+/.test(s)) {
     if (d.length === 10) return GUEST_NANP_INTL.indexOf(d.slice(0, 3)) >= 0 ? '1' + d : null;
-    if (d.length < 11 || (d.length === 11 && d.charAt(0) === '1' && GUEST_NANP_INTL.indexOf(d.slice(1, 4)) < 0)) return null;
+    if (d.length === 11 && d.charAt(0) === '1') return GUEST_NANP_INTL.indexOf(d.slice(1, 4)) >= 0 ? d : null;
+    return null;
   }
   if (d.length < 8 || d.length > 15 || d.charAt(0) === '0') return null;
   if (d.charAt(0) === '1') return (d.length === 11 && GUEST_NANP_INTL.indexOf(d.slice(1, 4)) >= 0) ? d : null;
@@ -3470,13 +3472,17 @@ function guestPhoneCountry(v){
   return { iso: iso, name: GUEST_COUNTRY_NAMES[iso] || iso, flag: String.fromCodePoint.apply(null, iso.split('').map(function(c){ return 0x1F1E6 + c.charCodeAt(0) - 65; })) };
 }
 
-// Typing: a number with + / 00 / 11+ digits (not 1…) keeps its country code;
-// anything else gets the US (305) 555-0142 format as before.
+// Typing: '+' or '00' starts an international number (country code kept).
+// Anything else is a US number: (305) 555-0142. Extra digits on a US number
+// stay visible (and invalid) instead of turning it into another country
+// (audit v77: 30555501019 became +30 Greece and lost its texts).
 function fmtGuestPhoneInput(el){
   var s = el.value, d = s.replace(/\D/g, '');
-  if (/^\s*00/.test(s)) { el.value = '+' + d.slice(2, 17); return; }
   if (/^\s*\+/.test(s)) { el.value = '+' + d.slice(0, 15); return; }
-  if (d.length > 11 || (d.length === 11 && d.charAt(0) !== '1')) { el.value = '+' + d.slice(0, 15); return; }
+  if (d.slice(0, 2) === '00') { el.value = '+' + d.slice(2, 17); return; }
+  if (d === '0') { el.value = '0'; return; }   // maybe the start of '00'
+  if (d.length === 11 && d.charAt(0) === '1') { el.value = d.slice(1); fmtPhoneInput(el); return; }
+  if (d.length > 10) { el.value = d.slice(0, 15); return; }
   fmtPhoneInput(el);
 }
 function onStatusChange(val) {
@@ -4311,6 +4317,10 @@ async function passShareLink(passengerId){
 }
 function passShareErrorText(code){
   return ({ NO_PASS_LINK: 'No valet pass link: consent was not saved on an approved device', NETWORK: 'No connection — try again',
+    INVALID_PHONE: 'Phone number not valid for a link — edit it with + country code', FORBIDDEN: 'This login cannot create links',
+    DEVICE_NOT_AUTHORIZED: 'This device is not approved for AirValet texting', TOO_SOON: 'A link was just created — use the buttons already shown',
+    DAILY_LIMIT: 'Too many new links today for this guest — ask a manager',
+    CLOSED_TICKET: 'The car was delivered — no new link',
     UNAVAILABLE: 'Link service not available — try again', UNAUTHENTICATED: 'Session expired — sign in again',
     DOMESTIC_USE_SMS: 'US number — use the normal text' })[code] || 'Valet pass link not created — try again';
 }
@@ -4318,9 +4328,9 @@ function passShareErrorText(code){
 async function vpShareLink(pid){
   var r = paxById(pid); if (!r) return;
   if (!confirm('Create the valet pass link to send to ' + r.name + '? If a link was sent before, that old link stops opening.')) return;
-  var box = document.getElementById('vpShare'); if (box) box.innerHTML = '<span class="vps-s">Creating the link…</span>';
+  var box = document.getElementById('vpShare'); if (box) { box.dataset.pid = String(pid); box.innerHTML = '<span class="vps-s">Creating the link…</span>'; }
   var s = await passShareLink(pid);
-  box = document.getElementById('vpShare'); if (!box) return;
+  box = document.getElementById('vpShare'); if (!box || box.dataset.pid !== String(pid)) return;   // another ticket is open now
   if (!s.ok) { box.innerHTML = '<span class="vps-s" style="color:var(--red)">' + escapeHTML(passShareErrorText(s.code)) + '</span>'; return; }
   var key = 'p' + pid + '_' + Date.now();
   _shareLog[key] = { passengerId: pid, passengerName: r.name, phone: r.phone, ticket: r.ticket, templateKey: 'WELCOME', messageType: 'CHECK_IN', body: s.body };
@@ -4924,7 +4934,7 @@ async function sendInboxReply(passengerId){
     try { cr = await vpRpc('airvalet_portal_staff_reply', { p_passenger_id: passengerId, p_body: text, p_compose_id: c.id, p_staff_name: smsStaffName() || null }); } catch(e) { cr = { result: 'NETWORK' }; }
     _ibx.sending = false;
     if (cr && cr.result === 'OK') { _ibx.compose[passengerId] = { id: newComposeId(), text: '' }; }
-    else showMsg(cr && cr.result === 'NO_PASS_LINK' ? 'This passenger has no active valet pass link — check "Also send as text message".' : 'Not sent — try again.', true);
+    else showMsg(cr && cr.result === 'NO_PASS_LINK' ? (guestPhoneIntl((paxById(passengerId) || {}).phone) ? 'No active valet pass link — open the ticket and tap Send pass link.' : 'This passenger has no active valet pass link — check "Also send as text message".') : 'Not sent — try again.', true);
     await loadInbox(); renderThread(passengerId, false);
     return;
   }
@@ -5169,6 +5179,8 @@ async function vpPushOn(){
     var sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: vpB64ToBytes(key) });
     var r = await vpPushSave(sub, false);
     if (r && r.result === 'DEVICE_NOT_AUTHORIZED') { await sub.unsubscribe(); showMsg('Only devices approved for AirValet texting can get alerts.', true); }
+    // Anything but OK (e.g. ENDPOINT_NOT_ALLOWED after 20261107) saved nothing: never claim alerts are on.
+    else if (r && r.result && r.result !== 'OK') { await sub.unsubscribe(); showMsg('Alerts could not be turned on for this device (' + r.result + ').', true); }
     else showMsg('✓ Alerts are on for this device.', false);
   } catch(e) { showMsg('Could not turn alerts on: ' + e.message, true); }
   renderVpAlertsCard();
@@ -5199,7 +5211,7 @@ async function vpLoadStaff(r){
     return '<button type="button" class="vps-tg' + (on ? ' on' : '') + '" onclick="vpSetState(' + r.id + ',\'' + field + '\',' + (on ? 'false' : 'true') + ')">' + (on ? '✓ ' : '') + label + '</button>';
   };
   el.innerHTML = '<div class="htitle" style="margin-top:4px">Valet Pass (passenger page)</div><div class="vps">' +
-    (guestPhoneIntl(r.phone) ? '<div class="vps-r"><span>🌍 International number — send the pass by WhatsApp / iMessage</span><button type="button" class="vps-tg" onclick="vpShareLink(' + r.id + ')">Send pass link</button></div><div id="vpShare"></div>' : '') +
+    (guestPhoneIntl(r.phone) ? '<div class="vps-r"><span>🌍 International number — send the pass by WhatsApp / iMessage</span><button type="button" class="vps-tg" onclick="vpShareLink(' + r.id + ')">Send pass link</button></div><div id="vpShare" data-pid="' + r.id + '"></div>' : '') +
     '<div class="vps-r"><span>Ready to Go</span>' + tg('ready', st.ready, st.ready ? 'Ready' : 'Mark Ready') + '</div>' +
     (customs ? '<div class="vps-r"><span>Customs on the passenger page</span>' + tg('customs_confirmed', st.customs_confirmed, st.customs_confirmed ? 'Confirmed' : 'Confirm Customs') + '</div>' : '') +
     '<div class="vps-r"><span>After-hours lockbox' + (st.lockbox_authorized ? ' · code shows from ' + escapeHTML(vpIsoDate(st.lockbox_reveal_on)) : '') + '</span>' +
@@ -5434,6 +5446,16 @@ async function vpAlertsTest(){
 var _reviewSmsPending = null;
 function openNewEntrySmsPreview(options) {
   options = options || {};
+  // International number (classic form): no AirValet SMS. Make the valet pass
+  // link (ticket enrolled at check-in) and offer WhatsApp / iMessage.
+  if (guestPhoneIntl(options.phone)) {
+    if (options.passengerId == null || !isServerSms()) { shareChooser(options); return; }
+    passShareLink(options.passengerId).then(function(s){
+      if (s.ok) shareChooser(Object.assign({}, options, { body: s.body, templateKey: 'WELCOME', messageType: 'CHECK_IN' }));
+      else { if (s.code !== 'NO_PASS_LINK') showMsg(passShareErrorText(s.code), true); shareChooser(options); }
+    });
+    return;
+  }
   // AirValet texting: the server preview (real text, segments, cost, consent)
   // is the review step; nothing is sent until Send is pressed there.
   if (smsRouteFor(options.passengerId) === 'server') { sendPassengerSms(options); return; }
@@ -6877,7 +6899,7 @@ function ci2Bind(){
   ph.addEventListener('blur', function(){
     var d = ci2Digits(this.value), bad = d.length > 0 && !ci2PhoneValid(this.value), h = ci2El('ci2PhoneHint');
     this.setAttribute('aria-invalid', String(bad)); h.classList.toggle('bad', bad);
-    h.textContent = bad ? (/^\+/.test(this.value) ? 'Check the number: + country code and number.' : 'Needs 10 digits (' + d.length + ' typed), or + country code.') : ci2PhoneHintText(this.value);
+    h.textContent = bad ? (/^\+/.test(this.value) ? 'Check the number: + country code and number.' : 'US number needs 10 digits (' + this.value.replace(/\D/g, '').length + ' typed). International: start with +.') : ci2PhoneHintText(this.value);
   });
   ph.addEventListener('input', function(){
     fmtGuestPhoneInput(this);
@@ -6912,7 +6934,12 @@ function ci2Bind(){
   ci2El('ci2Native').hidden = smsProgramOpen();
 }
 function ci2Digits(v){ return String(v || '').replace(/\D/g, '').replace(/^1(?=\d{10}$)/, ''); }
-function ci2PhoneValid(v){ return !!guestPhoneIntl(v) || (!/^\s*(\+|00)/.test(String(v || '')) || /^\s*\+1/.test(String(v || ''))) && ci2Digits(v).length === 10; }
+function ci2PhoneValid(v){
+  var s = String(v || '').trim(), d = s.replace(/\D/g, '');
+  if (guestPhoneIntl(s)) return true;
+  if (/^\+/.test(s)) return /^1\d{10}$/.test(d);
+  return d.length === 10;
+}
 function ci2PhoneHintText(v){
   var c = ci2PhoneValid(v) ? guestPhoneCountry(v) : null, who = c ? c.flag + ' ' + c.name + ' · ' : '';
   if (guestPhoneIntl(v)) return who + 'International number: no SMS. After Yes, you send the valet pass by WhatsApp or iMessage.';
@@ -7661,7 +7688,7 @@ function showDet(id){
     (isAscend(r)?'<div style="background:rgba(99,179,237,0.12);border:1px solid rgba(99,179,237,0.4);border-radius:10px;padding:10px 14px;margin-bottom:12px;display:flex;align-items:center;gap:8px"><span style="font-size:13px;font-weight:800;font-family:\'JetBrains Mono\',monospace;color:#63b3ed;letter-spacing:.5px">✈ ASCEND / PRIVATE FLIGHT</span></div>':'')+
     '<div class="dname">'+escapeHTML(r.name)+'</div>'+
     '<div class="dphone" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'+escapeHTML(fmtP(r.phone))+
-      (r.phone?'<a href="tel:'+r.phone.replace(/\D/g,'')+'" style="background:var(--ok);color:#000;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;text-decoration:none;font-family:Sora,sans-serif;">📞 CALL</a>':'')+
+      (r.phone?'<a href="tel:'+(guestPhoneIntl(r.phone)?'+'+guestPhoneIntl(r.phone):r.phone.replace(/\D/g,''))+'" style="background:var(--ok);color:#000;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;text-decoration:none;font-family:Sora,sans-serif;">📞 CALL</a>':'')+
       (r.phone?'<button type="button" onclick="sendGenericTextSms('+r.id+')" style="background:var(--pur);color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;cursor:pointer;font-family:Sora,sans-serif;">💬 TEXT</button>':'')+
       (r.phone?'<button onclick="sendWelcomeSms('+r.id+')" style="background:linear-gradient(135deg,#1a5c3a,#1a9e6a);color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;font-family:Sora,sans-serif;cursor:pointer;">💬 Welcome</button>':'')+
       '<button onclick="panelPrintOnce(this,printCustomerCopyForRecord,'+r.id+')" style="background:var(--navy);color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;font-family:Sora,sans-serif;cursor:pointer;">🧾 Customer Copy</button>'+
@@ -8302,7 +8329,9 @@ function makeEditable(cell,field){
     '</select>';
   } else if(field==='ret'||field==='ts'){
     ctrl='<input class="di-input" type="date" id="inp-'+field+'" value="'+escapeHTML(rawVal)+'" onclick="event.stopPropagation()" />';
-  } else if(field==='phone'||field==='ticket'){
+  } else if(field==='phone'){
+    ctrl='<input class="di-input" type="tel" inputmode="tel" maxlength="18" value="'+escapeHTML(cur)+'" id="inp-'+field+'" onclick="event.stopPropagation()" />';
+  } else if(field==='ticket'){
     ctrl='<input class="di-input" type="tel" inputmode="numeric" pattern="[0-9]*" value="'+escapeHTML(cur)+'" id="inp-'+field+'" onclick="event.stopPropagation()" />';
   } else {
     ctrl='<input class="di-input" type="text" value="'+escapeHTML(cur)+'" id="inp-'+field+'" onclick="event.stopPropagation()" />';
@@ -15197,7 +15226,12 @@ function offlineRegisterServiceWorker(){
     console.warn('Offline Mode: service worker registration failed (app remains fully usable online):', e);
   }).finally(function(){ offlineDiagRefresh(); });
 
+  // Reload only when a NEW version takes over. The first install on a new
+  // device also fires controllerchange (clients.claim) — reloading then threw
+  // away what was typed on the login screen (audit v77).
+  var hadController = !!navigator.serviceWorker.controller;
   navigator.serviceWorker.addEventListener('controllerchange', function(){
+    if(!hadController){ hadController = true; return; }
     if(_offlineSw.reloading) return; // avoid a reload loop if this fires more than once
     _offlineSw.reloading = true;
     location.reload();
@@ -15362,14 +15396,14 @@ async function offlineSyncOne(rec){
   }
   var out = { ok:true, id:id, ticket:ticket, row:row, renumbered: ticket !== rec.payload.ticket, sms:null };
   // Texts: only now that the server has the passenger.
-  if(rec.sms && rec.sms.consent && id) out.sms = await offlineSyncSms(id, rec.sms, saved);
+  if(rec.sms && rec.sms.consent && id) out.sms = await offlineSyncSms(id, rec.sms, saved, undefined, rec.payload && rec.payload.phone);
   return out;
 }
 // Consent + welcome of one uploaded check-in. 'retry' / 'retry_welcome': the
 // device got no answer (or does not know its texting state yet), so the
 // guest's consent is kept and tried again later, never dropped by a network
 // blip. Sending again is safe: the server sends one welcome per passenger.
-async function offlineSyncSms(id, sms, saved, stage){
+async function offlineSyncSms(id, sms, saved, stage, phone){
   if(stage !== 'welcome'){
     if(_smsDev === null && SMS_PROVIDER !== 'mock_twilio') return 'retry';   // texting state check failed
     if(typeof smsProgramOpen==='function' && !smsProgramOpen()) return 'not_in_texting';
@@ -15379,6 +15413,8 @@ async function offlineSyncSms(id, sms, saved, stage){
   }
   if(!sms.auto) return 'manual_review';   // classic form: the staff review and send it
   if((Date.now() - saved.getTime()) / 3600000 > OFFLINE_SYNC_AUTO_WELCOME_HOURS) return 'welcome_too_late';
+  // International number: no AirValet SMS — staff share the pass from the ticket.
+  if(guestPhoneIntl(phone != null ? phone : (paxById(id) || {}).phone)) return 'share_needed';
   var r = await sendServerSms(id, 'CHECK_IN');
   if(r && r.ok) return 'welcome_requested';
   var http = r && r.error ? r.error.http : 0;
@@ -15438,7 +15474,7 @@ async function offlineSyncPending(manual){
   if(manual) _offlineSync.legacyOk = {};
   var run = async function(){
     _offlineSync.running = true; _offlineSync.authNeeded = false; updateOfflineModeBanner();
-    var done = 0, renum = 0, failed = 0, stopped = null, smsSent = 0, smsLater = 0, smsRetryN = 0;
+    var done = 0, renum = 0, failed = 0, stopped = null, smsSent = 0, smsLater = 0, smsRetryN = 0, shareN = 0;
     try {
       if(typeof authEnsureFresh==='function') await authEnsureFresh();
       var all = await offlineCheckinGetAll();
@@ -15450,7 +15486,7 @@ async function offlineSyncPending(manual){
       // Texts still owed to check-ins already on the server (no answer last time).
       var smsTodo = all.filter(function(r){ return r.smsPending && r.serverPassengerId && (manual || !r.smsNextAt || Date.parse(r.smsNextAt) <= now); });
       for(var j=0; j<smsTodo.length; j++){
-        var so = await offlineSyncSms(smsTodo[j].serverPassengerId, smsTodo[j].sms || {}, new Date(smsTodo[j].createdAt), smsTodo[j].smsPending);
+        var so = await offlineSyncSms(smsTodo[j].serverPassengerId, smsTodo[j].sms || {}, new Date(smsTodo[j].createdAt), smsTodo[j].smsPending, smsTodo[j].payload && smsTodo[j].payload.phone);
         if(so === 'welcome_requested') smsSent++;
         await offlineSyncSmsSettle(smsTodo[j].offline_sync_id, so);
       }
@@ -15514,6 +15550,7 @@ async function offlineSyncPending(manual){
         var smsRetry = result.sms==='retry' || result.sms==='retry_welcome';
         if(result.sms==='welcome_requested') smsSent++;
         else if(smsRetry) smsRetryN++;
+        else if(result.sms==='share_needed') shareN++;
         else if(result.sms==='welcome_not_sent' || result.sms==='welcome_too_late' || result.sms==='not_in_texting' || result.sms==='no_consent_saved' || result.sms==='manual_review') smsLater++;
         if(result.renumbered || smsRetry){
           if(result.renumbered) renum++;
@@ -15547,6 +15584,7 @@ async function offlineSyncPending(manual){
       var msg = '✓ '+done+' offline check-in'+(done>1?'s':'')+' uploaded.';
       if(smsSent) msg += ' Welcome text requested for '+smsSent+'.';
       if(smsLater) msg += ' '+smsLater+' welcome text'+(smsLater>1?'s':'')+' not sent — send from the car card.';
+      if(shareN) msg += ' '+shareN+' international guest'+(shareN>1?'s':'')+': open the ticket and tap Send pass link (WhatsApp / iMessage).';
       if(smsRetryN) msg += ' Texts for '+smsRetryN+' will be sent when the connection is stable.';
       if(renum) msg += ' '+renum+' ticket number'+(renum>1?'s':'')+' changed — reprint tags.';
       showMsg(msg, renum>0 || failed>0);

@@ -100,7 +100,9 @@ function deliverCtx({ enrolled = true, provider = 'twilio' } = {}) {
     OFFLINE_PENDING_SYNC_MSG: 'pending', _currentUserEmail: 'local@test',
     SMS_MESSAGE_TYPES: { TIP_NO: 'TIP_NO', TIP_YES: 'TIP_YES' },
   });
-  load(ctx, ['isServerSms', 'smsRouteFor', 'buildTipSms', 'hasPickupAuth', 'pickupReleaseChoice', 'deliverWithTip'], `var SMS_PROVIDER=${JSON.stringify(provider)}; var _smsEnrolled={};`);
+  // smsRouteFor (v77) checks the ticket's phone: international numbers never use the server.
+  const intlList = /var GUEST_NANP_INTL = (\[[^\]]*\]);/.exec(HTML)[1];
+  load(ctx, ['isServerSms', 'paxById', 'guestPhoneIntl', 'smsRouteFor', 'buildTipSms', 'hasPickupAuth', 'pickupReleaseChoice', 'deliverWithTip'], `var SMS_PROVIDER=${JSON.stringify(provider)}; var _smsEnrolled={}; var GUEST_NANP_INTL=${intlList};`);
   if (enrolled) vm.runInContext('_smsEnrolled[7]=true;', ctx);
   ctx.data.push({ id: 7, name: 'JOHN SMITH', phone: '3055550100', ticket: '1025-7', loc: 'CUSTOMS', ret: '10/25/2026', status: 'PENDING' });
   return ctx;

@@ -1,7 +1,11 @@
 -- Rollback of 20261107_airvalet_portal_abuse_limits.sql: the definitions in
 -- production before it (20261010 / 20261026 / 20260930), byte-for-byte bodies.
 
-drop table if exists public.airvalet_pass_rate_long;
+-- One transaction (audit v77), and airvalet_pass_hit is restored BEFORE its
+-- table is dropped: portal requests / chat never hit a missing table, and the
+-- tips functions are never missing for the Closing Report.
+begin;
+set local lock_timeout = '5s';
 
 create or replace function public.airvalet_pass_hit(p_bucket text)
 returns integer
@@ -89,3 +93,7 @@ revoke execute on function public.get_stripe_tips_for_date_cents(date) from publ
 revoke execute on function public.get_stripe_tips_today_cents() from public, anon;
 grant execute on function public.get_stripe_tips_for_date_cents(date) to authenticated;
 grant execute on function public.get_stripe_tips_today_cents() to authenticated;
+
+drop table if exists public.airvalet_pass_rate_long;
+
+commit;

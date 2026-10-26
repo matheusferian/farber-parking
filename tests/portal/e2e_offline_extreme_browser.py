@@ -66,7 +66,12 @@ STUBS = '''async () => {
 
 
 async def signed_in(page):
-    return await page.evaluate('typeof _currentUserEmail !== "undefined" && !!_currentUserEmail && Array.isArray(data) && data.length > 0')
+    try:
+        return await page.evaluate('typeof _currentUserEmail !== "undefined" && !!_currentUserEmail && Array.isArray(data) && data.length > 0')
+    except Exception as e:   # the page is reloading (e.g. "Reload now" in the update scenario): not signed in yet
+        if 'context was destroyed' in str(e) or 'navigation' in str(e):
+            await page.wait_for_load_state('load'); return False
+        raise
 
 
 async def login(page, user='localipad', app=APP, goto=True):

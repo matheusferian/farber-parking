@@ -137,13 +137,19 @@ async def main():
         check(await page.locator('#vpStaffSec', has_text='Send pass link').count() == 1, 'ticket shows the Valet Pass panel with "Send pass link"')
         check(await page.locator('#vpStaffSec', has_text='Ready to Go').count() == 1, 'Ready / Customs / Lockbox controls still there for this guest')
         await page.click('#vpStaffSec button:has-text("Send pass link")')
+        await page.wait_for_function("/just created/.test(document.getElementById('vpShare').textContent)", timeout=15000)
+        check(sql("select count(*) from airvalet_pass_links where passenger_id=%d" % pid) == '1', 'double tap right after check-in: no new link (the sent one keeps working)')
+        sql("update airvalet_pass_links set created_at = created_at - interval '3 minutes' where passenger_id=%d" % pid)
+        await page.click('#vpStaffSec button:has-text("Send pass link")')
         await page.wait_for_selector('#vpShare a.share-wa', timeout=15000)
         h2 = await page.eval_on_selector_all('#vpShare a', 'as => as.map(a => a.getAttribute("href"))')
         wa2, im2 = links(h2)
         check(len(wa2) == 1 and len(im2) == 1, 'panel shows WhatsApp + iMessage buttons', h2)
         check(sql("select count(*) from airvalet_pass_links where passenger_id=%d and revoked_at is null" % pid) == '1'
               and sql("select count(*) from airvalet_pass_links where passenger_id=%d" % pid) == '2', 'new link replaces the old one (1 active)')
-        check(sql("select count(*) from activity_log where passenger_id=%d and detail like 'Valet pass link created to share%%'" % pid) == '2', 'each link is in the activity log')
+        check(sql("select count(*) from activity_log where passenger_id=%d and detail like 'Valet pass link created to share%% · device %%'" % pid) == '2', 'each link is in the activity log, with the device')
+        r = await page.evaluate("(async () => { const h = sbHeaders(); const res = await fetch(SUPABASE_URL + '/functions/v1/pass-share', { method: 'POST', headers: h, body: JSON.stringify({ passenger_id: %d }) }); return res.json(); })()" % pid)
+        check((r.get('error') or {}).get('code') == 'DEVICE_NOT_AUTHORIZED', 'pass-share refuses a device that is not approved', r)
         await page.evaluate('document.getElementById("detOv").classList.remove("on")')
 
         # G — any other text to this guest: chooser WhatsApp / iMessage
@@ -182,11 +188,28 @@ async def main():
         check(sql("select count(*) from airvalet_sms_messages where passenger_id=%d and message_type='CHECK_IN'" % g5['id']) == '1', 'Bahamas: welcome SMS by the server')
         await page.evaluate('closeAll()')
 
-        # E — typed without +: 13 digits → auto international
+        # E — typed without +: never guessed as another country (audit v77 P1-a); the hint asks for +
         await v2_fill(page, TAG + 'AUTO ' + RUN, '4915161461188')
         v = await page.input_value('#ci2Phone')
-        check(v == '+4915161461188', 'number typed without + is detected and gets the +', v)
+        await page.evaluate("document.getElementById('ci2Phone').blur()")
+        hint = await page.text_content('#ci2PhoneHint')
+        check(v == '4915161461188' and 'start with +' in hint, 'number without + is not guessed; hint says to start with +', [v, hint])
         await page.evaluate('closeAll()')
+
+        # P1-a: one extra digit never turns a US number into another country
+        await v2_fill(page, TAG + 'TYPO ' + RUN, '30555501019')
+        v = await page.input_value('#ci2Phone'); hint = await page.text_content('#ci2PhoneHint')
+        check(v == '30555501019' and 'International' not in hint and not await page.evaluate("ci2PhoneValid(document.getElementById('ci2Phone').value)"),
+              'US number + 1 extra digit: stays US and invalid (no Greece)', [v, hint])
+        await page.evaluate('closeAll()')
+        # P2-d: 00 typed digit by digit
+        await v2_fill(page, TAG + 'ZERO ' + RUN, '004915161461188')
+        v = await page.input_value('#ci2Phone')
+        check(v == '+4915161461188', '00 + country code typed key by key becomes +', v)
+        await page.evaluate('closeAll()')
+        # P2-a: +1 with 9 digits is not valid
+        check(not await page.evaluate("ci2PhoneValid('+1305555010')") and await page.evaluate("ci2PhoneValid('+13055550101')"), '+1 needs exactly 10 more digits')
+        check(await page.evaluate("fmtP('+4915161461188')") == '+4915161461188' and await page.evaluate("fmtP('3055550101')") == '(305) 555-0101', 'international number displayed as typed (not as a US number)')
 
         # D — US number unchanged: welcome SMS through the server (mock)
         name3 = TAG + 'US ' + RUN
@@ -208,6 +231,14 @@ async def main():
         await page.click('#fPhone'); await page.keyboard.type('+44 20 7946 0958')
         v = await page.input_value('#fPhone')
         check(v == '+442079460958', 'classic form keeps the + country code', v)
+        # P1-b: classic check-in with consent → WhatsApp / iMessage with the valet pass link
+        await page.fill('#fName', TAG + 'CLASSIC ' + RUN)
+        await page.evaluate("(()=>{ const c = document.getElementById('fSmsConsent'); if (c) c.checked = true; })()")
+        res = await page.evaluate("saveEntry(true, null, {}).then(r => r && { ok: r.ok, id: r.id })")
+        await page.wait_for_selector('#shareOv a.share-wa', timeout=20000)
+        h5 = await page.eval_on_selector_all('#shareOv a', 'as => as.map(a => a.getAttribute("href"))')
+        check(any(h.startswith('https://wa.me/442079460958?text=') and '%2Fa%23' in h for h in h5), 'classic form: WhatsApp with the valet pass link', h5)
+        await page.click('#shareOv .share-x')
         await page.evaluate("closeAll(); localStorage.setItem('airvalet_checkin_v2','1')")
 
         check(not errs, 'no page errors', errs[:3])
