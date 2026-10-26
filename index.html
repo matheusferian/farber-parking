@@ -2610,6 +2610,7 @@ async function loadPendingOfflineRows(){
 }
 
 async function loadData() {
+  if(typeof _liveData!=='undefined') _liveData.seq++; // a full load always wins over a live refresh in flight
   loading(true);
   try {
     var rows = await sbGet();
@@ -8921,6 +8922,46 @@ async function confirmPrintUpdatedKeyCopy(id){
   }
 }
 
+// ── LIVE LIST (audit A3-01) ───────────────────────────────────
+// iPads/iPhones follow what other devices change: Realtime on passengers
+// (debounced), a 60 s fallback poll while the app is visible, and a refresh
+// when the app comes back to the foreground. Silent on purpose — no spinner,
+// no toast; a failure just waits for the next tick (loadData() keeps the
+// offline snapshot fallback). The TV keeps its own refresh path.
+var _liveData = { seq: 0, inFlight: false, debounce: null, channel: null, started: false };
+async function liveRefreshData(){
+  if(!_authToken || isTvMode() || _liveData.inFlight || document.visibilityState === 'hidden') return;
+  if(typeof navigator !== 'undefined' && navigator.onLine === false) return;
+  _liveData.inFlight = true;
+  var seq = _liveData.seq;
+  try{
+    var rows = await sbGet();
+    var pendingRows = await loadPendingOfflineRows();
+    if(seq !== _liveData.seq) return; // a full loadData() started meanwhile: its result wins
+    data = rows.map(mapPassengerRow).concat(pendingRows);
+    if(typeof offlineSnapshotSave === 'function') offlineSnapshotSave(rows.map(mapPassengerRow)).catch(function(){});
+    render();
+    updateSyncStatus();
+    if(typeof updateOfflinePendingPanel==='function') updateOfflinePendingPanel();
+  }catch(e){ console.warn('Live refresh skipped:', e && e.message); }
+  finally{ _liveData.inFlight = false; }
+}
+function startLiveData(){
+  if(_liveData.started || isTvMode()) return;
+  _liveData.started = true;
+  try{
+    if(_supaClient.realtime && typeof _supaClient.realtime.setAuth === 'function') _supaClient.realtime.setAuth(_authToken);
+    _liveData.channel = _supaClient.channel('ops-passengers')
+      .on('postgres_changes', {event:'*', schema:'public', table:'passengers'}, function(){
+        if(_liveData.debounce) clearTimeout(_liveData.debounce);
+        _liveData.debounce = setTimeout(liveRefreshData, 1500);
+      })
+      .subscribe();
+  }catch(e){ console.warn('Live list realtime unavailable, polling only:', e); }
+  setInterval(liveRefreshData, 60000);
+  document.addEventListener('visibilitychange', function(){ if(document.visibilityState === 'visible') liveRefreshData(); });
+}
+
 function showApp() {
   document.getElementById('loginOv').style.display = 'none';
   var lb = document.getElementById('logoutBtn'); if(lb) lb.style.display = '';
@@ -8939,6 +8980,7 @@ function showApp() {
   var dashPane=document.getElementById('pane-day');
   if(dashTab) dashTab.classList.add('on');
   if(dashPane) dashPane.classList.add('on');
+  startLiveData();
 }
 
 // Stripe Tips — Phase 1. get_stripe_tips_today_cents() does the
