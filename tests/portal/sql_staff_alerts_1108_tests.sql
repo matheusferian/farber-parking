@@ -41,12 +41,11 @@ select set_config('request.jwt.claims', json_build_object('sub', :'u_ipad', 'rol
 select pg_temp.check(public.current_user_role() = 'IPAD_OPS', 'test acts as the iPad login');
 select pg_temp.check((public.airvalet_push_alerts_set('ipad_device_key_' || repeat('b', 40), 'CHECK_IN', true))->>'result' = 'FORBIDDEN', 'iPad login cannot turn on check-in alerts (ADMIN only)');
 select pg_temp.check((public.airvalet_push_alerts_set('ipad_device_key_' || repeat('b', 40), 'TIP', true))->>'result' = 'FORBIDDEN', 'iPad login cannot turn on tip alerts (ADMIN only)');
-select pg_temp.check((public.airvalet_push_alerts_set('ipad_device_key_' || repeat('b', 40), 'REMINDER', true))->>'result' = 'OK', 'iPad login can turn on reminders');
-select pg_temp.check((public.airvalet_push_alerts_get('ipad_device_key_' || repeat('b', 40))) = '{"check_in": false, "tip": false, "reminder": true}'::jsonb, 'iPad phone: reminders only');
+select pg_temp.check((public.airvalet_push_alerts_get('ipad_device_key_' || repeat('b', 40))) = '{"check_in": false, "tip": false}'::jsonb, 'iPad phone: no admin alerts');
 -- As the TV login
 select set_config('request.jwt.claims', json_build_object('sub', :'u_tv', 'role', 'authenticated')::text, true);
 select pg_temp.check(public.current_user_role() = 'TV_ONLY', 'test acts as the TV login');
-select pg_temp.check((public.airvalet_push_alerts_set('ipad_device_key_' || repeat('b', 40), 'REMINDER', true))->>'result' = 'FORBIDDEN', 'TV login cannot change alerts');
+select pg_temp.check((public.airvalet_push_alerts_set('ipad_device_key_' || repeat('b', 40), 'TIP', true))->>'result' = 'FORBIDDEN', 'TV login cannot change alerts');
 -- As the owner (ADMIN)
 select set_config('request.jwt.claims', json_build_object('sub', :'u_admin', 'role', 'authenticated')::text, true);
 select pg_temp.check(public.current_user_role() = 'ADMIN', 'test acts as the ADMIN login');
@@ -58,12 +57,13 @@ select pg_temp.check((public.airvalet_push_alerts_set('owner_phone_key_' || repe
 reset role;
 
 select pg_temp.check((select count(*) from public.airvalet_push_staff_targets('CHECK_IN')) = 1 and (select count(*) from public.airvalet_push_staff_targets('TIP')) = 1
-  and (select count(*) from public.airvalet_push_staff_targets('REMINDER')) = 1, 'targets: owner phone for check-in / tip, iPad for reminders');
+  and (select count(*) from public.airvalet_push_staff_targets('REMINDER')) = 0, 'targets: only the owner phone, for check-in and tip');
 update public.airvalet_portal_settings set push_enabled = false;
 select pg_temp.check((select count(*) from public.airvalet_push_staff_targets('CHECK_IN')) = 0, 'portal alerts switched off → no targets');
 update public.airvalet_portal_settings set push_enabled = true;
 
 -- Claims: check-ins (no Vault secrets yet → the trigger queues nothing)
+delete from vault.secrets where name in ('airvalet_functions_url', 'staff_alert_secret');   -- local DB may keep a dead test URL (rolled back)
 create temp table q0 as select count(*) n from net.http_request_queue;
 insert into public.passengers (id, name, phone, ticket, status, ret) values
   (981101, 'T ONE', '3055550101', 'T-1', 'PENDING', ''), (981102, 'T TWO', '3055550102', 'T-2', 'NO DATE', ''),

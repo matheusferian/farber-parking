@@ -4,13 +4,13 @@
 //
 // Auth: X-Staff-Alert-Secret header (constant-time) checked before anything
 // else, plus the platform JWT (verify_jwt) the trigger sends.
-// Body: { kind: 'CHECK_IN' | 'TIP', id }.
+// Body: { kind: 'CHECK_IN' | 'TIP', id } (database triggers) or { kind: 'REMINDERS' } (pg_cron, every minute).
 // Env: STAFF_ALERT_SECRET, AIRVALET_VAPID_PRIVATE_JWK / AIRVALET_VAPID_PUBLIC /
 //      AIRVALET_VAPID_SUBJECT, SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY (platform).
 // Answers 200 once authorized: an alert problem is never retried into a flood.
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
-import { notifyStaff, type StaffDeps } from '../_shared/notify/staff.ts';
+import { notifyReminders, notifyStaff, type StaffDeps } from '../_shared/notify/staff.ts';
 import { readVapid } from '../_shared/notify/runtime.ts';
 
 function timingSafeEqual(a: string, b: string): boolean {
@@ -33,13 +33,14 @@ export async function handle(req: Request, get: (k: string) => string | undefine
   if (!timingSafeEqual(provided, expected)) return json(401, { error: 'unauthorized' });
 
   let kind = '', id = 0;
-  try { const b = await req.json(); kind = String(b?.kind || ''); id = Number(b?.id); } catch { return json(400, { error: 'bad_json' }); }
+  try { const b = await req.json(); kind = String(b?.kind || ''); id = Number(b?.id ?? 0); } catch { return json(400, { error: 'bad_json' }); }
 
   const deps = makeDeps ? makeDeps() : {
     db: createClient(get('SUPABASE_URL')!, get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false, autoRefreshToken: false } }),
     vapid: readVapid(get),
     log: (event: string, data: Record<string, unknown>) => console.log(JSON.stringify({ event, ...data })),
   };
+  if (kind === 'REMINDERS') return json(200, await notifyReminders(deps));
   return json(200, await notifyStaff(deps, kind, id));
 }
 

@@ -1,6 +1,8 @@
 // Staff push alerts on the phones that asked for them (airvalet_push_subs):
-//   CHECK_IN  new check-in          (ADMIN phones)
-//   TIP       Stripe tip received   (ADMIN phones)
+//   CHECK_IN   new check-in          (ADMIN phones)
+//   TIP        Stripe tip received   (ADMIN phones)
+//   REMINDERS  every minute (pg_cron): operational reminders that are due, to
+//              the phones whose categories match (airvalet_staff_reminders_claim)
 // Called by the staff-alert Edge Function, which the database triggers for the
 // new row. One claim per event (airvalet_staff_alert_claim); check-in bursts
 // become one "more check-ins" alert. Never sends anything to passengers; a
@@ -42,6 +44,12 @@ export function staffPushPayload(kind: StaffKind, c: StaffClaim, showPreview: bo
   return { title: 'NEW CHECK-IN', body, url: '/', tag: `airvalet-checkin-${c.ticket || 'new'}` };
 }
 
+// One phone at a time: a bad subscription (e.g. a key the encryption rejects) never stops the others or the audit.
+async function pushOne(deps: StaffDeps, t: { endpoint: string; p256dh: string; auth: string },
+  payload: { title: string; body: string; url: string; tag: string }): Promise<PushResult> {
+  try { return await (deps.pushImpl ?? sendPush)(t, payload, deps.vapid!); } catch { return { ok: false, status: 0, gone: false }; }
+}
+
 export async function notifyStaff(deps: StaffDeps, kind: string, id: number): Promise<StaffResult> {
   const log = deps.log ?? (() => {});
   const out: StaffResult = { kind, mode: 'skip', push: 0 };
@@ -60,7 +68,7 @@ export async function notifyStaff(deps: StaffDeps, kind: string, id: number): Pr
     const { data: targets } = await deps.db.rpc('airvalet_push_staff_targets', { p_kind: k });
     let ok = 0;
     for (const t of (targets ?? []) as { id: string; endpoint: string; p256dh: string; auth: string; show_preview: boolean }[]) {
-      const r: PushResult = await (deps.pushImpl ?? sendPush)(t, staffPushPayload(k, claim, !!t.show_preview), deps.vapid);
+      const r = await pushOne(deps, t, staffPushPayload(k, claim, !!t.show_preview));
       await deps.db.rpc('airvalet_push_result', { p_id: t.id, p_ok: r.ok, p_gone: r.gone });
       if (r.ok) ok += 1;
     }
@@ -70,6 +78,68 @@ export async function notifyStaff(deps: StaffDeps, kind: string, id: number): Pr
     return out;
   } catch (e) {
     log('staff.alert.error', { kind, error: (e as Error)?.name || 'Error' });
+    return out;
+  }
+}
+
+// ── Reminders (cron tick) ───────────────────────────────────────────────
+// grp / gtext: reminders of the same flight or task in one run (e.g. three cars
+// landing 5:02 PM) become one alert; gtext has a {t} for the ticket list.
+export type ReminderItem = { code: string; category: string; key: string; ticket: string | null; body: string; grp?: string | null; gtext?: string | null };
+export const REMINDER_BATCH_MAX = 3;   // more than this many alerts for one phone in one run → one summary alert
+
+export function reminderPushPayloads(items: ReminderItem[]): { title: string; body: string; url: string; tag: string }[] {
+  const groups: { tag: string; body: string }[] = [], byGrp = new Map<string, ReminderItem[]>();
+  for (const i of items) {
+    if (!i.grp || !i.gtext) { groups.push({ tag: i.key, body: i.body }); continue; }
+    const g = byGrp.get(i.grp);
+    if (g) { g.push(i); continue; }
+    byGrp.set(i.grp, [i]); groups.push({ tag: i.grp, body: '' });
+  }
+  for (const g of groups) {
+    const members = byGrp.get(g.tag); if (!members) continue;
+    g.body = members.length === 1 ? members[0].body : members[0].gtext!.replace('{t}', members.map((m) => m.ticket || '?').join(', '));
+  }
+  if (groups.length > REMINDER_BATCH_MAX) {
+    const list = groups.slice(0, 4).map((g) => g.body).join(' · ');
+    return [{ title: `${groups.length} AIRVALET REMINDERS`, body: (list + (groups.length > 4 ? ' · …' : '')).slice(0, 200), url: '/', tag: 'airvalet-reminders' }];
+  }
+  return groups.map((g) => ({ title: 'AIRVALET REMINDER', body: g.body.slice(0, 200), url: '/', tag: `airvalet-${g.tag}`.slice(0, 120) }));
+}
+
+export async function notifyReminders(deps: StaffDeps): Promise<{ kind: string; items: number; push: number }> {
+  const log = deps.log ?? (() => {});
+  const out = { kind: 'REMINDERS', items: 0, push: 0 };
+  try {
+    const { data, error } = await deps.db.rpc('airvalet_staff_reminders_claim', {});
+    if (error || !Array.isArray(data) || !data.length) return out;
+    const items = data as ReminderItem[];
+    out.items = items.length;
+    const sentTo = new Map<string, number>();   // reminder key → phones that got it
+    if (deps.vapid) {
+      const { data: targets } = await deps.db.rpc('airvalet_push_reminder_targets', {});
+      for (const t of (targets ?? []) as { id: string; endpoint: string; p256dh: string; auth: string; categories: string[] }[]) {
+        const mine = items.filter((i) => (t.categories || []).includes(i.category));
+        if (!mine.length) continue;
+        let okAll = true;
+        for (const payload of reminderPushPayloads(mine)) {
+          const r = await pushOne(deps, t, payload);
+          await deps.db.rpc('airvalet_push_result', { p_id: t.id, p_ok: r.ok, p_gone: r.gone });
+          if (r.ok) out.push += 1; else okAll = false;
+          if (r.gone) break;
+        }
+        if (okAll) for (const i of mine) sentTo.set(i.key, (sentTo.get(i.key) || 0) + 1);
+      }
+    }
+    for (const i of items) {
+      const n = sentTo.get(i.key) || 0;
+      await deps.db.rpc('airvalet_notify_finish', { p_dedupe_key: i.key, p_status: n ? 'sent' : 'skipped', p_segments: null, p_sid: null,
+        p_detail: deps.vapid ? `${i.code}: ${n} device(s)` : 'push not configured' });
+    }
+    log('staff.reminders', { items: out.items, push: out.push });
+    return out;
+  } catch (e) {
+    log('staff.reminders.error', { error: (e as Error)?.name || 'Error' });
     return out;
   }
 }

@@ -90,3 +90,105 @@ Deno.test('staff-alert: secret required, compared before anything else', async (
   assertEquals((await handle(new Request('http://x', { method: 'GET' }), () => 's', deps)).status, 405);
   assert((await handle(req({ 'X-Staff-Alert-Secret': 's3cr3t' }, 'not json'), (k) => k === 'STAFF_ALERT_SECRET' ? 's3cr3t' : undefined, deps)).status === 400);
 });
+
+// ── Reminders ──
+import { notifyReminders, reminderPushPayloads } from './staff.ts';
+const RI = (code: string, category: string, n: number) => ({ code, category, key: `REM:${code}:${n}`, ticket: `T-${n}`, body: `${code} for T-${n}` });
+function remDb(items: unknown[], targets: unknown[]) {
+  const calls: { fn: string; args: Record<string, unknown> }[] = [];
+  return { calls, rpc(fn: string, args: Record<string, unknown>) {
+    calls.push({ fn, args });
+    if (fn === 'airvalet_staff_reminders_claim') return Promise.resolve({ data: items, error: null });
+    if (fn === 'airvalet_push_reminder_targets') return Promise.resolve({ data: targets, error: null });
+    return Promise.resolve({ data: null, error: null });
+  } };
+}
+Deno.test('reminders: up to 3 → one alert each; more → one summary', () => {
+  assertEquals(reminderPushPayloads([RI('H19_WB', 'WELCOME_BACK', 1), RI('MOVE', 'POSITION', 2)]).length, 2);
+  const five = reminderPushPayloads([1, 2, 3, 4, 5].map((n) => RI('CW_DAY', 'CARWASH', n)));
+  assertEquals(five.length, 1); assertEquals(five[0].title, '5 AIRVALET REMINDERS'); assertStringIncludes(five[0].body, '…');
+});
+Deno.test('reminders: each phone gets only its categories; audit closed per reminder', async () => {
+  const items = [RI('CW_D3', 'CARWASH', 1), RI('NODATE_ADMIN', 'NODATE_ADMIN', 2), RI('H19_WB', 'WELCOME_BACK', 3)];
+  const targets = [
+    { id: 'owner', endpoint: 'https://web.push.apple.com/o', p256dh: 'p', auth: 'a', categories: ['CARWASH', 'NODATE_ADMIN', 'WELCOME_BACK'] },
+    { id: 'ipad', endpoint: 'https://web.push.apple.com/i', p256dh: 'p', auth: 'a', categories: ['CARWASH', 'WELCOME_BACK'] },
+    { id: 'tv', endpoint: 'https://web.push.apple.com/t', p256dh: 'p', auth: 'a', categories: ['DAILY'] },
+  ];
+  const db = remDb(items, targets); const p = fakePush();
+  const r = await notifyReminders({ db, vapid: VAPID, pushImpl: p.impl });
+  assertEquals(r.items, 3); assertEquals(r.push, 5);                       // owner 3 + iPad 2, other phone 0
+  assertEquals(p.sent.filter((s) => s.endpoint.endsWith('/i')).length, 2);
+  assertFalse(p.sent.some((s) => s.endpoint.endsWith('/i') && s.data.body.includes('NODATE_ADMIN')));   // admin-only stays on the admin phone
+  assertFalse(p.sent.some((s) => s.endpoint.endsWith('/t')));
+  const fin = db.calls.filter((c) => c.fn === 'airvalet_notify_finish');
+  assertEquals(fin.length, 3);
+  assertEquals(fin.find((f) => f.args.p_dedupe_key === 'REM:CW_D3:1')!.args.p_detail, 'CW_D3: 2 device(s)');
+  assertEquals(fin.find((f) => f.args.p_dedupe_key === 'REM:NODATE_ADMIN:2')!.args.p_detail, 'NODATE_ADMIN: 1 device(s)');
+});
+Deno.test('reminders: nothing due → no phone list read, no push', async () => {
+  const db = remDb([], []); const p = fakePush();
+  assertEquals((await notifyReminders({ db, vapid: VAPID, pushImpl: p.impl })).items, 0);
+  assertFalse(db.calls.some((c) => c.fn === 'airvalet_push_reminder_targets')); assertEquals(p.sent.length, 0);
+});
+Deno.test('reminders: no phone for a reminder → audited as skipped (not lost silently)', async () => {
+  const db = remDb([RI('OVERDUE', 'DAILY', 1)], [{ id: 'x', endpoint: 'https://web.push.apple.com/x', p256dh: 'p', auth: 'a', categories: ['CARWASH'] }]);
+  await notifyReminders({ db, vapid: VAPID, pushImpl: fakePush().impl });
+  const f = db.calls.find((c) => c.fn === 'airvalet_notify_finish')!;
+  assertEquals(f.args.p_status, 'skipped'); assertEquals(f.args.p_detail, 'OVERDUE: 0 device(s)');
+});
+Deno.test('reminders: a phone that is gone stops at the first failure; database errors never throw', async () => {
+  let n = 0;
+  // deno-lint-ignore no-explicit-any
+  const gone = (_s: any, _d: any) => { n++; return Promise.resolve({ ok: false, status: 410, gone: true }); };
+  const db = remDb([RI('MOVE', 'POSITION', 1), RI('MOVE', 'POSITION', 2)], [{ id: 'g', endpoint: 'https://web.push.apple.com/g', p256dh: 'p', auth: 'a', categories: ['POSITION'] }]);
+  await notifyReminders({ db, vapid: VAPID, pushImpl: gone });
+  assertEquals(n, 1);
+  assertEquals((await notifyReminders({ db: { rpc: () => Promise.reject(new Error('down')) }, vapid: VAPID })).push, 0);
+});
+Deno.test('staff-alert: REMINDERS kind is routed to the reminders sender', async () => {
+  const db = remDb([], []);
+  const r = await handle(new Request('http://x', { method: 'POST', headers: { 'X-Staff-Alert-Secret': 's3cr3t' }, body: '{"kind":"REMINDERS"}' }),
+    (k) => k === 'STAFF_ALERT_SECRET' ? 's3cr3t' : undefined, () => ({ db, vapid: VAPID }));
+  assertEquals(r.status, 200); assertEquals((await r.json()).kind, 'REMINDERS');
+  assert(db.calls.some((c) => c.fn === 'airvalet_staff_reminders_claim'));
+});
+Deno.test('a phone whose push throws (bad key) never stops the other phones or the audit', async () => {
+  // deno-lint-ignore no-explicit-any
+  const sent: string[] = [], impl = (s: any) => { if (s.endpoint.endsWith('/bad')) throw new DOMException('bad key', 'DataError'); sent.push(s.endpoint); return Promise.resolve({ ok: true, status: 201, gone: false }); };
+  const t = [{ id: 'b', endpoint: 'https://web.push.apple.com/bad', p256dh: 'p', auth: 'a', show_preview: true, categories: ['POSITION'] },
+             { id: 'g', endpoint: 'https://web.push.apple.com/good', p256dh: 'p', auth: 'a', show_preview: true, categories: ['POSITION'] }];
+  const rdb = remDb([RI('NO_HANGAR', 'POSITION', 1)], t);
+  const r = await notifyReminders({ db: rdb, vapid: VAPID, pushImpl: impl });
+  assertEquals(r.push, 1); assertEquals(sent, ['https://web.push.apple.com/good']);
+  assertEquals(rdb.calls.find((c) => c.fn === 'airvalet_notify_finish')!.args.p_status, 'sent');
+  const cdb = fakeDb({ mode: 'single', key: 'push:CHECK_IN:7', ticket: '1026-7' }, t);
+  const c = await notifyStaff({ db: cdb, vapid: VAPID, pushImpl: impl }, 'CHECK_IN', 7);
+  assertEquals(c.push, 1);
+  assertEquals(cdb.calls.find((x) => x.fn === 'airvalet_notify_finish')!.args.p_detail, 'single: 1 device(s)');
+});
+Deno.test('same flight: three cars landing together → one alert listing the tickets', () => {
+  const wb = (n: number) => ({ ...RI('H19_WB', 'WELCOME_BACK', n), grp: 'H19_WB:2026-10-26:1022', gtext: 'Send Welcome Back, lands 5:02 PM: {t}' });
+  const p = reminderPushPayloads([wb(1), wb(2), wb(3)]);
+  assertEquals(p.length, 1);
+  assertEquals(p[0].body, 'Send Welcome Back, lands 5:02 PM: T-1, T-2, T-3'); assertEquals(p[0].title, 'AIRVALET REMINDER');
+  // another flight stays apart; one car alone keeps its own text
+  const other = { ...RI('H19_WB', 'WELCOME_BACK', 9), grp: 'H19_WB:2026-10-26:1110', gtext: 'Send Welcome Back, lands 6:30 PM: {t}' };
+  const q = reminderPushPayloads([wb(1), wb(2), other]);
+  assertEquals(q.length, 2); assertEquals(q[1].body, 'H19_WB for T-9');
+});
+Deno.test('grouping counts as one alert for the "more than 3 → summary" rule', () => {
+  const g = (code: string, n: number, grp: string) => ({ ...RI(code, 'POSITION', n), grp, gtext: `${code}: {t}` });
+  const items = [g('NO_HANGAR', 1, 'NO_HANGAR'), g('NO_HANGAR', 2, 'NO_HANGAR'), g('NO_HANGAR', 3, 'NO_HANGAR'), g('NO_HANGAR', 4, 'NO_HANGAR'), RI('OVERDUE', 'DAILY', 5)];
+  const p = reminderPushPayloads(items);
+  assertEquals(p.length, 2); assertEquals(p[0].body, 'NO_HANGAR: T-1, T-2, T-3, T-4');
+});
+Deno.test('grouped reminders: each one still audited on its own', async () => {
+  const wb = (n: number) => ({ ...RI('H19_WB', 'WELCOME_BACK', n), grp: 'H19_WB:x', gtext: 'WB: {t}' });
+  const db = remDb([wb(1), wb(2), wb(3)], [{ id: 'o', endpoint: 'https://web.push.apple.com/o', p256dh: 'p', auth: 'a', categories: ['WELCOME_BACK'] }]);
+  const p = fakePush();
+  const r = await notifyReminders({ db, vapid: VAPID, pushImpl: p.impl });
+  assertEquals(p.sent.length, 1); assertEquals(r.push, 1);
+  const fin = db.calls.filter((c) => c.fn === 'airvalet_notify_finish');
+  assertEquals(fin.length, 3); assert(fin.every((f) => f.args.p_status === 'sent' && f.args.p_detail === 'H19_WB: 1 device(s)'));
+});

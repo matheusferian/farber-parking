@@ -1,7 +1,7 @@
 -- AirValet — staff push alerts on the phones (owner 2026-10-26):
 --   * CHECK_IN  every new check-in          → ADMIN phones only
 --   * TIP       every Stripe tip received   → ADMIN phones only
---   * REMINDER  (next step) operational reminders → iPad / iPhone / ADMIN
+--   (operational reminders: separate migration 20261109)
 -- Opt-in per phone on the existing alerts subscription (airvalet_push_subs),
 -- from the Alerts card. A trigger on the new row (any app version, online or
 -- offline upload; the Stripe webhook for tips) asks the Edge Function
@@ -24,28 +24,21 @@ create extension if not exists pg_net with schema extensions;   -- already insta
 
 alter table public.airvalet_push_subs
   add column if not exists notify_checkins  boolean not null default false,
-  add column if not exists notify_tips      boolean not null default false,
-  add column if not exists notify_reminders boolean not null default false;
+  add column if not exists notify_tips      boolean not null default false;
 
--- This phone's choices. CHECK_IN / TIP: ADMIN only. REMINDER: any operations login.
+-- This phone's choices. CHECK_IN / TIP: ADMIN only.
 create or replace function public.airvalet_push_alerts_set(p_device_key text, p_kind text, p_on boolean)
 returns jsonb language plpgsql security definer set search_path = '' as $$
 declare v_dev uuid; v_n int; v_role public.account_role := public.current_user_role();
 begin
-  if p_kind not in ('CHECK_IN', 'TIP', 'REMINDER') then return jsonb_build_object('result', 'BAD_KIND'); end if;
-  if p_kind in ('CHECK_IN', 'TIP') and v_role is distinct from 'ADMIN'::public.account_role then
-    return jsonb_build_object('result', 'FORBIDDEN');
-  end if;
-  if v_role is null or v_role::text not in ('ADMIN', 'MANAGER', 'IPAD_OPS', 'IPHONE_OPS') then
-    return jsonb_build_object('result', 'FORBIDDEN');
-  end if;
+  if p_kind not in ('CHECK_IN', 'TIP') then return jsonb_build_object('result', 'BAD_KIND'); end if;
+  if v_role is distinct from 'ADMIN'::public.account_role then return jsonb_build_object('result', 'FORBIDDEN'); end if;
   select d.id into v_dev from public.airvalet_sms_devices d
    where d.key_hash = public.airvalet_sms_device_key_hash(p_device_key) and d.status = 'approved';
   if v_dev is null then return jsonb_build_object('result', 'DEVICE_NOT_AUTHORIZED'); end if;
   update public.airvalet_push_subs s
-     set notify_checkins  = case when p_kind = 'CHECK_IN' then coalesce(p_on, false) else s.notify_checkins end,
-         notify_tips      = case when p_kind = 'TIP' then coalesce(p_on, false) else s.notify_tips end,
-         notify_reminders = case when p_kind = 'REMINDER' then coalesce(p_on, false) else s.notify_reminders end
+     set notify_checkins = case when p_kind = 'CHECK_IN' then coalesce(p_on, false) else s.notify_checkins end,
+         notify_tips     = case when p_kind = 'TIP' then coalesce(p_on, false) else s.notify_tips end
    where s.device_id = v_dev and s.revoked_at is null;
   get diagnostics v_n = row_count;
   if v_n = 0 then return jsonb_build_object('result', 'ALERTS_OFF'); end if;
@@ -58,8 +51,7 @@ create or replace function public.airvalet_push_alerts_get(p_device_key text)
 returns jsonb language sql stable security definer set search_path = '' as $$
   select jsonb_build_object(
     'check_in', coalesce(bool_or(s.notify_checkins), false),
-    'tip',      coalesce(bool_or(s.notify_tips), false),
-    'reminder', coalesce(bool_or(s.notify_reminders), false))
+    'tip',      coalesce(bool_or(s.notify_tips), false))
     from public.airvalet_push_subs s join public.airvalet_sms_devices d on d.id = s.device_id
    where d.key_hash = public.airvalet_sms_device_key_hash(p_device_key) and s.revoked_at is null;
 $$;
@@ -74,8 +66,7 @@ language sql stable security definer set search_path = '' as $$
     from public.airvalet_push_subs s join public.airvalet_sms_devices d on d.id = s.device_id
    where s.revoked_at is null and s.fail_count < 5 and d.status = 'approved'
      and coalesce((select ps.push_enabled from public.airvalet_portal_settings ps), false)
-     and case p_kind when 'CHECK_IN' then s.notify_checkins when 'TIP' then s.notify_tips
-                     when 'REMINDER' then s.notify_reminders else false end;
+     and case p_kind when 'CHECK_IN' then s.notify_checkins when 'TIP' then s.notify_tips else false end;
 $$;
 revoke all on function public.airvalet_push_staff_targets(text) from public, anon, authenticated;
 grant execute on function public.airvalet_push_staff_targets(text) to service_role;

@@ -5181,11 +5181,51 @@ async function renderVpAlertsCard(){
         // ADMIN phones only (owner 2026-10-26): an alert for every new check-in / Stripe tip.
         (state === 'on' && _currentUserRole === 'ADMIN' ? '<div class="vpa-admin" id="vpaAdmin">' +
           '<label class="vpa-chk"><input type="checkbox" id="vpaCheckin" onchange="vpStaffAlert(\'CHECK_IN\', this)"> Every new check-in (admin)</label>' +
-          '<label class="vpa-chk"><input type="checkbox" id="vpaTip" onchange="vpStaffAlert(\'TIP\', this)"> Every Stripe tip (admin)</label></div>' : '')
+          '<label class="vpa-chk"><input type="checkbox" id="vpaTip" onchange="vpStaffAlert(\'TIP\', this)"> Every Stripe tip (admin)</label></div>' : '') +
+        (state === 'on' && VP_REMINDER_ROLES.indexOf(_currentUserRole) >= 0 ? vpReminderBoxHtml() : '')
       : '') +
     '<label class="vpa-chk"><input type="checkbox" ' + (vpSoundOn() ? 'checked ' : '') + 'onchange="vpSetSound(this.checked)"> Sound for new messages while AirValet is open</label></div></details>';
   el.style.display = '';
   if (state === 'on' && _currentUserRole === 'ADMIN') vpStaffAlertsLoad();
+  if (state === 'on' && VP_REMINDER_ROLES.indexOf(_currentUserRole) >= 0) vpRemindersLoad();
+}
+// Operational reminders on this device (server: airvalet_push_reminders_get / _set; sent by pg_cron → staff-alert).
+var VP_REMINDER_ROLES = ['ADMIN', 'MANAGER', 'IPAD_OPS', 'IPHONE_OPS'];
+var VP_REMINDERS = [
+  ['CARWASH', 'Car wash: 3 days and 1 day before, every 2 h on the return day, every 3 days if the return is later'],
+  ['FOLLOWUP', 'Return follow-up: cars to check, every 3 days at 9 AM'],
+  ['CUSTOMS', 'Customs: Welcome Back 5 min after delivery, gratuity link 10 min after landing'],
+  ['WELCOME_BACK', 'Hangar 19 Welcome Back: 30 min before landing'],
+  ['POSITION', 'Car position: check-in without a hangar (move before landing, once the owner turns it on)'],
+  ['DAILY', 'Summaries: overdue returns at 8 AM, tomorrow without a time at 6 PM'],
+  ['NODATE_ADMIN', 'No return date: every day at 9 AM (admin)']
+];
+function vpReminderBoxHtml(){
+  return '<div class="vpa-rem" id="vpaRem"><div class="vpa-rem-h">Reminders on this device</div>' +
+    VP_REMINDERS.filter(function(r){ return r[0] !== 'NODATE_ADMIN' || _currentUserRole === 'ADMIN'; }).map(function(r){
+      return '<label class="vpa-chk"><input type="checkbox" data-cat="' + r[0] + '" onchange="vpReminderSet(this)"> ' + escapeHTML(r[1]) + '</label>';
+    }).join('') + '<div class="smsdev-s">Nothing is sent from 10 PM to 6 AM. A reminder stops once the task is done.</div></div>';
+}
+async function vpRemindersLoad(){
+  var box = document.getElementById('vpaRem'); if (!box) return;
+  try {
+    var g = await vpRpc('airvalet_push_reminders_get', { p_device_key: smsDeviceKey(false) }) || [];
+    box.querySelectorAll('input[data-cat]').forEach(function(i){ i.checked = g.indexOf(i.getAttribute('data-cat')) >= 0; });
+  } catch(e) { box.style.display = 'none'; }
+}
+async function vpReminderSet(el){
+  var box = document.getElementById('vpaRem'); if (!box) return;
+  var cats = [], r = null;
+  box.querySelectorAll('input[data-cat]').forEach(function(i){ if (i.checked) cats.push(i.getAttribute('data-cat')); });
+  try { r = await vpRpc('airvalet_push_reminders_set', { p_device_key: smsDeviceKey(false), p_categories: cats }); } catch(e) { r = { result: 'NETWORK' }; }
+  if (!r || r.result !== 'OK') {
+    el.checked = !el.checked;
+    showMsg(r && r.result === 'DEVICE_NOT_AUTHORIZED' ? 'Only devices approved for AirValet texting can get reminders.'
+      : r && r.result === 'ALERTS_OFF' ? 'Turn alerts on for this device first.'
+      : r && r.result === 'FORBIDDEN' ? 'This login cannot turn that reminder on.' : 'Could not save — try again.', true);
+    return;
+  }
+  showMsg(el.checked ? 'Reminder turned on for this device.' : 'Reminder turned off on this device.', false);
 }
 // This phone's admin alerts (server: airvalet_push_alerts_get / _set).
 async function vpStaffAlertsLoad(){

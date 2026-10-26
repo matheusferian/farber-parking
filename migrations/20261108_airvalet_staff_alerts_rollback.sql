@@ -1,6 +1,6 @@
 -- Rollback of 20261108_airvalet_staff_alerts.sql. Removes only what it added:
 -- the triggers first (no more calls), then the functions, then the per-phone
--- choices (check-ins / tips / reminders). Alerts for guest messages and
+-- choices (check-ins / tips). Alerts for guest messages and
 -- passenger requests are untouched. pg_net stays (it was already installed).
 -- Vault secrets airvalet_functions_url / staff_alert_secret: delete out of band
 -- if wanted (harmless without the triggers).
@@ -17,7 +17,6 @@ drop function if exists public.airvalet_push_alerts_get(text);
 drop function if exists public.airvalet_push_alerts_set(text, text, boolean);
 alter table public.airvalet_push_subs
   drop column if exists notify_checkins,
-  drop column if exists notify_tips,
-  drop column if exists notify_reminders;
+  drop column if exists notify_tips;
 
 commit;
