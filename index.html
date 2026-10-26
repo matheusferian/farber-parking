@@ -12,15 +12,19 @@
 <meta name="theme-color" content="#0B2547">
 <title>AirValet</title>
 <link rel="manifest" href="manifest.webmanifest">
-<link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+<!-- Fonts/icons from CDNs never block opening the app (hangar Wi-Fi without
+     internet took 75 s to show the login, audit A3-04): load them async. -->
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" media="print" onload="this.media='all'">
+<noscript><link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet"><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"></noscript>
 <!-- Vendored (Offline Mode Phase 1) — was cdn.jsdelivr.net/npm/@supabase/supabase-js@2,
      a FLOATING major-version tag. Frozen at the exact version it resolved to on
      2026-08-24: 2.112.4. Unmodified vendor copy — see PROJECT.md, Offline Mode,
      for source/hash. Do not silently upgrade this file. -->
 <script src="vendor/supabase.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
+<!-- Only used to export images/PDFs: async, never blocks opening the app (audit A3-04). -->
+<script async src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<script async src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
 <!-- Offline Mode Phase 1 — infrastructure only, does not touch saveEntry() or
      any other production write path yet. See PROJECT.md, Offline Mode. -->
 <script src="offline-auth.js"></script>
@@ -13207,6 +13211,7 @@ function crBuildExportMarkup(report){
 }
 
 async function crCaptureCanvas(report){
+  if(typeof html2canvas!=='function') throw new Error('Image library not loaded yet (no internet?). Check the connection and try again.');
   var hostId='crExportHost';
   var rootId='crExportRoot';
   var old=document.getElementById(hostId);
