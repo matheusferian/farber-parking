@@ -14131,6 +14131,29 @@ function crFmtTime12(t){
   return h+':'+m+' '+ampm;
 }
 
+// Leaving tomorrow, listed inside the Closing (owner 2026-10-27): one image with every car and its time.
+// Rebuilt from the tickets for report date + 1, so a report opened later still shows the list.
+function crLtRowsFor(dateStr){
+  if(!dateStr) return [];
+  var d=new Date(dateStr+'T12:00:00'); d.setDate(d.getDate()+1);
+  var next=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  return sortByDepartureTime((typeof data!=='undefined'&&data||[]).filter(function(r){
+    if(crToDateET(r.ret)!==next||r.status==='ARCHIVED') return false;
+    if(r.status==='DELIVERED'){ var dd=crGetDeliveredDateET(r); return !!dd&&dd>=next; }
+    return true;
+  }));
+}
+function crLtListHTML(rows, dark){
+  var mu=dark?'rgba(255,255,255,.5)':'var(--mu)', bd=dark?'rgba(255,255,255,.06)':'var(--b)';
+  return rows.map(function(r, i){
+    var t=getDepartureTime(r);
+    return '<div style="display:flex;gap:10px;align-items:baseline;padding:7px 0;'+(i<rows.length-1?'border-bottom:1px solid '+bd+';':'')+'">'
+      +'<span style="font:700 13px \'JetBrains Mono\',monospace;min-width:72px;'+(t?'':'color:#FF8A80')+'">'+(t?crFmtTime12(t):'No time')+'</span>'
+      +'<span style="flex:1;min-width:0"><span style="display:block;font:700 13px \'Sora\',sans-serif">'+escapeHTML(titleCaseName(r.name||''))+'</span>'
+      +'<span style="display:block;font:500 11px \'Inter\',sans-serif;color:'+mu+'">'+escapeHTML(['#'+(r.ticket||'—'), niceVehicleText([r.color, r.car].filter(Boolean).join(' ')), r.loc?titleCaseName(r.loc):''].filter(Boolean).join(' · '))+'</span></span>'
+      +'</div>';
+  }).join('');
+}
 function crBuildPreviewHTML(){
   var html='<div class="cr-pv-header">'
     +'<img src="assets/logo-icon.png" alt="AirValet">'
@@ -14175,10 +14198,12 @@ function crBuildPreviewHTML(){
       +'<div style="font:700 14px \'Sora\',sans-serif;color:var(--navy)">'+escapeHTML(_crCashCustodian)+'</div>'
       +'</div>';
   }
-  if(_crLtCount>0){
+  var ltRowsPv=crLtRowsFor(_crBusinessDate);
+  if(_crLtCount>0||ltRowsPv.length){
     html+='<div class="cr-pv-sec" style="margin-bottom:0"><div class="cr-pv-sec-title">LEAVING TOMORROW</div>'
-      +'<div style="font:800 24px \'Sora\',sans-serif;color:var(--navy)">'+_crLtCount+'</div>'
+      +'<div style="font:800 24px \'Sora\',sans-serif;color:var(--navy)">'+(ltRowsPv.length||_crLtCount)+'</div>'
       +'<div style="font:400 12px \'Inter\',sans-serif;color:var(--mu)">passengers</div>'
+      +crLtListHTML(ltRowsPv, false)
       +'</div>';
   }
   html+='</div>';
@@ -14303,7 +14328,8 @@ function crBuildExportMarkup(report){
   var delivered=Number(report.delivered_today)||0;
   var inCustody=Number(report.in_custody_count)||0;
   var cashCustodian=report.cash_custodian_name||'';
-  var ltCount=Number(report.leaving_tomorrow_count)||0;
+  var ltRows=crLtRowsFor(report.report_date);
+  var ltCount=ltRows.length||Number(report.leaving_tomorrow_count)||0;
   var valets=Array.isArray(report.attendants)?report.attendants.filter(function(a){return a.name&&a.name.trim();}):[];
   var closedTime='';
   if(report.closed_at){
@@ -14385,7 +14411,7 @@ function crBuildExportMarkup(report){
     h+='<div style="display:flex;align-items:baseline;gap:6px">';
     h+='<span style="font:800 28px \'Sora\',sans-serif">'+ltCount+'</span>';
     h+='<span style="font:400 12px \'Inter\',sans-serif;color:rgba(255,255,255,.5)">passengers</span>';
-    h+='</div></div>';
+    h+='</div>'+crLtListHTML(ltRows, true)+'</div>';
   }
 
   h+='</div>';
