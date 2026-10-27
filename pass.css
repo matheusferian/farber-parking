@@ -140,3 +140,19 @@ label.f textarea{min-height:5rem;resize:vertical}
 footer a{display:inline-block;padding:.55rem 0}
 header.top h1,.pass-car,.v{overflow-wrap:anywhere}
 .stale{margin:0 0 .6rem;padding:.55rem .8rem;border-radius:.7rem;background:#FFF4D6;color:#5A4500;font-size:.85rem;text-align:center}
+
+/* Stage 1 (2026-10-27): gratuity is quiet during the trip (a list row) and an
+   elegant card after delivery. Chips are plain links: nothing is ever selected. */
+.grat{background:var(--card);border-radius:1.1rem;padding:1.1rem 1.2rem 1.15rem;border-top:3px solid var(--gold)}
+.grat-t{margin:0;font-family:Sora,Inter,sans-serif;font-size:1.1rem;font-weight:700;color:var(--navy)}
+.grat-copy{margin:.35rem 0 .9rem;font-size:.98rem;line-height:1.5;color:var(--ink)}
+.grat .fine{margin-top:.6rem}
+.btn.grat-btn{width:100%;min-height:3.1rem;background:#fff;color:var(--navy);border:1.5px solid var(--navy);font-size:1rem}
+.grat-chips{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.5rem}
+.chip{min-height:3rem;border-radius:.85rem;border:1.5px solid var(--line);background:#fff;color:var(--navy);font-family:Sora,Inter,sans-serif;font-weight:700;font-size:1rem;display:flex;align-items:center;justify-content:center;text-decoration:none}
+.chip:active{background:var(--soft)}
+.info-row{padding:.7rem 0;border-top:1px solid var(--soft)}
+.info-v{margin:.15rem 0 0;font-size:1rem;line-height:1.45}
+.info-v a{display:inline-flex;align-items:center;min-height:44px;font-weight:600}
+.flink{border:0;background:none;padding:0;font:inherit;color:var(--mu);text-decoration:underline;cursor:pointer}
+footer a,footer .flink{display:inline-flex;align-items:center;min-height:44px;padding:0}

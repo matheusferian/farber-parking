@@ -8,7 +8,7 @@ from playwright.async_api import async_playwright
 
 DIR = sys.argv[1]
 ENGINE = sys.argv[2] if len(sys.argv) > 2 else 'chromium'
-APP = 'http://127.0.0.1:8781/'
+APP = os.environ.get('APP', 'http://127.0.0.1:8781/')
 PW = open(DIR + '/test_password.txt').read().strip()
 RUN = str(int(time.time()) % 900 + 100)
 TAG = 'E2E INTL ' + ENGINE[:2].upper() + ' '

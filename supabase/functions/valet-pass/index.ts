@@ -11,6 +11,7 @@
 //                                                → { state, result }  (passenger request)
 //   POST { t, action: 'messages' }               → { state, messages } (valet chat thread)
 //   POST { t, action: 'send', body, ck }         → { state, result }  (chat message, no SMS)
+//   POST { t, action: 'gratuity_click' }         → { state, result }  (count only: no amount, no IP)
 //
 // Requests are stored PENDING; nothing operational changes until staff
 // approve in AirValet. A new request notifies staff (iPad push / Super Admin
@@ -146,6 +147,14 @@ Deno.serve(async (req) => {
       const job = notifyEvent(makeNotifyDeps(admin, cfg, get, log), 'GUEST_MESSAGE', String(data.message_id));
       if (typeof EdgeRuntime !== 'undefined') EdgeRuntime.waitUntil(job); else job.catch(() => {});
     }
+    return reply(200, { state: 'ok', result: data.result });
+  }
+
+  if (body.action === 'gratuity_click') {
+    const { data, error } = await admin.rpc('airvalet_portal_gratuity_click', { p_token: token, p_client: client });
+    if (error || !data) return reply(503, { state: 'error' });
+    if (data.state === 'limited') return reply(429, { state: 'limited' });
+    if (data.state !== 'ok') return reply(200, { state: 'expired' });
     return reply(200, { state: 'ok', result: data.result });
   }
 

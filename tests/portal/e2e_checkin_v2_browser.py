@@ -4,12 +4,12 @@
 # a host other than 127.0.0.1 / fonts is aborted, and epsonSend is stubbed in
 # the page, so nothing can reach a printer.
 #   python3 tests/portal/e2e_checkin_v2_browser.py <scratch portal dir> [screenshot dir]
-import asyncio, re, subprocess, sys, time, xml.dom.minidom
+import asyncio, os, re, subprocess, sys, time, xml.dom.minidom
 from playwright.async_api import async_playwright
 
 DIR = sys.argv[1]
 OUT = sys.argv[2] if len(sys.argv) > 2 else None
-APP = 'http://127.0.0.1:8781/'
+APP = os.environ.get('APP', 'http://127.0.0.1:8781/')
 PW = open(DIR + '/test_password.txt').read().strip()
 RUN = str(int(time.time()) % 900 + 100)  # fictional 555 phones, unique per run
 oks, fails = 0, 0

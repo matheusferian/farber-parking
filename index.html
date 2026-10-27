@@ -652,6 +652,12 @@
     <div id="tipPassName" style="font-size:16px;font-weight:800;color:var(--tx);margin-top:8px;font-family:'Sora',sans-serif"></div>
     <div id="tipVehicleLine" style="font-size:12px;color:var(--mu);margin-top:2px;font-family:'JetBrains Mono',monospace"></div>
     <div id="tipPickup" class="ci2-release" hidden></div>
+    <!-- Optional (owner 2026-10-27): never asked, never blocks Deliver. Informational only:
+         the Closing Report never adds it to a total; the guest can still tip digitally. -->
+    <div id="tipInPerson" style="margin:14px 0 0;text-align:left">
+      <label style="display:flex;align-items:center;gap:10px;min-height:44px;font-size:14px;font-weight:600;color:var(--tx);cursor:pointer"><input type="checkbox" id="tipIpYes" style="width:22px;height:22px;flex:none" onchange="tipInPersonSync()"><span>Tip received in person <span style="color:var(--mu);font-weight:500">(optional)</span></span></label>
+      <input type="text" inputmode="decimal" id="tipIpAmt" class="cr-tip-input" placeholder="Amount (optional)" maxlength="8" hidden style="width:100%;min-height:44px;margin-top:6px;text-align:left" oninput="crSanitizeCurrency(this)">
+    </div>
     <div style="display:flex;flex-direction:column;gap:10px;margin:18px 0 20px">
       <button class="tip-opt tip-yes" id="tipYesBtn" onclick="selectTip(null)">✅ Deliver</button>
     </div>
@@ -1408,6 +1414,7 @@ https://buy.stripe.com/8x214mccK0uh9TjgIM6Vq00</div>
       <div class="cr-tip-card">
         <div class="cr-tip-row"><div class="cr-tip-label">Stripe Tips</div><div class="cr-tip-value" id="crStripeTips">—</div></div>
         <div class="cr-tip-row"><div class="cr-tip-label">Other Tips <span class="cr-manual-tag"><i class="fa-solid fa-pen"></i></span></div><div class="cr-tip-value"><input type="text" inputmode="decimal" id="crOtherTips" class="cr-tip-input" placeholder="$0.00" oninput="crSanitizeCurrency(this);crUpdateTotal()"></div></div>
+        <div id="crInPersonHint" hidden style="margin:-2px 0 8px;font:500 12px 'Inter',sans-serif;color:var(--mu);line-height:1.4"></div>
         <div class="cr-tip-total"><div class="cr-tip-label" style="font-weight:700;color:var(--navy)">TOTAL TIPS</div><div class="cr-tip-total-val" id="crTotalTips">$0.00</div></div>
       </div>
     </div>
@@ -2546,6 +2553,7 @@ function mapPassengerRow(r) {
     departure_time: r.departure_time||'',
     customer_rating: r.customer_rating||'',
     tip_received: r.tip_received===undefined ? null : r.tip_received,
+    tip_in_person_cents: r.tip_in_person_cents||null,
     not_returning_with_makers_air: r.not_returning_with_makers_air||false,
     archived_by: r.archived_by||'',
     archived_at: r.archived_at||'',
@@ -4137,7 +4145,7 @@ async function selectTip(tipReceived){
   var dtype=ov.getAttribute('data-dtype')||'NORMAL';
   var ok=false;
   try{
-    ok=await deliverWithTip(id, dtype, tipReceived);
+    ok=await deliverWithTip(id, dtype, tipReceived, tipInPersonChoice());
   } finally {
     _tipSaving=false;
   }
@@ -7897,8 +7905,23 @@ function openTipModal(id, deliveryType){
   vehEl.textContent=vehLine;
   vehEl.style.display=vehLine?'':'none';
   setTipButtonsDisabled(false);
+  var ipY=document.getElementById('tipIpYes'), ipA=document.getElementById('tipIpAmt');
+  if(ipY){ ipY.checked=false; }
+  if(ipA){ ipA.value=''; ipA.hidden=true; }
   pickupReleaseRender(r);
   ov.classList.add('on');
+}
+function tipInPersonSync(){
+  var y=document.getElementById('tipIpYes'), a=document.getElementById('tipIpAmt'); if(!y||!a) return;
+  a.hidden=!y.checked; if(!y.checked) a.value='';
+}
+// In-person tip from the delivery modal: null = nothing recorded (the default).
+// An unreadable amount is simply not stored — it never blocks the delivery.
+function tipInPersonChoice(){
+  var y=document.getElementById('tipIpYes'); if(!y||!y.checked) return null;
+  var a=document.getElementById('tipIpAmt'), v=parseFloat(String(a&&a.value||'').replace(/[^0-9.]/g,''));
+  var cents=isFinite(v)&&v>0&&v<=1000?Math.round(v*100):null;
+  return {cents:cents};
 }
 // ── AUTHORIZED PICKUP AT DELIVERY ───────────────────────────────
 // A ticket with an authorized pickup person: the team picks who is taking
@@ -7989,10 +8012,14 @@ function pickupReleaseChoice(r){
           released_by:_currentUserEmail||null, released_at:new Date().toISOString()};
 }
 
-async function deliverWithTip(id, deliveryType, tipReceived){
+async function deliverWithTip(id, deliveryType, tipReceived, inPerson){
   // Tip is no longer asked at delivery (owner 2026-10-25): tip_received stays
   // null; everyone gets the same delivered text with the gratuity link.
   if(tipReceived!==true && tipReceived!==false) tipReceived=null;
+  // Optional in-person tip (owner 2026-10-27): recorded on the car only. The
+  // delivered text is chosen exactly as before (tipReceived), so the guest can
+  // still leave a digital gratuity.
+  var tipRecorded=inPerson?true:tipReceived;
   var r=null; for(var i=0;i<data.length;i++){if(data[i].id===id){r=data[i];break;}}
   if(!r) return false;
   if(r.isOfflinePending){ showMsg(OFFLINE_PENDING_SYNC_MSG, true); return false; }
@@ -8001,13 +8028,15 @@ async function deliverWithTip(id, deliveryType, tipReceived){
   var prevLoc=r.loc||'';
   var deliveryOk=false;
   var tipNote=tipReceived===null?'':(' | Tip: '+(tipReceived?'YES':'NO'));
+  if(inPerson) tipNote+=' | Tip in person: YES'+(inPerson.cents?' ($'+(inPerson.cents/100).toFixed(2)+')':'');
   loading(true);
   try{
     var todayStr=getTodayStr();
     var checkoutIso=new Date().toISOString();
     // customer_rating is intentionally never written here — it is a
     // retired historical field, preserved as-is for old records.
-    var upd={status:'DELIVERED',deldate:todayStr,checkout_date:checkoutIso,delivery_type:deliveryType,tip_received:tipReceived};
+    var upd={status:'DELIVERED',deldate:todayStr,checkout_date:checkoutIso,delivery_type:deliveryType,tip_received:tipRecorded};
+    if(inPerson&&inPerson.cents) upd.tip_in_person_cents=inPerson.cents;
     if(!isCustoms){upd.loc='HANGAR 19';upd.previous_delivery_location=prevLoc;}
     if(deliveryType==='LOCKBOX'&&hasPickupAuth(r)){ showMsg('Authorized pickup on file: hand the key in person and check a photo ID (no lockbox).',true); return false; }
     var rel=pickupReleaseChoice(r);
@@ -8020,7 +8049,13 @@ async function deliverWithTip(id, deliveryType, tipReceived){
     }
     // Only one device can deliver a car: a second delivery matches nothing
     // (no duplicate history, no second delivered text).
-    await sbUpdate(r.id,upd,{filter:'&status=neq.DELIVERED',zeroRowsMessage:'Already delivered on another device. Reload to see the latest.'});
+    var delivOpts={filter:'&status=neq.DELIVERED',zeroRowsMessage:'Already delivered on another device. Reload to see the latest.'};
+    try{ await sbUpdate(r.id,upd,delivOpts); }
+    catch(e){
+      // Database without the in-person amount column yet: deliver anyway (the amount stays in the activity log).
+      if(upd.tip_in_person_cents===undefined||!/tip_in_person_cents/.test(e.message||'')) throw e;
+      delete upd.tip_in_person_cents; await sbUpdate(r.id,upd,delivOpts);
+    }
     if(rel) Object.assign(r,rel);
     if(!isCustoms){
       await sbLog('DELIVERED_FROM_LOCATION',r.name,r.ticket,'HANGAR 19','Delivered as '+deliveryType+'. Previous location: '+prevLoc+'. Final location automatically changed to HANGAR 19.'+(isLateDeliver?' (late)':'')+tipNote,{passenger_id:r.id});
@@ -8035,7 +8070,8 @@ async function deliverWithTip(id, deliveryType, tipReceived){
         data[i].deldate=todayStr;
         data[i].checkout_date=checkoutIso;
         data[i].delivery_type=deliveryType;
-        data[i].tip_received=tipReceived;
+        data[i].tip_received=tipRecorded;
+        if(upd.tip_in_person_cents) data[i].tip_in_person_cents=upd.tip_in_person_cents;
         if(!isCustoms){data[i].loc='HANGAR 19';data[i].previous_delivery_location=prevLoc;}
         if(upd.ret){data[i].ret=upd.ret;data[i].obs=upd.obs;}
         break;
@@ -8118,7 +8154,7 @@ function tipStatusLabel(tipReceived){
 }
 function tipStatusHtml(r){
   var cls = r.tip_received===true?'cr-badge cr-tip-yes':r.tip_received===false?'cr-badge cr-tip-no':'cr-badge cr-tip-none';
-  return '<span class="'+cls+'">'+tipStatusLabel(r.tip_received)+'</span>';
+  return '<span class="'+cls+'">'+tipStatusLabel(r.tip_received)+(r.tip_received===true&&r.tip_in_person_cents?' · $'+(r.tip_in_person_cents/100).toFixed(2)+' in person':'')+'</span>';
 }
 function tipStatusCompact(r){
   if(r.tip_received===true) return '<span class="tip-chip tip-chip-yes" title="Tip: Yes">💵✓</span>';
@@ -12882,6 +12918,14 @@ async function crLoadAutoData(){
     var st=String(data[i].status||'').toUpperCase();
     if(st!=='DELIVERED'&&st!=='ARCHIVED') inCustody++;
   }
+  // In-person tips recorded at delivery: shown for reference only, never added
+  // to Other Tips or any total (staff still type Other Tips; no double count).
+  var ipCents=0,ipCars=0;
+  for(var j=0;j<data.length;j++){
+    if(data[j].tip_in_person_cents>0&&crGetDeliveredDateET(data[j])===_crBusinessDate){ipCents+=data[j].tip_in_person_cents;ipCars++;}
+  }
+  var ipEl=document.getElementById('crInPersonHint');
+  if(ipEl){ ipEl.hidden=!ipCents; ipEl.textContent=ipCents?'Recorded in person at delivery today: '+crFmtMoney(ipCents)+' ('+ipCars+(ipCars===1?' car':' cars')+'). For reference only, not added to the totals. Count it once in Other Tips.':''; }
   _crCheckins=checkins;
   _crDelivered=delivered;
   _crInCustody=inCustody;

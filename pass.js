@@ -15,6 +15,10 @@
   // Intro film (cine/cinematic-v1.js): one switch; false = never plays.
   // OFF 2026-10-26 (owner): p3 films carry a 'PROVISIONAL MEDIA · NOT FINAL' badge.
   var CINEMATIC_ON = false, CINEMATIC_VERSION = 'p3', cineTried = false;
+  // Valet Terms (owner 2026-10-27, decision 10): no page exists until the attorney
+  // approves the text. terms.html is the SMS terms — never link it as Valet Terms.
+  var VALET_TERMS_URL = '';
+  var GRATUITY_COPY = 'Our valet service is complimentary. If you\u2019d like to say thank you, a gratuity is always optional.';
 
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
@@ -168,8 +172,7 @@
       '</div><div class="pass-tear" aria-hidden="true"></div><div class="pass-bottom">';
     if (done) {
       html += '<p class="k">A note from your valet team</p>' +
-        '<p class="note-text">Thank you for trusting us with your car' + (p.first_name ? ', ' + esc(p.first_name) : '') + '. It was a pleasure taking care of it. Safe travels, and see you on your next trip!</p>' +
-        (p.gratuity_url ? '<button class="btn brass" type="button" data-open="gratuity">Leave a gratuity for the team</button><p class="fine">Always optional.</p>' : '');
+        '<p class="note-text">Thank you for trusting us with your car' + (p.first_name ? ', ' + esc(p.first_name) : '') + '. It was a pleasure taking care of it. Safe travels, and see you on your next trip!</p>';
       return html + ticketLine(p) + '</div></section>';
     }
     var date = fmtDate(p.return_date), time = fmtTime(p.return_time), place = pickupText(p);
@@ -198,18 +201,46 @@
     return html + ticketLine(p) + '</div></section>';
   }
 
+  // Gratuity (owner 2026-10-27): never mandatory, nothing pre-selected. Amount
+  // chips only when per-amount links are configured (gratuity_amounts); until
+  // then one action that opens the current link, where the guest picks the amount.
+  function gratuityLinks(p, cls) {
+    var a = ' target="_blank" rel="noopener noreferrer" data-grat';
+    if (Array.isArray(p.gratuity_amounts) && p.gratuity_amounts.length) {
+      return '<div class="grat-chips" role="group" aria-label="Gratuity amount">' + p.gratuity_amounts.map(function (g) {
+        return '<a class="chip" href="' + esc(g.url) + '"' + a + '>$' + esc(g.amount) + '</a>';
+      }).join('') + '<a class="chip" href="' + esc(p.gratuity_url) + '"' + a + '>Other</a></div>';
+    }
+    return '<a class="btn ' + cls + '" href="' + esc(p.gratuity_url) + '"' + a + '>Leave a gratuity</a>';
+  }
+  // After delivery: an elegant, more visible card (still optional, no prompt).
+  function gratuityCard(p) {
+    return '<section class="grat" aria-label="Gratuity"><p class="grat-t">Gratuity</p><p class="grat-copy">' + esc(GRATUITY_COPY) + '</p>' +
+      gratuityLinks(p, 'grat-btn') + '<p class="fine">Secure payment by Stripe \u00b7 Matt Solutions &amp; Services.</p></section>';
+  }
+  // Privacy-safe count of gratuity taps: the token only (no amount); never delays the link.
+  function gratuityClick() {
+    try { fetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ t: TOKEN, action: 'gratuity_click' }), cache: 'no-store', credentials: 'omit', referrerPolicy: 'no-referrer', keepalive: true }).catch(function () {}); }
+    catch (e) { /* the payment link still opens */ }
+  }
+  document.addEventListener('click', function (e) {
+    var a = e.target && e.target.closest ? e.target.closest('a[data-grat]') : null;
+    if (a) gratuityClick();
+  });
+
   function render() {
     var p = pass, done = p.status === 'DELIVERED';
     var html = '<header class="top"><img src="assets/makers-air-valet-lockup-white.png" alt="Makers Air Valet" width="200" height="52">' +
       '<h1>' + (p.first_name ? 'Welcome, ' + esc(p.first_name) : 'Welcome') + '</h1></header><main>';
     html += passCard(p);
     if (p.lockbox && !done && p.status !== 'CUSTOMS_CONFIRMED') html += '<button class="btn primary green" type="button" data-open="lockbox">View after-hours pickup instructions</button>';
+    if (done && p.gratuity_url) html += gratuityCard(p);
     if (p.chat_enabled) html += '<button class="btn primary" type="button" data-open="chat">Message our valet team</button>';
-    // Gratuity as a full button too (owner 2026-10-25); after delivery it lives in the pass card.
-    if (!done && p.gratuity_url) html += '<button class="btn brass solo" type="button" data-open="gratuity">Leave a gratuity</button>';
     var rows = '';
     var wash = { REQUEST: 'Request', CONTACT: 'Ask our team', REQUESTED: 'Requested', PRICE_PENDING: 'Price coming', SCHEDULED: 'Scheduled', DONE: 'Done' }[p.car_wash];
     if (!done && wash && p.requests_enabled !== false) rows += '<button type="button" data-open="wash"><span>Car wash</span><small>' + wash + '</small></button>';
+    // During the trip: a quiet row only (no highlight, no prompt).
+    if (!done && p.gratuity_url) rows += '<button type="button" data-open="gratuity"><span>Gratuity</span><small>Optional</small></button>';
     if (rows) html += '<div class="list">' + rows + '</div>';
     var c = p.contacts || {};
     // Valet hours + the after-hours rule (owner 2026-10-25).
@@ -222,8 +253,10 @@
     // Operator credit (owner 2026-10-25): Farber Parking badge + office phone in the footer only.
     html += '<footer><div class="operator"><img src="assets/farber-parking-badge.png" alt="Farber Parking" width="44" height="44">' +
       '<div><p>Operated by Farber Parking</p><p><a href="tel:+15617740494">(561) 774-0494</a></p></div></div>' +
-      '<p>Makers Air Valet, Hangar 19, Fort Lauderdale' + (p.terms_published ? ' · <a href="terms.html">Valet Terms</a>' : '') + '</p>' +
-      '<p><a href="sms.html">SMS program</a> · <a href="privacy.html">Privacy</a></p></footer></main>';
+      '<p>Makers Air Valet, Hangar 19, Fort Lauderdale</p>' +
+      '<p><button class="flink" type="button" data-open="info">Valet information</button> · ' +
+      (p.terms_published && VALET_TERMS_URL ? '<a href="' + esc(VALET_TERMS_URL) + '">Valet Terms</a> · ' : '') +
+      '<a href="sms.html">SMS program</a> · <a href="privacy.html">Privacy</a></p></footer></main>';
     app.innerHTML = html;
     Array.prototype.forEach.call(app.querySelectorAll('[data-open]'), function (b) {
       b.addEventListener('click', function () { openSheet(b.getAttribute('data-open')); });
@@ -303,9 +336,22 @@
         h += '<div class="okbox">' + esc(t) + '</div><button class="btn primary" type="button" data-close>Done</button>';
       }
     } else if (form.kind === 'gratuity') {
-      h = head('Gratuity') + '<p class="p0">For the valet team. Always optional, and appreciated either way.</p>' +
-        '<a class="btn primary" href="' + esc(p.gratuity_url) + '" target="_blank" rel="noopener noreferrer">Continue to secure payment</a>' +
-        '<p class="muted">Secure payment by Stripe · Matt Solutions &amp; Services. You choose the amount.</p>';
+      var chips = Array.isArray(p.gratuity_amounts) && p.gratuity_amounts.length;
+      h = head('Gratuity') + '<p class="p0">' + esc(GRATUITY_COPY) + '</p>' +
+        (chips ? gratuityLinks(p, '')
+               : '<a class="btn primary" href="' + esc(p.gratuity_url) + '" target="_blank" rel="noopener noreferrer" data-grat>Continue to secure payment</a>') +
+        '<p class="muted">Secure payment by Stripe · Matt Solutions &amp; Services.' + (chips ? '' : ' You choose the amount.') + '</p>';
+    } else if (form.kind === 'info') {
+      // Facts only, from the existing settings (decision 10). No legal terms here.
+      var ci = p.contacts || {}, hi = hoursText(p.valet_hours);
+      h = head('Valet information') + '<p class="p0">Our valet service is complimentary.</p>' +
+        (hi ? '<div class="info-row"><p class="k">Valet hours</p><p class="info-v">' + esc(hi) + '</p></div>' : '') +
+        '<div class="info-row"><p class="k">Where</p><p class="info-v">Makers Air, Hangar 19, Fort Lauderdale</p></div>' +
+        '<div class="info-row"><p class="k">Contact</p><p class="info-v"><a href="' + esc(tel(contactValet(p))) + '">Call valet ' + esc(contactValet(p)) + '</a></p>' +
+          (ci.text_phone ? '<p class="info-v"><a href="' + esc(sms(ci.text_phone)) + '">Text ' + esc(ci.text_phone) + '</a></p>' : '') +
+          (ci.reservations_phone ? '<p class="info-v"><a href="' + esc(tel(ci.reservations_phone)) + '">Makers Air flights ' + esc(ci.reservations_phone) + '</a></p>' : '') + '</div>' +
+        '<div class="info-row"><p class="k">Operated by</p><p class="info-v">Farber Parking \u00b7 <a href="tel:+15617740494">(561) 774-0494</a></p></div>' +
+        '<button class="btn quiet" type="button" data-close>Close</button>';
     } else if (form.kind === 'chat') {
       h = head('Valet team') + '<div class="chat" id="chatList" aria-live="polite">' + chatHtml() + '</div>' +
         '<label class="f"><span class="sr">Message</span><textarea id="chatText" maxlength="600" placeholder="Write a message">' + esc(form.draft || '') + '</textarea></label>' +
