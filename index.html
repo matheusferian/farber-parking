@@ -14145,6 +14145,15 @@ function crLtRowsFor(dateStr){
 }
 function crLtListHTML(rows, dark){
   var mu=dark?'rgba(255,255,255,.5)':'var(--mu)', bd=dark?'rgba(255,255,255,.06)':'var(--b)';
+  // More than 12 cars: one line each (time · name · hangar) so the image stays short and readable on WhatsApp (owner 2026-10-27).
+  if(rows.length>12) return rows.map(function(r, i){
+    var t=getDepartureTime(r);
+    return '<div style="display:flex;gap:8px;align-items:baseline;padding:4px 0;'+(i<rows.length-1?'border-bottom:1px solid '+bd+';':'')+'">'
+      +'<span style="font:700 12px \'JetBrains Mono\',monospace;min-width:64px;flex:none;'+(t?'':'color:#FF8A80')+'">'+(t?crFmtTime12(t):'No time')+'</span>'
+      +'<span style="flex:1;min-width:0;font:700 12px \'Sora\',sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escapeHTML(titleCaseName(r.name||''))+'</span>'
+      +'<span style="flex:none;font:600 11px \'Inter\',sans-serif;color:'+mu+'">'+escapeHTML(r.loc?titleCaseName(r.loc):'—')+'</span>'
+      +'</div>';
+  }).join('');
   return rows.map(function(r, i){
     var t=getDepartureTime(r);
     return '<div style="display:flex;gap:10px;align-items:baseline;padding:7px 0;'+(i<rows.length-1?'border-bottom:1px solid '+bd+';':'')+'">'

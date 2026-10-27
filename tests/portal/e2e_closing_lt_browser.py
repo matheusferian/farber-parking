@@ -25,7 +25,7 @@ async def guard(route):
 
 TODAY = sql("select (now() at time zone 'America/New_York')::date")
 T = "to_char((now() at time zone 'America/New_York')::date + %d, 'FMMM/FMDD/YYYY')"
-CLEAN = "delete from public.activity_log where passenger_id between 984001 and 984009; delete from public.passengers where id between 984001 and 984009;"
+CLEAN = "delete from public.activity_log where passenger_id between 984001 and 984030; delete from public.passengers where id between 984001 and 984030;"
 FIX = """insert into public.passengers (id, ts, checkin_date, name, phone, ticket, status, ret, loc, car, color, departure_time) values
  (984001, 'x', now() - interval '3 days', 'ANNA LATEFLIGHTX', '3055558401', 'LT-1', 'PENDING', %(t1)s, 'HANGAR 18', 'Range Rover', 'Black', '17:02'),
  (984002, 'x', now() - interval '3 days', 'BRUNO EARLYX', '3055558402', 'LT-2', 'PENDING', %(t1)s, 'HANGAR 16', 'Audi Q7', 'Gray', '09:30'),
@@ -69,6 +69,26 @@ async def main():
             await page.evaluate('_crBusinessDate = %r; _crLtCount = 0; _crValets = []; _crCashCustodian = ""' % TODAY)
             pv = await page.evaluate('(() => { var d = document.createElement("div"); d.innerHTML = crBuildPreviewHTML(); return d.innerText; })()')
             check('9:30 AM' in pv and '5:02 PM' in pv and 'Bruno Earlyx' in pv, 'preview lists the cars with their time too', pv[-300:])
+            # More than 12 cars → compact: one line each (time · name · hangar).
+            sql("insert into public.passengers (id, ts, checkin_date, name, phone, ticket, status, ret, loc, car, color, departure_time) values " + ",".join(
+                "(%d, 'x', now() - interval '3 days', 'PASSENGER NUMBER%02dX', '30555585%02d', 'LT-%d', 'PENDING', %s, 'HANGAR %d', 'Audi Q7', 'White', '%02d:%02d')"
+                % (984010 + k, k, k, 10 + k, T % 1, [16, 18, 19][k % 3], 6 + k // 2, (k * 7) % 60) for k in range(1, 18)) + ";")
+            await page.evaluate('async () => { if (typeof loadData === "function") await loadData(); }')
+            await page.wait_for_timeout(1500)
+            n = await page.evaluate('crLtRowsFor(%r).length' % TODAY)
+            check(n == 20, '20 cars leaving tomorrow', n)
+            rep['leaving_tomorrow_count'] = 20
+            await page.evaluate('''(r) => { var h = document.createElement('div'); h.id = 'ltTestHost'; h.style.cssText = 'position:fixed;left:0;top:0;z-index:99999;background:#011532';
+                                     h.innerHTML = crBuildExportMarkup(r); document.body.appendChild(h); }''', rep)
+            txt = await page.evaluate('document.getElementById("ltTestHost").innerText')
+            lines = await page.evaluate('[...document.querySelectorAll("#ltTestHost div[style*=\'nowrap\']")].length + [...document.querySelectorAll("#ltTestHost span[style*=\'nowrap\']")].length')
+            check('#LT-' not in txt and 'Audi Q7' not in txt and '6:07 AM' in txt and 'passenger number01x' in txt.lower() and 'Hangar 18' in txt and 'No time' in txt,
+                  'compact (>12): time · name · hangar only', txt[-300:])
+            check(lines == 20, 'compact: one line per car (%d)' % lines)
+            await page.evaluate('document.getElementById("ltTestHost").remove()')
+            dim = await page.evaluate('async (r) => { var c = await crCaptureCanvas(r); var s = c.toDataURL("image/png"); return [c.width, c.height, s]; }', rep)
+            open(SHOT + '/closing_20_compact_%s.png' % ENGINE, 'wb').write(base64.b64decode(dim[2].split(',')[1]))
+            check(dim[1] / dim[0] < 4.0, '20 cars: image ratio 1:%.1f (was 1:4.8 before compact)' % (dim[1] / dim[0]))
             check(not errs, 'no page errors', errs[:3])
             await ctx.close()
         finally:
