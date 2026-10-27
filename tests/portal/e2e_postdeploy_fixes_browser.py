@@ -294,12 +294,13 @@ async def main():
         await ctx.route('**/*', guard)
         page = await ctx.new_page(); page.on('pageerror', lambda e: errors.append(str(e)))
         await login(page, 'localiphone')
-        await page.evaluate("document.getElementById('crOtherTips').value = '40.00'")
+        # Smart Tips (v86): staff type only the cash counted (crCashCounted); Other Tips is calculated.
+        await page.evaluate("document.getElementById('crCashCounted').value = '40.00'")
         await page.evaluate('crOpenTab()'); await page.wait_for_timeout(2500)
-        v = await page.evaluate("document.getElementById('crOtherTips').value")
+        v = await page.evaluate("document.getElementById('crCashCounted').value")
         bd = await page.evaluate('_crBusinessDate')
-        existing = sql("select coalesce(other_tips_cents,0) from daily_closing_reports where report_date = '%s'" % bd)
-        check(v == '' or (existing and int(existing) > 0), 'G: "Other Tips" does not carry over from the previous open', (v, existing))
+        existing = sql("select coalesce(cash_counted_cents::text, '') from daily_closing_reports where report_date = '%s'" % bd)
+        check(v == '' or existing != '', 'G: "Total Cash Counted" does not carry over from the previous open', (v, existing))
         t0 = await page.evaluate('_crStripeTipsCents')
         pay = sql("insert into payments (amount_cents, type, method, status, created_at) values (1234, 'TIP', 'STRIPE', 'succeeded', now()) returning id").splitlines()[0]
         try:

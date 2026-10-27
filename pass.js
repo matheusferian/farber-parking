@@ -203,7 +203,12 @@
     if (done) {
       html += '<section class="card farewell"><div class="fw-plane" aria-hidden="true">' + planeSvg() + '</div>' +
         '<p class="k">A note from your valet team</p>' +
-        '<p class="note-text">Thank you for trusting us with your car' + (p.first_name ? ', ' + esc(p.first_name) : '') + '. It was a pleasure taking care of it. Safe travels, and see you on your next trip!</p>';
+        // Smart Tips (owner 2026-10-27): a tip received in person → a personal
+        // thank-you instead of asking again. Never the amount.
+        (p.tip_thanks
+          ? '<p class="note-text">Thank you for your kindness' + (p.first_name ? ', ' + esc(p.first_name) : '') + '. Your generosity means a great deal to our team. It was a pleasure taking care of your car. Safe travels, and see you on your next trip!</p>' +
+            '<p class="note-sign">With gratitude, your Makers Air Valet team</p>'
+          : '<p class="note-text">Thank you for trusting us with your car' + (p.first_name ? ', ' + esc(p.first_name) : '') + '. It was a pleasure taking care of it. Safe travels, and see you on your next trip!</p>');
       return html + ticketLine(p) + '</section></div>';
     }
     html += '<section class="card dcard">';
@@ -315,13 +320,13 @@
     var html = '<main>';
     html += passCard(p);
     if (p.lockbox && !done && p.status !== 'CUSTOMS_CONFIRMED') html += '<button class="btn primary green" type="button" data-open="lockbox">View after-hours pickup instructions</button>';
-    if (done && hasGratuity(p)) html += gratuityCard(p);
+    if (done && hasGratuity(p) && !p.tip_thanks) html += gratuityCard(p);
     if (p.chat_enabled) html += '<button class="btn primary" type="button" data-open="chat">Message our valet team</button>';
     var rows = '';
     var wash = { REQUEST: 'Request', CONTACT: 'Ask our team', REQUESTED: 'Requested', PRICE_PENDING: 'Price coming', SCHEDULED: 'Scheduled', DONE: 'Done' }[p.car_wash];
     if (!done && wash && p.requests_enabled !== false) rows += '<button type="button" data-open="wash"><span>Car wash</span><small>' + wash + '</small></button>';
-    // During the trip: a quiet row only (no highlight, no prompt).
-    if (!done && hasGratuity(p)) rows += '<button type="button" data-open="gratuity"><span>Gratuity</span><small>Optional</small></button>';
+    // During the trip, or after a tip in person: a quiet row only (no highlight, no prompt).
+    if ((!done || p.tip_thanks) && hasGratuity(p)) rows += '<button type="button" data-open="gratuity"><span>Gratuity</span><small>Optional</small></button>';
     if (rows) html += '<div class="list">' + rows + '</div>';
     var c = p.contacts || {};
     // Valet hours + the after-hours rule (owner 2026-10-25).

@@ -2200,3 +2200,50 @@ body.tv-stale .tv-stale-banner{display:block;}
 .share-box{background:#fff;color:var(--navy);border-radius:16px;padding:18px;width:100%;max-width:420px;display:flex;flex-direction:column;gap:8px;font-size:14px;}
 .share-box b{font-size:16px;}
 .share-x{min-height:44px;border:1.5px solid var(--b);background:#fff;border-radius:10px;font-weight:700;color:var(--navy);cursor:pointer;}
+
+/* ── Smart Tips (owner 2026-10-27): in-person tip at delivery, car card Tips, Closing cash ── */
+.stp{margin:14px 0 0;text-align:left}
+.stp-q{font-size:14px;font-weight:700;color:var(--tx);margin-bottom:8px}
+.stp-q span{color:var(--mu);font-weight:500}
+.stp-seg{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.stp-seg button,.stp-who button{min-height:44px;border-radius:12px;border:1.5px solid var(--b);background:#fff;color:var(--navy);font:700 14px 'Sora',sans-serif;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.stp-seg button[aria-pressed="true"]{background:var(--navy);border-color:var(--navy);color:#fff}
+#tipIpN[aria-pressed="true"]{background:#F1F3F6;border-color:#9AA3B2;color:var(--navy)}
+.stp-amt{display:flex;align-items:center;gap:8px;margin-top:10px;border:1.5px solid var(--b);border-radius:12px;padding:0 10px;background:#fff;min-height:48px}
+.stp-amt:focus-within{border-color:var(--gold);box-shadow:0 0 0 3px rgba(201,168,76,.18)}
+.stp-cur{font:700 16px 'JetBrains Mono',monospace;color:var(--mu)}
+.stp-amt input{flex:1;min-width:0;border:0;outline:0;background:transparent;font:600 17px 'JetBrains Mono',monospace;color:var(--navy);padding:10px 0}
+.stp-amt input:disabled{opacity:.4}
+.stp-cash{font:700 11px 'Sora',sans-serif;letter-spacing:.6px;text-transform:uppercase;color:#0B4D37;background:#E7F6EF;border:1px solid #9FD9BF;border-radius:999px;padding:4px 10px}
+.stp-who{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:10px}
+.stp-who-l{font-size:12px;font-weight:600;color:var(--mu);margin-right:2px}
+.stp-who button{min-height:38px;padding:0 12px;font-size:12px}
+.stp-who button[aria-pressed="true"]{background:#FBF5E6;border-color:var(--gold);color:var(--navy)}
+.stp-hint{font-size:12px;color:var(--mu);margin-top:8px;line-height:1.4}
+.stp-hint.bad{color:var(--red);font-weight:600}
+.stp-card .stp-row{align-items:flex-start;padding:10px 0}
+.stp-l{display:flex;flex-direction:column;gap:2px;min-width:0}
+.stp-l b{font-size:13px;color:var(--navy)}
+.stp-l small{font-size:12px;color:var(--mu);line-height:1.35}
+.stp-l .stp-bad{color:var(--red)}
+.stp-v{font:800 18px 'Sora',sans-serif;color:var(--navy)}
+.stp-hist{font-size:11.5px;color:var(--mu);padding:0 0 8px;border-bottom:1px solid var(--b);line-height:1.5}
+.stp-hist s{color:var(--tx)}
+.stp-fix h2{margin-bottom:2px}
+.stp-now{font-size:13px;color:var(--tx);background:var(--s2);border:1px solid var(--b);border-radius:10px;padding:10px 12px;margin:10px 0 4px}
+.stp-f{display:block;font-size:12px;font-weight:700;color:var(--mu);margin-top:12px}
+.stp-f textarea{display:block;width:100%;box-sizing:border-box;min-height:64px;margin-top:6px;border:1.5px solid var(--b);border-radius:12px;padding:10px;font:500 14px 'Inter',sans-serif;color:var(--navy);resize:vertical}
+.stp-req{font-weight:600;color:var(--gold);text-transform:uppercase;font-size:10px;letter-spacing:.6px}
+.stp-chk{display:flex;align-items:center;gap:10px;min-height:44px;font-size:13px;font-weight:600;color:var(--tx);margin-top:6px;cursor:pointer}
+.stp-chk input{width:20px;height:20px}
+.cr-sub{font:500 11px 'Inter',sans-serif;color:var(--mu)}
+.cr-cash-row{background:linear-gradient(90deg,rgba(201,168,76,.10),rgba(201,168,76,0));margin:0 -14px;padding:10px 14px !important}
+.cr-cash-row .cr-tip-input{width:130px;min-height:44px;font-size:16px;font-weight:700;border-color:var(--gold)}
+.cr-recon{margin:8px 0 6px;border-radius:10px;padding:10px 12px;font:500 13px 'Inter',sans-serif;line-height:1.45;color:var(--mu);background:var(--s2);border:1px solid var(--b)}
+.cr-recon.ok{color:#0B4D37;background:#E7F6EF;border-color:#9FD9BF}
+.cr-recon.info{color:var(--navy);background:#F3F7FD;border-color:#C9D8EE}
+.cr-recon.bad{color:var(--red);background:rgba(192,57,46,.07);border-color:rgba(192,57,46,.3)}
+.cr-recon-list{margin:8px 0 4px;font:500 12px 'JetBrains Mono',monospace;color:var(--tx)}
+.cr-recon-list div{display:grid;grid-template-columns:1fr auto auto;gap:12px;padding:4px 0;border-top:1px dashed rgba(192,57,46,.2)}
+.cr-recon-ack{display:flex;align-items:center;gap:10px;min-height:44px;font-weight:700;color:var(--navy);cursor:pointer}
+.cr-recon-ack input{width:20px;height:20px}
