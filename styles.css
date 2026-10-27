@@ -15,6 +15,7 @@
   --gold2:#9A6B00;
   --ok:#1A9E6A;
   --red:#C0392E;
+  --crit:#C0392E;   /* Closing Report alerts (cr-warning, cash difference); was used but never defined */
   --pur:#5B7FBD;
   --bg:#F4F6FB;
   --s:#FFFFFF;
@@ -2220,12 +2221,12 @@ body.tv-stale .tv-stale-banner{display:block;}
 .stp-who button{min-height:38px;padding:0 12px;font-size:12px}
 .stp-who button[aria-pressed="true"]{background:#FBF5E6;border-color:var(--gold);color:var(--navy)}
 .stp-hint{font-size:12px;color:var(--mu);margin-top:8px;line-height:1.4}
-.stp-hint.bad{color:var(--red);font-weight:600}
+.stp-hint.bad{color:var(--crit);font-weight:600}
 .stp-card .stp-row{align-items:flex-start;padding:10px 0}
 .stp-l{display:flex;flex-direction:column;gap:2px;min-width:0}
 .stp-l b{font-size:13px;color:var(--navy)}
 .stp-l small{font-size:12px;color:var(--mu);line-height:1.35}
-.stp-l .stp-bad{color:var(--red)}
+.stp-l .stp-bad{color:var(--crit)}
 .stp-v{font:800 18px 'Sora',sans-serif;color:var(--navy)}
 .stp-hist{font-size:11.5px;color:var(--mu);padding:0 0 8px;border-bottom:1px solid var(--b);line-height:1.5}
 .stp-hist s{color:var(--tx)}
@@ -2242,7 +2243,7 @@ body.tv-stale .tv-stale-banner{display:block;}
 .cr-recon{margin:8px 0 6px;border-radius:10px;padding:10px 12px;font:500 13px 'Inter',sans-serif;line-height:1.45;color:var(--mu);background:var(--s2);border:1px solid var(--b)}
 .cr-recon.ok{color:#0B4D37;background:#E7F6EF;border-color:#9FD9BF}
 .cr-recon.info{color:var(--navy);background:#F3F7FD;border-color:#C9D8EE}
-.cr-recon.bad{color:var(--red);background:rgba(192,57,46,.07);border-color:rgba(192,57,46,.3)}
+.cr-recon.bad{color:var(--crit);background:rgba(192,57,46,.07);border-color:rgba(192,57,46,.3)}
 .cr-recon-list{margin:8px 0 4px;font:500 12px 'JetBrains Mono',monospace;color:var(--tx)}
 .cr-recon-list div{display:grid;grid-template-columns:1fr auto auto;gap:12px;padding:4px 0;border-top:1px dashed rgba(192,57,46,.2)}
 .cr-recon-ack{display:flex;align-items:center;gap:10px;min-height:44px;font-weight:700;color:var(--navy);cursor:pointer}

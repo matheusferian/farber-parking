@@ -23,7 +23,8 @@
 --      negative difference closes only after the team confirms the review.
 --      Reports without cash_counted_cents (old app, old days) are unchanged.
 --   4. airvalet_portal_view: + 'tip_thanks' (true/false) for the Valet Pass
---      thank-you. Never the amount.
+--      thank-you: tip received in person, or a Stripe gratuity confirmed for
+--      this ticket (payments succeeded). Never the amount.
 --
 -- Re-runnable (same end state). Rollback: 20261113_airvalet_cash_tips_rollback.sql
 
@@ -228,7 +229,10 @@ create or replace function public.airvalet_cash_tips_for_date(p_date date)
 returns table (cash_cents integer, tickets integer, no_amount integer)
 language plpgsql stable security definer set search_path = '' as $$
 begin
-  if public.current_user_role() is null or public.current_user_role() not in ('ADMIN', 'IPAD_OPS', 'IPHONE_OPS', 'MANAGER') then
+  -- App logins: ops roles only. Server-side SQL (no app JWT, e.g. the Closing
+  -- trigger during an owner's maintenance query) is allowed.
+  if coalesce(current_setting('request.jwt.claims', true)::jsonb ->> 'role', '') in ('authenticated', 'anon')
+     and (public.current_user_role() is null or public.current_user_role() not in ('ADMIN', 'IPAD_OPS', 'IPHONE_OPS', 'MANAGER')) then
     raise exception 'airvalet_cash_tips_for_date: not allowed' using errcode = '42501';
   end if;
   return query
@@ -399,9 +403,12 @@ begin
           'amounts', (select jsonb_agg(a / 100.0 order by o) from unnest(v_set.gratuity_amounts_cents) with ordinality u(a, o)),
           'min', v_set.gratuity_min_cents / 100.0, 'max', v_set.gratuity_max_cents / 100.0) end,
       'terms_published', v_set.terms_published,
-      -- Smart Tips (owner 2026-10-27): a tip was received in person → the pass thanks
-      -- the guest instead of asking. Yes/no only, never the amount.
-      'tip_thanks', v_p.status = 'DELIVERED' and coalesce(v_p.tip_received, false)
+      -- Smart Tips (owner 2026-10-27): a tip received in person, or a Stripe gratuity
+      -- Stripe confirmed (succeeded, not refunded) → the pass thanks the guest
+      -- instead of asking again. Yes/no only, never the amount.
+      'tip_thanks', v_p.status = 'DELIVERED' and (coalesce(v_p.tip_received, false)
+        or exists (select 1 from public.payments pay where pay.passenger_id = v_p.id
+                     and pay.type = 'TIP' and pay.status = 'succeeded' and pay.amount_cents > 0))
     ));
 end $function$;
 

@@ -177,4 +177,23 @@ select pg_temp.check((select public.airvalet_portal_view(tok, 'c1113a') -> 'pass
 select pg_temp.check((select public.airvalet_portal_view(tok, 'c1113b') -> 'pass' ->> 'tip_thanks' from t_tok where pid = 971301) = 'false', 'pass: not delivered → false');
 select pg_temp.check((select public.airvalet_portal_view(tok, 'c1113c')::text !~ '(2500|25\.0|tip_in_person|amount_cents)' from t_tok where pid = 971306), 'pass never carries the amount');
 
+-- Stripe gratuity confirmed for the ticket → thanked too; refunded / another ticket's → not.
+insert into public.passengers (id, ts, checkin_date, name, phone, ticket, status, ret, loc, car, color, return_operator, checkout_date, deldate, delivery_type)
+values (971307, 'x', now(), 'STRIPE PAID', '3055557107', 'T1113-7', 'DELIVERED', to_char((now() at time zone 'America/New_York')::date, 'FMMM/FMDD/YYYY'), 'HANGAR 19', 'Audi', 'White', 'MAKERS',
+        now(), to_char((now() at time zone 'America/New_York')::date, 'FMMM/FMDD/YYYY'), 'NORMAL');
+insert into public.airvalet_sms_enrollments (passenger_id, phone_e164, device_id, consent_id)
+select 971307, public.airvalet_sms_normalize_phone('3055557107'), (select d.id from public.airvalet_sms_devices d where d.label = 'T1113 iPad'), gen_random_uuid();
+create temp table t_tok7 as select public.airvalet_pass_mint(971307) tok;
+select pg_temp.check((select public.airvalet_portal_view(tok, 'c1113d') -> 'pass' ->> 'tip_thanks' from t_tok7) = 'false', 'pass: delivered, no tip → false (gratuity card stays)');
+insert into public.payments (passenger_id, ticket, amount_cents, type, method, status, stripe_event_id) values (971307, 'T1113-7', 1000, 'TIP', 'STRIPE', 'refunded', 'evt_t1113_a');
+select pg_temp.check((select public.airvalet_portal_view(tok, 'c1113e') -> 'pass' ->> 'tip_thanks' from t_tok7) = 'false', 'pass: refunded Stripe tip → not thanked');
+insert into public.payments (passenger_id, ticket, amount_cents, type, method, status, stripe_event_id) values (971306, 'T1113-6', 2000, 'TIP', 'STRIPE', 'succeeded', 'evt_t1113_b');
+select pg_temp.check((select public.airvalet_portal_view(tok, 'c1113f') -> 'pass' ->> 'tip_thanks' from t_tok7) = 'false', 'pass: another ticket''s Stripe tip → not thanked');
+insert into public.payments (passenger_id, ticket, amount_cents, type, method, status, stripe_event_id) values (971307, 'T1113-7', 1500, 'TIP', 'STRIPE', 'succeeded', 'evt_t1113_c');
+select pg_temp.check((select public.airvalet_portal_view(tok, 'c1113g') -> 'pass' ->> 'tip_thanks' from t_tok7) = 'true', 'pass: Stripe tip confirmed for this ticket → thanked');
+select pg_temp.check((select public.airvalet_portal_view(tok, 'c1113h')::text !~ '(1500|15\.0|amount_cents)' from t_tok7), 'pass: Stripe amount never shown');
+select pg_temp.check((select (jsonb_typeof(public.airvalet_portal_view(tok, 'c1113i') -> 'pass' -> 'gratuity_checkout') = 'object')
+                              = (s.gratuity_checkout_enabled or 971307 = any (s.gratuity_checkout_passenger_ids))
+                        from t_tok7, public.airvalet_portal_settings s), 'pass: dynamic Checkout field untouched by the thank-you');
+
 select 'all 1113 checks passed';

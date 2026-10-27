@@ -37,6 +37,7 @@ CLEAN = """
 delete from public.daily_closing_reports where report_date = %(t)s and created_by like 'localipad%%';
 delete from public.airvalet_tip_records where passenger_id between 970101 and 970112;
 delete from public.valet_shifts where valet_name = 'JOAO SILVA E2E';
+delete from public.payments where passenger_id between 970101 and 970112;
 delete from public.airvalet_sms_messages where passenger_id between 970101 and 970112;
 delete from public.airvalet_sms_consents where passenger_id between 970101 and 970112 or disclosure_version = 'e2e-smart-tips';
 delete from public.airvalet_notify_log where dedupe_key like '%%9701%%';
@@ -272,6 +273,15 @@ async def main():
             t = await card(page, 970102)
             check('Sent:' in t and 'Only a manager can send it again' in t and not await page.is_visible('#tipsSec button:has-text("Send")'),
                   'already texted at delivery: staff get no second Send', t)
+            # Automatic text still in flight, then failed: staff never get a second Send (no duplicate).
+            sql("update public.airvalet_sms_messages set status = 'pending' where passenger_id = 970106 and direction = 'outbound'")
+            t = await card(page, 970106)
+            check('Sent: pending' in t and not await page.is_visible('#tipsSec button:has-text("Send")'), 'automatic text in flight: no manual Send', t)
+            sql("update public.airvalet_sms_messages set status = 'failed', error_code = '30003' where passenger_id = 970106 and direction = 'outbound'")
+            t = await card(page, 970106)
+            check('not delivered' in t and 'Only a manager' in t and not await page.is_visible('#tipsSec button:has-text("Send")'), 'automatic text failed: staff cannot resend (manager only)', t)
+            dup = await page.evaluate('sendServerSms(970106, "VEHICLE_DELIVERED")')
+            check(dup.get('duplicate') is True and sql("select count(*) from public.airvalet_sms_messages where passenger_id = 970106") == '1', 'staff force-sending anyway: server refuses a duplicate')
             # Delivered text did not go out (e.g. delivered on a device not approved for texting) → staff can send it.
             await deliver(page, 970110)
             sql("delete from public.airvalet_sms_messages where passenger_id = 970110")
@@ -295,6 +305,8 @@ async def main():
             # Manager / ADMIN: send again once.
             sql("update public.airvalet_sms_messages set created_at = created_at - interval '10 minutes' where passenger_id = 970102")
             mctx, mpage = await login(b, user='localadmin')   # ADMIN devices are auto-approved for texting
+            t = await card(mpage, 970106)
+            check(await mpage.is_visible('#tipsSec button:has-text("Send again")'), 'failed automatic text: ADMIN may send it again', t)
             t = await card(mpage, 970102)
             check(await mpage.is_visible('#tipsSec button:has-text("Send again")'), 'ADMIN: Send again offered', t)
             await mpage.click('#tipsSec button:has-text("Send again")')
@@ -311,6 +323,12 @@ async def main():
             check(sql("select count(*) from public.airvalet_pass_links where passenger_id in (970111, 970112)") == links0, 'no retroactive link created')
             check(sql("select count(*) from public.airvalet_sms_messages where passenger_id between 970101 and 970112 and provider <> 'mock'") == '0', 'no real SMS (mock provider only)')
 
+            # ── Stripe gratuity (as the webhook records it) ─────────────
+            sql("insert into public.payments (passenger_id, ticket, amount_cents, type, method, status, stripe_event_id, stripe_checkout_session_id) values "
+                "(970110, 'ST-10', 1500, 'TIP', 'STRIPE', 'succeeded', 'evt_e2e_st_1', 'cs_e2e_st_1'), (970109, 'ST-9', 900, 'TIP', 'STRIPE', 'refunded', 'evt_e2e_st_2', 'cs_e2e_st_2')")
+            t = await card(page, 970110)
+            check('$15.00 · confirmed' in t and 'Not recorded' in t, 'card: Stripe $15 confirmed, separate from cash', t)
+
             # ── Closing Report ──────────────────────────────────────────
             sql("update public.valet_shifts set clock_out_at = now() where valet_name = 'JOAO SILVA E2E'")
             await page.evaluate('''() => { document.querySelectorAll('.ov.on').forEach(function(o){ o.classList.remove('on'); }); }''')
@@ -323,6 +341,8 @@ async def main():
             m = await page.evaluate('document.getElementById("msg").innerText')
             check('Total Cash Counted' in m, 'Closing: preview blocked until the cash is counted', m)
             stripe = s0['stripe']
+            stripe_db = int(sql("select coalesce(sum(amount_cents), 0) from public.payments where type = 'TIP' and status = 'succeeded' and (created_at at time zone 'America/New_York')::date = %s" % TODAY))
+            check(stripe == stripe_db and stripe >= 1500, 'Closing: Stripe Tips = confirmed Stripe only ($%.2f, refunded excluded)' % (stripe / 100), (stripe, stripe_db))
             await page.fill('#crCashCounted', '%.2f' % (a_db / 100))
             s1 = await closing_state(page)
             check('ok|' in s1['recon'] and s1['other'] == '$0.00' and s1['total'] == '$%.2f' % ((stripe + a_db) / 100), 'B = A: reconciled, Other $0, total = Stripe + B', s1)
@@ -372,7 +392,8 @@ async def main():
             pctx = await b.new_context(viewport={'width': 390, 'height': 844}, device_scale_factor=2, is_mobile=ENGINE == 'chromium', has_touch=True, service_workers='block')
             await pctx.route('**/*', guard)
             pp = await pctx.new_page()
-            for tok, label in ((tok_tip, 'tip'), (tok_no, 'notip')):
+            tok_stripe = sql("select public.airvalet_pass_mint(970110)")
+            for tok, label in ((tok_tip, 'tip'), (tok_no, 'notip'), (tok_stripe, 'stripe')):
                 await pp.goto(APP + 'a#' + tok); await pp.wait_for_selector('.pass', timeout=20000); await pp.wait_for_timeout(2500)
                 txt = await pp.evaluate('document.querySelector("main").innerText')
                 grat_card = await pp.evaluate('!!document.querySelector("section.grat")')
@@ -380,6 +401,13 @@ async def main():
                 if label == 'tip':
                     check('Thank you for your kindness' in txt and not grat_card and quiet and '$25' not in txt and '25.00' not in txt,
                           'pass with tip in person: thank-you, no gratuity card, quiet optional row, no amount', txt[:300])
+                elif label == 'stripe':
+                    check('Thank you for your kindness' in txt and not grat_card and quiet and '15' not in txt.replace('ST-10', ''),
+                          'pass after a confirmed Stripe gratuity: thank-you, no highlighted ask, quiet optional row, no amount', txt[:300])
+                    await pp.screenshot(path=SHOT + '/smart_tips_pass_stripe_iphone_%s.png' % ENGINE, full_page=True)
+                    sql("update public.payments set status = 'refunded' where stripe_event_id = 'evt_e2e_st_1'")
+                    await pp.reload(); await pp.wait_for_selector('.pass', timeout=20000); await pp.wait_for_timeout(2500)
+                    check(await pp.evaluate('!!document.querySelector("section.grat")'), 'Stripe gratuity refunded → pass back to the normal gratuity card')
                 else:
                     check('Thank you for trusting us' in txt and grat_card and 'kindness' not in txt, 'pass without tip: unchanged (gratuity card shown)', txt[:200])
                 await pp.screenshot(path=SHOT + '/smart_tips_pass_%s_iphone_%s.png' % (label, ENGINE), full_page=True)

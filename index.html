@@ -13099,7 +13099,7 @@ function crUpdateTotal(){
   _crOtherTipsCents=c.other;
   if(c.state!=='SHORT') _crReviewAck=false;
   document.getElementById('crCashTickets').textContent=_crCashError?'Error':crFmtMoney(_crCashTicketsCents);
-  document.getElementById('crCashTickets').style.color=_crCashError?'var(--red)':'';
+  document.getElementById('crCashTickets').style.color=_crCashError?'var(--crit)':'';
   document.getElementById('crCashTicketsN').textContent=_crCashError?'':(_crCashTicketsN===1?'1 ticket':_crCashTicketsN+' tickets');
   document.getElementById('crOtherTipsCalc').textContent=c.diff===null?'—':crFmtMoney(c.other);
   document.getElementById('crTotalTips').textContent=c.diff===null?'—':crFmtMoney(c.total);
@@ -13385,7 +13385,7 @@ function crBuildPreviewHTML(){
     +pvRow('Cash Tips on tickets ('+_crCashTicketsN+')',crFmtMoney(cash.a))
     +pvRow('Other Tips',crFmtMoney(cash.other))
     +pvRow('Total Cash Counted',crFmtMoney(cash.b),true)
-    +(cash.state==='SHORT'?'<div class="cr-pv-tip-row"><span style="font:600 12px \'Inter\',sans-serif;color:var(--red)">Cash difference · reviewed</span><span style="font:700 13px \'JetBrains Mono\',monospace;color:var(--red)">−'+crFmtMoney(-cash.diff)+'</span></div>'
+    +(cash.state==='SHORT'?'<div class="cr-pv-tip-row"><span style="font:600 12px \'Inter\',sans-serif;color:var(--crit)">Cash difference · reviewed</span><span style="font:700 13px \'JetBrains Mono\',monospace;color:var(--crit)">−'+crFmtMoney(-cash.diff)+'</span></div>'
        :'<div class="cr-pv-tip-row"><span style="font:600 12px \'Inter\',sans-serif;color:var(--ok)">'+(cash.state==='RECONCILED'?'Cash reconciled':'Cash reconciled · Other Tips added')+'</span><span></span></div>')
     +'<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0 2px;border-top:2px solid var(--navy);margin-top:4px">'
     +'<span style="font:700 12px \'Sora\',sans-serif;color:var(--navy)">TOTAL TIPS</span>'

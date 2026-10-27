@@ -1,6 +1,9 @@
--- Rollback of 20261113_airvalet_cash_tips.sql: airvalet_portal_view back to the
--- exact production definition (20261112, md5 caf314d92eea95c5629754a9679e2646),
+-- FULL (destructive) rollback of 20261113_airvalet_cash_tips.sql: airvalet_portal_view
+-- back to the exact production definition (20261112, md5 caf314d92eea95c5629754a9679e2646),
 -- then the triggers, functions, closing columns and the ledger go.
+-- PRODUCTION: use 20261113_airvalet_cash_tips_rollback_safe.sql instead (keeps every
+-- record). This file REFUSES to run while the ledger or the closing cash columns hold
+-- any data, so it can never delete a financial record by mistake.
 -- Run AFTER the app is back on v85 (a968c40). The ledger and the reconciliation
 -- columns are LOST: export them first if they should be kept
 --   copy (select * from public.airvalet_tip_records order by id) to stdout with csv header;
@@ -10,6 +13,21 @@
 
 begin;
 set local lock_timeout = '5s';
+
+do $$
+declare v_n bigint := 0; v_c bigint := 0;
+begin
+  if to_regclass('public.airvalet_tip_records') is not null then
+    select count(*) into v_n from public.airvalet_tip_records;
+  end if;
+  if exists (select 1 from information_schema.columns where table_schema = 'public'
+              and table_name = 'daily_closing_reports' and column_name = 'cash_counted_cents') then
+    execute 'select count(*) from public.daily_closing_reports where cash_counted_cents is not null' into v_c;
+  end if;
+  if v_n > 0 or v_c > 0 then
+    raise exception 'refused: % tip ledger rows and % closing reports with cash counted would be deleted. Use 20261113_airvalet_cash_tips_rollback_safe.sql (keeps them).', v_n, v_c;
+  end if;
+end $$;
 
 CREATE OR REPLACE FUNCTION public.airvalet_portal_view(p_token text, p_client text DEFAULT NULL::text)
  RETURNS jsonb
