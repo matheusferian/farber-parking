@@ -13,6 +13,7 @@ FP="select md5(string_agg(x, '|' order by x)) from (
   union all select 'c:' || table_name || '.' || column_name || ':' || data_type || ':' || coalesce(column_default, '') || ':' || is_nullable from information_schema.columns where table_schema = 'public'
   union all select 'k:' || conrelid::regclass || '.' || conname || ':' || pg_get_constraintdef(oid) from pg_constraint where connamespace = 'public'::regnamespace
   union all select 'g:' || grantee || ':' || table_name || '.' || column_name || ':' || privilege_type from information_schema.column_privileges where table_schema = 'public'
+  union all select 'i:' || indexname || ':' || indexdef from pg_indexes where schemaname = 'public'
   union all select 't:' || tgrelid::regclass || '.' || tgname from pg_trigger where not tgisinternal) s"
 fp() { echo "$FP" | $DB -tA 2>&1 | tail -1; }
 vmd5() { echo "select md5(pg_get_functiondef('public.airvalet_portal_view(text,text)'::regprocedure))" | $DB -tA; }

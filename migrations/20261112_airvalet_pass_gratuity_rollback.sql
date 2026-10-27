@@ -114,9 +114,11 @@ begin
 end $function$;
 
 drop function if exists public.airvalet_portal_gratuity_click(text, text);
-alter table public.airvalet_portal_settings drop constraint if exists airvalet_portal_settings_gratuity_links_check;
-alter table public.airvalet_portal_settings drop column if exists gratuity_links, drop column if exists gratuity_reference;
-drop function if exists public.airvalet_gratuity_links_ok(jsonb);
+drop function if exists public.airvalet_portal_gratuity_checkout(text, text, integer);
+drop index if exists public.payments_stripe_checkout_session_id_key;
+alter table public.airvalet_portal_settings drop constraint if exists airvalet_portal_settings_gratuity_amounts_check;
+alter table public.airvalet_portal_settings drop column if exists gratuity_reference, drop column if exists gratuity_checkout_enabled,
+  drop column if exists gratuity_amounts_cents, drop column if exists gratuity_min_cents, drop column if exists gratuity_max_cents;
 alter table public.airvalet_pass_links drop column if exists gratuity_clicks,
   drop column if exists first_gratuity_click_at, drop column if exists last_gratuity_click_at;
 alter table public.passengers drop column if exists tip_in_person_cents;

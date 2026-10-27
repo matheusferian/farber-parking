@@ -27,16 +27,16 @@ select pg_temp.check(has_column_privilege('authenticated', 'public.airvalet_pass
   'click count readable by staff; no new grant on token_hash or to anon');
 
 -- ── defaults: everything OFF ──────────────────────────────────────────────
-select pg_temp.check((select gratuity_reference = false and gratuity_links = '{}'::jsonb from public.airvalet_portal_settings), 'flags default OFF');
-select pg_temp.check((select column_default from information_schema.columns where table_name = 'airvalet_pass_links' and column_name = 'gratuity_clicks') = '0', 'gratuity_clicks default 0');
-
--- ── checks ────────────────────────────────────────────────────────────────
-select pg_temp.check(pg_temp.rejects($q$update public.airvalet_portal_settings set gratuity_links = '{"15":"https://buy.stripe.com/abcdefgh12"}'$q$), 'gratuity_links: unknown amount key refused');
-select pg_temp.check(pg_temp.rejects($q$update public.airvalet_portal_settings set gratuity_links = '{"10":"https://evil.example.com/abcdefgh"}'$q$), 'gratuity_links: non-Stripe URL refused');
-select pg_temp.check(pg_temp.rejects($q$update public.airvalet_portal_settings set gratuity_links = '{"10":10}'$q$), 'gratuity_links: non-string refused');
-select pg_temp.check(pg_temp.rejects($q$update public.airvalet_portal_settings set gratuity_links = '["https://buy.stripe.com/abcdefgh12"]'$q$), 'gratuity_links: array refused');
-select pg_temp.check(not pg_temp.rejects($q$update public.airvalet_portal_settings set gratuity_links = '{"10":"https://buy.stripe.com/abcdefgh10"}'$q$), 'gratuity_links: a valid partial set accepted');
-update public.airvalet_portal_settings set gratuity_links = '{}', gratuity_reference = false, portal_enabled = true;
+select pg_temp.check((select gratuity_reference = false and gratuity_checkout_enabled = false and gratuity_amounts_cents = '{500,1000,2000,4000,5000}'
+  and gratuity_min_cents = 100 and gratuity_max_cents = 50000 from public.airvalet_portal_settings), 'flags default OFF; amounts $5 $10 $20 $40 $50, Other $1–$500');
+select pg_temp.check(exists (select 1 from pg_indexes where indexname = 'payments_stripe_checkout_session_id_key' and indexdef like '%UNIQUE%'), 'payments: one row per Checkout Session');
+select pg_temp.check(pg_temp.rejects($q$update public.airvalet_portal_settings set gratuity_amounts_cents = '{}'$q$), 'amounts: empty list refused');
+select pg_temp.check(pg_temp.rejects($q$update public.airvalet_portal_settings set gratuity_amounts_cents = '{500,1000,2000,4000,5000,6000}'$q$), 'amounts: more than 5 refused (5 + Other = 2 rows of 3)');
+select pg_temp.check(pg_temp.rejects($q$update public.airvalet_portal_settings set gratuity_amounts_cents = '{500,null}'$q$), 'amounts: null refused');
+select pg_temp.check(pg_temp.rejects($q$update public.airvalet_portal_settings set gratuity_amounts_cents = '{50,1000}'$q$), 'amounts: below the minimum refused');
+select pg_temp.check(pg_temp.rejects($q$update public.airvalet_portal_settings set gratuity_min_cents = 10$q$), 'minimum below Stripe''s $0.50 refused');
+select pg_temp.check(pg_temp.rejects($q$update public.airvalet_portal_settings set gratuity_max_cents = 200000$q$), 'maximum over $1,000 refused');
+update public.airvalet_portal_settings set gratuity_reference = false, gratuity_checkout_enabled = false, portal_enabled = true;
 
 -- ── fixture ───────────────────────────────────────────────────────────────
 insert into public.airvalet_sms_devices (key_hash, label, status, decided_at)
@@ -54,28 +54,39 @@ select pg_temp.check(pg_temp.rejects($q$update public.passengers set tip_in_pers
 select pg_temp.check(not pg_temp.rejects($q$update public.passengers set tip_in_person_cents = 2000 where id = 960201$q$), 'tip_in_person_cents: $20 accepted');
 update public.passengers set tip_in_person_cents = null where id = 960201;
 
--- ── view: flags off = production payload + gratuity_amounts null ──────────
+-- ── view: flags off = production payload + gratuity_checkout null ─────────
 select public.airvalet_portal_view(:'tok', 'sql1112-a') -> 'pass' as v \gset
 select pg_temp.check((:'v'::jsonb ->> 'gratuity_url') = (select gratuity_url from public.airvalet_portal_settings), 'flags off: gratuity_url unchanged');
-select pg_temp.check((:'v'::jsonb -> 'gratuity_amounts') = 'null'::jsonb, 'flags off: no amounts');
+select pg_temp.check((:'v'::jsonb -> 'gratuity_checkout') = 'null'::jsonb, 'flags off: no checkout amounts');
 select pg_temp.check(array(select k from jsonb_object_keys(:'v'::jsonb) k order by k) = array(select k from unnest(array['ticket','first_name','vehicle','status','pickup',
   'return_date','return_time','return_flight','arrival_time','pending_return','car_wash','ready_by_staff','car_wash_lead_hours','lockbox','requests_enabled',
-  'chat_enabled','valet_hours','contacts','gratuity_url','terms_published','gratuity_amounts']) k order by k), 'view: the production keys + gratuity_amounts only');
+  'chat_enabled','valet_hours','contacts','gratuity_url','terms_published','gratuity_checkout']) k order by k), 'view: the production keys + gratuity_checkout only');
 select pg_temp.check(not (:'v'::jsonb ? 'passenger_id') and position('960201' in :'v') = 0, 'view: no internal id while the reference flag is off');
 
-update public.airvalet_portal_settings set gratuity_links = '{"10":"https://buy.stripe.com/abcdefgh10","20":"https://buy.stripe.com/abcdefgh20"}';
-select pg_temp.check((public.airvalet_portal_view(:'tok', 'sql1112-a') -> 'pass' -> 'gratuity_amounts') = 'null'::jsonb, 'two of three links: no chips');
-update public.airvalet_portal_settings set gratuity_links = '{"10":"https://buy.stripe.com/abcdefgh10","20":"https://buy.stripe.com/abcdefgh20","40":"https://buy.stripe.com/abcdefgh40"}';
-select pg_temp.check((public.airvalet_portal_view(:'tok', 'sql1112-a') -> 'pass' -> 'gratuity_amounts') =
-  '[{"amount":10,"url":"https://buy.stripe.com/abcdefgh10"},{"amount":20,"url":"https://buy.stripe.com/abcdefgh20"},{"amount":40,"url":"https://buy.stripe.com/abcdefgh40"}]'::jsonb, 'all three links: $10 / $20 / $40 in order');
 update public.airvalet_portal_settings set gratuity_reference = true;
 select public.airvalet_portal_view(:'tok', 'sql1112-a') -> 'pass' as v \gset
-select pg_temp.check((:'v'::jsonb ->> 'gratuity_url') like '%?client_reference_id=pax-960201'
-  and (select bool_and(e ->> 'url' like '%?client_reference_id=pax-960201') from jsonb_array_elements(:'v'::jsonb -> 'gratuity_amounts') e), 'reference on: every link carries pax-<id>');
-update public.airvalet_portal_settings set gratuity_reference = false, gratuity_links = '{}';
+select pg_temp.check((:'v'::jsonb ->> 'gratuity_url') = 'https://buy.stripe.com/8x214mccK0uh9TjgIM6Vq00?client_reference_id=pax-960201', 'reference on: the current link carries pax-<id>');
+update public.airvalet_portal_settings set gratuity_reference = false, gratuity_checkout_enabled = true;
+select public.airvalet_portal_view(:'tok', 'sql1112-a') -> 'pass' as v \gset
+select pg_temp.check((:'v'::jsonb -> 'gratuity_checkout') = '{"amounts":[5,10,20,40,50],"min":1,"max":500}'::jsonb, 'checkout on: $5 $10 $20 $40 $50, Other $1–$500, in order');
+select pg_temp.check((:'v'::jsonb ->> 'gratuity_url') = 'https://buy.stripe.com/8x214mccK0uh9TjgIM6Vq00', 'checkout on: the printed-QR link is still returned, unchanged');
+-- dynamic checkout claim
+select pg_temp.check(public.airvalet_portal_gratuity_checkout('AAAAAAAAAAAAAAAAA', 'sql1112-e', 2000) ->> 'state' = 'expired', 'checkout claim: unknown token → expired');
+select pg_temp.check(public.airvalet_portal_gratuity_checkout(:'tok', 'sql1112-e', 99) ->> 'result' = 'INVALID', 'checkout claim: $0.99 → INVALID');
+select pg_temp.check(public.airvalet_portal_gratuity_checkout(:'tok', 'sql1112-e', 50001) ->> 'result' = 'INVALID', 'checkout claim: $500.01 → INVALID');
+select pg_temp.check(public.airvalet_portal_gratuity_checkout(:'tok', 'sql1112-e', null) ->> 'result' = 'INVALID', 'checkout claim: no amount → INVALID');
+select public.airvalet_portal_gratuity_checkout(:'tok', 'sql1112-e', 1250) as c \gset
+select pg_temp.check((:'c'::jsonb ->> 'result') = 'OK' and (:'c'::jsonb ->> 'passenger_id') = '960201' and (:'c'::jsonb ->> 'ticket') = 'S1Q-01'
+  and (:'c'::jsonb ->> 'amount_cents') = '1250', 'checkout claim: OK with the server-side passenger, ticket and amount');
+select public.airvalet_portal_gratuity_checkout(:'tok', 'sql1112-e', 500) from generate_series(1, 5);
+select pg_temp.check(public.airvalet_portal_gratuity_checkout(:'tok', 'sql1112-e', 500) ->> 'result' = 'LIMITED', 'checkout claim: 7th session in 10 minutes → LIMITED');
+select pg_temp.check((select gratuity_clicks from public.airvalet_pass_links where passenger_id = 960201 and revoked_at is null) = 6, 'checkout claim: every session counted as a gratuity click');
+update public.airvalet_portal_settings set gratuity_checkout_enabled = false;
+select pg_temp.check(public.airvalet_portal_gratuity_checkout(:'tok', 'sql1112-f', 2000) ->> 'result' = 'UNAVAILABLE', 'checkout claim: flag off → UNAVAILABLE');
+update public.airvalet_pass_links set gratuity_clicks = 0, first_gratuity_click_at = null, last_gratuity_click_at = null where passenger_id = 960201;
+delete from public.airvalet_pass_rate where bucket like 'g:%' or bucket like 'k:%';
 update public.airvalet_portal_settings set gratuity_url = null;
-select pg_temp.check((public.airvalet_portal_view(:'tok', 'sql1112-a') -> 'pass' ->> 'gratuity_url') is null
-  and (public.airvalet_portal_view(:'tok', 'sql1112-a') -> 'pass' -> 'gratuity_amounts') = 'null'::jsonb, 'no gratuity_url: nothing shown (chips need the base link for Other)');
+select pg_temp.check((public.airvalet_portal_view(:'tok', 'sql1112-a') -> 'pass' ->> 'gratuity_url') is null, 'no gratuity_url: no link');
 update public.airvalet_portal_settings set gratuity_url = 'https://buy.stripe.com/8x214mccK0uh9TjgIM6Vq00';
 
 -- ── gratuity_click ────────────────────────────────────────────────────────

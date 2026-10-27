@@ -12,7 +12,10 @@
 //     AIRVALET_GRATUITY_PAYMENT_LINK_IDS so the account's other links (car wash)
 //     never count as tips.
 // Optional passenger tie: metadata.passenger_id, or client_reference_id "pax-<id>".
-// Idempotency: stripe_event_id is unique; a Stripe retry is a no-op.
+// Idempotency: stripe_event_id is unique; a Stripe retry is a no-op. Since
+// 20261112 stripe_checkout_session_id is unique too: two events for one
+// session (completed + async_payment_succeeded) never count twice.
+// The printed-QR gratuity Payment Link keeps counting exactly as before.
 // Refunds (charge.refunded, owner 2026-10-25): a full refund marks the tip
 // 'refunded' (out of the reports); a partial one lowers amount_cents.
 
@@ -105,7 +108,11 @@ export async function handle(req: Request, deps: Deps): Promise<Response> {
     deps.log('stripe_refund_applied', { event: event.id, updated: r.updated, status: u.status });
     return json(200, { received: true, updated: r.updated });
   }
-  if (event.type !== 'checkout.session.completed') return json(200, { received: true, skipped: event.type });
+  // Delayed methods (if ever enabled in Stripe) arrive paid in async_payment_succeeded;
+  // one row per session either way (unique stripe_checkout_session_id, 2026-10-27).
+  if (event.type !== 'checkout.session.completed' && event.type !== 'checkout.session.async_payment_succeeded') {
+    return json(200, { received: true, skipped: event.type });
+  }
   const row = tipFromSession(event.data.object as unknown as Session, event.id, deps.links);
   if (!row) return json(200, { received: true, ignored: true });
   let { error } = await deps.save(row);

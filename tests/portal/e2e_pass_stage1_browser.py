@@ -6,7 +6,7 @@
 # Run: LDB=<psql-on-stdin helper> PASS_BASE=http://127.0.0.1:8795/a# PASS_ENGINE=chromium|webkit \
 #      SHOT_DIR=<dir> python3 tests/portal/e2e_pass_stage1_browser.py
 # STAGE1_MODE=shots only takes one screenshot per state (prefix SHOT_PREFIX), for before/after.
-import os, random, subprocess, sys
+import os, random, re, subprocess, sys
 from playwright.sync_api import sync_playwright
 
 LDB = os.environ.get('LDB') or sys.exit('set LDB to the local psql helper')
@@ -73,11 +73,16 @@ delete from public.activity_log where passenger_id between 960001 and 960008;
 delete from public.passengers where id between 960001 and 960008;
 delete from public.airvalet_sms_devices where label = 'E2ES1 iPad';
 """
-HAS_FLAGS = sql("select count(*) from information_schema.columns where table_name = 'airvalet_portal_settings' and column_name in ('gratuity_links', 'gratuity_reference')") == '2'
-SAVED = sql("select chat_enabled || '|' || terms_published" + (" || '|' || gratuity_reference || '|' || gratuity_links::text" if HAS_FLAGS else '') + " from public.airvalet_portal_settings").split('|', 3)
+HAS_FLAGS = sql("select count(*) from information_schema.columns where table_name = 'airvalet_portal_settings' and column_name in ('gratuity_checkout_enabled', 'gratuity_reference')") == '2'
+SAVED = sql("select chat_enabled || '|' || terms_published" + (" || '|' || gratuity_reference || '|' || gratuity_checkout_enabled" if HAS_FLAGS else '') + " from public.airvalet_portal_settings").split('|')
+MOCK = os.environ.get('STRIPE_MOCK', 'http://127.0.0.1:8798')
+def mock_log():
+    import json, urllib.request
+    try: return json.loads(urllib.request.urlopen(MOCK + '/__log', timeout=5).read())
+    except Exception: return None
 def restore():
     q = "update public.airvalet_portal_settings set chat_enabled = %s, terms_published = %s" % (SAVED[0], SAVED[1])
-    if HAS_FLAGS: q += ", gratuity_reference = %s, gratuity_links = '%s'::jsonb" % (SAVED[2], SAVED[3].replace("'", "''"))
+    if HAS_FLAGS: q += ", gratuity_reference = %s, gratuity_checkout_enabled = %s" % (SAVED[2], SAVED[3])
     sql(q + ';')
 
 sql(CLEAN); sql(FIX)
@@ -175,28 +180,86 @@ try:
         restore(); sql("update public.airvalet_portal_settings set chat_enabled = true;")
 
         if HAS_FLAGS:
-            # Per-amount links (flag): $10 / $20 / $40 / Other, nothing selected; reference flag adds pax-<id>.
-            sql("""update public.airvalet_portal_settings set gratuity_links = '{"10":"https://buy.stripe.com/test10aaaaaa","20":"https://buy.stripe.com/test20aaaaaa","40":"https://buy.stripe.com/test40aaaaaa"}';""")
-            c, st = ctx(); p = openp(c, 960008)
-            chips = p.eval_on_selector_all('.grat .chip', 'l => l.map(a => [a.textContent.trim(), a.href])')
-            check([x[0] for x in chips] == ['$10', '$20', '$40', 'Other'], 'chips: $10 / $20 / $40 / Other (%s)' % [x[0] for x in chips])
-            check(chips and chips[3][1] == GURL and len(set(x[1] for x in chips)) == 4, 'chips: one link each, Other = the current link')
-            check(p.evaluate(SELECTED) == 0, 'chips: nothing pre-selected')
-            check(not p.evaluate(VISIBLE_TARGETS + "('.grat')"), 'chips: tap targets >= 44 px')
-            p.screenshot(path='%s/%s_delivered_chips_%s.png' % (SHOTS, PREFIX, ENGINE), full_page=True)
-            c.close()
-            c, st = ctx(); p = openp(c, 960001); p.click('.list [data-open="gratuity"]'); p.wait_for_selector('#sheet .chip')
-            check(len(p.query_selector_all('#sheet .chip')) == 4, 'chips: also in the trip sheet (still behind the quiet row)')
-            c.close()
+            # Reference flag (current link only): the one link carries pax-<id>.
             sql("update public.airvalet_portal_settings set gratuity_reference = true;")
             c, st = ctx(); p = openp(c, 960008)
             hrefs = p.eval_on_selector_all('.grat a[data-grat]', 'l => l.map(a => a.href)')
-            check(hrefs and all(h.endswith('?client_reference_id=pax-960008') for h in hrefs), 'reference flag on: every link carries pax-960008')
+            check(hrefs == [GURL + '?client_reference_id=pax-960008'], 'reference flag on: the current link carries pax-960008 (%s)' % hrefs)
+            c.close()
+            restore()
+            # Dynamic Checkout (owner 2026-10-27): $5 $10 $20 / $40 $50 Other, two rows of three.
+            sql("update public.airvalet_portal_settings set gratuity_checkout_enabled = true;")
+            have_mock = mock_log() is not None
+            check(have_mock, 'Stripe checkout mock running (%s)' % MOCK)
+            c, st = ctx(); p = openp(c, 960008)
+            chips = p.eval_on_selector_all('.grat .chip', 'l => l.map(b => [b.textContent.trim(), Math.round(b.getBoundingClientRect().top), Math.round(b.getBoundingClientRect().height), Math.round(b.getBoundingClientRect().width)])')
+            check([x[0] for x in chips] == ['$5', '$10', '$20', '$40', '$50', 'Other'], 'grid: $5 $10 $20 / $40 $50 Other (%s)' % [x[0] for x in chips])
+            check(len(chips) == 6 and len({x[1] for x in chips[:3]}) == 1 and len({x[1] for x in chips[3:]}) == 1 and chips[3][1] > chips[0][1], 'grid: two rows of three on a 390 px iPhone')
+            check(all(x[2] >= 44 and x[3] >= 44 for x in chips), 'grid: every button >= 44 px')
+            check(p.evaluate(SELECTED) == 0 and p.query_selector('.grat [aria-busy]') is None, 'grid: nothing pre-selected')
+            t = p.inner_text('.grat')
+            check(COPY in t and '%' not in t and 'percent' not in t.lower(), 'grid: neutral copy, no percentages')
+            p.screenshot(path='%s/%s_delivered_checkout_grid_%s.png' % (SHOTS, PREFIX, ENGINE), full_page=True)
+            n0 = len(mock_log() or [])
+            p.click('.grat .chip[data-tip="2000"]')
+            p.wait_for_url(re.compile(r'^https://checkout\.stripe\.com/'), timeout=15000)
+            lg = mock_log() or []
+            f = lg[-1]['form'] if len(lg) > n0 else {}
+            check(f.get('line_items[0][price_data][unit_amount]') == '2000' and f.get('client_reference_id') == 'pax-960008' and f.get('metadata[ticket]') == 'S1-08',
+                  '$20 tap → Stripe Checkout for $20.00 tied to ticket S1-08 (same tab)')
+            # back from Stripe: no token in the return URL, the tab restores the pass
+            p.goto(BASE.split('#')[0] + '?gratuity=thanks'); p.wait_for_selector('.return-note', timeout=15000)
+            check(p.inner_text('.return-note') == 'Thank you for your gratuity.' and p.query_selector('.pass') is not None, 'return (thanks): pass restored with a quiet thank-you')
+            check('gratuity=' not in p.url and p.url.endswith('#' + TOK[960008]), 'return: clean URL, same pass')
+            p.screenshot(path='%s/%s_return_thanks_%s.png' % (SHOTS, PREFIX, ENGINE), full_page=True)
+            p.goto(BASE.split('#')[0] + '?gratuity=cancel'); p.wait_for_selector('.return-note', timeout=15000)
+            check(p.inner_text('.return-note') == 'No gratuity was charged.', 'return (cancel): "No gratuity was charged."')
+            c.close()
+            c, st = ctx(); p = c.new_page(); p.goto(BASE.split('#')[0] + '?gratuity=thanks'); p.wait_for_selector('.center h2')
+            check(p.inner_text('.center h2') == 'Thank you', 'return in a new tab (no stored pass): a thank-you page, no error')
+            c.close()
+            # Other: validated amount (min $1, max $500, cents at most)
+            c, st = ctx(); p = openp(c, 960008)
+            p.click('.grat .chip[data-open="other"]'); p.wait_for_selector('#tipAmt'); p.wait_for_timeout(400)
+            check(p.evaluate("document.getElementById('tipAmt').value") == '' and p.evaluate("document.getElementById('tipAmt').inputMode") == 'decimal', 'Other: empty amount, decimal keypad')
+            n0 = len(mock_log() or [])
+            for bad in ('', '0', '-5', 'abc', '0.99', '500.01', '12.345', '1e3'):
+                p.fill('#tipAmt', bad); p.click('[data-tipother]'); p.wait_for_timeout(250)
+                check(p.is_visible('#sheet .grat-err') and 'from $1 to $500' in p.inner_text('#sheet .grat-err') and 'checkout.stripe.com' not in p.url, 'Other "%s": refused with a clear message' % bad)
+            check(len(mock_log() or []) == n0, 'Other: invalid amounts never create a session')
+            p.fill('#tipAmt', '7.5'); p.click('[data-tipother]'); p.wait_for_timeout(250)
+            p.screenshot(path='%s/%s_other_amount_%s.png' % (SHOTS, PREFIX, ENGINE))
+            if 'checkout.stripe.com' not in p.url: p.wait_for_url(re.compile(r'^https://checkout\.stripe\.com/'), timeout=15000)
+            lg = mock_log() or []
+            check(len(lg) > n0 and lg[-1]['form'].get('line_items[0][price_data][unit_amount]') == '750', 'Other $7.50 → session for 750 cents')
+            c.close()
+            c, st = ctx(); p = openp(c, 960008)
+            p.click('.grat .chip[data-open="other"]'); p.wait_for_selector('#tipAmt'); p.wait_for_timeout(400)
+            p.fill('#tipAmt', '0.50'); p.click('[data-tipother]'); p.wait_for_timeout(300)
+            p.screenshot(path='%s/%s_other_amount_invalid_%s.png' % (SHOTS, PREFIX, ENGINE))
+            c.close()
+            # Server says unavailable (e.g. no key yet): message + the current secure page, nothing charged.
+            c, st = ctx(); p = openp(c, 960008)
+            def unavail(route):
+                if 'gratuity_checkout' in (route.request.post_data or ''):
+                    return route.fulfill(status=200, body='{"state":"ok","result":"UNAVAILABLE"}', headers={'content-type': 'application/json', 'access-control-allow-origin': '*'})
+                route.fallback()
+            p.route(API, unavail)
+            p.click('.grat .chip[data-tip="500"]'); p.wait_for_selector('.grat .grat-err:not([hidden])')
+            check('Nothing was charged' in p.inner_text('.grat .grat-err') and p.get_attribute('.grat .grat-alt', 'href') == GURL, 'unavailable: clear message + the current secure payment page')
+            check(p.evaluate("[].every.call(document.querySelectorAll('.grat .chip'), function(b){ return !b.disabled; })"), 'unavailable: buttons usable again')
+            c.close()
+            # Travel states: still only the quiet row; its sheet offers the same grid.
+            c, st = ctx(); p = openp(c, 960001)
+            check(p.query_selector('.grat') is None and p.query_selector('.list [data-open="gratuity"]') is not None, 'travel: still the discreet row only')
+            p.click('.list [data-open="gratuity"]'); p.wait_for_selector('#sheet .chip'); p.wait_for_timeout(400)
+            check(len(p.query_selector_all('#sheet .chip')) == 6 and p.evaluate(SELECTED) == 0, 'travel sheet: same 6 buttons, nothing selected')
+            p.screenshot(path='%s/%s_travel_sheet_checkout_%s.png' % (SHOTS, PREFIX, ENGINE))
             c.close()
             restore()
             c, st = ctx(); p = openp(c, 960008)
             hrefs = p.eval_on_selector_all('.grat a[data-grat]', 'l => l.map(a => a.href)')
-            check(hrefs == [GURL], 'flags back off: single current link, no reference')
+            check(hrefs == [GURL] and p.query_selector('.grat .chip') is None, 'flags back off: single current link (same as the printed QR)')
             c.close()
         b.close()
 finally:

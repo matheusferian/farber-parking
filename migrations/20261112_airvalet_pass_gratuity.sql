@@ -8,17 +8,23 @@
 --      pass link. No amount, no IP, no device. airvalet_portal_gratuity_click()
 --      is called only by the valet-pass Edge Function (action 'gratuity_click')
 --      and counts at most 5 clicks per link per 10 minutes.
---   2. Flags, both OFF by default, so the Stripe integration is unchanged until
---      the owner confirms the Stripe account (decision 5):
---        gratuity_reference  true = the gratuity link carries
---                            client_reference_id=pax-<passenger id>, so the
---                            webhook ties the tip to the car (already supported
---                            by stripe-webhook; nothing to deploy there).
---        gratuity_links      {"10": url, "20": url, "40": url}; the pass shows
---                            $10 / $20 / $40 / Other only when all three are set
---                            ("Other" = gratuity_url, the guest picks the amount).
---                            Their plink ids must be added to
---                            AIRVALET_GRATUITY_PAYMENT_LINK_IDS before turning on.
+--   2. Flags, both OFF by default (the owner confirmed on 2026-10-27 that the
+--      gratuity Payment Link belongs to MATT SOLUTIONS; still nothing changes
+--      in production until the owner's GO):
+--        gratuity_reference         true = the current Payment Link carries
+--                                   client_reference_id=pax-<passenger id>
+--                                   (fallback path; stripe-webhook already reads it).
+--        gratuity_checkout_enabled  true = the pass shows $5 $10 $20 / $40 $50 Other
+--                                   (gratuity_amounts_cents) and each tap creates a
+--                                   Stripe Checkout Session server-side (valet-pass
+--                                   action 'gratuity_checkout'): amount bounded by
+--                                   gratuity_min_cents..gratuity_max_cents, ticket
+--                                   and passenger set by the server (metadata +
+--                                   client_reference_id), never by the guest.
+--      airvalet_portal_gratuity_checkout() validates the token, the amount and
+--      the rate (6 sessions per link per 10 minutes) before valet-pass calls Stripe.
+--   2b. payments: one row per Checkout Session (unique stripe_checkout_session_id),
+--      so a second event for the same session can never count a tip twice.
 --   3. passengers.tip_in_person_cents: optional amount of a tip staff received
 --      in person at delivery (tip_received = true). Informational only: the
 --      Closing Report never adds it to any total ("Other Tips" stays manual).
@@ -36,21 +42,22 @@ alter table public.airvalet_pass_links
 grant select (gratuity_clicks, first_gratuity_click_at, last_gratuity_click_at) on public.airvalet_pass_links to authenticated;
 
 alter table public.airvalet_portal_settings
-  add column if not exists gratuity_reference boolean not null default false,
-  add column if not exists gratuity_links     jsonb   not null default '{}'::jsonb;
--- (A CHECK cannot hold a subquery: the rule lives in a small immutable helper.)
-create or replace function public.airvalet_gratuity_links_ok(p jsonb)
-returns boolean language sql immutable set search_path = '' as $$
-  select jsonb_typeof(p) = 'object'
-     and not exists (select 1 from jsonb_each(p) e
-                      where e.key not in ('10', '20', '40')
-                         or jsonb_typeof(e.value) <> 'string'
-                         or (e.value #>> '{}') !~ '^https://buy\.stripe\.com/[A-Za-z0-9]{8,64}$');
-$$;
-revoke all on function public.airvalet_gratuity_links_ok(jsonb) from public, anon;
-alter table public.airvalet_portal_settings drop constraint if exists airvalet_portal_settings_gratuity_links_check;
-alter table public.airvalet_portal_settings add constraint airvalet_portal_settings_gratuity_links_check
-  check (public.airvalet_gratuity_links_ok(gratuity_links));
+  add column if not exists gratuity_reference        boolean   not null default false,
+  add column if not exists gratuity_checkout_enabled boolean   not null default false,
+  add column if not exists gratuity_amounts_cents    integer[] not null default '{500,1000,2000,4000,5000}',
+  add column if not exists gratuity_min_cents        integer   not null default 100,
+  add column if not exists gratuity_max_cents        integer   not null default 50000;
+alter table public.airvalet_portal_settings drop constraint if exists airvalet_portal_settings_gratuity_amounts_check;
+alter table public.airvalet_portal_settings add constraint airvalet_portal_settings_gratuity_amounts_check check (
+  cardinality(gratuity_amounts_cents) between 1 and 5
+  and array_position(gratuity_amounts_cents, null) is null
+  and gratuity_min_cents >= 50                       -- Stripe's USD minimum
+  and gratuity_max_cents <= 100000 and gratuity_min_cents <= gratuity_max_cents
+  and gratuity_min_cents <= all (gratuity_amounts_cents) and gratuity_max_cents >= all (gratuity_amounts_cents));
+
+-- One tip row per Checkout Session (the event id stays unique too).
+create unique index if not exists payments_stripe_checkout_session_id_key
+  on public.payments (stripe_checkout_session_id) where stripe_checkout_session_id is not null;
 
 alter table public.passengers
   add column if not exists tip_in_person_cents integer check (tip_in_person_cents is null or tip_in_person_cents between 1 and 100000);
@@ -75,6 +82,38 @@ begin
 end $$;
 revoke all on function public.airvalet_portal_gratuity_click(text, text) from public, anon, authenticated;
 grant execute on function public.airvalet_portal_gratuity_click(text, text) to service_role;
+
+-- ── 2c. Dynamic gratuity checkout: the checks before valet-pass calls Stripe ──
+-- Returns what the server puts on the Checkout Session; the guest only sends
+-- the token and an amount. Counts as a gratuity click (same metric).
+create or replace function public.airvalet_portal_gratuity_checkout(p_token text, p_client text, p_amount_cents integer)
+returns jsonb language plpgsql security definer set search_path = '' as $$
+declare
+  r     record;
+  v_set public.airvalet_portal_settings%rowtype;
+  v_p   public.passengers%rowtype;
+begin
+  select * into r from public.airvalet_portal_resolve(p_token, p_client);
+  if r.o_state <> 'ok' then return jsonb_build_object('state', r.o_state); end if;
+  select * into v_set from public.airvalet_portal_settings;
+  if not v_set.gratuity_checkout_enabled then return jsonb_build_object('state', 'ok', 'result', 'UNAVAILABLE'); end if;
+  if p_amount_cents is null or p_amount_cents < v_set.gratuity_min_cents or p_amount_cents > v_set.gratuity_max_cents then
+    return jsonb_build_object('state', 'ok', 'result', 'INVALID');
+  end if;
+  if public.airvalet_pass_hit('k:' || r.o_link_id) > 6 then
+    return jsonb_build_object('state', 'ok', 'result', 'LIMITED');
+  end if;
+  select * into v_p from public.passengers p where p.id = r.o_passenger_id;
+  update public.airvalet_pass_links l
+     set gratuity_clicks = l.gratuity_clicks + 1,
+         first_gratuity_click_at = coalesce(l.first_gratuity_click_at, now()),
+         last_gratuity_click_at = now()
+   where l.id = r.o_link_id;
+  return jsonb_build_object('state', 'ok', 'result', 'OK', 'amount_cents', p_amount_cents,
+    'passenger_id', v_p.id, 'ticket', nullif(btrim(coalesce(v_p.ticket, '')), ''), 'link_id', r.o_link_id);
+end $$;
+revoke all on function public.airvalet_portal_gratuity_checkout(text, text, integer) from public, anon, authenticated;
+grant execute on function public.airvalet_portal_gratuity_checkout(text, text, integer) to service_role;
 
 -- ── 3. airvalet_portal_view: production definition + the two flags ────────
 CREATE OR REPLACE FUNCTION public.airvalet_portal_view(p_token text, p_client text DEFAULT NULL::text)
@@ -180,11 +219,11 @@ begin
       'contacts', jsonb_strip_nulls(jsonb_build_object(
           'valet_phone', v_set.valet_phone, 'text_phone', v_set.text_phone, 'reservations_phone', v_set.reservations_phone)),
       'gratuity_url', case when v_set.gratuity_url is not null then v_set.gratuity_url || v_ref end,
-      -- $10 / $20 / $40 chips only when all three links are configured (flag, OFF by default).
-      'gratuity_amounts', case when v_set.gratuity_url is not null and v_set.gratuity_links ?& array['10', '20', '40'] then jsonb_build_array(
-          jsonb_build_object('amount', 10, 'url', (v_set.gratuity_links ->> '10') || v_ref),
-          jsonb_build_object('amount', 20, 'url', (v_set.gratuity_links ->> '20') || v_ref),
-          jsonb_build_object('amount', 40, 'url', (v_set.gratuity_links ->> '40') || v_ref)) end,
+      -- Dynamic checkout amounts (flag, OFF by default). Dollars for display; the
+      -- server re-checks every amount against min/max before calling Stripe.
+      'gratuity_checkout', case when v_set.gratuity_checkout_enabled then jsonb_build_object(
+          'amounts', (select jsonb_agg(a / 100.0 order by o) from unnest(v_set.gratuity_amounts_cents) with ordinality u(a, o)),
+          'min', v_set.gratuity_min_cents / 100.0, 'max', v_set.gratuity_max_cents / 100.0) end,
       'terms_published', v_set.terms_published
     ));
 end $function$;

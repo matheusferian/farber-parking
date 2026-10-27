@@ -87,3 +87,18 @@ Deno.test('handler: signed charge.refunded updates the tip; a DB error asks for 
   const bad = deps([], { refund: () => Promise.resolve({ updated: 0, error: { message: 'db' } }) });
   assertEquals((await handle(await signed('charge.refunded', { id: 'ch_2', object: 'charge', payment_intent: 'pi_2', amount: 100, amount_refunded: 100, refunded: true }, SECRET, 'evt_r2'), bad)).status, 500);
 });
+
+Deno.test('dynamic Checkout Session (metadata set by valet-pass): tip with the car; async success handled', async () => {
+  const s = session({ payment_link: null, client_reference_id: 'pax-77', metadata: { source: 'AIRVALET', type: 'TIP', channel: 'PASS', passenger_id: '77', ticket: '1027-3' } });
+  const row = tipFromSession(s, 'e', [GRAT]);
+  assertEquals([row?.passenger_id, row?.ticket], [77, '1027-3']);
+  const saved: TipRow[] = [];
+  const r = await handle(await signed('checkout.session.async_payment_succeeded', s, SECRET, 'evt_async'), deps(saved));
+  assertEquals(r.status, 200); assertEquals(saved.length, 1);
+  const r2 = await handle(await signed('payment_intent.succeeded', { object: 'payment_intent' }, SECRET, 'evt_pi'), deps(saved));
+  assertEquals((await r2.json()).skipped, 'payment_intent.succeeded'); assertEquals(saved.length, 1);
+});
+Deno.test('printed QR (current Payment Link, no reference): still a tip, no car', () => {
+  const row = tipFromSession(session({ client_reference_id: null }), 'e', [GRAT]);
+  assertEquals([row?.passenger_id, row?.amount_cents], [null, 2000]);
+});

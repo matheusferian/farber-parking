@@ -12,6 +12,8 @@
 //   POST { t, action: 'messages' }               → { state, messages } (valet chat thread)
 //   POST { t, action: 'send', body, ck }         → { state, result }  (chat message, no SMS)
 //   POST { t, action: 'gratuity_click' }         → { state, result }  (count only: no amount, no IP)
+//   POST { t, action: 'gratuity_checkout', amount_cents, ck }
+//                                                → { state, result, url? } (Stripe Checkout, flag-gated; checkout.ts)
 //
 // Requests are stored PENDING; nothing operational changes until staff
 // approve in AirValet. A new request notifies staff (iPad push / Super Admin
@@ -30,6 +32,7 @@ import { notifyEvent } from '../_shared/notify/notify.ts';
 import { makeNotifyDeps } from '../_shared/notify/runtime.ts';
 import { isGsm7 } from '../_shared/sms/templates.ts';
 import { clientAddress } from './client_ip.ts';
+import { createSession } from './checkout.ts';
 
 declare const EdgeRuntime: { waitUntil(p: Promise<unknown>): void } | undefined;
 
@@ -156,6 +159,21 @@ Deno.serve(async (req) => {
     if (data.state === 'limited') return reply(429, { state: 'limited' });
     if (data.state !== 'ok') return reply(200, { state: 'expired' });
     return reply(200, { state: 'ok', result: data.result });
+  }
+
+  if (body.action === 'gratuity_checkout') {
+    const ck = typeof body.ck === 'string' && CK_RE.test(body.ck) ? body.ck : '';
+    const cents = typeof body.amount_cents === 'number' && Number.isInteger(body.amount_cents) ? body.amount_cents : null;
+    if (!ck || cents === null) return reply(200, { state: 'ok', result: 'INVALID' });
+    const { data, error } = await admin.rpc('airvalet_portal_gratuity_checkout', { p_token: token, p_client: client, p_amount_cents: cents });
+    if (error || !data) return reply(503, { state: 'error' });
+    if (data.state === 'limited') return reply(429, { state: 'limited' });
+    if (data.state !== 'ok') return reply(200, { state: 'expired' });
+    if (data.result !== 'OK') return reply(200, { state: 'ok', result: data.result });
+    let s: { url: string; id: string } | null = null;
+    try { s = await createSession(data, ck, get); } catch { s = null; }
+    if (!s) { console.log(JSON.stringify({ event: 'gratuity_checkout_failed', link: data.link_id })); return reply(200, { state: 'ok', result: 'UNAVAILABLE' }); }
+    return reply(200, { state: 'ok', result: 'OK', url: s.url });
   }
 
   const { data, error } = await admin.rpc('airvalet_portal_view', { p_token: token, p_client: client });

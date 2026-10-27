@@ -201,18 +201,22 @@
     return html + ticketLine(p) + '</div></section>';
   }
 
-  // Gratuity (owner 2026-10-27): never mandatory, nothing pre-selected. Amount
-  // chips only when per-amount links are configured (gratuity_amounts); until
-  // then one action that opens the current link, where the guest picks the amount.
+  // Gratuity (owner 2026-10-27): never mandatory, nothing pre-selected, no
+  // percentages. With gratuity_checkout ($5 $10 $20 / $40 $50 Other) every tap
+  // asks valet-pass for a Stripe Checkout Session tied to this ticket by the
+  // server. Otherwise one action that opens the current Payment Link (the same
+  // link as the printed QR codes), where the guest picks the amount.
+  function money(v) { return '$' + (Math.round(v * 100) % 100 ? Number(v).toFixed(2) : String(Math.round(v))); }
   function gratuityLinks(p, cls) {
-    var a = ' target="_blank" rel="noopener noreferrer" data-grat';
-    if (Array.isArray(p.gratuity_amounts) && p.gratuity_amounts.length) {
-      return '<div class="grat-chips" role="group" aria-label="Gratuity amount">' + p.gratuity_amounts.map(function (g) {
-        return '<a class="chip" href="' + esc(g.url) + '"' + a + '>$' + esc(g.amount) + '</a>';
-      }).join('') + '<a class="chip" href="' + esc(p.gratuity_url) + '"' + a + '>Other</a></div>';
+    var gc = p.gratuity_checkout;
+    if (gc && Array.isArray(gc.amounts) && gc.amounts.length) {
+      return '<div class="grat-chips" role="group" aria-label="Choose a gratuity amount">' + gc.amounts.map(function (a) {
+        return '<button class="chip" type="button" data-tip="' + Math.round(a * 100) + '">' + esc(money(a)) + '</button>';
+      }).join('') + '<button class="chip" type="button" data-open="other">Other</button></div><p class="err grat-err" role="alert" hidden></p>';
     }
-    return '<a class="btn ' + cls + '" href="' + esc(p.gratuity_url) + '"' + a + '>Leave a gratuity</a>';
+    return '<a class="btn ' + cls + '" href="' + esc(p.gratuity_url) + '" target="_blank" rel="noopener noreferrer" data-grat>Leave a gratuity</a>';
   }
+  function hasGratuity(p) { return !!(p.gratuity_url || p.gratuity_checkout); }
   // After delivery: an elegant, more visible card (still optional, no prompt).
   function gratuityCard(p) {
     return '<section class="grat" aria-label="Gratuity"><p class="grat-t">Gratuity</p><p class="grat-copy">' + esc(GRATUITY_COPY) + '</p>' +
@@ -226,7 +230,50 @@
   document.addEventListener('click', function (e) {
     var a = e.target && e.target.closest ? e.target.closest('a[data-grat]') : null;
     if (a) gratuityClick();
+    var t = e.target && e.target.closest ? e.target.closest('button[data-tip]') : null;
+    if (t) startCheckout(parseInt(t.getAttribute('data-tip'), 10), t);
   });
+  // Same tab to Stripe Checkout; the return URL carries no token, so the pass
+  // comes back from this tab's sessionStorage (see RETURN below).
+  var tipBusy = false;
+  async function startCheckout(cents, btn) {
+    if (tipBusy || !pass) return;
+    var host = (btn && btn.closest('.grat, .sheet')) || document, err = host.querySelector('.grat-err');
+    var label = btn ? btn.textContent : '';
+    tipBusy = true; if (err) err.hidden = true;
+    if (btn) { btn.disabled = true; btn.setAttribute('aria-busy', 'true'); btn.textContent = '\u2026'; }
+    var r = null;
+    try { r = await post({ t: TOKEN, action: 'gratuity_checkout', amount_cents: cents, ck: clientKey() }); } catch (e) { r = null; }
+    var d = r && r.data;
+    if (d && d.state === 'ok' && d.result === 'OK' && /^https:\/\/checkout\.stripe\.com\//.test(String(d.url || ''))) {
+      try { sessionStorage.setItem('mav-pass-return', TOKEN); } catch (e) { /* the guest still has the link in the text */ }
+      location.assign(d.url);
+      return;   // tipBusy stays on: no second session while the page leaves
+    }
+    tipBusy = false;
+    if (btn) { btn.disabled = false; btn.removeAttribute('aria-busy'); btn.textContent = label; }
+    if (d && d.state === 'expired') return load();
+    var gc = pass.gratuity_checkout || {};
+    var msg = !r ? 'No connection. Nothing was charged; please try again.'
+      : (r.status === 429 || (d && d.result === 'LIMITED')) ? 'Please wait a few minutes and try again.'
+      : (d && d.result === 'INVALID') ? 'Please enter an amount from ' + money(gc.min || 1) + ' to ' + money(gc.max || 500) + '.'
+      : 'Secure payment is not available right now. Nothing was charged.';
+    if (err) {
+      err.textContent = msg; err.hidden = false;
+      if (pass.gratuity_url && d && d.result === 'UNAVAILABLE') {
+        var a = document.createElement('a'); a.href = pass.gratuity_url; a.target = '_blank'; a.rel = 'noopener noreferrer';
+        a.setAttribute('data-grat', ''); a.className = 'grat-alt'; a.textContent = 'Use our secure payment page';
+        err.appendChild(document.createTextNode(' ')); err.appendChild(a);
+      }
+    }
+  }
+  // "Other": any amount within the configured bounds, cents at most.
+  function parseAmount(v, gc) {
+    var m = /^\$?\s*(\d{1,4})(?:\.(\d{1,2}))?$/.exec(String(v || '').trim());
+    if (!m) return null;
+    var cents = parseInt(m[1], 10) * 100 + (m[2] ? parseInt((m[2] + '0').slice(0, 2), 10) : 0);
+    return cents >= Math.round((gc.min || 1) * 100) && cents <= Math.round((gc.max || 500) * 100) ? cents : null;
+  }
 
   function render() {
     var p = pass, done = p.status === 'DELIVERED';
@@ -234,13 +281,13 @@
       '<h1>' + (p.first_name ? 'Welcome, ' + esc(p.first_name) : 'Welcome') + '</h1></header><main>';
     html += passCard(p);
     if (p.lockbox && !done && p.status !== 'CUSTOMS_CONFIRMED') html += '<button class="btn primary green" type="button" data-open="lockbox">View after-hours pickup instructions</button>';
-    if (done && p.gratuity_url) html += gratuityCard(p);
+    if (done && hasGratuity(p)) html += gratuityCard(p);
     if (p.chat_enabled) html += '<button class="btn primary" type="button" data-open="chat">Message our valet team</button>';
     var rows = '';
     var wash = { REQUEST: 'Request', CONTACT: 'Ask our team', REQUESTED: 'Requested', PRICE_PENDING: 'Price coming', SCHEDULED: 'Scheduled', DONE: 'Done' }[p.car_wash];
     if (!done && wash && p.requests_enabled !== false) rows += '<button type="button" data-open="wash"><span>Car wash</span><small>' + wash + '</small></button>';
     // During the trip: a quiet row only (no highlight, no prompt).
-    if (!done && p.gratuity_url) rows += '<button type="button" data-open="gratuity"><span>Gratuity</span><small>Optional</small></button>';
+    if (!done && hasGratuity(p)) rows += '<button type="button" data-open="gratuity"><span>Gratuity</span><small>Optional</small></button>';
     if (rows) html += '<div class="list">' + rows + '</div>';
     var c = p.contacts || {};
     // Valet hours + the after-hours rule (owner 2026-10-25).
@@ -258,6 +305,11 @@
       (p.terms_published && VALET_TERMS_URL ? '<a href="' + esc(VALET_TERMS_URL) + '">Valet Terms</a> · ' : '') +
       '<a href="sms.html">SMS program</a> · <a href="privacy.html">Privacy</a></p></footer></main>';
     app.innerHTML = html;
+    if (RETURN) {   // once, on the first pass after coming back from Stripe
+      var note = document.createElement('p'); note.className = RETURN === 'thanks' ? 'okbox return-note' : 'review return-note'; note.setAttribute('role', 'status');
+      note.textContent = RETURN === 'thanks' ? 'Thank you for your gratuity.' : 'No gratuity was charged.';
+      var m0 = app.querySelector('main'); if (m0) m0.insertBefore(note, m0.firstChild); RETURN = null;
+    }
     Array.prototype.forEach.call(app.querySelectorAll('[data-open]'), function (b) {
       b.addEventListener('click', function () { openSheet(b.getAttribute('data-open')); });
     });
@@ -336,11 +388,18 @@
         h += '<div class="okbox">' + esc(t) + '</div><button class="btn primary" type="button" data-close>Done</button>';
       }
     } else if (form.kind === 'gratuity') {
-      var chips = Array.isArray(p.gratuity_amounts) && p.gratuity_amounts.length;
+      var chips = !!p.gratuity_checkout;
       h = head('Gratuity') + '<p class="p0">' + esc(GRATUITY_COPY) + '</p>' +
         (chips ? gratuityLinks(p, '')
                : '<a class="btn primary" href="' + esc(p.gratuity_url) + '" target="_blank" rel="noopener noreferrer" data-grat>Continue to secure payment</a>') +
         '<p class="muted">Secure payment by Stripe · Matt Solutions &amp; Services.' + (chips ? '' : ' You choose the amount.') + '</p>';
+    } else if (form.kind === 'other') {
+      var gco = p.gratuity_checkout || {};
+      h = head('Other amount') + '<p class="p0">Enter any amount from ' + esc(money(gco.min || 1)) + ' to ' + esc(money(gco.max || 500)) + '.</p>' +
+        '<label class="f">Amount (USD)<input type="text" id="tipAmt" inputmode="decimal" autocomplete="off" maxlength="8" placeholder="0.00" value="' + esc(form.amt || '') + '"></label>' +
+        '<p class="err grat-err" role="alert"' + (form.err ? '' : ' hidden') + '>' + esc(form.err || '') + '</p>' +
+        '<button class="btn primary" type="button" data-tipother>Continue to secure payment</button>' +
+        '<p class="muted">Secure payment by Stripe · Matt Solutions &amp; Services. Always optional.</p>';
     } else if (form.kind === 'info') {
       // Facts only, from the existing settings (decision 10). No legal terms here.
       var ci = p.contacts || {}, hi = hoursText(p.valet_hours);
@@ -384,6 +443,14 @@
     on('[data-send]', function () { sendRequest({ kind: 'RETURN_CHANGE', reason: form.reason, date: form.date, time: form.time || null, carrier: form.carrier || null, note: form.note || null }, 4); });
     on('[data-wash]', function () { sendRequest({ kind: 'CAR_WASH' }, 9); });
     on('[data-chatsend]', sendChat);
+    // Other amount lives in a sheet: the 30 s refresh never wipes what the guest types.
+    on('[data-tipother]', function (e) {
+      var inp = document.getElementById('tipAmt'), gc = (pass && pass.gratuity_checkout) || {};
+      form.amt = inp ? inp.value : ''; var cents = parseAmount(form.amt, gc);
+      if (cents === null) { form.err = 'Please enter an amount from ' + money(gc.min || 1) + ' to ' + money(gc.max || 500) + '.'; drawSheet(); var i2 = document.getElementById('tipAmt'); if (i2) i2.focus(); return; }
+      form.err = null; startCheckout(cents, e.currentTarget);
+    });
+    on('.sheet [data-open="other"]', function () { form = { kind: 'other', step: 1, ck: clientKey() }; drawSheet(); var i = document.getElementById('tipAmt'); if (i) i.focus(); });
     var ta = document.getElementById('chatText');
     if (ta) ta.addEventListener('input', function () { form.draft = ta.value; });
     var cl = document.getElementById('chatList'); if (cl) cl.scrollTop = cl.scrollHeight;
@@ -464,8 +531,17 @@
     app.innerHTML = '<div class="center"><p class="muted">Loading your valet pass…</p></div>';
     load();
   });
-  document.addEventListener('visibilitychange', function () { if (!document.hidden && pass && sheetBg.hidden) load(); });
+  document.addEventListener('visibilitychange', function () { if (!document.hidden && pass && sheetBg.hidden && !tipBusy) load(); });
   // Latest data on every open/return to the page, and every 30 s while open.
-  setInterval(function () { if (!document.hidden && pass && sheetBg.hidden) load(); }, 30000);
-  load();
+  setInterval(function () { if (!document.hidden && pass && sheetBg.hidden && !tipBusy) load(); }, 30000);
+  // Back from Stripe Checkout (?gratuity=thanks|cancel, no token in that URL):
+  // this tab's pass comes back from sessionStorage, with a quiet note.
+  var RETURN = (/[?&]gratuity=(thanks|cancel)(?:&|$)/.exec(location.search) || [])[1] || null;
+  if (RETURN) {
+    if (!TOKEN) { try { TOKEN = sessionStorage.getItem('mav-pass-return') || ''; } catch (e) { TOKEN = ''; } }
+    try { history.replaceState(null, '', location.pathname + (TOKEN ? '#' + TOKEN : '')); } catch (e) { /* keep the URL */ }
+  }
+  if (RETURN && !TOKEN) {
+    renderMessage(RETURN === 'thanks' ? 'Thank you' : 'No gratuity was charged', RETURN === 'thanks' ? 'Thank you for your gratuity. You can close this page.' : 'You can close this page.');
+  } else load();
 })();
