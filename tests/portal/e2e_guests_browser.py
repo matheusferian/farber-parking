@@ -31,6 +31,7 @@ def check(cond, msg, extra=''):
 CLEAN = """
 delete from public.airvalet_guest_note_revisions where note_id in (select id from public.airvalet_guest_notes where guest_key like '%30555583%' or guest_key like 'g:%' and created_at > now() - interval '1 day');
 delete from public.airvalet_guest_notes where guest_key like '%30555583%';
+delete from public.airvalet_guest_identity where reason like 'E2E%';
 delete from public.airvalet_guest_identity where passenger_id between 982001 and 982020 or from_key like '%30555583%' or to_key like '%30555583%';
 select set_config('airvalet.tip_ledger', '1', false);
 delete from public.airvalet_tip_records where passenger_id between 982001 and 982020;
@@ -47,7 +48,9 @@ insert into public.passengers (id, ts, checkin_date, name, phone, ticket, status
  (982003, 'x', '2026-08-01 09:00-04', 'PHILIP STEUBX',  '3055558302', 'GX-3', 'DELIVERED', '8/5/2026', 'HANGAR 19', 'Audi Q7', 'Gray', '', '2026-08-05 15:00-04', 'HANGAR 7', 'Battery was weak, jump started at pickup', null, 'WASHED', 'NORMAL', 'MA 212'),
  (982004, 'x', '2026-10-01 09:00-04', 'PHILIP STEUBEX', '305.555.8302', 'GX-4', 'DELIVERED', '10/4/2026', 'HANGAR 19', 'Audi Q7', 'Gray', '', '2026-10-04 15:00-04', 'HANGAR 16', null, true, null, 'LOCKBOX', 'MA 318'),
  (982005, 'x', '2026-07-01 09:00-04', 'DOANALD RIEDELX', '3055558303', 'GX-5', 'DELIVERED', '7/3/2026', 'HANGAR 19', 'Lexus RX', 'Blue', '7/3/2026', null, null, null, null, null, null, null),
- (982006, 'x', now() - interval '2 days', 'DONALD RIEDELX',  '3055558303', 'GX-6', 'PENDING', to_char((now() at time zone 'America/New_York')::date + 3, 'FMMM/FMDD/YYYY'), 'HANGAR 18', 'Lexus RX', 'Blue', '', null, null, null, null, null, null, null);
+ (982006, 'x', now() - interval '2 days', 'DONALD RIEDELX',  '3055558303', 'GX-6', 'PENDING', to_char((now() at time zone 'America/New_York')::date + 3, 'FMMM/FMDD/YYYY'), 'HANGAR 18', 'Lexus RX', 'Blue', '', null, null, null, null, null, null, null),
+ (982007, 'x', '2026-05-05 09:00-04', 'SOFIA BRANDTX', '3055558304', 'GX-7', 'DELIVERED', '5/8/2026', 'HANGAR 19', 'Mini', 'Green', '', '2026-05-08 09:00-04', 'HANGAR 19', null, null, null, 'NORMAL', null),
+ (982008, 'x', '2026-09-05 09:00-04', 'SOFIA BRANDTX', '3055558305', 'GX-8', 'DELIVERED', '9/8/2026', 'HANGAR 19', 'Volvo XC90', 'Black', '', '2026-09-08 09:00-04', 'HANGAR 19', null, null, null, 'NORMAL', null);
 insert into public.passenger_return_date_changes (passenger_id, passenger_name, ticket, old_return_date, new_return_date, comment, changed_by)
 values (982004, 'PHILIP STEUBEX', 'GX-4', '10/3/2026', '10/4/2026', 'Flight moved', 'localipad@airvalet.local');
 insert into public.activity_log (ts, action, passenger, ticket, location, detail, passenger_id, changed_by, created_at)
@@ -71,7 +74,7 @@ async def login(b, user='localipad', viewport=None):
     await ctx.route('**/*', guard)
     page = await ctx.new_page(); errs = []
     page.on('pageerror', lambda e: errs.append(str(e)))
-    page.on('dialog', lambda d: asyncio.ensure_future(d.accept(d.default_value or 'E2E reason')))
+    page.on('dialog', lambda d: (errs.append('native dialog: ' + d.message), asyncio.ensure_future(d.dismiss())))   # Guests never uses prompt / confirm
     await page.goto(APP + '?checkin=v2')
     await page.wait_for_selector('#loginEmail', state='visible', timeout=20000)
     for attempt in range(3):
@@ -204,7 +207,9 @@ async def main():
             tn = await body(page)
             check('keys in hand' in tn and 'History (2)' in tn and 'edited by localipad' in tn, 'edit keeps the history (2 revisions, who)', tn[-500:])
             await page.screenshot(path=SHOT + '/guests_tips_notes_ipad_%s.png' % ENGINE)
-            await page.click('#gxPanel button[data-del]'); await page.wait_for_timeout(1500)
+            await page.click('#gxPanel button[data-del]'); await page.wait_for_selector('#gxActOv.on')
+            check(await page.evaluate('document.getElementById("gxActGo").disabled'), 'delete note: button stays off until confirmed')
+            await page.check('#gxActOk'); await page.click('#gxActGo'); await page.wait_for_timeout(1500)
             check('No notes yet' in await body(page) and sql("select count(*) from public.airvalet_guest_note_revisions r join public.airvalet_guest_notes n on n.id = r.note_id where n.body like 'Prefers the car%'") == '3',
                   'delete hides the note, history kept (3 entries)')
             vt = await page.evaluate('''(async () => { var p = await gxRpc("airvalet_guest_profile", {p_key: (await gxRpc("airvalet_guest_for_passenger", {p_passenger_id: 982002})).key}); _gx.prof = p; _gx.key = p.key; _gx.tab = "tips"; gxRender(); return document.querySelector("#gxPanel .gx-body").innerText; })()''')
@@ -214,7 +219,19 @@ async def main():
             # ── Identity: staff see suggestions only ──
             await page.evaluate('gxClose()'); await open_guest(page, 'riedelx', 'Donald Riedelx')
             ov = await body(page)
-            check('possible same guest' in ov.lower() and 'Doanald Riedelx' in ov and not await page.is_visible('#gxPanel [data-merge]'), 'IPAD_OPS: suggestion shown, no Merge button', ov[-400:])
+            check('possible same guest' in ov.lower() and 'Doanald Riedelx' in ov and not await page.is_visible('#gxPanel [data-merge]') and not await page.is_visible('#gxPanel [data-distinct]'),
+                  'IPAD_OPS: suggestion highlighted, no Merge / Not the same buttons', ov[-400:])
+            check(not await page.is_visible('#gxReviewBtn'), 'IPAD_OPS: no duplicate review')
+            # the public side (anon key, no login — what the Valet Pass has) reads nothing
+            anon = await page.evaluate('''(async () => { var h = {apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json'}, out = {};
+              for (var f of ['airvalet_guest_search', 'airvalet_guest_profile', 'airvalet_guest_lookup_phone', 'airvalet_guest_review'])
+                out[f] = (await fetch(SUPABASE_URL + '/rest/v1/rpc/' + f, {method: 'POST', headers: h, body: '{}'})).status;
+              for (var t of ['airvalet_guest_notes', 'airvalet_guest_identity', 'airvalet_guest_note_revisions']) {
+                var r = await fetch(SUPABASE_URL + '/rest/v1/' + t + '?select=*', {headers: h}); out[t] = r.status + ':' + (await r.text()).slice(0, 20); }
+              return out; })()''')
+            check(all(v in (401, 403, 404) for k, v in anon.items() if k.startswith('airvalet_guest_s') or k in ('airvalet_guest_profile', 'airvalet_guest_lookup_phone', 'airvalet_guest_review'))
+                  and all(not str(v).startswith('200:[{') for k, v in anon.items() if k.startswith('airvalet_guest_n') or k == 'airvalet_guest_identity'),
+                  'anon (public Valet Pass key) cannot call guest functions or read notes / decisions', anon)
             await page.evaluate('gxClose()')
 
             # ── Check-in hint (v2): shared phone, fill only on tap ──
@@ -234,18 +251,45 @@ async def main():
             check(not errs, 'no page errors (iPad)', errs[:3])
             await ctx.close()
 
-            # ── ADMIN: merge + undo ──
+            # ── ADMIN: duplicate review, merge with reason + confirmation, undo ──
             actx, apage, aerrs = await login(b, 'localadmin')
             await apage.evaluate('document.querySelector(\'.tab[data-t="guests"]\').click()'); await apage.wait_for_function('!_gx.loading', timeout=15000)
+            await apage.wait_for_selector('#gxReviewBtn:not([hidden])', timeout=10000)
+            rb = await apage.evaluate('document.getElementById("gxReviewBtn").innerText')
+            check('possible duplicate' in rb.lower(), 'ADMIN: duplicates to review are highlighted', rb)
+            await apage.screenshot(path=SHOT + '/guests_review_banner_ipad_%s.png' % ENGINE)
+            await apage.click('#gxReviewBtn'); await apage.wait_for_selector('#gxPanel .gx-rv', timeout=15000)
+            rv = await body(apage)
+            check('Doanald Riedelx' in rv and 'Donald Riedelx' in rv and 'Sofia Brandtx' in rv and 'Infingerx' not in rv, 'review lists the typo pair and the same-name pair, not the family', rv[:600])
+            await apage.screenshot(path=SHOT + '/guests_review_ipad_%s.png' % ENGINE)
+            # Not the same person (Sofia)
+            await apage.click('#gxPanel .gx-rv:has-text("Sofia Brandtx") [data-rvdistinct]'); await apage.wait_for_selector('#gxActOv.on')
+            dis = await apage.evaluate('document.getElementById("gxActGo").disabled')
+            await apage.fill('#gxActReason', 'E2E two different Sofias'); dis2 = await apage.evaluate('document.getElementById("gxActGo").disabled')
+            await apage.check('#gxActOk'); dis3 = await apage.evaluate('document.getElementById("gxActGo").disabled')
+            check(dis and dis2 and not dis3, 'sheet: needs a reason AND the confirmation before the button works', (dis, dis2, dis3))
+            await apage.click('#gxActGo'); await apage.wait_for_selector('#gxPanel .gx-rv', timeout=15000); await apage.wait_for_timeout(500)
+            check('Sofia Brandtx' not in await body(apage) and sql("select count(*) from public.airvalet_guest_identity where kind = 'DISTINCT' and revoked_at is null and reason = 'E2E two different Sofias'") == '1',
+                  '"Not the same person": pair leaves the review, decision recorded')
+            # Merge DOANALD → DONALD (DONALD kept: more recent)
+            await apage.click('#gxPanel .gx-rv:has-text("Riedelx") [data-rvmerge]'); await apage.wait_for_selector('#gxActOv.on')
+            await apage.fill('#gxActReason', 'E2E same phone and car, typo')
+            await apage.screenshot(path=SHOT + '/guests_merge_sheet_ipad_%s.png' % ENGINE)
+            sheet = await apage.evaluate('document.getElementById("gxActPanel").innerText')
+            check('No ticket is changed' in sheet and 'Keep the other one' in sheet, 'merge sheet explains the effect and lets you pick which guest stays', sheet[:300])
+            await apage.check('#gxActOk'); await apage.click('#gxActGo'); await apage.wait_for_timeout(2500)
+            check(sql("select count(*) from public.airvalet_guest_identity where kind = 'MERGE' and revoked_at is null and reason = 'E2E same phone and car, typo'") == '1', 'merge recorded with reason and who')
+            await apage.screenshot(path=SHOT + '/guests_review_after_ipad_%s.png' % ENGINE)
+            await apage.evaluate('gxClose()')
             await open_guest(apage, 'riedelx', 'Donald Riedelx')
-            await apage.click('#gxPanel [data-merge]'); await apage.wait_for_timeout(2000)
             ov = await body(apage)
-            check('Returning guest' in ov and 'identity history' in ov.lower() and 'Guest merged' in ov and sql("select count(*) from public.airvalet_guest_identity where kind = 'MERGE' and revoked_at is null and to_key like '%30555583%'") == '1',
-                  'ADMIN merge: one guest, decision listed with reason and who', ov[-500:])
+            check('Returning guest' in ov and 'identity history' in ov.lower() and 'Guest merged' in ov, 'merged guest: 2 visits, decision in Identity history', ov[-400:])
             await apage.screenshot(path=SHOT + '/guests_identity_ipad_%s.png' % ENGINE)
-            await apage.click('#gxPanel [data-undo]'); await apage.wait_for_timeout(2000)
-            check(sql("select count(*) from public.airvalet_guest_identity where kind = 'MERGE' and revoked_at is not null and to_key like '%30555583%'") == '1' and 'undone by localadmin' in await body(apage),
-                  'Undo: decision kept, marked undone')
+            await apage.click('#gxPanel [data-undo]'); await apage.wait_for_selector('#gxActOv.on')
+            await apage.fill('#gxActReason', 'E2E undo'); await apage.check('#gxActOk'); await apage.click('#gxActGo'); await apage.wait_for_timeout(2500)
+            check(sql("select count(*) from public.airvalet_guest_identity where kind = 'MERGE' and revoked_at is not null and reason = 'E2E same phone and car, typo'") == '1' and 'undone by localadmin' in await body(apage),
+                  'Undo through the sheet: decision kept, marked undone')
+            check(sql("select count(*) from public.airvalet_guest_identity where reason like 'E2E%' and created_by = 'localadmin@airvalet.local'") == '2', 'decisions carry the signed-in account')
             check(not aerrs, 'no page errors (ADMIN)', aerrs[:3])
             await actx.close()
 

@@ -30,9 +30,36 @@ vmd5() { echo "select md5(pg_get_functiondef('public.airvalet_portal_view(text,t
 pass=0; fail=0; ck() { if [ "$1" = "$2" ]; then pass=$((pass+1)); echo "ok   $3"; else fail=$((fail+1)); echo "FAIL $3 ($1 vs $2)"; fi; }
 apply() { $DB < "$W/$1.sql" > /dev/null 2>&1 || { echo "  FAILED $1"; $DB < "$W/$1.sql" 2>&1 | grep ERROR; fail=$((fail+1)); }; }
 
+# Existing data must never change: tickets, tips, payments, history, Closing, SMS, pass links, settings.
+SEED="insert into public.passengers (id, ts, checkin_date, name, phone, ticket, status, ret, loc, car, color, obs, tip_received, checkout_date) values
+  (981480, 'x', now() - interval '5 days', 'DATA KEEP ONE', '3055557480', 'DK-1', 'DELIVERED', '1/1/2031', 'HANGAR 19', 'BMW', 'Black', 'note', true, now() - interval '1 day'),
+  (981481, '6/4/2025 8:04:49', null, 'MRS DATA KEEP', '0000000000', 'DK-2', 'ARCHIVED', '6/9/2025', 'HANGAR 18', 'Kia', 'Gray', null, null, null);
+insert into public.activity_log (ts, action, passenger, ticket, location, detail, passenger_id, changed_by) values ('x', 'EDITED', 'DATA KEEP ONE', 'DK-1', 'H', 'seed', 981480, 'seed');
+insert into public.passenger_return_date_changes (passenger_id, passenger_name, ticket, old_return_date, new_return_date, comment, changed_by) values (981480, 'DATA KEEP ONE', 'DK-1', '1/1/2031', '1/2/2031', 'seed change', 'seed');
+insert into public.payments (passenger_id, ticket, amount_cents, type, method, status, stripe_event_id) values (981480, 'DK-1', 700, 'TIP', 'STRIPE', 'succeeded', 'evt_dk_1');
+select set_config('airvalet.tip_ledger', '1', false);
+insert into public.airvalet_tip_records (passenger_id, ticket, amount_cents, source, business_date, recorded_by) values (981480, 'DK-1', 900, 'DELIVERY', '2031-01-01', 'seed');"
+UNSEED="select set_config('airvalet.tip_ledger', '1', false); delete from public.airvalet_tip_records where ticket = 'DK-1'; delete from public.payments where stripe_event_id = 'evt_dk_1';
+delete from public.passenger_return_date_changes where passenger_id = 981480; delete from public.activity_log where passenger_id = 981480; delete from public.passengers where id in (981480, 981481);"
+DATA_FP="select md5(string_agg(t || ':' || h, '|' order by t)) from (
+  select 'passengers' t, md5(coalesce(string_agg(x::text, '' order by x.id), '')) h from public.passengers x
+  union all select 'tip_records', md5(coalesce(string_agg(x::text, '' order by x.id), '')) from public.airvalet_tip_records x
+  union all select 'payments', md5(coalesce(string_agg(x::text, '' order by x.id), '')) from public.payments x
+  union all select 'activity_log', md5(coalesce(string_agg(x::text, '' order by x.id), '')) from public.activity_log x
+  union all select 'return_changes', md5(coalesce(string_agg(x::text, '' order by x.id), '')) from public.passenger_return_date_changes x
+  union all select 'location_history', md5(coalesce(string_agg(x::text, '' order by x.id), '')) from public.vehicle_location_history x
+  union all select 'closing', md5(coalesce(string_agg(x::text, '' order by x.id), '')) from public.daily_closing_reports x
+  union all select 'sms', md5(coalesce(string_agg(x::text, '' order by x.id), '')) from public.airvalet_sms_messages x
+  union all select 'pass_links', md5(coalesce(string_agg(x::text, '' order by x.id), '')) from public.airvalet_pass_links x
+  union all select 'portal_settings', md5(coalesce(string_agg(x::text, ''), '')) from public.airvalet_portal_settings x) s"
+dfp() { echo "$DATA_FP" | $DB -tA 2>&1 | tail -1; }
 apply 20261114_airvalet_guests_rollback          # start from production (idempotent)
+echo "$UNSEED" | $DB > /dev/null 2>&1; echo "$SEED" | $DB > /dev/null
+ck "$(echo "select (select count(*) from public.passengers where id in (981480, 981481)) || '|' || (select count(*) from public.payments where stripe_event_id = 'evt_dk_1') || '|' || (select count(*) from public.airvalet_tip_records where ticket = 'DK-1') || '|' || (select count(*) from public.passenger_return_date_changes where passenger_id = 981480)" | $DB -tA)" "2|1|1|1" "seed data in place (tickets, Stripe tip, cash tip, return change)"
+D0=$(dfp)
 BASE=$(fp); ck "$(vmd5)" "$PROD_VIEW_MD5" "baseline: portal_view = production definition"
-apply 20261114_airvalet_guests; A1=$(fp); A1R=$(fpr)
+apply 20261114_airvalet_guests; A1=$(fp)
+ck "$(dfp)" "$D0" "apply: tickets, tips, payments, history, Closing, SMS, pass links, settings unchanged"; A1R=$(fpr)
 [ "$A1" != "$BASE" ] && { pass=$((pass+1)); echo "ok   apply changes the schema"; } || { fail=$((fail+1)); echo "FAIL apply changed nothing"; }
 for round in 1 2; do
   apply 20261114_airvalet_guests_rollback; ck "$(fp)" "$BASE" "round $round: rollback → identical to baseline"
@@ -50,10 +77,12 @@ insert into public.airvalet_guest_identity (kind, from_key, to_key, reason, crea
 echo "$DATA" | $DB > /dev/null
 KEEP="select (select count(*) from public.airvalet_guest_notes where body = 'Keep me') || '|' || (select count(*) from public.airvalet_guest_note_revisions where body = 'Keep me') || '|' || (select count(*) from public.airvalet_guest_identity where reason = 'rb test')"
 K0=$(echo "$KEEP" | $DB -tA); ck "$K0" "1|1|1" "data in place (1 note, 1 revision, 1 merge decision)"
+D1=$(dfp)
 OUTD=$($DB < "$W/20261114_airvalet_guests_rollback.sql" 2>&1); echo "$OUTD" | grep -q "refused: 1 guest notes and 1 identity decisions" && { pass=$((pass+1)); echo "ok   full rollback REFUSES while notes / decisions exist"; } || { fail=$((fail+1)); echo "FAIL full rollback did not refuse: $OUTD"; }
 apply 20261114_airvalet_guests_rollback_safe
 ck "$(vmd5)" "$PROD_VIEW_MD5" "safe rollback: Valet Pass view = production v86 definition"
 ck "$(echo "$KEEP" | $DB -tA)" "$K0" "safe rollback: notes, revisions and decisions kept"
+ck "$(echo "$DATA_FP" | $DB -tA | tail -1)" "$D1" "safe rollback: existing data still unchanged"
 ck "$(echo "select count(*) from pg_proc where proname like 'airvalet_guest_%'" | $DB -tA)" "0" "safe rollback: no guest function left"
 ck "$(echo "select count(*) from pg_indexes where indexname like 'passengers_guest_%'" | $DB -tA)" "0" "safe rollback: expression indexes gone"
 apply 20261114_airvalet_guests; ck "$(fp)" "$A1" "re-apply after the safe rollback → identical to the first apply"
@@ -64,4 +93,6 @@ delete from public.passengers where id in (981490, 981491);" | $DB > /dev/null
 
 OUT=$( (echo '\set ON_ERROR_STOP 1'; echo 'begin;'; cat "$T/sql_guests_1114_tests.sql"; echo 'rollback;') | docker exec -i supabase_db_airvalet-portal-local psql -U postgres -d postgres 2>&1)
 echo "$OUT" | grep -q "all 1114 checks passed" && { pass=$((pass+1)); echo "ok   SQL tests on the applied migration ($(echo "$OUT" | grep -c 'NOTICE:  ok') checks)"; } || { fail=$((fail+1)); echo "FAIL SQL tests"; echo "$OUT" | grep -E "ERROR|FAIL" | head -3; }
+ck "$(dfp)" "$D0" "end of all cycles: existing data identical to the start"
+echo "$UNSEED" | $DB > /dev/null
 echo; echo "$pass ok, $fail failed"; [ $fail -eq 0 ]

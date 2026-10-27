@@ -34,16 +34,15 @@ set local lock_timeout = '5s';
 
 -- ── 1. Normalization (pure functions) ─────────────────────────────────────
 create or replace function public.airvalet_guest_phone_key(p_phone text)
-returns text language sql immutable set search_path = '' as $$
-  select case
-    when d is null then null
-    when btrim(coalesce(p_phone, '')) like '+%' and left(d, 1) <> '1' and length(d) between 8 and 15 then '+' || d   -- international
-    when length(n) <> 10 then null
-    when n ~ '^(\d)\1{9}$' or n ~ '0{6,}' or n in ('1234567890', '0123456789') then null                           -- placeholders
-    else n end
-  from (select nullif(regexp_replace(coalesce(p_phone, ''), '\D', '', 'g'), '') d) a,
-       lateral (select case when length(a.d) = 11 and left(a.d, 1) = '1' then substr(a.d, 2) else a.d end n) b
-$$;
+returns text language plpgsql immutable set search_path = '' as $$
+declare d text := regexp_replace(coalesce(p_phone, ''), '\D', '', 'g'); n text;
+begin
+  if d = '' then return null; end if;
+  if btrim(coalesce(p_phone, '')) like '+%' and left(d, 1) <> '1' and length(d) between 8 and 15 then return '+' || d; end if;   -- international
+  n := case when length(d) = 11 and left(d, 1) = '1' then substr(d, 2) else d end;
+  if length(n) <> 10 or n ~ '^(\d)\1{9}$' or n ~ '0{6,}' or n in ('1234567890', '0123456789') then return null; end if;          -- placeholders
+  return n;
+end $$;
 
 create or replace function public.airvalet_guest_name_norm(p_name text)
 returns text language sql immutable set search_path = '' as $$
@@ -57,11 +56,12 @@ returns text language sql immutable set search_path = '' as $$
 $$;
 
 create or replace function public.airvalet_guest_auto_key(p_id bigint, p_phone text, p_name text)
-returns text language sql immutable set search_path = '' as $$
-  select case when ph is null or fn = '' then 'tk:' || p_id else 'ph:' || ph || ':' || fn end
-  from (select public.airvalet_guest_phone_key(p_phone) ph,
-               split_part(public.airvalet_guest_name_norm(p_name), ' ', 1) fn) x
-$$;
+returns text language plpgsql immutable set search_path = '' as $$
+declare ph text := public.airvalet_guest_phone_key(p_phone); fn text := split_part(public.airvalet_guest_name_norm(p_name), ' ', 1);
+begin
+  if ph is null or fn = '' then return 'tk:' || p_id; end if;
+  return 'ph:' || ph || ':' || fn;
+end $$;
 
 -- 'M/D/YYYY…' (legacy ts / deldate / ret) → date; anything else → null (unknown, never guessed).
 create or replace function public.airvalet_guest_mdy(p text)
@@ -77,7 +77,7 @@ end $$;
 -- ── 2. Staff-owned tables ─────────────────────────────────────────────────
 create table if not exists public.airvalet_guest_identity (
   id            bigint generated always as identity primary key,
-  kind          text not null check (kind in ('MERGE', 'TICKET')),
+  kind          text not null check (kind in ('MERGE', 'TICKET', 'DISTINCT')),   -- DISTINCT: reviewed, not the same person (never suggested again)
   from_key      text,                       -- MERGE: the guest merged away
   passenger_id  bigint,                     -- TICKET: the ticket moved (no FK: the decision outlives the ticket)
   to_key        text not null,
@@ -88,8 +88,13 @@ create table if not exists public.airvalet_guest_identity (
   revoked_by    text,
   revoke_reason text,
   client_key    uuid unique,
-  constraint airvalet_guest_identity_shape check ((kind = 'MERGE') = (from_key is not null) and (kind = 'TICKET') = (passenger_id is not null) and from_key is distinct from to_key)
+  constraint airvalet_guest_identity_shape check ((kind in ('MERGE', 'DISTINCT')) = (from_key is not null) and (kind = 'TICKET') = (passenger_id is not null) and from_key is distinct from to_key)
 );
+alter table public.airvalet_guest_identity drop constraint if exists airvalet_guest_identity_kind_check;
+alter table public.airvalet_guest_identity add constraint airvalet_guest_identity_kind_check check (kind in ('MERGE', 'TICKET', 'DISTINCT'));
+alter table public.airvalet_guest_identity drop constraint if exists airvalet_guest_identity_shape;
+alter table public.airvalet_guest_identity add constraint airvalet_guest_identity_shape check ((kind in ('MERGE', 'DISTINCT')) = (from_key is not null) and (kind = 'TICKET') = (passenger_id is not null) and from_key is distinct from to_key);
+create unique index if not exists airvalet_guest_identity_distinct_active on public.airvalet_guest_identity (least(from_key, to_key), greatest(from_key, to_key)) where kind = 'DISTINCT' and revoked_at is null;
 create unique index if not exists airvalet_guest_identity_merge_active on public.airvalet_guest_identity (from_key) where kind = 'MERGE' and revoked_at is null;
 create unique index if not exists airvalet_guest_identity_ticket_active on public.airvalet_guest_identity (passenger_id) where kind = 'TICKET' and revoked_at is null;
 
@@ -315,7 +320,8 @@ begin
     'identity', coalesce((select jsonb_agg(jsonb_build_object('id', i.id, 'kind', i.kind, 'from_key', i.from_key, 'passenger_id', i.passenger_id, 'to_key', i.to_key,
                                   'reason', i.reason, 'by', i.created_by, 'at', i.created_at, 'revoked_at', i.revoked_at, 'revoked_by', i.revoked_by) order by i.created_at desc)
                            from public.airvalet_guest_identity i
-                          where public.airvalet_guest_resolve(i.to_key) = v_key or i.from_key = v_key or i.passenger_id = any (v_ids)), '[]'::jsonb),
+                          where public.airvalet_guest_resolve(i.to_key) = v_key or i.from_key = v_key or i.passenger_id = any (v_ids)
+                             or (i.kind = 'DISTINCT' and v_key in (public.airvalet_guest_resolve(i.from_key), public.airvalet_guest_resolve(i.to_key)))), '[]'::jsonb),
     'can_manage_identity', public.current_user_role() in ('ADMIN', 'MANAGER'))
   into v_res;
 
@@ -338,7 +344,8 @@ begin
                 where position(' ' in m.nm) > 0 and public.airvalet_guest_name_norm(p.name) = m.nm
                   and public.airvalet_guest_phone_key(p.phone) is distinct from m.ph
                 order by p.id desc limit 40) x),
-         c as (select * from (select distinct on (cand.gk) cand.gk, cand.why from cand where cand.gk <> v_key order by cand.gk, cand.why) d limit 8)
+         c as (select * from (select distinct on (cand.gk) cand.gk, cand.why from cand where cand.gk <> v_key
+                                and not public.airvalet_guest_is_distinct(cand.gk, v_key) order by cand.gk, cand.why) d limit 8)
     select jsonb_agg(jsonb_build_object('key', c.gk, 'why', c.why, 'name', s.name, 'phone', s.phone, 'visits', s.visits, 'last_visit', s.last_visit))
       from c cross join lateral (
         select (array_agg(p.name order by p.id desc))[1] name, (array_agg(p.phone order by p.id desc))[1] phone, count(*) visits,
@@ -556,6 +563,90 @@ begin
   return jsonb_build_object('result', 'OK');
 end $$;
 
+-- ── 9b. Review of possible duplicates (ADMIN / MANAGER; nothing is merged here) ──
+create or replace function public.airvalet_guest_is_distinct(p_a text, p_b text)
+returns boolean language sql stable set search_path = '' as $$
+  select exists (select 1 from public.airvalet_guest_identity i
+                  where i.kind = 'DISTINCT' and i.revoked_at is null
+                    and least(public.airvalet_guest_resolve(i.from_key), public.airvalet_guest_resolve(i.to_key)) = least(p_a, p_b)
+                    and greatest(public.airvalet_guest_resolve(i.from_key), public.airvalet_guest_resolve(i.to_key)) = greatest(p_a, p_b))
+$$;
+
+-- Pairs to review: same phone + same last name + same initial (a typo), then the same
+-- full name on another phone (a new number, or two people with one name).
+create or replace function public.airvalet_guest_review(p_limit integer default 20, p_offset integer default 0)
+returns jsonb language plpgsql stable security definer set search_path = '' as $$
+declare v_lim int := least(greatest(coalesce(p_limit, 20), 1), 50); v_off int := greatest(coalesce(p_offset, 0), 0); v_total int; v_rows jsonb;
+begin
+  if public.current_user_role() is null or public.current_user_role() not in ('ADMIN', 'MANAGER') then
+    raise exception 'airvalet_guest_review: ADMIN or MANAGER only' using errcode = '42501';
+  end if;
+  with mm as materialized (select * from public.airvalet_guest_merge_map()),
+  mv as materialized (select t.passenger_id, t.to_key from public.airvalet_guest_identity t where t.kind = 'TICKET' and t.revoked_at is null),
+  t as materialized (
+    select p.id, coalesce(mm.final_key, b.base) gk, public.airvalet_guest_phone_key(p.phone) ph, public.airvalet_guest_name_norm(p.name) nm,
+           public.airvalet_guest_visit_at(p.checkin_date, p.ts, p.created_at) at
+      from public.passengers p left join mv on mv.passenger_id = p.id
+      cross join lateral (select coalesce(mv.to_key, public.airvalet_guest_auto_key(p.id, p.phone, p.name)) base) b
+      left join mm on mm.from_key = b.base),
+  -- Grouped (linear), then pairs inside each small group. Very common names (7+ guests
+  -- with one name) are left out: too ambiguous to be worth a review.
+  g1 as (select array_agg(distinct t.gk) gks, max(t.at) lat from t
+          where t.ph is not null and position(' ' in t.nm) > 0
+          group by t.ph, left(t.nm, 1), regexp_replace(t.nm, '^.* ', '')
+         having count(distinct split_part(t.nm, ' ', 1)) > 1 and count(distinct t.gk) between 2 and 6),
+  g2 as (select array_agg(distinct t.gk) gks, max(t.at) lat from t
+          where position(' ' in t.nm) > 0
+          group by t.nm
+         having count(distinct coalesce(t.ph, '-')) > 1 and count(distinct t.gk) between 2 and 6),
+  pairs as (
+    select least(x.a, y.b) ka, greatest(x.a, y.b) kb, 'SAME_PHONE_SIMILAR_NAME' why, 1 rank, g1.lat
+      from g1 cross join lateral unnest(g1.gks) x(a) cross join lateral unnest(g1.gks) y(b) where x.a < y.b
+    union all
+    select least(x.a, y.b), greatest(x.a, y.b), 'SAME_NAME_OTHER_PHONE', 2, g2.lat
+      from g2 cross join lateral unnest(g2.gks) x(a) cross join lateral unnest(g2.gks) y(b) where x.a < y.b),
+  open_pairs as (select distinct on (ka, kb) * from pairs p where not public.airvalet_guest_is_distinct(p.ka, p.kb) order by ka, kb, rank),
+  page as (select * from open_pairs order by rank, lat desc nulls last limit v_lim offset v_off),
+  card as (
+    select page.*, (
+      select jsonb_agg(jsonb_build_object('key', k.k, 'name', g.name, 'phone', g.phone, 'vehicle', g.vehicle, 'visits', g.visits, 'last_visit', g.last_visit))
+        from (values (page.ka), (page.kb)) k(k)
+        cross join lateral (
+          select (array_agg(p.name order by public.airvalet_guest_visit_at(p.checkin_date, p.ts, p.created_at) desc, p.id desc))[1] name,
+                 (array_agg(p.phone order by public.airvalet_guest_visit_at(p.checkin_date, p.ts, p.created_at) desc, p.id desc))[1] phone,
+                 (array_agg(nullif(btrim(concat_ws(' ', nullif(btrim(p.color), ''), nullif(btrim(p.car), ''))), '')
+                            order by public.airvalet_guest_visit_at(p.checkin_date, p.ts, p.created_at) desc, p.id desc))[1] vehicle,
+                 count(*) visits,
+                 max(coalesce((p.checkin_date at time zone 'America/New_York')::date, public.airvalet_guest_mdy(p.ts))) last_visit
+            from public.passengers p where p.id in (select public.airvalet_guest_members(k.k))) g) guests
+      from page)
+  select (select count(*) from open_pairs), coalesce((select jsonb_agg(jsonb_build_object('a', ka, 'b', kb, 'why', why, 'guests', guests) order by rank, lat desc nulls last) from card), '[]'::jsonb)
+    into v_total, v_rows;
+  return jsonb_build_object('total', v_total, 'rows', v_rows, 'has_more', v_off + v_lim < v_total);
+end $$;
+
+create or replace function public.airvalet_guest_mark_distinct(p_key_a text, p_key_b text, p_reason text, p_client_key uuid)
+returns jsonb language plpgsql security definer set search_path = '' as $$
+declare
+  v_actor text := coalesce(nullif(btrim(coalesce(auth.jwt() ->> 'email', '')), ''), 'unknown');
+  v_a text := public.airvalet_guest_resolve(btrim(coalesce(p_key_a, '')));
+  v_b text := public.airvalet_guest_resolve(btrim(coalesce(p_key_b, '')));
+  v_reason text := btrim(coalesce(p_reason, ''));
+begin
+  if public.current_user_role() is null or public.current_user_role() not in ('ADMIN', 'MANAGER') then
+    raise exception 'airvalet_guest_mark_distinct: ADMIN or MANAGER only' using errcode = '42501';
+  end if;
+  if p_client_key is null then return jsonb_build_object('result', 'INVALID'); end if;
+  if exists (select 1 from public.airvalet_guest_identity i where i.client_key = p_client_key) then return jsonb_build_object('result', 'OK', 'duplicate', true); end if;
+  if char_length(v_reason) < 3 then return jsonb_build_object('result', 'REASON_REQUIRED'); end if;
+  if v_a = v_b then return jsonb_build_object('result', 'SAME_GUEST'); end if;
+  if not exists (select 1 from public.airvalet_guest_members(v_a)) or not exists (select 1 from public.airvalet_guest_members(v_b)) then return jsonb_build_object('result', 'NOT_FOUND'); end if;
+  if public.airvalet_guest_is_distinct(v_a, v_b) then return jsonb_build_object('result', 'OK', 'already', true); end if;
+  perform pg_advisory_xact_lock(hashtext('airvalet_guest_identity'));
+  insert into public.airvalet_guest_identity (kind, from_key, to_key, reason, created_by, client_key) values ('DISTINCT', v_a, v_b, v_reason, v_actor, p_client_key);
+  return jsonb_build_object('result', 'OK');
+end $$;
+
 -- ── 10. Grants: staff app only; nothing for anon (the Valet Pass never sees guests) ──
 do $$
 declare f text;
@@ -564,11 +655,12 @@ begin
     'airvalet_guest_search(text,integer,integer)', 'airvalet_guest_profile(text)', 'airvalet_guest_activity(text)',
     'airvalet_guest_for_passenger(bigint)', 'airvalet_guest_lookup_phone(text)',
     'airvalet_guest_note_save(text,bigint,text,uuid)', 'airvalet_guest_note_delete(bigint,uuid)',
-    'airvalet_guest_merge(text,text,text,uuid)', 'airvalet_guest_move_ticket(bigint,text,text,uuid)', 'airvalet_guest_identity_undo(bigint,text)'] loop
+    'airvalet_guest_merge(text,text,text,uuid)', 'airvalet_guest_move_ticket(bigint,text,text,uuid)', 'airvalet_guest_identity_undo(bigint,text)',
+    'airvalet_guest_review(integer,integer)', 'airvalet_guest_mark_distinct(text,text,text,uuid)'] loop
     execute format('revoke all on function public.%s from public, anon', f);
     execute format('grant execute on function public.%s to authenticated', f);
   end loop;
-  foreach f in array array['airvalet_guest_merge_map()', 'airvalet_guest_key_of(bigint)', 'airvalet_guest_members(text)', 'airvalet_guest_visit(public.passengers)', 'airvalet_guest_resolve(text)', 'airvalet_guest_is_ops()'] loop
+  foreach f in array array['airvalet_guest_is_distinct(text,text)', 'airvalet_guest_merge_map()', 'airvalet_guest_key_of(bigint)', 'airvalet_guest_members(text)', 'airvalet_guest_visit(public.passengers)', 'airvalet_guest_resolve(text)', 'airvalet_guest_is_ops()'] loop
     execute format('revoke all on function public.%s from public, anon, authenticated', f);
   end loop;
 end $$;

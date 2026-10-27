@@ -24,3 +24,8 @@ select pg_temp.t($$select public.airvalet_guest_lookup_phone('3001001234')$$);
 select pg_temp.t($$select public.airvalet_guest_search('john', 30, 0)$$);
 select pg_temp.t($$select public.airvalet_guest_search('', 30, 300)$$);
 select pg_temp.t($$select public.airvalet_guest_for_passenger(2001234)$$);
+-- duplicate review (ADMIN / MANAGER)
+reset role;
+select set_config('request.jwt.claims', json_build_object('sub', (select id from public.user_profiles where username = 'localmanager'), 'role', 'authenticated', 'email', 'localmanager@airvalet.local')::text, true);
+set local role authenticated;
+select pg_temp.t($$select public.airvalet_guest_review(20, 0)$$);

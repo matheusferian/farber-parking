@@ -170,6 +170,29 @@ select pg_temp.check((select count(*) from public.airvalet_guest_identity where 
                  and (select count(*) from public.airvalet_guest_identity where passenger_id = 981003 and revoked_at is null) = 1, 'both decisions kept (the first one revoked)');
 select pg_temp.check(public.airvalet_guest_merge('ph:9999999999:NOBODY', pg_temp.gk(981006), 'x x x', gen_random_uuid()) ->> 'result' = 'NOT_FOUND', 'merge with an unknown guest refused');
 
+-- ── 7b. Review of possible duplicates (never merged automatically) ───────
+select pg_temp.check(not has_function_privilege('anon', 'public.airvalet_guest_review(integer,integer)', 'execute')
+  and not has_function_privilege('anon', 'public.airvalet_guest_mark_distinct(text,text,text,uuid)', 'execute'), 'anon cannot see or decide duplicates');
+select pg_temp.act('localipad');
+select pg_temp.check(pg_temp.errs($q$ select public.airvalet_guest_review(20, 0) $q$), 'staff device cannot open the duplicate review');
+select pg_temp.check(pg_temp.errs($q$ select public.airvalet_guest_mark_distinct(pg_temp.gk(981013), pg_temp.gk(981014), 'not same', gen_random_uuid()) $q$), 'staff device cannot mark "not the same person"');
+select pg_temp.act('localmanager');
+create temp table t_rv as select public.airvalet_guest_review(50, 0) r;
+grant select on t_rv to authenticated;
+select pg_temp.check((select exists (select 1 from jsonb_array_elements(r -> 'rows') x where x ->> 'why' = 'SAME_PHONE_SIMILAR_NAME'
+                                       and x -> 'guests' @> '[{"name":"DOANALD RIEDEL"}]' and x -> 'guests' @> '[{"name":"DONALD RIEDEL"}]') from t_rv), 'review lists DOANALD / DONALD (same phone, similar name)');
+select pg_temp.check((select exists (select 1 from jsonb_array_elements(r -> 'rows') x where x ->> 'why' = 'SAME_NAME_OTHER_PHONE' and x -> 'guests' @> '[{"name":"MARIA LOPEZGT"}]') from t_rv), 'review lists MARIA LOPEZGT on two phones');
+select pg_temp.check((select not exists (select 1 from jsonb_array_elements(r -> 'rows') x where x::text like '%INFINGER%') from t_rv), 'family on one phone (LIBBY / RHETT) is not flagged');
+select pg_temp.check((select (r -> 'rows' -> 0 ->> 'why') = 'SAME_PHONE_SIMILAR_NAME' from t_rv), 'typos come first');
+select pg_temp.check((select pg_temp.ng(array[981005, 981006]) = 2), 'review never merges anything');
+select pg_temp.check(public.airvalet_guest_mark_distinct(pg_temp.gk(981013), pg_temp.gk(981014), '', gen_random_uuid()) ->> 'result' = 'REASON_REQUIRED', '"not the same person" needs a reason');
+select pg_temp.check(public.airvalet_guest_mark_distinct(pg_temp.gk(981013), pg_temp.gk(981014), 'Two different Marias, checked IDs', '33333333-0000-0000-0000-000000000001') ->> 'result' = 'OK', 'manager marks the Marias as different people');
+select pg_temp.check((select not exists (select 1 from jsonb_array_elements(public.airvalet_guest_review(50, 0) -> 'rows') x where x -> 'guests' @> '[{"name":"MARIA LOPEZGT"}]')), 'reviewed pair leaves the queue');
+select pg_temp.check((select jsonb_array_length(public.airvalet_guest_profile(pg_temp.gk(981013)) -> 'suggestions') = 0), 'and is no longer suggested on the profile');
+select pg_temp.check((select exists (select 1 from jsonb_array_elements(public.airvalet_guest_profile(pg_temp.gk(981013)) -> 'identity') i where i ->> 'kind' = 'DISTINCT' and i ->> 'by' = 'localmanager@airvalet.local')), 'the decision shows on the profile with who');
+select pg_temp.check(public.airvalet_guest_identity_undo((select id from public.airvalet_guest_identity where client_key = '33333333-0000-0000-0000-000000000001'), 'Reopen review') ->> 'result' = 'OK', '"not the same person" undone');
+select pg_temp.check((select exists (select 1 from jsonb_array_elements(public.airvalet_guest_review(50, 0) -> 'rows') x where x -> 'guests' @> '[{"name":"MARIA LOPEZGT"}]')), 'undo puts the pair back in the queue');
+
 -- ── 8. Check-in lookup + ticket → guest ───────────────────────────────────
 select pg_temp.act('localipad');
 select pg_temp.check((select jsonb_array_length(x -> 'guests') = 2 and x::text !~* '(ret|return|consent|sms)' and x -> 'guests' -> 0 ->> 'car' is not null
