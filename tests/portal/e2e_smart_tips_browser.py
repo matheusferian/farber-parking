@@ -35,17 +35,17 @@ def check(cond, msg, extra=''):
 TODAY = "(now() at time zone 'America/New_York')::date"
 CLEAN = """
 delete from public.daily_closing_reports where report_date = %(t)s and created_by like 'localipad%%';
-delete from public.airvalet_tip_records where passenger_id between 970101 and 970112;
+delete from public.airvalet_tip_records where passenger_id between 970101 and 970113;
 delete from public.valet_shifts where valet_name = 'JOAO SILVA E2E';
-delete from public.payments where passenger_id between 970101 and 970112;
-delete from public.airvalet_sms_messages where passenger_id between 970101 and 970112;
-delete from public.airvalet_sms_consents where passenger_id between 970101 and 970112 or disclosure_version = 'e2e-smart-tips';
+delete from public.payments where passenger_id between 970101 and 970113;
+delete from public.airvalet_sms_messages where passenger_id between 970101 and 970113;
+delete from public.airvalet_sms_consents where passenger_id between 970101 and 970113 or disclosure_version = 'e2e-smart-tips';
 delete from public.airvalet_notify_log where dedupe_key like '%%9701%%';
-delete from public.airvalet_pass_links where passenger_id between 970101 and 970112;
-delete from public.airvalet_sms_enrollments where passenger_id between 970101 and 970112;
-delete from public.vehicle_location_history where passenger_id between 970101 and 970112;
-delete from public.activity_log where passenger_id between 970101 and 970112;
-delete from public.passengers where id between 970101 and 970112;
+delete from public.airvalet_pass_links where passenger_id between 970101 and 970113;
+delete from public.airvalet_sms_enrollments where passenger_id between 970101 and 970113;
+delete from public.vehicle_location_history where passenger_id between 970101 and 970113;
+delete from public.activity_log where passenger_id between 970101 and 970113;
+delete from public.passengers where id between 970101 and 970113;
 """ % {'t': TODAY}
 FIX = """
 insert into public.passengers (id, ts, checkin_date, name, phone, ticket, status, ret, loc, car, color, return_operator) values
@@ -393,7 +393,14 @@ async def main():
             await pctx.route('**/*', guard)
             pp = await pctx.new_page()
             tok_stripe = sql("select public.airvalet_pass_mint(970110)")
-            for tok, label in ((tok_tip, 'tip'), (tok_no, 'notip'), (tok_stripe, 'stripe')):
+            # Owner 2026-10-27 (20261116): cash under $5 is not a tip for the passenger → the pass keeps the link.
+            sql("insert into public.passengers (id, ts, checkin_date, name, phone, ticket, status, ret, loc, car, color, return_operator, checkout_date, deldate, delivery_type) values "
+                "(970113, 'x', now(), 'SMART TIP 13', '3055557213', 'ST-13', 'DELIVERED', to_char(%s, 'FMMM/FMDD/YYYY'), 'HANGAR 19', 'BMW X5', 'Black', 'MAKERS', now(), to_char(%s, 'FMMM/FMDD/YYYY'), 'NORMAL')" % (TODAY, TODAY))
+            sql("insert into public.airvalet_sms_enrollments (passenger_id, phone_e164, device_id, consent_id) select 970113, '+13055557213', (select id from public.airvalet_sms_devices where status = 'approved' order by decided_at limit 1), gen_random_uuid()")
+            sql("update public.passengers set tip_received = true, tip_in_person_cents = 200 where id = 970113")
+            check(sql("select coalesce(sum(amount_cents), 0) from public.airvalet_tip_records where passenger_id = 970113 and voided_at is null") == '200', '$2 cash recorded in the ledger (counts in the Closing)')
+            tok_small = sql("select public.airvalet_pass_mint(970113)")
+            for tok, label in ((tok_tip, 'tip'), (tok_no, 'notip'), (tok_stripe, 'stripe'), (tok_small, 'small')):
                 await pp.goto(APP + 'a#' + tok); await pp.wait_for_selector('.pass', timeout=20000); await pp.wait_for_timeout(2500)
                 txt = await pp.evaluate('document.querySelector("main").innerText')
                 grat_card = await pp.evaluate('!!document.querySelector("section.grat")')
@@ -408,6 +415,10 @@ async def main():
                     sql("update public.payments set status = 'refunded' where stripe_event_id = 'evt_e2e_st_1'")
                     await pp.reload(); await pp.wait_for_selector('.pass', timeout=20000); await pp.wait_for_timeout(2500)
                     check(await pp.evaluate('!!document.querySelector("section.grat")'), 'Stripe gratuity refunded → pass back to the normal gratuity card')
+                elif label == 'small':
+                    check('Thank you for trusting us' in txt and grat_card and 'kindness' not in txt and '$2' not in txt and '2.00' not in txt,
+                          'pass with $2 cash: as if nothing was given — gratuity card stays, no thank-you, no amount', txt[:200])
+                    await pp.screenshot(path=SHOT + '/smart_tips_pass_small_cash_iphone_%s.png' % ENGINE, full_page=True)
                 else:
                     check('Thank you for trusting us' in txt and grat_card and 'kindness' not in txt, 'pass without tip: unchanged (gratuity card shown)', txt[:200])
                 await pp.screenshot(path=SHOT + '/smart_tips_pass_%s_iphone_%s.png' % (label, ENGINE), full_page=True)
@@ -415,7 +426,7 @@ async def main():
     finally:
         sql(CLEAN)
         sql("delete from public.daily_closing_reports where report_date = %s" % TODAY)   # none existed before (checked above)
-        sql("update public.airvalet_pass_links set revoked_at = now() where passenger_id between 970101 and 970112 and revoked_at is null")
+        sql("update public.airvalet_pass_links set revoked_at = now() where passenger_id between 970101 and 970113 and revoked_at is null")
     print('\n%d ok, %d failed' % (oks, fails))
     sys.exit(1 if fails else 0)
 
