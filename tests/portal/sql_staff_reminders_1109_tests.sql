@@ -50,10 +50,12 @@ insert into public.passengers (id, name, phone, ticket, status, ret, loc, carwas
   (991003, 'CW NODATE', '3055551003', 'RT-CW3', 'NO DATE', '', 'HANGAR 19', 'CARWASH', pg_temp.ny('2026-11-01 10:00')),
   (991004, 'CW PRICE', '3055551004', 'RT-CW4', 'PENDING', '11/10/2026', 'HANGAR 19', 'SEND_PRICE', pg_temp.ny('2026-11-01 10:00'));
 select pg_temp.check(not ('CW_D3:RT-CW1' = any (pg_temp.due('2026-11-07 08:59'))), 'car wash 3 days before: not before 09:00');
+select pg_temp.check((select category from public.airvalet_staff_reminders(pg_temp.ny('2026-11-07 09:00')) where code = 'CW_D3' and ticket = 'RT-CW1') = 'CARWASH_ADMIN', 'car wash 3 days before: ADMIN phones only (owner 10/26)');
 select pg_temp.check('CW_D3:RT-CW1' = any (pg_temp.claim('2026-11-07 09:00')), 'car wash 3 days before: 09:00');
 select pg_temp.check(not ('CW_D3:RT-CW1' = any (pg_temp.claim('2026-11-07 09:01'))), 'never twice');
 select pg_temp.check((select bool_and(not (c like '%RT-CW4')) from unnest(pg_temp.due('2026-11-07 09:00')) c), 'SEND_PRICE is not a car wash reminder');
 select pg_temp.check(not exists (select 1 from unnest(pg_temp.due('2026-11-08 09:30')) c where c like 'CW_%:RT-CW1'), '2 days before: nothing (plan is 3 and 1)');
+select pg_temp.check((select category from public.airvalet_staff_reminders(pg_temp.ny('2026-11-09 09:00')) where code = 'CW_D1' and ticket = 'RT-CW1') = 'CARWASH', 'car wash 1 day before: ADMIN + team devices');
 select pg_temp.check('CW_D1:RT-CW1' = any (pg_temp.claim('2026-11-09 09:00')), 'car wash 1 day before: 09:00');
 select pg_temp.check(not ('CW_DAY:RT-CW1' = any (pg_temp.due('2026-11-10 07:59'))), 'return day: not before 08:00');
 select pg_temp.check('CW_DAY:RT-CW1' = any (pg_temp.claim('2026-11-10 08:00')), 'return day: 08:00');
@@ -195,10 +197,11 @@ set local role authenticated;
 select set_config('request.jwt.claims', json_build_object('sub', :'u_ipad', 'role', 'authenticated')::text, true);
 select pg_temp.check((public.airvalet_push_reminders_set('rem_ipad_key____' || repeat('b', 40), array['CARWASH', 'CUSTOMS', 'WELCOME_BACK', 'POSITION', 'DAILY', 'FOLLOWUP']))->>'result' = 'OK', 'iPad login: turns on the operational categories');
 select pg_temp.check((public.airvalet_push_reminders_set('rem_ipad_key____' || repeat('b', 40), array['CARWASH', 'NODATE_ADMIN']))->>'result' = 'FORBIDDEN', 'iPad login cannot take the admin-only summary');
+select pg_temp.check((public.airvalet_push_reminders_set('rem_ipad_key____' || repeat('b', 40), array['CARWASH', 'CARWASH_ADMIN']))->>'result' = 'FORBIDDEN', 'iPad login cannot take car wash 3 days before (ADMIN only)');
 select pg_temp.check((public.airvalet_push_reminders_set('rem_ipad_key____' || repeat('b', 40), array['SPAM']))->>'result' = 'BAD_CATEGORY', 'unknown category refused');
 select pg_temp.check(public.airvalet_push_reminders_get('rem_ipad_key____' || repeat('b', 40)) = array['CARWASH', 'CUSTOMS', 'DAILY', 'FOLLOWUP', 'POSITION', 'WELCOME_BACK'], 'iPad phone keeps its categories');
 select set_config('request.jwt.claims', json_build_object('sub', :'u_admin', 'role', 'authenticated')::text, true);
-select pg_temp.check((public.airvalet_push_reminders_set('rem_owner_key___' || repeat('a', 40), array['CARWASH', 'NODATE_ADMIN']))->>'result' = 'OK', 'ADMIN: car wash + admin-only summary');
+select pg_temp.check((public.airvalet_push_reminders_set('rem_owner_key___' || repeat('a', 40), array['CARWASH', 'CARWASH_ADMIN', 'NODATE_ADMIN']))->>'result' = 'OK', 'ADMIN: car wash (incl. 3 days before) + admin-only summary');
 select pg_temp.check((public.airvalet_push_reminders_set('rem_owner_key___' || repeat('a', 40), '{}'))->>'result' = 'OK'
   and (public.airvalet_push_reminders_set('rem_owner_key___' || repeat('a', 40), array['CARWASH', 'NODATE_ADMIN']))->>'result' = 'OK', 'categories can be cleared and set again');
 reset role;

@@ -5191,8 +5191,10 @@ async function renderVpAlertsCard(){
 }
 // Operational reminders on this device (server: airvalet_push_reminders_get / _set; sent by pg_cron → staff-alert).
 var VP_REMINDER_ROLES = ['ADMIN', 'MANAGER', 'IPAD_OPS', 'IPHONE_OPS'];
+var VP_REMINDERS_ADMIN = ['CARWASH_ADMIN', 'NODATE_ADMIN'];   // ADMIN logins only (server checks too)
 var VP_REMINDERS = [
-  ['CARWASH', 'Car wash: 3 days and 1 day before, every 2 h on the return day, every 3 days if the return is later'],
+  ['CARWASH_ADMIN', 'Car wash 3 days before the return (admin)'],
+  ['CARWASH', 'Car wash: 1 day before, every 2 h on the return day, every 3 days if the return is later'],
   ['FOLLOWUP', 'Return follow-up: cars to check, every 3 days at 9 AM'],
   ['CUSTOMS', 'Customs: Welcome Back 5 min after delivery, gratuity link 10 min after landing'],
   ['WELCOME_BACK', 'Hangar 19 Welcome Back: 30 min before landing'],
@@ -5202,7 +5204,7 @@ var VP_REMINDERS = [
 ];
 function vpReminderBoxHtml(){
   return '<div class="vpa-rem" id="vpaRem"><div class="vpa-rem-h">Reminders on this device</div>' +
-    VP_REMINDERS.filter(function(r){ return r[0] !== 'NODATE_ADMIN' || _currentUserRole === 'ADMIN'; }).map(function(r){
+    VP_REMINDERS.filter(function(r){ return VP_REMINDERS_ADMIN.indexOf(r[0]) < 0 || _currentUserRole === 'ADMIN'; }).map(function(r){
       return '<label class="vpa-chk"><input type="checkbox" data-cat="' + r[0] + '" onchange="vpReminderSet(this)"> ' + escapeHTML(r[1]) + '</label>';
     }).join('') + '<div class="smsdev-s">Nothing is sent from 10 PM to 6 AM. A reminder stops once the task is done.</div></div>';
 }

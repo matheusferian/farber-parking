@@ -4,7 +4,8 @@
 -- Every minute pg_cron asks the Edge Function staff-alert (kind REMINDERS) to
 -- send what is due. The rules are the ones the staff app already shows
 -- (index.html / utils.js), on the real columns, in America/New_York:
---   CW_D3 / CW_D1   car wash requested (carwash_status = 'CARWASH'), return in 3 / 1 days, 09:00
+--   CW_D3           car wash requested (carwash_status = 'CARWASH'), return in 3 days, 09:00 — ADMIN phones (CARWASH_ADMIN)
+--   CW_D1           same, return in 1 day, 09:00 — ADMIN + team devices (CARWASH)
 --   CW_DAY          car wash, return today: 08:00 and every 2 h until no longer CARWASH (WASHED / cleared / delivered)
 --   CW_E3           car wash pending, return later than in 3 days or not set: every 3 days (from the start day), 09:00
 --   FOLLOWUP_E3     cars on the TV Return Follow-Up list: one summary every 3 days (from the start day), 09:00
@@ -22,7 +23,7 @@
 -- holds (done = never sent), and only until it expires. Quiet hours 22:00–06:00:
 -- nothing is sent; what is still valid goes out at 06:00 (more than 3 at once for
 -- a phone → one summary). Cars of the same flight / same task in one run → one
--- alert listing the tickets. Per-phone categories (NODATE_ADMIN: ADMIN only).
+-- alert listing the tickets. Per-phone categories (NODATE_ADMIN, CARWASH_ADMIN: ADMIN only).
 -- Start cutoff (airvalet_staff_reminder_config.since = when this was applied):
 -- nothing due before it is ever sent, so the deploy never fires old reminders.
 -- Never writes to passengers; a failure never affects the operation.
@@ -132,7 +133,7 @@ del as (  -- Customs deliveries (isCustomsCommEligible): status DELIVERED, type 
      and x.checkout_date >= timestamptz '2026-07-12 09:50:00-04' and x.checkout_date > p_now - interval '3 days'
 )
 -- Car wash, 3 / 1 days before
-select 'CW_D' || (cw.rd - t.d), 'CARWASH', 'REM:CW_D' || (cw.rd - t.d) || ':' || cw.id || ':' || cw.rd, cw.id, cw.ticket,
+select 'CW_D' || (cw.rd - t.d), case when cw.rd - t.d = 3 then 'CARWASH_ADMIN' else 'CARWASH' end, 'REM:CW_D' || (cw.rd - t.d) || ':' || cw.id || ':' || cw.rd, cw.id, cw.ticket,
        'Car wash in ' || (cw.rd - t.d) || case when cw.rd - t.d = 1 then ' day: ' else ' days: ' end || coalesce(cw.ticket, '?') || ' (' || to_char(cw.rd, 'Dy Mon FMDD') || ')',
        public.airvalet_ny_at(t.d, 540), public.airvalet_ny_at(t.d, 1320),
        'CW_D' || (cw.rd - t.d) || ':' || cw.rd,
@@ -260,16 +261,16 @@ $$;
 revoke all on function public.airvalet_push_reminder_targets() from public, anon, authenticated;
 grant execute on function public.airvalet_push_reminder_targets() to service_role;
 
--- This phone's categories. NODATE_ADMIN: ADMIN login only; the rest: any operations login.
+-- This phone's categories. NODATE_ADMIN / CARWASH_ADMIN: ADMIN login only; the rest: any operations login.
 create or replace function public.airvalet_push_reminders_set(p_device_key text, p_categories text[])
 returns jsonb language plpgsql security definer set search_path = '' as $$
 declare v_dev uuid; v_n int; v_role text := public.current_user_role()::text;
-        v_all text[] := array['CARWASH', 'FOLLOWUP', 'CUSTOMS', 'WELCOME_BACK', 'POSITION', 'DAILY', 'NODATE_ADMIN'];
+        v_all text[] := array['CARWASH', 'CARWASH_ADMIN', 'FOLLOWUP', 'CUSTOMS', 'WELCOME_BACK', 'POSITION', 'DAILY', 'NODATE_ADMIN'];
         v_cats text[] := coalesce((select array_agg(distinct c order by c) from unnest(coalesce(p_categories, '{}')) c), '{}');
 begin
   if v_role is null or v_role not in ('ADMIN', 'MANAGER', 'IPAD_OPS', 'IPHONE_OPS') then return jsonb_build_object('result', 'FORBIDDEN'); end if;
   if not v_cats <@ v_all then return jsonb_build_object('result', 'BAD_CATEGORY'); end if;
-  if 'NODATE_ADMIN' = any (v_cats) and v_role <> 'ADMIN' then return jsonb_build_object('result', 'FORBIDDEN'); end if;
+  if v_cats && array['NODATE_ADMIN', 'CARWASH_ADMIN'] and v_role <> 'ADMIN' then return jsonb_build_object('result', 'FORBIDDEN'); end if;
   select d.id into v_dev from public.airvalet_sms_devices d
    where d.key_hash = public.airvalet_sms_device_key_hash(p_device_key) and d.status = 'approved';
   if v_dev is null then return jsonb_build_object('result', 'DEVICE_NOT_AUTHORIZED'); end if;
