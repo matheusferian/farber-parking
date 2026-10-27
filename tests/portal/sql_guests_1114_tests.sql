@@ -135,6 +135,12 @@ select pg_temp.check((select public.airvalet_guest_note_save(k, null, 'Prefers t
 select pg_temp.check((select public.airvalet_guest_note_save(k, null, 'Prefers the car facing out', '11111111-0000-0000-0000-000000000001') ->> 'duplicate' from t_k) = 'true', 'same tap again → one note');
 select pg_temp.check((select public.airvalet_guest_note_save(k, null, '   ', gen_random_uuid()) ->> 'result' from t_k) = 'INVALID', 'empty note refused');
 select pg_temp.check(public.airvalet_guest_note_save(null, (select id from public.airvalet_guest_notes where body like 'Prefers%'), 'Prefers the car facing out, keys in hand', gen_random_uuid()) ->> 'result' = 'OK', 'note edited');
+-- a ticket's phone is corrected later (new automatic key): the note still shows on the guest
+reset role; update public.passengers set phone = '3055557399' where id = 981003; update public.passengers set phone = '3055557399' where id = 981004;
+select pg_temp.act('localipad');
+select pg_temp.check((select jsonb_array_length(public.airvalet_guest_profile(pg_temp.gk(981004)) -> 'notes') = 1), 'phone corrected on the tickets: the note follows them');
+reset role; update public.passengers set phone = '3055557302' where id = 981003; update public.passengers set phone = '305.555.7302' where id = 981004;
+select pg_temp.act('localipad');
 select pg_temp.check((select jsonb_array_length(n -> 'revisions') = 2 and n ->> 'updated_by' = 'localipad@airvalet.local' and n ->> 'created_by' = 'localipad@airvalet.local'
                         from (select jsonb_array_elements(public.airvalet_guest_profile(k) -> 'notes') n from t_k) y), 'note shows author, editor and its 2 revisions');
 select pg_temp.check(public.airvalet_guest_note_delete((select id from public.airvalet_guest_notes where body like 'Prefers%'), gen_random_uuid()) ->> 'result' = 'OK', 'note deleted');

@@ -96,6 +96,7 @@ create unique index if not exists airvalet_guest_identity_ticket_active on publi
 create table if not exists public.airvalet_guest_notes (
   id          bigint generated always as identity primary key,
   guest_key   text not null,
+  passenger_ids bigint[] not null default '{}',   -- the guest's tickets when written: the note follows them if a ticket's name / phone is corrected later
   body        text not null check (char_length(btrim(body)) between 1 and 1000),
   created_by  text not null,
   created_at  timestamptz not null default now(),
@@ -105,6 +106,7 @@ create table if not exists public.airvalet_guest_notes (
   deleted_at  timestamptz,
   client_key  uuid unique
 );
+alter table public.airvalet_guest_notes add column if not exists passenger_ids bigint[] not null default '{}';
 create index if not exists airvalet_guest_notes_key on public.airvalet_guest_notes (guest_key) where deleted_at is null;
 
 create table if not exists public.airvalet_guest_note_revisions (
@@ -309,7 +311,7 @@ begin
                                'updated_by', n.updated_by, 'updated_at', n.updated_at,
                                'revisions', (select jsonb_agg(jsonb_build_object('action', r.action, 'body', r.body, 'by', r.by_user, 'at', r.at) order by r.at, r.id)
                                                from public.airvalet_guest_note_revisions r where r.note_id = n.id)) order by n.created_at desc)
-                        from public.airvalet_guest_notes n where n.deleted_at is null and public.airvalet_guest_resolve(n.guest_key) = v_key), '[]'::jsonb),
+                        from public.airvalet_guest_notes n where n.deleted_at is null and (public.airvalet_guest_resolve(n.guest_key) = v_key or n.passenger_ids && v_ids)), '[]'::jsonb),
     'identity', coalesce((select jsonb_agg(jsonb_build_object('id', i.id, 'kind', i.kind, 'from_key', i.from_key, 'passenger_id', i.passenger_id, 'to_key', i.to_key,
                                   'reason', i.reason, 'by', i.created_by, 'at', i.created_at, 'revoked_at', i.revoked_at, 'revoked_by', i.revoked_by) order by i.created_at desc)
                            from public.airvalet_guest_identity i
@@ -463,7 +465,8 @@ begin
   if char_length(v_body) < 1 or char_length(v_body) > 1000 then return jsonb_build_object('result', 'INVALID'); end if;
   if p_note_id is null then
     if not exists (select 1 from public.airvalet_guest_members(v_key)) then return jsonb_build_object('result', 'NOT_FOUND'); end if;
-    insert into public.airvalet_guest_notes (guest_key, body, created_by, client_key) values (v_key, v_body, v_actor, p_client_key) returning * into v_n;
+    insert into public.airvalet_guest_notes (guest_key, passenger_ids, body, created_by, client_key)
+    values (v_key, array(select public.airvalet_guest_members(v_key)), v_body, v_actor, p_client_key) returning * into v_n;
     insert into public.airvalet_guest_note_revisions (note_id, action, body, by_user, client_key) values (v_n.id, 'CREATE', v_body, v_actor, p_client_key);
   else
     select * into v_n from public.airvalet_guest_notes n where n.id = p_note_id and n.deleted_at is null for update;
