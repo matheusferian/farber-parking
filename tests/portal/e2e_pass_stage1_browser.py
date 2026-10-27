@@ -74,7 +74,7 @@ delete from public.passengers where id between 960001 and 960008;
 delete from public.airvalet_sms_devices where label = 'E2ES1 iPad';
 """
 HAS_FLAGS = sql("select count(*) from information_schema.columns where table_name = 'airvalet_portal_settings' and column_name in ('gratuity_checkout_enabled', 'gratuity_reference')") == '2'
-SAVED = sql("select chat_enabled || '|' || terms_published" + (" || '|' || gratuity_reference || '|' || gratuity_checkout_enabled" if HAS_FLAGS else '') + " from public.airvalet_portal_settings").split('|')
+SAVED = sql("select chat_enabled || '|' || terms_published" + (" || '|' || gratuity_reference || '|' || gratuity_checkout_enabled || '|' || gratuity_checkout_passenger_ids::text" if HAS_FLAGS else '') + " from public.airvalet_portal_settings").split('|')
 MOCK = os.environ.get('STRIPE_MOCK', 'http://127.0.0.1:8798')
 def mock_log():
     import json, urllib.request
@@ -82,7 +82,7 @@ def mock_log():
     except Exception: return None
 def restore():
     q = "update public.airvalet_portal_settings set chat_enabled = %s, terms_published = %s" % (SAVED[0], SAVED[1])
-    if HAS_FLAGS: q += ", gratuity_reference = %s, gratuity_checkout_enabled = %s" % (SAVED[2], SAVED[3])
+    if HAS_FLAGS: q += ", gratuity_reference = %s, gratuity_checkout_enabled = %s, gratuity_checkout_passenger_ids = '%s'" % (SAVED[2], SAVED[3], SAVED[4])
     sql(q + ';')
 
 sql(CLEAN); sql(FIX)
@@ -256,6 +256,16 @@ try:
             check(len(p.query_selector_all('#sheet .chip')) == 6 and p.evaluate(SELECTED) == 0, 'travel sheet: same 6 buttons, nothing selected')
             p.screenshot(path='%s/%s_travel_sheet_checkout_%s.png' % (SHOTS, PREFIX, ENGINE))
             c.close()
+            # Controlled rollout: global OFF, only the authorized test ticket (960008) sees the grid.
+            sql("update public.airvalet_portal_settings set gratuity_checkout_enabled = false, gratuity_checkout_passenger_ids = '{960008}';")
+            c, st = ctx(); p = openp(c, 960008)
+            check(len(p.query_selector_all('.grat .chip')) == 6, 'allowlist: the authorized test ticket sees $5 … Other')
+            c.close()
+            c, st = ctx(); p = openp(c, 960001)
+            p.click('.list [data-open="gratuity"]'); p.wait_for_selector('#sheet a[data-grat]'); p.wait_for_timeout(300)
+            check(p.query_selector('#sheet .chip') is None and p.eval_on_selector_all('#sheet a[data-grat]', 'l => l.map(a => a.href)') == [GURL], 'allowlist: every other ticket keeps the single current link')
+            c.close()
+            sql("update public.airvalet_portal_settings set gratuity_checkout_passenger_ids = '{}';")
             restore()
             c, st = ctx(); p = openp(c, 960008)
             hrefs = p.eval_on_selector_all('.grat a[data-grat]', 'l => l.map(a => a.href)')

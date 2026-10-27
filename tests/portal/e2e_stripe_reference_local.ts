@@ -56,7 +56,7 @@ const rows = (w: string) => sql(`select count(*) from public.payments where ${w}
 
 try { const l = Deno.listen({ hostname: '127.0.0.1', port: 8000 }); l.close(); } catch { console.log('SKIP: port 8000 busy'); Deno.exit(2); }
 try { await (await fetch(MOCK + '/__reset', { method: 'POST' })).body?.cancel(); } catch { console.log('SKIP: Stripe mock not running on 8798'); Deno.exit(2); }
-const saved = await sql(`select gratuity_reference || '|' || gratuity_checkout_enabled from public.airvalet_portal_settings`);
+const saved = await sql(`select gratuity_reference || '|' || gratuity_checkout_enabled || '|' || gratuity_checkout_passenger_ids::text from public.airvalet_portal_settings`);
 const cleanup = `delete from public.payments where stripe_event_id like 'evt_localref_%'; delete from public.airvalet_pass_links where passenger_id = ${PAX};
   delete from public.airvalet_sms_enrollments where passenger_id = ${PAX}; delete from public.passengers where id = ${PAX};
   delete from public.airvalet_pass_rate where bucket like 'k:%' or bucket like 'g:%';`;
@@ -104,6 +104,17 @@ try {
   t = await hook('checkout.session.completed', linkSession(v.gratuity_url.replace(`pax-${PAX}`, 'pax-999999998')), ev('fk'));
   check(t.status === 200 && await sql(`select coalesce(passenger_id::text, 'null') from public.payments where stripe_event_id = '${ev('fk')}'`) === 'null', 'tampered link reference (unknown car) → tip kept without the car');
 
+  // ── C0. controlled rollout: global OFF, only this ticket allowed ──
+  await sql(`update public.airvalet_portal_settings set gratuity_checkout_enabled = false, gratuity_reference = false, gratuity_checkout_passenger_ids = '{${PAX}}'`);
+  v = await view();
+  a = await pv({ t: TOKEN, action: 'gratuity_checkout', amount_cents: 500, ck: 'ck_allow_' + RUN + '_cc' });
+  check(v.gratuity_checkout?.amounts?.length === 5 && a.body?.result === 'OK', 'allowlist (global off): the authorized ticket gets the grid and a session', a.body?.result);
+  await sql(`update public.airvalet_portal_settings set gratuity_checkout_passenger_ids = '{999999990}'`);
+  a = await pv({ t: TOKEN, action: 'gratuity_checkout', amount_cents: 500, ck: 'ck_allow_' + RUN + '_dd' });
+  check(a.body?.result === 'UNAVAILABLE' && (await view()).gratuity_checkout === null, 'allowlist: a ticket not on the list → UNAVAILABLE, current link only');
+  await sql(`update public.airvalet_portal_settings set gratuity_checkout_passenger_ids = '{}'; delete from public.airvalet_pass_rate where bucket like 'k:%';
+    update public.airvalet_pass_links set gratuity_clicks = 0 where passenger_id = ${PAX};`);
+  await (await fetch(MOCK + '/__reset', { method: 'POST' })).body?.cancel();
   // ── C. dynamic Checkout Sessions ──
   await sql(`update public.airvalet_portal_settings set gratuity_checkout_enabled = true, gratuity_reference = false`);
   v = await view();
@@ -158,8 +169,8 @@ try {
   check(t.body?.updated === 1 && await tipsToday() - t0 === 2500 + 3700 + 2000, 'full refund → out of the Closing Report');
 } finally {
   child.kill('SIGTERM'); await child.status;
-  const [r0, c0] = saved.split('|');
-  await sql(`update public.airvalet_portal_settings set gratuity_reference = ${r0}, gratuity_checkout_enabled = ${c0}`);
+  const [r0, c0, l0] = saved.split('|');
+  await sql(`update public.airvalet_portal_settings set gratuity_reference = ${r0}, gratuity_checkout_enabled = ${c0}, gratuity_checkout_passenger_ids = '${l0}'`);
   await sql(cleanup);
   try { await (await fetch(MOCK + '/__reset', { method: 'POST' })).body?.cancel(); } catch { /* mock gone */ }
 }

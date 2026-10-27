@@ -27,7 +27,7 @@ select pg_temp.check(has_column_privilege('authenticated', 'public.airvalet_pass
   'click count readable by staff; no new grant on token_hash or to anon');
 
 -- ── defaults: everything OFF ──────────────────────────────────────────────
-select pg_temp.check((select gratuity_reference = false and gratuity_checkout_enabled = false and gratuity_amounts_cents = '{500,1000,2000,4000,5000}'
+select pg_temp.check((select gratuity_reference = false and gratuity_checkout_enabled = false and gratuity_checkout_passenger_ids = '{}' and gratuity_amounts_cents = '{500,1000,2000,4000,5000}'
   and gratuity_min_cents = 100 and gratuity_max_cents = 50000 from public.airvalet_portal_settings), 'flags default OFF; amounts $5 $10 $20 $40 $50, Other $1–$500');
 select pg_temp.check(exists (select 1 from pg_indexes where indexname = 'payments_stripe_checkout_session_id_key' and indexdef like '%UNIQUE%'), 'payments: one row per Checkout Session');
 select pg_temp.check(pg_temp.rejects($q$update public.airvalet_portal_settings set gratuity_amounts_cents = '{}'$q$), 'amounts: empty list refused');
@@ -83,6 +83,22 @@ select pg_temp.check(public.airvalet_portal_gratuity_checkout(:'tok', 'sql1112-e
 select pg_temp.check((select gratuity_clicks from public.airvalet_pass_links where passenger_id = 960201 and revoked_at is null) = 6, 'checkout claim: every session counted as a gratuity click');
 update public.airvalet_portal_settings set gratuity_checkout_enabled = false;
 select pg_temp.check(public.airvalet_portal_gratuity_checkout(:'tok', 'sql1112-f', 2000) ->> 'result' = 'UNAVAILABLE', 'checkout claim: flag off → UNAVAILABLE');
+-- controlled rollout: global OFF + one allowed test ticket
+insert into public.passengers (id, ts, checkin_date, name, phone, ticket, status, ret, car, color, return_operator)
+values (960202, 'x', now(), 'OTHER GUEST', '3055556202', 'S1Q-02', 'PENDING', '12/31/2030', 'BMW X5', 'Black', 'MAKERS');
+insert into public.airvalet_sms_enrollments (passenger_id, phone_e164, device_id, consent_id)
+values (960202, public.airvalet_sms_normalize_phone('3055556202'), (select id from public.airvalet_sms_devices where label = 'SQL1112 iPad'), gen_random_uuid());
+select public.airvalet_pass_mint(960202) as tok2 \gset
+select pg_temp.check(pg_temp.rejects($q$update public.airvalet_portal_settings set gratuity_checkout_passenger_ids = (select array_agg(g) from generate_series(1, 11) g)$q$), 'allowlist: more than 10 tickets refused');
+delete from public.airvalet_pass_rate where bucket like 'k:%';
+update public.airvalet_portal_settings set gratuity_checkout_enabled = false, gratuity_checkout_passenger_ids = '{960201}';
+select pg_temp.check((public.airvalet_portal_view(:'tok', 'sql1112-g') -> 'pass' -> 'gratuity_checkout') <> 'null'::jsonb
+  and (public.airvalet_portal_view(:'tok2', 'sql1112-g') -> 'pass' -> 'gratuity_checkout') = 'null'::jsonb, 'allowlist: only the allowed ticket gets the grid');
+select pg_temp.check((public.airvalet_portal_view(:'tok2', 'sql1112-g') -> 'pass' ->> 'gratuity_url') = 'https://buy.stripe.com/8x214mccK0uh9TjgIM6Vq00', 'allowlist: everyone else keeps the current link');
+select pg_temp.check(public.airvalet_portal_gratuity_checkout(:'tok', 'sql1112-g', 500) ->> 'result' = 'OK'
+  and public.airvalet_portal_gratuity_checkout(:'tok2', 'sql1112-g', 500) ->> 'result' = 'UNAVAILABLE', 'allowlist: the server creates sessions only for the allowed ticket');
+update public.airvalet_portal_settings set gratuity_checkout_passenger_ids = '{}';
+select pg_temp.check(public.airvalet_portal_gratuity_checkout(:'tok', 'sql1112-g', 500) ->> 'result' = 'UNAVAILABLE', 'allowlist emptied → UNAVAILABLE again');
 update public.airvalet_pass_links set gratuity_clicks = 0, first_gratuity_click_at = null, last_gratuity_click_at = null where passenger_id = 960201;
 delete from public.airvalet_pass_rate where bucket like 'g:%' or bucket like 'k:%';
 update public.airvalet_portal_settings set gratuity_url = null;

@@ -21,6 +21,10 @@
 --                                   gratuity_min_cents..gratuity_max_cents, ticket
 --                                   and passenger set by the server (metadata +
 --                                   client_reference_id), never by the guest.
+--        gratuity_checkout_passenger_ids  controlled rollout: Checkout ONLY for these
+--                                   passengers (the owner's test ticket) while
+--                                   gratuity_checkout_enabled stays false. Everyone
+--                                   else keeps the current Payment Link.
 --      airvalet_portal_gratuity_checkout() validates the token, the amount and
 --      the rate (6 sessions per link per 10 minutes) before valet-pass calls Stripe.
 --   2b. payments: one row per Checkout Session (unique stripe_checkout_session_id),
@@ -44,6 +48,7 @@ grant select (gratuity_clicks, first_gratuity_click_at, last_gratuity_click_at) 
 alter table public.airvalet_portal_settings
   add column if not exists gratuity_reference        boolean   not null default false,
   add column if not exists gratuity_checkout_enabled boolean   not null default false,
+  add column if not exists gratuity_checkout_passenger_ids bigint[] not null default '{}',
   add column if not exists gratuity_amounts_cents    integer[] not null default '{500,1000,2000,4000,5000}',
   add column if not exists gratuity_min_cents        integer   not null default 100,
   add column if not exists gratuity_max_cents        integer   not null default 50000;
@@ -53,7 +58,8 @@ alter table public.airvalet_portal_settings add constraint airvalet_portal_setti
   and array_position(gratuity_amounts_cents, null) is null
   and gratuity_min_cents >= 50                       -- Stripe's USD minimum
   and gratuity_max_cents <= 100000 and gratuity_min_cents <= gratuity_max_cents
-  and gratuity_min_cents <= all (gratuity_amounts_cents) and gratuity_max_cents >= all (gratuity_amounts_cents));
+  and gratuity_min_cents <= all (gratuity_amounts_cents) and gratuity_max_cents >= all (gratuity_amounts_cents)
+  and cardinality(gratuity_checkout_passenger_ids) <= 10 and array_position(gratuity_checkout_passenger_ids, null) is null);
 
 -- One tip row per Checkout Session (the event id stays unique too).
 create unique index if not exists payments_stripe_checkout_session_id_key
@@ -96,7 +102,9 @@ begin
   select * into r from public.airvalet_portal_resolve(p_token, p_client);
   if r.o_state <> 'ok' then return jsonb_build_object('state', r.o_state); end if;
   select * into v_set from public.airvalet_portal_settings;
-  if not v_set.gratuity_checkout_enabled then return jsonb_build_object('state', 'ok', 'result', 'UNAVAILABLE'); end if;
+  if not (v_set.gratuity_checkout_enabled or r.o_passenger_id = any (v_set.gratuity_checkout_passenger_ids)) then
+    return jsonb_build_object('state', 'ok', 'result', 'UNAVAILABLE');
+  end if;
   if p_amount_cents is null or p_amount_cents < v_set.gratuity_min_cents or p_amount_cents > v_set.gratuity_max_cents then
     return jsonb_build_object('state', 'ok', 'result', 'INVALID');
   end if;
@@ -221,7 +229,7 @@ begin
       'gratuity_url', case when v_set.gratuity_url is not null then v_set.gratuity_url || v_ref end,
       -- Dynamic checkout amounts (flag, OFF by default). Dollars for display; the
       -- server re-checks every amount against min/max before calling Stripe.
-      'gratuity_checkout', case when v_set.gratuity_checkout_enabled then jsonb_build_object(
+      'gratuity_checkout', case when v_set.gratuity_checkout_enabled or v_p.id = any (v_set.gratuity_checkout_passenger_ids) then jsonb_build_object(
           'amounts', (select jsonb_agg(a / 100.0 order by o) from unnest(v_set.gratuity_amounts_cents) with ordinality u(a, o)),
           'min', v_set.gratuity_min_cents / 100.0, 'max', v_set.gratuity_max_cents / 100.0) end,
       'terms_published', v_set.terms_published
