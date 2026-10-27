@@ -90,6 +90,7 @@
   <div class="sidebar-brand"><img src="assets/logo-icon.png" alt="AirValet"><div class="sb-name">AirValet</div></div>
   <div class="tab-group-label">Operations</div>
   <div class="tab" data-t="all" onclick="resetAllPassengersDefaults()"><i class="fa-solid fa-users"></i><span>All Passengers</span><span class="tbadge" id="ball">0</span></div>
+  <div class="tab" data-t="guests" onclick="guestsOpenTab()"><i class="fa-solid fa-address-book"></i><span>Guests</span></div>
   <div class="tab on" data-t="day"><i class="fa-solid fa-gauge-high"></i><span>Dashboard</span><span class="tbadge red" id="bday">!</span></div>
   <div class="tab" data-t="tasks"><i class="fa-solid fa-square-check"></i><span>Tasks</span><span class="tbadge red" id="btasks">0</span></div>
   <div class="tab" data-t="messages" onclick="renderMessagesWorkspace();loadReturnReviews();if(isServerSms())loadInbox()"><i class="fa-solid fa-message"></i><span>Messages</span><span id="rrTabBadge" class="rr-tab-badge" style="display:none">0</span></div>
@@ -200,6 +201,19 @@
   </div>
 </div>
 <!-- TASKS PANE -->
+<!-- GUESTS (owner 2026-10-27): staff-only guest profiles, searched on the server. -->
+<div class="pane" id="pane-guests">
+  <div class="gx-hero">
+    <div class="gx-hero-t">Guests</div>
+    <div class="gx-hero-s">Find a guest by name, phone or ticket</div>
+    <div class="gx-search" role="search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+      <input id="gxQ" type="search" placeholder="Name, phone or ticket" autocomplete="off" autocapitalize="characters" spellcheck="false" enterkeyhint="search" aria-label="Search guests" maxlength="80" oninput="gxOnInput()">
+      <button type="button" id="gxClear" class="gx-clear" hidden aria-label="Clear search" onclick="gxClearQ()">✕</button></div>
+  </div>
+  <div class="gx-meta" id="gxMeta" aria-live="polite"></div>
+  <div class="gx-list" id="gxList" role="list"></div>
+  <button type="button" class="gx-more" id="gxMore" hidden onclick="gxSearch(false)">Show more guests</button>
+</div>
 <div class="pane" id="pane-tasks">
   <div class="dsec">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
@@ -433,6 +447,7 @@
       </div>
     </div>
     <div class="fi" id="freqInfo"></div>
+    <div class="gx-ci" id="gxCiL" hidden></div>
     <div class="fr two">
       <div class="fg"><label for="fName">Full Name <span style="color:var(--red)">*</span></label><div class="ac-wrap"><input type="text" id="fName" oninput="this.value=this.value.toUpperCase();chkFreq();acSearch(this.value)" autocomplete="off" placeholder="" style="text-transform:uppercase;width:100%"><div class="ac-drop" id="acDrop"></div></div></div>
       <div class="fg"><label for="fPhone">Phone <span style="color:var(--red)">*</span></label><input type="tel" inputmode="tel" id="fPhone" oninput="fmtGuestPhoneInput(this);chkFreq()" placeholder="" maxlength="18"></div>
@@ -671,6 +686,10 @@
     </div>
     <button class="btnc" id="tipCancelBtn" onclick="closeTipModal()">Cancel</button>
   </div>
+</div>
+<!-- GUEST PROFILE (opens over the ticket or the check-in without closing them) -->
+<div class="gx-ov" id="gxOv" aria-hidden="true" onclick="if(event.target===this)gxClose()">
+  <div class="gx-panel" id="gxPanel" role="dialog" aria-modal="true" aria-label="Guest profile"></div>
 </div>
 <!-- SMART TIPS: add / correct a cash tip (audited) -->
 <div class="ov" id="tipFixOv">
@@ -3664,6 +3683,7 @@ function chkEarlyReturn(){
     return false;
   });
   warn.style.display=found?'block':'none';
+  gxCheckinHint();
 }
 
 // ── NAME CASING FOR VCF (stored names are ALL CAPS; iPhone contacts want
@@ -4134,6 +4154,7 @@ function keepEditing(){document.getElementById('discardOv').classList.remove('on
 function doDiscard(){document.getElementById('discardOv').classList.remove('on');closeAll();}
 document.addEventListener('keydown',function(e){
   if(e.key!=='Escape') return;
+  if(document.getElementById('gxOv').classList.contains('on')){if(_gx.visit){_gx.visit=null;gxRender();}else gxClose();return;}
   if(document.getElementById('tipFixOv').classList.contains('on')){tipFixClose();return;}
   if(document.getElementById('discardOv').classList.contains('on')){keepEditing();return;}
   if(document.getElementById('archiveOv').classList.contains('on')){closeArchiveModal();return;}
@@ -6952,6 +6973,7 @@ function ci2Html(){
   +   '<div class="ci2-fly" role="group" aria-label="Flying with"><button type="button" data-op="MAKERS" aria-pressed="true">Makers Air</button><button type="button" data-op="ASCEND" aria-pressed="false"><span aria-hidden="true">✈ </span>Ascend</button></div>'
   +   '<div class="ci2-np"><div class="ci2-f"><label for="ci2Name">Name</label><div class="ci2-acw"><input id="ci2Name" class="ci2-inp" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="First and last name"><div class="ci2-ac" id="ci2Ac" hidden></div></div><div class="ci2-hint" id="ci2Freq" hidden></div></div>'
   +   '<div class="ci2-f"><label for="ci2Phone">Phone</label><div class="ci2-pw"><input id="ci2Phone" class="ci2-inp" type="tel" inputmode="tel" autocomplete="off" maxlength="18" placeholder="(305) 555-0142 or +49 …" aria-describedby="ci2PhoneHint"><span class="ci2-ok" id="ci2PhoneOk">Valid</span></div><div class="ci2-hint" id="ci2PhoneHint">US number, or + country code. It can be a companion’s phone.</div></div></div>'
+  +   '<div class="gx-ci" id="gxCi2" hidden></div>'
   +   '<div class="ci2-er" id="ci2Er" hidden>⚠️ This guest had an Early Return before. Confirm the return date carefully.</div>'
   +   '<div class="ci2-f"><div class="ci2-lr"><span class="ci2-lab" id="ci2RetLbl">Return date</span><span class="ci2-opt">Optional</span></div><div class="ci2-retpick" data-n="1"></div>'
   +     '<label class="ci2-check"><input type="checkbox" class="ci2-other"><span>Returning with another airline<small>No automatic pickup instructions; staff set the pickup place</small></span></label></div>'
@@ -7119,6 +7141,7 @@ function ci2MirrorChecks(){
   var f = ci2El('ci2Freq');
   if (m.length) { var last = m[m.length - 1]; f.textContent = m.length + ' previous visit' + (m.length > 1 ? 's' : '') + '. Last: ' + (last.ticket || '') + (last.car ? ' · ' + formatVehicleLine(last) : ''); f.hidden = false; }
   else f.hidden = true;
+  gxCheckinHint();
 }
 function ci2SetConsent(v){
   if (_ci.created || _ci.busy) return;
@@ -7814,6 +7837,7 @@ function showDet(id){
       '<button onclick="panelPrintOnce(this,printKeyTicket,'+r.id+')" style="background:var(--navy);color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;font-family:Sora,sans-serif;cursor:pointer;">🔑 Key Copy</button>'+
       '<button onclick="panelPrintOnce(this,printDashboardTicket,'+r.id+')" style="background:var(--navy);color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;font-family:Sora,sans-serif;cursor:pointer;">🚗 Dashboard</button>'+
       '<button onclick="panelPrintOnce(this,printAllTickets,'+r.id+')" style="background:var(--navy);color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;font-family:Sora,sans-serif;cursor:pointer;">🖨 Print All</button>'+
+      '<button type="button" class="gx-tk-btn" onclick="gxOpenForPassenger('+r.id+')"><i class="fa-solid fa-address-book"></i> Guest Profile</button>'+
     '</div>'+
     '<div id="saveEditsWrap"><button class="save-edits-btn" id="saveEditsBtn" data-rid="'+r.id+'">💾 Save Changes</button></div>'+
     '<div class="dgrid">'+
@@ -8137,6 +8161,331 @@ async function tipFixSave(){
   showMsg(c?'✓ Cash tip '+tipMoney(c)+' saved.':'✓ Cash tip removed (kept in the history).', false);
   render(); if(d) tipsLoad(d);
 }
+// ── GUESTS (owner 2026-10-27) ───────────────────────────────────
+// Staff-only guest profiles derived from the tickets (20261114). Search and
+// profiles run on the server (paged); nothing here writes a ticket. Notes and
+// identity decisions go through audited functions. The Valet Pass never sees this.
+var _gx = { q: '', off: 0, seq: 0, rows: [], timer: null, key: null, prof: null, tab: 'overview', act: null, visit: null };
+async function gxRpc(fn, args){
+  var res = await fetch(SUPABASE_URL + '/rest/v1/rpc/' + fn, { method: 'POST', headers: Object.assign({}, sbHeaders(), { 'Content-Type': 'application/json' }), body: JSON.stringify(args || {}) });
+  var txt = await res.text(), body = null;
+  try { body = txt ? JSON.parse(txt) : null; } catch(e) {}
+  if (!res.ok) { var err = new Error(res.status === 404 ? 'Guests are not available on this server yet.' : ((body && body.message) || ('HTTP ' + res.status))); err.status = res.status; throw err; }
+  return body;
+}
+function gxDate(d, opt){ if (!d) return ''; var x = new Date(String(d).slice(0, 10) + 'T12:00:00'); return isNaN(x) ? '' : x.toLocaleDateString('en-US', opt || { month: 'short', day: 'numeric', year: 'numeric' }); }
+function gxWhen(iso){ return iso ? new Date(iso).toLocaleString('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : ''; }
+function gxInitials(n){ return String(n || '?').replace(/\([^)]*\)/g, '').trim().split(/\s+/).filter(function(w){ return /[A-Za-z]/.test(w); }).map(function(w){ return w.charAt(0); }).slice(0, 2).join('').toUpperCase() || '?'; }
+function gxName(n){ return titleCaseName(String(n || '').replace(/\s+/g, ' ')); }
+function gxPhone(p){ return p ? fmtP(p) : ''; }
+function gxDays(n){ return n == null ? '' : (n === 0 ? 'Same day' : n + (n === 1 ? ' day' : ' days')); }
+function gxKey(){ return tipNewKey(); }
+
+// ── list ──
+function guestsOpenTab(){
+  var q = document.getElementById('gxQ');
+  if (!_gx.rows.length && !_gx.loading) gxSearch(true);
+  if (q && !('ontouchstart' in window)) setTimeout(function(){ q.focus(); }, 50);
+}
+function gxOnInput(){
+  var q = document.getElementById('gxQ'); document.getElementById('gxClear').hidden = !q.value;
+  clearTimeout(_gx.timer); _gx.timer = setTimeout(function(){ gxSearch(true); }, 220);
+}
+function gxClearQ(){ var q = document.getElementById('gxQ'); q.value = ''; gxOnInput(); q.focus(); }
+async function gxSearch(reset){
+  var q = (document.getElementById('gxQ') || {}).value || '', list = document.getElementById('gxList');
+  if (reset) { _gx.q = q.trim(); _gx.off = 0; _gx.rows = []; list.innerHTML = gxSkeleton(6); }
+  var my = ++_gx.seq; _gx.loading = true;
+  document.getElementById('gxMore').hidden = true;
+  try {
+    var r = await gxRpc('airvalet_guest_search', { p_q: _gx.q, p_limit: 30, p_offset: _gx.off });
+    if (my !== _gx.seq) return;            // a newer search won
+    _gx.rows = _gx.rows.concat(r.rows || []); _gx.off += (r.rows || []).length;
+    gxRenderList(r);
+  } catch(e) {
+    if (my !== _gx.seq) return;
+    list.innerHTML = '<div class="gx-state bad"><b>Could not load guests.</b><span>' + escapeHTML(e.message) + '</span><button type="button" class="gx-btn" onclick="gxSearch(true)">Try again</button></div>';
+    document.getElementById('gxMeta').textContent = '';
+  } finally { if (my === _gx.seq) _gx.loading = false; }
+}
+function gxSkeleton(n){ var h = ''; for (var i = 0; i < n; i++) h += '<div class="gx-row gx-skel" aria-hidden="true"><span class="gx-av"></span><span class="gx-main"><i></i><i></i></span></div>'; return h; }
+function gxRenderList(r){
+  var list = document.getElementById('gxList'), meta = document.getElementById('gxMeta');
+  if (!_gx.rows.length) {
+    list.innerHTML = '<div class="gx-state"><b>' + (_gx.q ? 'No guest matches “' + escapeHTML(_gx.q) + '”' : 'No guests yet') + '</b><span>' + (_gx.q ? 'Try part of the name, the last 4 digits of the phone, or the ticket number.' : '') + '</span></div>';
+    meta.textContent = ''; return;
+  }
+  meta.textContent = _gx.q ? ((r.total != null ? r.total + (r.total === 1 ? ' guest' : ' guests') : '') + (r.broad ? ' · showing the most recent — type more to narrow' : '')) : 'Most recent guests';
+  list.innerHTML = _gx.rows.map(function(g, i){
+    var n = +g.visits || 0;
+    return '<button type="button" class="gx-row" role="listitem" data-i="' + i + '">' +
+      '<span class="gx-av" aria-hidden="true">' + escapeHTML(gxInitials(g.name)) + '</span>' +
+      '<span class="gx-main"><b>' + escapeHTML(gxName(g.name)) + '</b><small>' + escapeHTML([gxPhone(g.phone), g.vehicle ? niceVehicleText(g.vehicle) : ''].filter(Boolean).join(' · ')) + '</small></span>' +
+      '<span class="gx-side"><span class="gx-sc">' + (g.parked_now ? '<span class="gx-chip ok">Parked now</span>' : '') +
+        (n > 1 ? '<span class="gx-chip gold">Returning · ' + n + ' visits</span>' : '<span class="gx-chip">1 visit</span>') + '</span>' +
+        '<small>' + (g.last_visit ? 'Last ' + escapeHTML(gxDate(g.last_visit)) : 'Date not on record') + '</small></span>' +
+      '</button>';
+  }).join('');
+  list.querySelectorAll('.gx-row[data-i]').forEach(function(b){ b.onclick = function(){ gxOpen(_gx.rows[+b.dataset.i].guest_key); }; });
+  document.getElementById('gxMore').hidden = !r.has_more;
+}
+// "BLUE LEXUS RX" → "Blue Lexus RX": model codes and brand acronyms stay upper case.
+var GX_UPPER = ['BMW','GMC','AMG','SUV','RX','NX','GX','LX','UX','ES','IS','GS','LS','TX','MDX','RDX','QX','CX','EV','GT','SS','SRT','GTI','JCW','RS','SQ','XC','CLA','GLA','GLB','GLC','GLE','GLS','SL','SLK','CLS'];
+function niceVehicleText(v){
+  return String(v || '').trim().split(/\s+/).filter(Boolean).map(function(w){
+    var u = w.toUpperCase(); return (/\d/.test(w) || GX_UPPER.indexOf(u) >= 0) ? u : titleCaseWord(w);
+  }).join(' ');
+}
+
+// ── profile ──
+async function gxOpenForPassenger(id){
+  try { var r = await gxRpc('airvalet_guest_for_passenger', { p_passenger_id: id }); if (r.result === 'OK') gxOpen(r.key, { fromTicket: id }); else showMsg('Guest not found for this ticket.', true); }
+  catch(e) { showMsg('Could not open the guest: ' + e.message, true); }
+}
+async function gxOpen(key, opt){
+  _gx.key = key; _gx.prof = null; _gx.act = null; _gx.visit = null; _gx.tab = 'overview'; _gx.from = opt || {};
+  var ov = document.getElementById('gxOv'); ov.classList.add('on'); ov.setAttribute('aria-hidden', 'false');
+  document.getElementById('gxPanel').innerHTML = '<div class="gx-ph"><button type="button" class="gx-x" onclick="gxClose()" aria-label="Close">✕</button><div class="gx-hd gx-skel"><span class="gx-av big"></span><span class="gx-main"><i></i><i></i></span></div></div><div class="gx-body"><div class="gx-state">Loading guest…</div></div>';
+  try {
+    var p = await gxRpc('airvalet_guest_profile', { p_key: key });
+    if (_gx.key !== key) return;
+    if (p.result !== 'OK') { document.querySelector('#gxPanel .gx-body').innerHTML = '<div class="gx-state"><b>This guest is no longer on record.</b></div>'; return; }
+    _gx.prof = p; _gx.key = p.key; gxRender();
+  } catch(e) {
+    var b = document.querySelector('#gxPanel .gx-body'); if (b) b.innerHTML = '<div class="gx-state bad"><b>Could not load this guest.</b><span>' + escapeHTML(e.message) + '</span><button type="button" class="gx-btn" onclick="gxOpen(\'' + escapeHTML(key) + '\')">Try again</button></div>';
+  }
+}
+function gxClose(){ var ov = document.getElementById('gxOv'); ov.classList.remove('on'); ov.setAttribute('aria-hidden', 'true'); _gx.key = null; }
+function gxTab(t){ _gx.tab = t; _gx.visit = null; gxRender(); if (t === 'activity' && !_gx.act) gxLoadActivity(); }
+function gxRender(){
+  var p = _gx.prof; if (!p) return;
+  var n = +p.visits_count || 0, tabs = [['overview', 'Overview'], ['visits', 'Visits'], ['activity', 'Activity'], ['tips', 'Tips & Notes']];
+  var head = '<div class="gx-ph"><button type="button" class="gx-x" onclick="gxClose()" aria-label="Close guest profile">✕</button>' +
+    '<div class="gx-hd"><span class="gx-av big" aria-hidden="true">' + escapeHTML(gxInitials(p.name)) + '</span><span class="gx-main"><h2>' + escapeHTML(gxName(p.name)) + '</h2>' +
+    '<small>' + escapeHTML((p.phones || []).map(gxPhone).filter(function(x, i, a){ return a.indexOf(x) === i; }).join(' · ') || 'No phone on record') + '</small>' +
+    '<span class="gx-chips">' + (n > 1 ? '<span class="gx-chip gold">Returning guest</span>' : '<span class="gx-chip">First visit</span>') +
+    (p.parked_now ? '<span class="gx-chip ok">Parked now</span>' : '') + '<span class="gx-chip">' + n + (n === 1 ? ' visit' : ' visits') + '</span></span></span></div>' +
+    '<div class="gx-tabs" role="tablist">' + tabs.map(function(t){ return '<button type="button" role="tab" aria-selected="' + (_gx.tab === t[0]) + '" onclick="gxTab(\'' + t[0] + '\')">' + t[1] + '</button>'; }).join('') + '</div></div>';
+  var body = _gx.visit ? gxVisitDetailHtml(_gx.visit) : _gx.tab === 'visits' ? gxVisitsHtml(p) : _gx.tab === 'activity' ? gxActivityHtml() : _gx.tab === 'tips' ? gxTipsHtml(p) : gxOverviewHtml(p);
+  document.getElementById('gxPanel').innerHTML = head + '<div class="gx-body" role="tabpanel">' + body + '</div>';
+  gxBind();
+}
+function gxOverviewHtml(p){
+  var n = +p.visits_count || 0, lines = [], last = (p.visits || [])[0] || {}, prevVeh = (p.vehicles || [])[0];
+  // Only facts the records support.
+  if (n > 1) lines.push('Returning guest · ' + (n - 1) + (n - 1 === 1 ? ' previous visit' : ' previous visits'));
+  else lines.push('First visit on record');
+  if (p.last_visit) lines.push('Last visit: ' + gxDate(p.last_visit, { month: 'long', year: 'numeric' }));
+  if (+p.known_stays >= 2 && p.avg_days != null) lines.push('Usually parks about ' + gxDays(Math.round(+p.avg_days)) + ' (' + p.known_stays + ' stays with both dates)');
+  if (prevVeh) lines.push((n > 1 ? 'Vehicle on record: ' : 'Vehicle: ') + niceVehicleText(prevVeh.vehicle) + (prevVeh.visits > 1 ? ' (' + prevVeh.visits + ' visits)' : ''));
+  if ((p.names || []).length > 1) lines.push('Also checked in as: ' + p.names.filter(function(x){ return x !== p.name; }).map(gxName).join(', '));
+  var stat = function(v, l){ return '<div class="gx-stat"><b>' + v + '</b><span>' + l + '</span></div>'; };
+  var h = '<section class="gx-card gx-recog"><ul>' + lines.map(function(l){ return '<li>' + escapeHTML(l) + '</li>'; }).join('') + '</ul></section>' +
+    '<div class="gx-stats">' + stat(n, n === 1 ? 'Visit' : 'Visits') + stat(p.total_days != null ? p.total_days : '—', 'Days parked') +
+      stat(p.avg_days != null ? (+p.avg_days).toFixed(1).replace(/\.0$/, '') : '—', 'Avg. stay (days)') + stat(p.first_visit ? escapeHTML(gxDate(p.first_visit, { month: 'short', year: 'numeric' })) : '—', 'First visit') + '</div>';
+  if (+p.known_stays < n) h += '<p class="gx-fine">' + (n - p.known_stays) + ' of ' + n + ' visits have no delivery date on record and are not counted in days parked.</p>';
+  h += '<section class="gx-card"><h3>Last visit</h3>' + gxVisitRowHtml(last, 0) + '</section>';
+  if ((p.vehicles || []).length) h += '<section class="gx-card"><h3>Vehicles</h3>' + p.vehicles.map(function(v){ return '<div class="gx-kv"><span>' + escapeHTML(niceVehicleText(v.vehicle)) + '</span><small>' + v.visits + (v.visits === 1 ? ' visit' : ' visits') + (v.last ? ' · last ' + escapeHTML(gxDate(v.last)) : '') + '</small></div>'; }).join('') + '</section>';
+  var note = (p.notes || [])[0];
+  if (note) h += '<section class="gx-card"><h3>Latest note</h3><p class="gx-note-b">' + escapeHTML(note.body) + '</p><small class="gx-fine">' + escapeHTML(tipWho(note.updated_by || note.created_by) + ' · ' + gxWhen(note.updated_at || note.created_at)) + '</small></section>';
+  h += gxIdentityHtml(p);
+  return h;
+}
+function gxIdentityHtml(p){
+  var h = '', sug = p.suggestions || [], log = (p.identity || []);
+  if (sug.length) {
+    h += '<section class="gx-card"><h3>Possible same guest</h3><p class="gx-fine">Suggested from the records, never applied automatically.' + (p.can_manage_identity ? '' : ' A manager can review it.') + '</p>' +
+      sug.map(function(s, i){ return '<div class="gx-sug"><button type="button" class="gx-link" data-open="' + escapeHTML(s.key) + '"><b>' + escapeHTML(gxName(s.name)) + '</b><small>' + escapeHTML([gxPhone(s.phone), s.visits + (s.visits == 1 ? ' visit' : ' visits'), s.why === 'SAME_PHONE_SIMILAR_NAME' ? 'same phone, similar name' : 'same name, other phone'].join(' · ')) + '</small></button>' +
+        (p.can_manage_identity ? '<button type="button" class="gx-btn line" data-merge="' + i + '">Merge into this guest</button>' : '') + '</div>'; }).join('') + '</section>';
+  }
+  if (log.length) {
+    h += '<section class="gx-card"><h3>Identity history</h3>' + log.map(function(i){
+      return '<div class="gx-log' + (i.revoked_at ? ' off' : '') + '"><span>' + escapeHTML((i.kind === 'MERGE' ? 'Guest merged' : 'Ticket moved') + ' · “' + i.reason + '” · ' + tipWho(i.by) + ', ' + gxWhen(i.at)) +
+        (i.revoked_at ? escapeHTML(' · undone by ' + tipWho(i.revoked_by)) : '') + '</span>' +
+        (p.can_manage_identity && !i.revoked_at ? '<button type="button" class="gx-btn line" data-undo="' + i.id + '">Undo</button>' : '') + '</div>';
+    }).join('') + '</section>';
+  }
+  return h;
+}
+function gxTipChips(v){
+  var c = [];
+  if (v.cash_cents) c.push('<span class="gx-chip ok">Cash ' + tipMoney(v.cash_cents) + '</span>');
+  if (v.stripe_cents) c.push('<span class="gx-chip ok">Stripe ' + tipMoney(v.stripe_cents) + '</span>');
+  if (!c.length && v.tip_received === true) c.push('<span class="gx-chip">Tip received · amount not recorded</span>');
+  if (!c.length && v.tip_received === false) c.push('<span class="gx-chip">No tip (recorded)</span>');
+  return c.join('');
+}
+function gxVisitRowHtml(v, i){
+  if (!v || !v.id) return '<p class="gx-fine">No visit on record.</p>';
+  var svc = [];
+  if (v.carwash) svc.push('<span class="gx-chip">Car wash · ' + escapeHTML(String(v.carwash).replace('_', ' ').toLowerCase()) + '</span>');
+  if (v.delivery_type && v.delivery_type !== 'NORMAL') svc.push('<span class="gx-chip">' + escapeHTML(v.delivery_type.charAt(0) + v.delivery_type.slice(1).toLowerCase()) + '</span>');
+  if ((v.return_changes || []).length) svc.push('<span class="gx-chip">Return changed ×' + v.return_changes.length + '</span>');
+  var dates = (v.checkin ? gxDate(v.checkin) : 'Check-in date not on record') + ' → ' + (v.delivered ? gxDate(v.delivered) : (v.status === 'DELIVERED' ? 'delivery date not on record' : 'still here'));
+  return '<button type="button" class="gx-visit" data-v="' + i + '"><span class="gx-vt"><b>' + escapeHTML(v.ticket || '—') + '</b><span class="gx-st ' + (v.status === 'DELIVERED' ? '' : 'live') + '">' + escapeHTML(v.status === 'DELIVERED' ? 'Delivered' : v.status === 'ARCHIVED' ? 'Archived' : 'Parked') + '</span></span>' +
+    '<span class="gx-vd">' + escapeHTML(dates) + (v.stay_days != null ? ' · <b>' + escapeHTML(gxDays(v.stay_days)) + '</b>' : '') + '</span>' +
+    '<span class="gx-vd">' + escapeHTML([v.vehicle ? niceVehicleText(v.vehicle) : '', v.hangar ? titleCaseName(v.hangar) : ''].filter(Boolean).join(' · ')) + '</span>' +
+    (svc.length || gxTipChips(v) ? '<span class="gx-chips">' + svc.join('') + gxTipChips(v) + '</span>' : '') + '</button>';
+}
+function gxVisitsHtml(p){ return '<div class="gx-visits">' + (p.visits || []).map(gxVisitRowHtml).join('') + '</div>'; }
+function gxVisitDetailHtml(v){
+  var row = function(l, val){ return '<div class="gx-kv"><span>' + l + '</span><b>' + (val || '<i class="gx-unk">Not on record</i>') + '</b></div>'; };
+  var h = '<button type="button" class="gx-back" onclick="_gx.visit=null;gxRender()">‹ Visits</button>' +
+    '<section class="gx-card"><h3>Ticket ' + escapeHTML(v.ticket || '') + '</h3>' +
+    row('Status', escapeHTML(v.status === 'DELIVERED' ? 'Delivered' : v.status === 'ARCHIVED' ? 'Archived' : 'Parked now')) +
+    row('Name on the ticket', escapeHTML(gxName(v.name))) + row('Phone', escapeHTML(gxPhone(v.phone))) +
+    row('Check-in', escapeHTML(gxDate(v.checkin))) + row('Return planned at check-in', escapeHTML(v.return_original || '')) +
+    row('Return on the ticket now', escapeHTML(v.return_now || '')) + row('Delivered', escapeHTML(gxDate(v.delivered))) +
+    row('Stay', escapeHTML(gxDays(v.stay_days))) + row('Vehicle', escapeHTML(v.vehicle ? niceVehicleText(v.vehicle) : '')) +
+    row(v.status === 'DELIVERED' ? 'Parked in' : 'Location', escapeHTML(v.hangar ? titleCaseName(v.hangar) : '')) + row('Return flight', escapeHTML(v.flight || '')) +
+    row('Delivery', escapeHTML(v.delivery_type ? v.delivery_type.charAt(0) + v.delivery_type.slice(1).toLowerCase() : '')) +
+    row('Car wash', escapeHTML(v.carwash ? String(v.carwash).replace('_', ' ').toLowerCase() : '')) +
+    row('Tips', gxTipChips(v)) + (v.released_to ? row('Released to', escapeHTML(v.released_to)) : '') + '</section>';
+  if ((v.return_changes || []).length) h += '<section class="gx-card"><h3>Return changes</h3>' + v.return_changes.map(function(c){ return '<div class="gx-kv"><span>' + escapeHTML((c.from || '—') + ' → ' + (c.to || '—')) + '</span><small>' + escapeHTML([c.reason, tipWho(c.by), gxWhen(c.at)].filter(Boolean).join(' · ')) + '</small></div>'; }).join('') + '</section>';
+  if (v.notes) h += '<section class="gx-card"><h3>Note on the ticket</h3><p class="gx-note-b">' + escapeHTML(v.notes) + '</p></section>';
+  h += '<div class="gx-actions"><button type="button" class="gx-btn" data-ticket="' + v.id + '">Open ticket ' + escapeHTML(v.ticket || '') + '</button>' +
+    (_gx.prof.can_manage_identity && (_gx.prof.visits || []).length > 1 ? '<button type="button" class="gx-btn line" data-move="' + v.id + '">Not this guest…</button>' : '') + '</div>';
+  return h;
+}
+async function gxLoadActivity(){
+  var key = _gx.key;
+  try { var r = await gxRpc('airvalet_guest_activity', { p_key: key }); if (_gx.key !== key) return; _gx.act = r.events || []; }
+  catch(e) { _gx.act = { error: e.message }; }
+  if (_gx.tab === 'activity' && !_gx.visit) gxRender();
+}
+var GX_SRC = { system: 'Recorded by AirValet', staff: 'Entered by the team', guest: 'From the guest' };
+function gxActivityHtml(){
+  if (!_gx.act) return '<div class="gx-state">Loading the timeline…</div>';
+  if (_gx.act.error) return '<div class="gx-state bad"><b>Could not load the timeline.</b><span>' + escapeHTML(_gx.act.error) + '</span><button type="button" class="gx-btn" onclick="_gx.act=null;gxLoadActivity();gxRender()">Try again</button></div>';
+  if (!_gx.act.length) return '<div class="gx-state">Nothing recorded yet.</div>';
+  var h = '<div class="gx-legend"><span class="s-system">AirValet</span><span class="s-staff">Team</span><span class="s-guest">Guest</span><span class="s-issue">Battery / tire mentioned</span></div><ol class="gx-tl">', day = '';
+  _gx.act.forEach(function(e){
+    var d = e.at ? new Date(e.at).toLocaleDateString('en-US', { timeZone: 'America/New_York', weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }) : 'Date not on record';
+    if (d !== day) { h += '<li class="gx-day">' + escapeHTML(d) + '</li>'; day = d; }
+    var t = e.at && e.time_known ? new Date(e.at).toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit' }) : 'time not recorded';
+    h += '<li class="gx-ev s-' + escapeHTML(e.source || 'system') + (e.issue ? ' issue' : '') + '"><b>' + escapeHTML(gxEventLabel(e)) + '</b>' +
+      (e.detail ? '<p>' + escapeHTML(e.detail) + '</p>' : '') +
+      '<small>' + escapeHTML([t, e.ticket ? 'Ticket ' + e.ticket : '', e.by ? tipWho(e.by) : '', GX_SRC[e.source] || ''].filter(Boolean).join(' · ')) + '</small></li>';
+  });
+  return h + '</ol>';
+}
+function gxEventLabel(e){
+  var m = { 'DELIVERED_FROM_LOCATION': 'Delivered', 'DELIVERED': 'Delivered', 'RETURN DATE': 'Return date changed', 'RETURN TIME': 'Return time changed', 'FLIGHT_NOTE': 'Flight note',
+            'EDITED': 'Ticket edited', 'UNDO DELIVER': 'Delivery undone', 'TIP CASH': 'Cash tip recorded', 'TIP CASH CORRECTED': 'Cash tip corrected', 'STATUS': 'Status changed', 'ARCHIVED': 'Archived', 'REOPENED': 'Reopened' };
+  return m[e.label] || e.label || 'Event';
+}
+function gxTipsHtml(p){
+  var t = p.tips || {}, cash = t.cash || [], str = t.stripe || [];
+  var h = '<div class="gx-stats two"><div class="gx-stat"><b>' + tipMoney(t.cash_total) + '</b><span>Cash recorded</span></div><div class="gx-stat"><b>' + tipMoney(t.stripe_total) + '</b><span>Stripe confirmed</span></div></div>' +
+    '<p class="gx-fine">Shown for reference only: tips never rate or rank a guest.</p><section class="gx-card"><h3>Tips by visit</h3>';
+  (p.visits || []).forEach(function(v){
+    var rows = cash.filter(function(c){ return c.passenger_id === v.id; }).map(function(c){ return '<div class="gx-kv' + (c.voided ? ' off' : '') + '"><span>Cash ' + tipMoney(c.cents) + (c.voided ? ' (corrected)' : '') + '</span><small>' + escapeHTML([gxWhen(c.at), tipWho(c.by), c.received_by ? 'received by ' + c.received_by : ''].filter(Boolean).join(' · ')) + '</small></div>'; })
+      .concat(str.filter(function(s){ return s.passenger_id === v.id; }).map(function(s){ return '<div class="gx-kv' + (s.status === 'refunded' ? ' off' : '') + '"><span>Stripe ' + tipMoney(s.cents) + (s.status === 'refunded' ? ' (refunded)' : '') + '</span><small>' + escapeHTML(gxWhen(s.at)) + '</small></div>'; }));
+    h += '<div class="gx-tipv"><b>' + escapeHTML(v.ticket || '') + '</b><small>' + escapeHTML(gxDate(v.checkin) || 'Date not on record') + '</small>' +
+      (rows.length ? rows.join('') : '<div class="gx-kv"><span class="gx-unk">' + (v.tip_received === false ? 'No tip (recorded by the team)' : v.tip_received === true ? 'Tip received · amount not recorded' : 'No tip record') + '</span></div>') + '</div>';
+  });
+  h += '</section><section class="gx-card"><h3>Internal notes</h3><p class="gx-fine">For the team only. Every change is kept with who and when.</p>' +
+    '<textarea id="gxNoteNew" class="gx-ta" maxlength="1000" placeholder="Something useful for the next visit (e.g. prefers the car facing out)"></textarea>' +
+    '<div class="gx-actions"><button type="button" class="gx-btn" id="gxNoteAdd">Save note</button></div>' +
+    ((p.notes || []).length ? p.notes.map(function(n){
+      var rev = n.revisions || [];
+      return '<div class="gx-note" data-note="' + n.id + '"><p class="gx-note-b">' + escapeHTML(n.body) + '</p><small class="gx-fine">' + escapeHTML('By ' + tipWho(n.created_by) + ' · ' + gxWhen(n.created_at) + (n.updated_at ? ' · edited by ' + tipWho(n.updated_by) + ' ' + gxWhen(n.updated_at) : '')) + '</small>' +
+        '<div class="gx-actions"><button type="button" class="gx-btn line" data-edit="' + n.id + '">Edit</button><button type="button" class="gx-btn line danger" data-del="' + n.id + '">Delete</button>' +
+        (rev.length > 1 ? '<details class="gx-hist"><summary>History (' + rev.length + ')</summary>' + rev.map(function(r){ return '<div><small>' + escapeHTML(r.action.charAt(0) + r.action.slice(1).toLowerCase() + ' · ' + tipWho(r.by) + ' · ' + gxWhen(r.at)) + '</small><p>' + escapeHTML(r.body) + '</p></div>'; }).join('') + '</details>' : '') + '</div></div>';
+    }).join('') : '<p class="gx-fine">No notes yet.</p>') + '</section>';
+  return h;
+}
+function gxBind(){
+  var panel = document.getElementById('gxPanel');
+  panel.querySelectorAll('[data-v]').forEach(function(b){ b.onclick = function(){ _gx.visit = _gx.prof.visits[+b.dataset.v]; gxRender(); panel.querySelector('.gx-body').scrollTop = 0; }; });
+  panel.querySelectorAll('[data-open]').forEach(function(b){ b.onclick = function(){ gxOpen(b.dataset.open); }; });
+  panel.querySelectorAll('[data-ticket]').forEach(function(b){ b.onclick = function(){ gxOpenTicket(+b.dataset.ticket); }; });
+  panel.querySelectorAll('[data-merge]').forEach(function(b){ b.onclick = function(){ gxMerge(_gx.prof.suggestions[+b.dataset.merge]); }; });
+  panel.querySelectorAll('[data-undo]').forEach(function(b){ b.onclick = function(){ gxUndo(+b.dataset.undo); }; });
+  panel.querySelectorAll('[data-move]').forEach(function(b){ b.onclick = function(){ gxMove(+b.dataset.move); }; });
+  panel.querySelectorAll('[data-edit]').forEach(function(b){ b.onclick = function(){ gxNoteEdit(+b.dataset.edit); }; });
+  panel.querySelectorAll('[data-del]').forEach(function(b){ b.onclick = function(){ gxNoteDelete(+b.dataset.del); }; });
+  var add = document.getElementById('gxNoteAdd'); if (add) add.onclick = gxNoteAdd;
+}
+// Ticket ← profile: never throws away unsaved edits on the ticket that is open.
+function gxOpenTicket(id){
+  var det = document.getElementById('detOv'), dirty = det.classList.contains('on') && typeof _editChanges === 'object' && _editChanges && Object.keys(_editChanges).length;
+  if (dirty) { showMsg('Save or discard the changes on the open ticket first.', true); return; }
+  if (!paxById(id)) { showMsg('This ticket is not loaded on this device. Its details are in the visit above.', true); return; }
+  gxClose(); showDet(id);
+}
+async function gxReload(msg){ if (msg) showMsg(msg, false); var k = _gx.key, tab = _gx.tab; await gxOpen(k); _gx.tab = tab; gxRender(); if (tab === 'activity') gxLoadActivity(); }
+var GX_TEXT = { REASON_REQUIRED: 'Write a reason (3+ characters).', NOT_FOUND: 'Not found. Close and reopen the guest.', SAME_GUEST: 'Already the same guest.', INVALID: 'Not saved: check the text.', UNCHANGED: 'Nothing changed.' };
+async function gxGuard(fn, args, ok){
+  try { var r = await gxRpc(fn, args); if (r.result === 'OK') return gxReload(ok); showMsg(GX_TEXT[r.result] || ('Not saved: ' + r.result), true); }
+  catch(e) { showMsg(e.status === 403 || /ADMIN or MANAGER/.test(e.message) ? 'Only an ADMIN or MANAGER can change who a guest is.' : 'Not saved: ' + e.message, true); }
+}
+function gxMerge(s){
+  if (!s) return;
+  var reason = prompt('Merge ' + gxName(s.name) + ' into ' + gxName(_gx.prof.name) + '?\nThe tickets stay as they are. Reason (required):', s.why === 'SAME_PHONE_SIMILAR_NAME' ? 'Same phone, name typed differently' : 'Same person, new phone');
+  if (reason == null) return;
+  gxGuard('airvalet_guest_merge', { p_from_key: s.key, p_into_key: _gx.key, p_reason: reason, p_client_key: gxKey() }, '✓ Guests merged. You can undo it in Identity history.');
+}
+function gxUndo(id){ var reason = prompt('Undo this identity change? Reason (required):', ''); if (reason == null) return; gxGuard('airvalet_guest_identity_undo', { p_identity_id: id, p_reason: reason }, '✓ Undone.'); }
+function gxMove(pid){
+  var reason = prompt('Move this ticket to a guest of its own?\nThe ticket itself is not changed. Reason (required):', 'Different person on the same phone');
+  if (reason == null) return;
+  gxGuard('airvalet_guest_move_ticket', { p_passenger_id: pid, p_to_key: null, p_reason: reason, p_client_key: gxKey() }, '✓ Ticket moved to its own guest.');
+}
+function gxNoteAdd(){
+  var ta = document.getElementById('gxNoteNew'), body = ta.value.trim(); if (!body) { ta.focus(); return; }
+  document.getElementById('gxNoteAdd').disabled = true;
+  gxGuard('airvalet_guest_note_save', { p_guest_key: _gx.key, p_note_id: null, p_body: body, p_client_key: gxKey() }, '✓ Note saved.');
+}
+function gxNoteEdit(id){
+  var n = (_gx.prof.notes || []).find(function(x){ return x.id === id; }); if (!n) return;
+  var box = document.querySelector('.gx-note[data-note="' + id + '"]');
+  box.innerHTML = '<textarea class="gx-ta" maxlength="1000">' + escapeHTML(n.body) + '</textarea><div class="gx-actions"><button type="button" class="gx-btn">Save</button><button type="button" class="gx-btn line">Cancel</button></div>';
+  var ta = box.querySelector('textarea'), bs = box.querySelectorAll('button'); ta.focus();
+  bs[0].onclick = function(){ bs[0].disabled = true; gxGuard('airvalet_guest_note_save', { p_guest_key: _gx.key, p_note_id: id, p_body: ta.value, p_client_key: gxKey() }, '✓ Note updated (the previous text is kept in History).'); };
+  bs[1].onclick = function(){ gxRender(); };
+}
+function gxNoteDelete(id){ if (!confirm('Delete this note? It stays in the history.')) return; gxGuard('airvalet_guest_note_delete', { p_note_id: id, p_client_key: gxKey() }, '✓ Note deleted.'); }
+
+// ── check-in: returning guest on this phone (never fills return date or consent) ──
+var _gxCi = { t: null, seq: 0 };
+function gxCheckinHint(){
+  var v2 = typeof ci2Active === 'function' && ci2Active() && document.getElementById('ci2Phone');
+  var phone = v2 ? document.getElementById('ci2Phone').value : (document.getElementById('fPhone') || {}).value || '';
+  var box = document.getElementById(v2 ? 'gxCi2' : 'gxCiL'); if (!box) return;
+  clearTimeout(_gxCi.t);
+  if (String(phone).replace(/\D/g, '').length < 10) { box.hidden = true; box.innerHTML = ''; return; }
+  _gxCi.t = setTimeout(async function(){
+    var my = ++_gxCi.seq, r;
+    try { r = await gxRpc('airvalet_guest_lookup_phone', { p_phone: phone }); } catch(e) { return; }   // never in the way of a check-in
+    if (my !== _gxCi.seq) return;
+    var g = (r && r.guests) || [];
+    if (!g.length) { box.hidden = true; box.innerHTML = ''; return; }
+    box.hidden = false;
+    box.innerHTML = '<div class="gx-ci-h">' + (g.length > 1 ? 'This phone is on file for ' + g.length + ' guests' : 'Returning guest') + '</div>' + g.slice(0, 4).map(function(x, i){
+      var car = [x.color, x.car].filter(Boolean).join(' ');
+      return '<div class="gx-ci-r"><span><b>' + escapeHTML(gxName(x.name)) + '</b><small>' + escapeHTML([x.visits + (x.visits == 1 ? ' visit' : ' visits'), x.last_visit ? 'last ' + gxDate(x.last_visit) : '', car ? niceVehicleText(car) : '', x.parked_now ? 'parked now' : ''].filter(Boolean).join(' · ')) + '</small></span>' +
+        '<button type="button" class="gx-btn line" data-use="' + i + '">Use name' + (car ? ' & vehicle' : '') + '</button><button type="button" class="gx-btn line" data-prof="' + i + '">Profile</button></div>';
+    }).join('') + '<div class="gx-fine">Confirm with the guest. Return date and text consent are always asked again.</div>';
+    box.querySelectorAll('[data-prof]').forEach(function(b){ b.onclick = function(){ gxOpen(g[+b.dataset.prof].key); }; });
+    box.querySelectorAll('[data-use]').forEach(function(b){ b.onclick = function(){ gxUseGuest(g[+b.dataset.use], v2); }; });
+  }, 350);
+}
+function gxUseGuest(x, v2){
+  if (v2) {
+    ci2El('ci2Name').value = String(x.name || '').toUpperCase();
+    if (x.car) { _ci.vehText = String(x.car).toUpperCase(); _ci.make = ''; _ci.model = ''; }
+    if (x.color) _ci.color = x.color;
+    ci2VehSum(false); ci2MirrorChecks();
+  } else {
+    document.getElementById('fName').value = String(x.name || '').toUpperCase();
+    if (x.car) document.getElementById('fCar').value = x.car;
+    if (x.color) document.getElementById('fColor').value = x.color;
+    chkFreq();
+  }
+  showMsg('Name' + (x.car ? ' and vehicle' : '') + ' filled from the last visit — confirm with the guest.', false);
+}
+
 // ── AUTHORIZED PICKUP AT DELIVERY ───────────────────────────────
 // A ticket with an authorized pickup person: the team picks who is taking
 // the car and confirms a photo ID before Deliver unlocks. The database
@@ -9468,13 +9817,13 @@ async function fetchCurrentUserProfile(){
 // bootstrapAfterAuth() already routes it straight into TV Mode before
 // this function is ever called for that role.
 var TAB_VISIBILITY_BY_ROLE = {
-  ADMIN:      ['all','day','tasks','messages','tvmode','closingreport','report','logs','debug','useraccess'],
-  IPAD_OPS:   ['all','day','tasks','messages','tvmode','closingreport','report','logs','debug'],
+  ADMIN:      ['all','guests','day','tasks','messages','tvmode','closingreport','report','logs','debug','useraccess'],
+  IPAD_OPS:   ['all','guests','day','tasks','messages','tvmode','closingreport','report','logs','debug'],
   // closingreport: the daily closing is done on the operation phones (owner
   // 2026-10-25 emergency, hotfix main 14e191d); server RLS allows IPHONE_OPS
   // on daily_closing_reports. debug: owner 2026-10-26 (same Debug tab IPAD_OPS has).
-  IPHONE_OPS: ['all','day','tasks','messages','tvmode','closingreport','debug'],
-  MANAGER:    ['all','day','tasks','messages','tvmode','closingreport','report','logs'],
+  IPHONE_OPS: ['all','guests','day','tasks','messages','tvmode','closingreport','debug'],
+  MANAGER:    ['all','guests','day','tasks','messages','tvmode','closingreport','report','logs'],
   TV_ONLY:    []
 };
 function applyRoleNavVisibility(role){

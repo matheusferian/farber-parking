@@ -50,11 +50,14 @@
 // v45: Logout signs out THIS device only (scope 'local'), never every device of the account.
 // v46: Returning with / pickup model, Makers Customs exception, Needs Review
 //      (index.html, utils.js, styles.css changed). Same SHELL_FILES.
+// v87: Guests — staff guest profiles (search, visits, activity, tips & notes),
+//      returning-guest hint at check-in, Guest Profile on the ticket
+//      (index.html + styles.css changed). Same SHELL_FILES. Needs 20261114.
 // v86: Smart Tips — cash tips at Deliver go to the audited ledger, car card Tips,
 //      manual delivery message, Closing Report cash reconciliation
 //      (index.html + styles.css changed). Same SHELL_FILES. Needs 20261113.
 // v47: AirValet SMS inbox + server-side texts (only when SMS_PROVIDER = 'twilio').
-var CACHE_VERSION = 'v86';
+var CACHE_VERSION = 'v87';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 var SHELL_FILES = [
