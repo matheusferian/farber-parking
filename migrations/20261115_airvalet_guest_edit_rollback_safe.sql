@@ -182,8 +182,10 @@ begin
 end $function$;
 
 drop function if exists public.airvalet_guest_profile_save(text, text, text, uuid);
-drop function if exists public.airvalet_guest_visit_update(bigint, jsonb, uuid);
-drop function if exists public.airvalet_guest_vehicle_update(text, bigint[], text, text, uuid);
-drop function if exists public.airvalet_guest_apply_ticket_change(uuid, text, bigint, text, text, text);
+drop function if exists public.airvalet_guest_visit_update(bigint, jsonb, uuid, text);
+drop function if exists public.airvalet_guest_vehicle_update(text, bigint[], text, text, uuid, text);
+drop function if exists public.airvalet_guest_apply_ticket_change(uuid, text, bigint, text, text, text, text);
 drop function if exists public.airvalet_guest_profile_row(text);
+drop function if exists public.airvalet_guest_visit_closed(text);
+drop function if exists public.airvalet_guest_is_manager();
 commit;

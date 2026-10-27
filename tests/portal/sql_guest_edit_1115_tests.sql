@@ -39,18 +39,22 @@ create temp table t_snap as select
   (select md5(string_agg(x::text, '|' order by x.id)) from public.payments x) pay,
   (select md5(string_agg(x::text, '|' order by x.id)) from public.airvalet_tip_records x) tips,
   (select md5(string_agg(p.name || p.phone || coalesce(p.ret, '') || p.status || coalesce(p.tip_in_person_cents::text, '') || coalesce(p.tip_received::text, ''), '|' order by p.id)) from public.passengers p where p.id between 983001 and 983004) idfields,
+  (select md5(coalesce(string_agg(x::text, '|' order by x.seq), '')) from public.airvalet_sms_consents x) consents,
+  (select md5(coalesce(string_agg(x::text, '|' order by x.passenger_id), '')) from public.airvalet_sms_enrollments x) enrollments,
   pg_temp.gk(983001) key1, pg_temp.gk(983004) key4;
 grant select on t_snap to authenticated;
 
 -- ── Permissions ───────────────────────────────────────────────────────────
 select pg_temp.check(not has_function_privilege('anon', 'public.airvalet_guest_profile_save(text,text,text,uuid)', 'execute')
-  and not has_function_privilege('anon', 'public.airvalet_guest_visit_update(bigint,jsonb,uuid)', 'execute')
-  and not has_function_privilege('anon', 'public.airvalet_guest_vehicle_update(text,bigint[],text,text,uuid)', 'execute'), 'anon (Valet Pass) cannot edit guests');
-select pg_temp.check(not has_function_privilege('authenticated', 'public.airvalet_guest_apply_ticket_change(uuid,text,bigint,text,text,text)', 'execute'), 'internal ticket writer not callable by the app');
+  and not has_function_privilege('anon', 'public.airvalet_guest_visit_update(bigint,jsonb,uuid,text)', 'execute')
+  and not has_function_privilege('anon', 'public.airvalet_guest_vehicle_update(text,bigint[],text,text,uuid,text)', 'execute'), 'anon (Valet Pass) cannot edit guests');
+select pg_temp.check(not has_function_privilege('authenticated', 'public.airvalet_guest_apply_ticket_change(uuid,text,bigint,text,text,text,text)', 'execute'), 'internal ticket writer not callable by the app');
 select pg_temp.check(not has_table_privilege('authenticated', 'public.airvalet_guest_profiles', 'insert') and not has_table_privilege('authenticated', 'public.airvalet_guest_changes', 'update')
   and not has_table_privilege('anon', 'public.airvalet_guest_changes', 'select'), 'no direct writes; anon reads nothing');
 select pg_temp.act('localtv');
-select pg_temp.check(pg_temp.errs($q$ select public.airvalet_guest_profile_save(pg_temp.gk(983001), 'X Y', null, gen_random_uuid()) $q$), 'TV_ONLY cannot edit');
+select pg_temp.check(pg_temp.errs($q$ select public.airvalet_guest_profile_save(pg_temp.gk(983001), 'X Y', null, gen_random_uuid()) $q$)
+  and pg_temp.errs($q$ select public.airvalet_guest_visit_update(983003, '{"obs":"x"}', gen_random_uuid()) $q$)
+  and pg_temp.errs($q$ select public.airvalet_guest_vehicle_update(pg_temp.gk(983003), array[983003]::bigint[], 'BMW X1', 'Red', gen_random_uuid()) $q$), 'TV_ONLY cannot edit passenger, visit or vehicle');
 
 -- ── Edit guest (corrected details; tickets untouched) ─────────────────────
 select pg_temp.act('localipad');
@@ -68,6 +72,8 @@ select pg_temp.check((select md5(string_agg(p.name || p.phone || coalesce(p.ret,
   'tickets keep their name, phone, return, status, tips (nothing rewritten)');
 select pg_temp.check((select md5(string_agg(x::text, '|' order by x.id)) from public.airvalet_pass_links x where passenger_id between 983001 and 983004) = (select links from t_snap), 'Valet Pass link not revoked (ticket phone untouched)');
 select pg_temp.check((select count(*) from public.airvalet_sms_messages) = (select sms from t_snap), 'no text sent');
+select pg_temp.check((select md5(coalesce(string_agg(x::text, '|' order by x.seq), '')) from public.airvalet_sms_consents x) = (select consents from t_snap)
+  and (select md5(coalesce(string_agg(x::text, '|' order by x.passenger_id), '')) from public.airvalet_sms_enrollments x) = (select enrollments from t_snap), 'phone change: text consent and enrollment untouched');
 select pg_temp.check(pg_temp.gk(983001) = (select key1 from t_snap) and pg_temp.ng(array[983001, 983004]) = 2, 'identity unchanged: the corrected name does NOT merge JACLYN (other phone)');
 select pg_temp.act('localipad');
 select pg_temp.check((select count(*) = 1 from jsonb_array_elements(public.airvalet_guest_search('jacklyn', 10, 0) -> 'rows') r where r ->> 'name' = 'JACKLYN MURPHY'), 'search finds the corrected name');
@@ -80,7 +86,8 @@ select pg_temp.check(public.airvalet_guest_visit_update(983003, '{"name":"X"}', 
 select pg_temp.check(public.airvalet_guest_visit_update(983003, '{"phone":"3055550000"}', gen_random_uuid()) ->> 'result' = 'FIELD_NOT_ALLOWED', 'phone not editable here (would revoke the pass)');
 select pg_temp.check(public.airvalet_guest_visit_update(983003, '{"ret":"1/1/2030"}', gen_random_uuid()) ->> 'result' = 'FIELD_NOT_ALLOWED', 'return date keeps its own flow (reason)');
 select pg_temp.check(public.airvalet_guest_visit_update(983003, '{"status":"DELIVERED"}', gen_random_uuid()) ->> 'result' = 'FIELD_NOT_ALLOWED', 'status not editable here');
-select pg_temp.check(public.airvalet_guest_visit_update(983001, '{"tip_in_person_cents":1}', gen_random_uuid()) ->> 'result' = 'FIELD_NOT_ALLOWED', 'money not editable here');
+select pg_temp.check(public.airvalet_guest_visit_update(983003, '{"tip_in_person_cents":1}', gen_random_uuid()) ->> 'result' = 'FIELD_NOT_ALLOWED', 'money not editable here');
+select pg_temp.check(public.airvalet_guest_visit_update(983001, '{"obs":"Late fix"}', gen_random_uuid(), 'Owner asked to fix it') ->> 'result' = 'CLOSED_VISIT_MANAGER_ONLY', 'IPAD_OPS: closed visit is history (ADMIN / MANAGER only), even with a reason');
 select pg_temp.check(public.airvalet_guest_visit_update(983003, '{"departure_time":"25:99"}', gen_random_uuid()) ->> 'result' = 'INVALID', 'bad arrival time refused');
 select pg_temp.check(public.airvalet_guest_visit_update(983003, '{"car":"Mercedes GLS","color":"Silver","return_flight":"ma 318","departure_time":"18:05","obs":"Spare key in glovebox. Child seat."}', '55555555-0000-0000-0000-000000000001') ->> 'changed' = '5',
   'visit: vehicle, color, flight, arrival time, notes saved');
@@ -98,10 +105,23 @@ select pg_temp.check((select md5(string_agg(x::text, '|' order by x.id)) from pu
 select pg_temp.act('localiphone');
 select pg_temp.check(public.airvalet_guest_vehicle_update(pg_temp.gk(983001), array[983001, 983004]::bigint[], 'BMW X6', 'Black', gen_random_uuid()) ->> 'result' = 'NOT_THIS_GUEST', 'another guest''s ticket refused');
 select pg_temp.check(public.airvalet_guest_vehicle_update(pg_temp.gk(983001), array[]::bigint[], 'BMW X6', 'Black', gen_random_uuid()) ->> 'result' = 'NO_VISITS', 'no visit ticked → nothing');
-select pg_temp.check(public.airvalet_guest_vehicle_update(pg_temp.gk(983001), array[983001, 983002]::bigint[], 'bmw x6', 'Black', '66666666-0000-0000-0000-000000000001') ->> 'tickets_changed' = '2', 'BMW corrected on the 2 ticked visits');
+select pg_temp.check(public.airvalet_guest_vehicle_update(pg_temp.gk(983001), array[983001, 983002]::bigint[], 'bmw x6', 'Black', gen_random_uuid(), 'Plate photo shows an X6') ->> 'result' = 'CLOSED_VISIT_MANAGER_ONLY', 'IPHONE_OPS: closed visits refused');
+select pg_temp.act('localmanager');
+select pg_temp.check(public.airvalet_guest_vehicle_update(pg_temp.gk(983001), array[983001, 983002]::bigint[], 'bmw x6', 'Black', gen_random_uuid()) ->> 'result' = 'REASON_REQUIRED', 'MANAGER: closed visits need a reason');
+select pg_temp.check(public.airvalet_guest_vehicle_update(pg_temp.gk(983001), array[983001, 983002]::bigint[], 'bmw x6', 'Black', gen_random_uuid(), ' ok ') ->> 'result' = 'REASON_REQUIRED', 'MANAGER: a 2-letter reason is not a reason');
+select pg_temp.check(public.airvalet_guest_vehicle_update(pg_temp.gk(983001), array[983001, 983002]::bigint[], 'bmw x6', 'Black', '66666666-0000-0000-0000-000000000001', 'Plate photo shows an X6') ->> 'tickets_changed' = '2', 'MANAGER + reason: BMW corrected on the 2 ticked visits');
+select pg_temp.act('localadmin');
+select pg_temp.check(public.airvalet_guest_visit_update(983004, '{"obs":"Scratch on rear bumper noted at pickup"}', gen_random_uuid(), 'Driver reported it after delivery') ->> 'result' = 'OK', 'ADMIN + reason: closed visit note corrected');
+select pg_temp.act('localipad');
+select pg_temp.check(public.airvalet_guest_vehicle_update(pg_temp.gk(983003), array[983003]::bigint[], 'Mercedes GLS', 'Silver', gen_random_uuid()) ->> 'result' = 'UNCHANGED', 'IPAD_OPS: active ticket editable without a reason (already up to date)');
 reset role;
 select pg_temp.check((select string_agg(id || ':' || car || ':' || color, ',' order by id) from public.passengers where id between 983001 and 983003) = '983001:BMW X6:Black,983002:BMW X6:Black,983003:MERCEDES GLS:Silver',
   'the Mercedes visit is untouched');
+select pg_temp.check((select count(*) = 2 and bool_and(changed_by = 'localmanager@airvalet.local' and detail like '%| From Passengers | Reason: Plate photo shows an X6') from public.activity_log where passenger_id in (983001, 983002) and action = 'EDITED')
+  and (select count(*) = 2 and bool_and(reason = 'Plate photo shows an X6' and old_value = 'BMW X5' and new_value = 'BMW X6') from public.airvalet_guest_changes where passenger_id in (983001, 983002) and field = 'car'),
+  'closed-visit edits: who, when, old, new and the reason in both histories');
+select pg_temp.check((select reason = 'Driver reported it after delivery' and changed_by = 'localadmin@airvalet.local' and new_value = 'Scratch on rear bumper noted at pickup' from public.airvalet_guest_changes where passenger_id = 983004 and field = 'obs')
+  and (select status = 'DELIVERED' from public.passengers where id = 983004), 'ADMIN closed-visit note: audited, status untouched');
 select pg_temp.check((select md5(string_agg(x::text, '|' order by x.id)) from public.payments x) = (select pay from t_snap) and (select md5(string_agg(x::text, '|' order by x.id)) from public.airvalet_tip_records x) = (select tips from t_snap),
   'payments and tips untouched by every edit');
 select pg_temp.act('localipad');

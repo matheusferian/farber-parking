@@ -2472,6 +2472,8 @@ body.tv-stale .tv-stale-banner{display:block;}
 .gx-ticks{border:1px solid var(--b);border-radius:14px;padding:6px 14px;margin:0 0 12px}
 .gx-ticks legend{font:700 13px 'Inter',sans-serif;color:var(--mu);padding:0 6px}
 .gx-tick{display:flex;align-items:center;gap:12px;min-height:48px;border-top:1px solid var(--b);cursor:pointer}
+.gx-tick.off{cursor:not-allowed}
+.gx-f[hidden]{display:none}
 .gx-tick:first-of-type{border-top:0}
 .gx-tick input{width:22px;height:22px;flex:none}
 .gx-tick span{display:flex;flex-direction:column}

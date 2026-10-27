@@ -694,7 +694,7 @@
 </div>
 <!-- GUEST PROFILE (opens over the ticket or the check-in without closing them) -->
 <div class="gx-ov" id="gxOv" aria-hidden="true" onclick="if(event.target===this)gxClose()">
-  <div class="gx-panel" id="gxPanel" role="dialog" aria-modal="true" aria-label="Guest profile"></div>
+  <div class="gx-panel" id="gxPanel" role="dialog" aria-modal="true" aria-label="Passenger profile"></div>
 </div>
 <!-- GUEST DECISIONS (merge / move / not the same / undo / delete note): reason + confirmation -->
 <div class="gx-ov gx-ov2" id="gxActOv" aria-hidden="true" onclick="if(event.target===this)gxSheetDismiss()">
@@ -4374,7 +4374,7 @@ function shareChooser(options){
   var old = document.getElementById('shareOv'); if (old) old.remove();
   var key = 'n' + Date.now(); _shareLog[key] = options;
   var ov = document.createElement('div'); ov.id = 'shareOv'; ov.className = 'share-ov';
-  ov.innerHTML = '<div class="share-box" role="dialog" aria-label="Send to an international number"><b>Send to ' + escapeHTML(options.passengerName || 'guest') + '</b>' +
+  ov.innerHTML = '<div class="share-box" role="dialog" aria-label="Send to an international number"><b>Send to ' + escapeHTML(options.passengerName || 'passenger') + '</b>' +
     '<span>International number (+' + escapeHTML(guestPhoneIntl(options.phone)) + '): no AirValet SMS. Choose the app:</span>' +
     shareLinksHtml(options.phone, options.body, key) + '<button type="button" class="share-x" onclick="this.closest(\'.share-ov\').remove()">Cancel</button></div>';
   document.body.appendChild(ov);
@@ -4392,7 +4392,7 @@ function passShareErrorText(code){
   return ({ NO_PASS_LINK: 'No valet pass link: consent was not saved on an approved device', NETWORK: 'No connection — try again',
     INVALID_PHONE: 'Phone number not valid for a link — edit it with + country code', FORBIDDEN: 'This login cannot create links',
     DEVICE_NOT_AUTHORIZED: 'This device is not approved for AirValet texting', TOO_SOON: 'A link was just created — use the buttons already shown',
-    DAILY_LIMIT: 'Too many new links today for this guest — ask a manager',
+    DAILY_LIMIT: 'Too many new links today for this passenger — ask a manager',
     CLOSED_TICKET: 'The car was delivered — no new link',
     UNAVAILABLE: 'Link service not available — try again', UNAUTHENTICATED: 'Session expired — sign in again',
     DOMESTIC_USE_SMS: 'US number — use the normal text' })[code] || 'Valet pass link not created — try again';
@@ -5167,8 +5167,8 @@ async function vpOnAlert(){
 }
 function vpShowBanner(it){
   var b = document.getElementById('vpBanner'); if (!b || isTvMode()) return;
-  b.innerHTML = '<div class="vpb-k">' + (it.kind === 'REQUEST' ? 'NEW PASSENGER REQUEST' : 'NEW GUEST MESSAGE') + '</div>' +
-    '<div class="vpb-w">' + escapeHTML(it.who || 'Guest') + (it.ticket ? ' · Ticket #' + escapeHTML(it.ticket) : '') + '</div>' +
+  b.innerHTML = '<div class="vpb-k">' + (it.kind === 'REQUEST' ? 'NEW PASSENGER REQUEST' : 'NEW PASSENGER MESSAGE') + '</div>' +
+    '<div class="vpb-w">' + escapeHTML(it.who || 'Passenger') + (it.ticket ? ' · Ticket #' + escapeHTML(it.ticket) : '') + '</div>' +
     '<div class="vpb-t">"' + escapeHTML(it.text || '') + '"</div>' +
     '<div class="vpb-a"><button type="button" class="vpb-open" onclick="vpOpenMessages()">OPEN MESSAGE</button><button type="button" onclick="vpHideBanner()">Later</button></div>';
   b.style.display = '';
@@ -5235,8 +5235,8 @@ async function renderVpAlertsCard(){
     : sup === 'HOME_SCREEN' ? 'Add AirValet to the Home Screen (Share → Add to Home Screen), open it from there, then turn alerts on.'
     : sup !== 'OK' ? 'This browser cannot receive alerts. Messages still appear here live.'
     : state === 'denied' ? 'Notifications are blocked for AirValet in this device\'s Settings.'
-    : state === 'on' ? 'This device gets an alert for new guest messages and passenger requests, even outside AirValet.'
-    : 'Get an alert for new guest messages and passenger requests, even when AirValet is closed.';
+    : state === 'on' ? 'This device gets an alert for new passenger messages and requests, even outside AirValet.'
+    : 'Get an alert for new passenger messages and requests, even when AirValet is closed.';
   var short = !s.push_enabled ? 'off' : sup !== 'OK' ? 'not available' : state === 'denied' ? 'blocked' : state === 'on' ? 'on' : 'off';
   el.className = 'smsdev-fold';
   el.innerHTML = '<details' + (el.querySelector && el.querySelector('details[open]') ? ' open' : '') + '><summary>&#128276; Alerts: ' + short + '</summary><div class="smsdev-fold-in"><div class="smsdev-s">' + escapeHTML(line) + '</div>' +
@@ -5479,7 +5479,7 @@ async function tvAlertsRefresh(){
 function tvShowMsgToast(it){
   var t = document.getElementById('tvMsgToast'); if (!t) return;
   t.innerHTML = '<div class="tvm-k">' + (it.kind === 'REQUEST' ? 'NEW REQUEST' : 'NEW MESSAGE') + '</div>' +
-    '<div class="tvm-w">' + escapeHTML(it.who || 'Guest') + (it.ticket ? ' · Ticket #' + escapeHTML(it.ticket) : '') + '</div>' +
+    '<div class="tvm-w">' + escapeHTML(it.who || 'Passenger') + (it.ticket ? ' · Ticket #' + escapeHTML(it.ticket) : '') + '</div>' +
     '<div class="tvm-t">"' + escapeHTML(it.text || '') + '"</div>' +
     '<div class="tvm-s">Answer on the iPad or a staff phone</div>';
   t.style.display = '';
@@ -5527,9 +5527,9 @@ async function vpAdminLoad(){
   box.innerHTML = '<div class="smsadm-t" style="margin-top:14px">&#128241; Admin SMS alerts <span class="vpa-n">(Super Admin only)</span></div>' +
     '<div class="vpa-grid"><label>Phone number<input id="vpA_phone" value="' + escapeHTML(a.phone_e164 || '') + '" placeholder="+1…"></label>' +
     '<label>' + (a.phone_verified ? '✓ Verified' : 'Not verified') + '<span class="vpa-hrs"><button type="button" class="smsbtn" onclick="vpAlertsSendCode()">Send code</button><input id="vpA_code" inputmode="numeric" maxlength="6" placeholder="6-digit code"><button type="button" class="smsbtn" onclick="vpAlertsConfirm()">Confirm</button></span></label></div>' +
-    c('enabled', 'Enabled') + c('notify_guest_messages', 'New guest messages') + c('notify_pass_requests', 'Passenger requests') + c('notify_sms_failures', 'SMS delivery failures') +
+    c('enabled', 'Enabled') + c('notify_guest_messages', 'New passenger messages') + c('notify_pass_requests', 'Passenger requests') + c('notify_sms_failures', 'SMS delivery failures') +
     '<div class="vpa-grid"><label>Max alerts per day<input id="vpA_daily_cap" type="number" min="1" max="200" value="' + Number(a.daily_cap) + '"></label>' +
-    '<label>Same guest — one alert per (minutes)<input id="vpA_per_guest_window_min" type="number" min="1" max="240" value="' + Number(a.per_guest_window_min) + '"></label></div>' +
+    '<label>Same passenger — one alert per (minutes)<input id="vpA_per_guest_window_min" type="number" min="1" max="240" value="' + Number(a.per_guest_window_min) + '"></label></div>' +
     '<div class="vpa-n">Last 24 h: ' + Number(a.last_24h || 0) + ' alerts · last 30 days: ' + Number(a.last_30d_segments || 0) + ' segments (about $' + (Number(a.last_30d_segments || 0) * SMS_COST_PER_SEGMENT_EST).toFixed(2) + '). Each alert is one segment (about $0.01).</div>' +
     '<button type="button" class="smsbtn pri" onclick="vpAlertsSave()">Save alerts</button> <button type="button" class="smsbtn" onclick="vpAlertsTest()">Send test alert</button> <span id="vpAlMsg" class="vpa-n"></span>';
 }
@@ -6984,12 +6984,12 @@ function ci2Html(){
   +   '<div class="ci2-np"><div class="ci2-f"><label for="ci2Name">Name</label><div class="ci2-acw"><input id="ci2Name" class="ci2-inp" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="First and last name"><div class="ci2-ac" id="ci2Ac" hidden></div></div><div class="ci2-hint" id="ci2Freq" hidden></div></div>'
   +   '<div class="ci2-f"><label for="ci2Phone">Phone</label><div class="ci2-pw"><input id="ci2Phone" class="ci2-inp" type="tel" inputmode="tel" autocomplete="off" maxlength="18" placeholder="(305) 555-0142 or +49 …" aria-describedby="ci2PhoneHint"><span class="ci2-ok" id="ci2PhoneOk">Valid</span></div><div class="ci2-hint" id="ci2PhoneHint">US number, or + country code. It can be a companion’s phone.</div></div></div>'
   +   '<div class="gx-ci" id="gxCi2" hidden></div>'
-  +   '<div class="ci2-er" id="ci2Er" hidden>⚠️ This guest had an Early Return before. Confirm the return date carefully.</div>'
+  +   '<div class="ci2-er" id="ci2Er" hidden>⚠️ This passenger had an Early Return before. Confirm the return date carefully.</div>'
   +   '<div class="ci2-f"><div class="ci2-lr"><span class="ci2-lab" id="ci2RetLbl">Return date</span><span class="ci2-opt">Optional</span></div><div class="ci2-retpick" data-n="1"></div>'
   +     '<label class="ci2-check"><input type="checkbox" class="ci2-other"><span>Returning with another airline<small>No automatic pickup instructions; staff set the pickup place</small></span></label></div>'
   +   '<div class="ci2-consent"><p class="ci2-q">Guest agrees to texts about this car?</p>'
   +     '<div class="ci2-seg"><button type="button" class="yes" id="ci2Yes" aria-pressed="false">Yes, agreed</button><button type="button" class="no" id="ci2No" aria-pressed="false">No texts</button></div>'
-  +     '<details><summary>Read to the guest</summary><p class="ci2-script">' + legal + ' Tap “Yes, agreed” only if they say yes.</p></details>'
+  +     '<details><summary>Read to the passenger</summary><p class="ci2-script">' + legal + ' Tap “Yes, agreed” only if they say yes.</p></details>'
   +     '<p class="ci2-hint" id="ci2Native" hidden>This device sends texts through iPhone Messages.</p></div>'
   +   '<div class="ci2-dup" id="ci2Dup" role="alert" hidden></div>'
   +   '<div class="ci2-er" id="ci2SaveErr" role="alert" hidden></div>'
@@ -7017,8 +7017,8 @@ function ci2Html(){
   +   ci2Sec('ci2SRet', 'Return', 'No date yet', '<div class="ci2-retpick" data-n="2"></div><label class="ci2-check"><input type="checkbox" class="ci2-other"><span>Returning with another airline</span></label>'
   +     '<label class="ci2-sub" for="ci2Time">Return time (optional)</label><input class="ci2-search ci2-time" id="ci2Time" type="time">')
   + '</div><div class="ci2-col">'
-  +   ci2Sec('ci2SFlight', 'Flight / tail', 'Not set', '<input class="ci2-search" id="ci2Flight" placeholder="Flight or tail number" autocomplete="off" autocapitalize="characters"><p class="ci2-hint">With a return time or flight, the guest’s valet pass shows “Flying back”.</p>')
-  +   ci2Sec('ci2SPick', 'Someone else will pick up', 'No', '<label class="ci2-check" style="margin-top:0"><input type="checkbox" id="ci2PickOn"><span>Someone else will pick up the vehicle<small>The guest keeps the valet pass. Nothing is texted to this person.</small></span></label>'
+  +   ci2Sec('ci2SFlight', 'Flight / tail', 'Not set', '<input class="ci2-search" id="ci2Flight" placeholder="Flight or tail number" autocomplete="off" autocapitalize="characters"><p class="ci2-hint">With a return time or flight, the passenger’s valet pass shows “Flying back”.</p>')
+  +   ci2Sec('ci2SPick', 'Someone else will pick up', 'No', '<label class="ci2-check" style="margin-top:0"><input type="checkbox" id="ci2PickOn"><span>Someone else will pick up the vehicle<small>The passenger keeps the valet pass. Nothing is texted to this person.</small></span></label>'
   +     '<div id="ci2PickForm" hidden><div class="ci2-two"><div><label class="ci2-sub" for="ci2PName">Pickup person name</label><input class="ci2-search" id="ci2PName" autocomplete="off" autocapitalize="characters" maxlength="80"></div><div><label class="ci2-sub" for="ci2PPhone">Phone (optional)</label><input class="ci2-search" id="ci2PPhone" type="tel" inputmode="numeric" maxlength="14"></div></div>'
   +     '<p class="ci2-sub">Pickup location</p><div class="ci2-chipset" id="ci2PLoc"></div>'
   +     '<p class="ci2-sub">Notes</p><textarea class="ci2-search ci2-ta" id="ci2PNotes" maxlength="500" placeholder="Relationship, ID to check, anything the team should know"></textarea>'
@@ -7185,7 +7185,7 @@ function ci2ShowDup(r){
 function ci2HideDup(){ if (!_ci) return; _ci.dupOk = false; var b = ci2El('ci2Dup'); if (b) b.hidden = true; }
 function ci2ResetConsent(){ _ci.consent = null; ci2El('ci2Yes').setAttribute('aria-pressed', 'false'); }
 function ci2StartCountdown(){
-  if (!ci2El('ci2Name').value.trim()) { ci2Toast('Add the guest name first.', true); ci2ResetConsent(); ci2El('ci2Name').focus(); return; }
+  if (!ci2El('ci2Name').value.trim()) { ci2Toast('Add the passenger name first.', true); ci2ResetConsent(); ci2El('ci2Name').focus(); return; }
   if (!ci2PhoneValid(ci2El('ci2Phone').value)) { ci2Toast('Enter a valid phone: 10 digits (US) or + country code.', true); ci2ResetConsent(); ci2El('ci2Phone').focus(); return; }
   if (!_ci.dupOk) { var dup = ci2RecentSameGuest(); if (dup) { ci2ResetConsent(); ci2ShowDup(dup); return; } }
   if (_ci.timer) clearInterval(_ci.timer);
@@ -7252,8 +7252,8 @@ async function ci2Create(withText){
   ci2RenderCard(); ci2Need();
   var sc = ci2El('ci2Sms');
   var intlPhone = !!guestPhoneIntl(phone);
-  if (_ci.offline) { ci2Sms('notsent', !withText ? 'Saved offline — guest chose no texts' : intlPhone ? 'Saved offline — after it uploads, open the ticket and tap Send pass link' : 'Saved offline — the welcome text goes out after it uploads'); return; }
-  if (!withText) { ci2Sms('noconsent', 'Guest chose no texts'); return; }
+  if (_ci.offline) { ci2Sms('notsent', !withText ? 'Saved offline — passenger chose no texts' : intlPhone ? 'Saved offline — after it uploads, open the ticket and tap Send pass link' : 'Saved offline — the welcome text goes out after it uploads'); return; }
+  if (!withText) { ci2Sms('noconsent', 'Passenger chose no texts'); return; }
   if (intlPhone) {
     if (res.consent) { ci2ShareWelcome(); return; }
     ci2Sms('notsent', smsProgramOpen() ? 'Consent could not be saved — no valet pass link' : 'This device is not in AirValet texting', 'WhatsApp / iMessage'); return;
@@ -8087,7 +8087,7 @@ async function tipsLoad(r){
      (pay.length?pay.map(function(p){ return '<small>'+tipMoney(p.amount_cents)+' · '+(p.status==='refunded'?'refunded':'confirmed')+' · '+escapeHTML(tipWhen(p.created_at))+'</small>'; }).join('')
                 :'<small>'+(res[1]===null?'Could not load.':'None confirmed for this ticket')+'</small>')+'</div></div>';
   h+=tipsDeliveryMsgHtml(r, res[2], res[3]);
-  h+='<div class="vps-s">Staff only. The guest never sees an amount.</div></div>';
+  h+='<div class="vps-s">Staff only. The passenger never sees an amount.</div></div>';
   el.innerHTML=h;
 }
 // Manual delivery message (owner 2026-10-27): never automatic from here, only
@@ -8358,6 +8358,15 @@ function gxOverviewHtml(p){
 }
 function gxTime(t){ var m = /^(\d{1,2}):(\d{2})/.exec(String(t || '')); if (!m) return ''; var hh = +m[1], ap = hh >= 12 ? 'PM' : 'AM'; hh = hh % 12 || 12; return hh + ':' + m[2] + ' ' + ap; }
 // One row per vehicle (same car + color = same vehicle); each one edits only its own visits.
+// Owner rules (2026-10-27): closed visits are history — only ADMIN / MANAGER change them, with a reason (same rule on the server).
+function gxClosed(v){ return ['DELIVERED', 'FINALIZED', 'ARCHIVED', 'CANCELLED', 'CANCELED'].indexOf(String((v && v.status) || '').toUpperCase().trim()) >= 0; }
+function gxCanHistory(){ return !!(_gx.prof && _gx.prof.can_manage_identity); }
+function gxCanEditVisit(v){ return !gxClosed(v) || gxCanHistory(); }
+function gxReasonHtml(hidden){
+  return '<label class="gx-f" for="gxReason" id="gxReasonW"' + (hidden ? ' hidden' : '') + '><span>Reason for changing a closed visit</span><textarea id="gxReason" class="gx-ta" maxlength="300" rows="2" placeholder="e.g. Plate photo shows a different model"></textarea>' +
+    '<small id="gxReasonH">Required. Kept in the ticket history with your name.</small></label>';
+}
+function gxReasonVal(){ var el = document.getElementById('gxReason'); return el ? el.value.replace(/\s+/g, ' ').trim() : ''; }
 function gxVehicleGroups(p){
   var g = {};
   (p.visits || []).forEach(function(v){ var k = String(v.vehicle || '').toUpperCase().trim(); if (!k) return; (g[k] = g[k] || { vehicle: v.vehicle, visits: [] }).visits.push(v); });
@@ -8368,7 +8377,7 @@ function gxVehiclesHtml(p){
   return '<section class="gx-card"><h3>Vehicles</h3>' + (groups.length ? groups.map(function(g, i){
     return '<div class="gx-veh"><span class="gx-veh-ic">' + gxIcon('car-side') + '</span><span class="gx-veh-t"><b>' + escapeHTML(niceVehicleText(g.vehicle)) + '</b><small>' +
       escapeHTML(g.visits.length + (g.visits.length === 1 ? ' visit' : ' visits') + ' · ' + g.visits.map(function(v){ return v.ticket; }).filter(Boolean).slice(0, 4).join(', ') + (g.visits.length > 4 ? '…' : '')) + '</small></span>' +
-      '<button type="button" class="gx-btn line sm" data-veh="' + i + '" aria-label="Edit ' + escapeHTML(niceVehicleText(g.vehicle)) + '">' + gxIcon('pen') + 'Edit</button></div>';
+      (g.visits.some(gxCanEditVisit) ? '<button type="button" class="gx-btn line sm" data-veh="' + i + '" aria-label="Edit ' + escapeHTML(niceVehicleText(g.vehicle)) + '">' + gxIcon('pen') + 'Edit</button>' : '') + '</div>';
   }).join('') : '<p class="gx-fine">No vehicle on record.</p>') + '</section>';
 }
 function gxHistoryHtml(p){
@@ -8376,7 +8385,7 @@ function gxHistoryHtml(p){
   if (!ch.length) return '';
   var F = { guest_name: 'Name', guest_phone: 'Phone', car: 'Vehicle', color: 'Color', return_flight: 'Return flight', departure_time: 'Arrival time', obs: 'Notes' };
   return '<details class="gx-card gx-hist"><summary><h3>Changes made in Passengers</h3><span class="gx-pill">' + ch.length + '</span></summary>' + ch.map(function(c){
-    return '<div class="gx-chg"><b>' + escapeHTML((F[c.field] || c.field) + (c.ticket ? ' · ticket ' + c.ticket : '')) + '</b><span>' + escapeHTML((c.old || '—') + ' → ' + (c.new || '—')) + '</span><small>' + escapeHTML(tipWho(c.by) + ' · ' + gxWhen(c.at)) + '</small></div>';
+    return '<div class="gx-chg"><b>' + escapeHTML((F[c.field] || c.field) + (c.ticket ? ' · ticket ' + c.ticket : '')) + '</b><span>' + escapeHTML((c.old || '—') + ' → ' + (c.new || '—')) + '</span><small>' + escapeHTML(tipWho(c.by) + ' · ' + gxWhen(c.at) + (c.reason ? ' · Reason: ' + c.reason : '')) + '</small></div>';
   }).join('') + '</details>';
 }
 function gxIdentityHtml(p){
@@ -8423,7 +8432,7 @@ function gxVisitCardHtml(v, i){
     (v.notes ? '<p class="gx-vnote">' + gxIcon('note-sticky') + escapeHTML(v.notes) + '</p>' : '') +
     ((v.return_changes || []).length ? '<details class="gx-rc"><summary>Return changes</summary>' + v.return_changes.map(function(c){ return '<div class="gx-kv"><span>' + escapeHTML((c.from || '—') + ' → ' + (c.to || '—')) + '</span><small>' + escapeHTML([c.reason, tipWho(c.by), gxWhen(c.at)].filter(Boolean).join(' · ')) + '</small></div>'; }).join('') + '</details>' : '') +
     '<div class="gx-vf"><button type="button" class="gx-btn sm" data-ticket="' + v.id + '">' + gxIcon('ticket') + 'Open ticket</button>' +
-      '<button type="button" class="gx-btn line sm" data-editvisit="' + i + '">' + gxIcon('pen') + 'Edit visit</button>' +
+      (gxCanEditVisit(v) ? '<button type="button" class="gx-btn line sm" data-editvisit="' + i + '">' + gxIcon('pen') + 'Edit visit</button>' : '') +
       (_gx.prof.can_manage_identity && (_gx.prof.visits || []).length > 1 ? '<button type="button" class="gx-btn line sm" data-move="' + v.id + '">Not this passenger…</button>' : '') + '</div>' +
     '</article></li>';
 }
@@ -8675,7 +8684,8 @@ function gxFormClose(force){
   if (o && o.focus && document.body.contains(o)) try { o.focus(); } catch(e) {}
 }
 var GX_FORM_TEXT = { INVALID_NAME: 'Enter the passenger’s name (2+ letters).', INVALID_PHONE: 'Enter a valid phone: 10 digits (US) or + country code.', UNCHANGED: 'Nothing changed.',
-  NO_VISITS: 'Tick at least one visit.', NOT_THIS_GUEST: 'A ticked visit belongs to another passenger. Close and reopen the passenger.', FIELD_NOT_ALLOWED: 'That field is changed on the ticket card.', INVALID: 'Check the highlighted values.', NOT_FOUND: 'Not found. Close and reopen the passenger.' };
+  NO_VISITS: 'Tick at least one visit.', NOT_THIS_GUEST: 'A ticked visit belongs to another passenger. Close and reopen the passenger.', FIELD_NOT_ALLOWED: 'That field is changed on the ticket card.', INVALID: 'Check the highlighted values.', NOT_FOUND: 'Not found. Close and reopen the passenger.',
+  CLOSED_VISIT_MANAGER_ONLY: 'Closed visits are history: only an ADMIN or MANAGER can change them.', REASON_REQUIRED: 'Write the reason for changing a closed visit (5+ letters).' };
 async function gxFormSave(){
   var f = _gxForm; if (!f || f.busy) return;
   var err = document.getElementById('gxFErr'); err.hidden = true;
@@ -8767,12 +8777,23 @@ function gxEditVehicle(g){
   var color = (paxById(g.visits[0].id) || {}).color || '';
   gxForm({ title: 'Edit vehicle', saveLabel: 'Save',
     body: gxVehFieldsHtml(String(g.vehicle || '').replace(new RegExp('^' + (color || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s+', 'i'), ''), color) +
-      '<fieldset class="gx-ticks"><legend>Update these visits</legend>' + g.visits.map(function(v){ return '<label class="gx-tick"><input type="checkbox" value="' + v.id + '" checked><span><b>' + escapeHTML(v.ticket || '—') + '</b><small>' + escapeHTML(gxDate(v.checkin) || 'Date not on record') + '</small></span></label>'; }).join('') + '</fieldset>' +
+      '<fieldset class="gx-ticks"><legend>Update these visits</legend>' + g.visits.map(function(v){
+        var ok = gxCanEditVisit(v), closed = gxClosed(v);
+        return '<label class="gx-tick' + (ok ? '' : ' off') + '"><input type="checkbox" value="' + v.id + '" data-closed="' + closed + '"' + (ok && !closed ? ' checked' : '') + (ok ? '' : ' disabled') + '><span><b>' + escapeHTML(v.ticket || '—') + '</b><small>' +
+          escapeHTML((gxDate(v.checkin) || 'Date not on record') + (closed ? (ok ? ' · Closed visit' : ' · Closed — ADMIN / MANAGER only') : ' · Active')) + '</small></span></label>'; }).join('') + '</fieldset>' +
+      gxReasonHtml(true) +
       '<div class="gx-info">' + gxIcon('circle-info') + '<span>Other vehicles of this passenger are not changed. Each ticket keeps a line in its history.</span></div>',
     snapshot: function(){ var c = gxVehCollect(); return [c.car || '', c.color || '', Array.prototype.map.call(document.querySelectorAll('.gx-ticks input:checked'), function(i){ return i.value; }).join(',')]; },
-    bind: gxBindVeh,
-    collect: function(){ var c = gxVehCollect(); if (c.error) return c; c.ids = Array.prototype.map.call(document.querySelectorAll('.gx-ticks input:checked'), function(i){ return +i.value; }); if (!c.ids.length) return { error: GX_FORM_TEXT.NO_VISITS }; return c; },
-    save: function(c){ return gxRpc('airvalet_guest_vehicle_update', { p_key: _gx.key, p_passenger_ids: c.ids, p_car: c.car, p_color: c.color || null, p_client_key: gxKey() }).then(function(r){ if (r.result === 'OK') c.ids.forEach(function(id){ var d = paxById(id); if (d) { d.car = c.car; d.color = c.color || null; } }); return r; }); },
+    bind: function(panel){
+      gxBindVeh(panel);
+      var sync = function(){ document.getElementById('gxReasonW').hidden = !panel.querySelector('.gx-ticks input[data-closed="true"]:checked'); };
+      panel.querySelectorAll('.gx-ticks input').forEach(function(i){ i.onchange = sync; }); sync();
+    },
+    collect: function(){ var c = gxVehCollect(); if (c.error) return c; c.ids = Array.prototype.map.call(document.querySelectorAll('.gx-ticks input:checked'), function(i){ return +i.value; }); if (!c.ids.length) return { error: GX_FORM_TEXT.NO_VISITS };
+      c.reason = document.querySelector('.gx-ticks input[data-closed="true"]:checked') ? gxReasonVal() : '';
+      if (document.querySelector('.gx-ticks input[data-closed="true"]:checked') && c.reason.length < 5) return { error: GX_FORM_TEXT.REASON_REQUIRED, focus: 'gxReason' };
+      return c; },
+    save: function(c){ return gxRpc('airvalet_guest_vehicle_update', { p_key: _gx.key, p_passenger_ids: c.ids, p_car: c.car, p_color: c.color || null, p_client_key: gxKey(), p_reason: c.reason || null }).then(function(r){ if (r.result === 'OK') c.ids.forEach(function(id){ var d = paxById(id); if (d) { d.car = c.car; d.color = c.color || null; } }); return r; }); },
     done: function(r){ showMsg('✓ Vehicle updated on ' + (r.tickets_changed || 0) + (r.tickets_changed === 1 ? ' visit.' : ' visits.'), false); render(); gxReload(); } });
 }
 
@@ -8786,6 +8807,7 @@ function gxEditVisit(v){
       '<div class="gx-two">' + gxFieldHtml('gxVFlight', 'Return flight', d.return_flight || v.flight || '', 'autocomplete="off" autocapitalize="characters" maxlength="20"') +
       gxFieldHtml('gxVArr', 'Arrival time', d.departure_time || '', 'type="time"') + '</div>' +
       '<label class="gx-f" for="gxVNotes"><span>Notes on the ticket</span><textarea id="gxVNotes" class="gx-ta" maxlength="500" rows="3">' + escapeHTML(d.obs != null ? d.obs : (v.notes || '')) + '</textarea></label>' +
+      (gxClosed(v) ? gxReasonHtml(false) : '') +
       '<div class="gx-info">' + gxIcon('circle-info') + '<span>Name, phone, return date, status and tips are changed on the ticket card, with their own rules. Nothing here sends a text.</span>' +
       '<button type="button" class="gx-link-btn" id="gxVOpen">Open ticket ' + escapeHTML(v.ticket || '') + '</button></div>',
     snapshot: function(){ var c = gxVehCollect(); return [c.car || '', c.color || '', document.getElementById('gxVFlight').value.trim().toUpperCase(), document.getElementById('gxVArr').value, document.getElementById('gxVNotes').value.trim()]; },
@@ -8794,9 +8816,11 @@ function gxEditVisit(v){
       var c = gxVehCollect(); if (c.error) return c;
       var now = this.snapshot(), was = _gxForm.initial, keys = ['car', 'color', 'return_flight', 'departure_time', 'obs'], ch = {};
       keys.forEach(function(k, i){ if (now[i] !== was[i]) ch[k] = now[i]; });
-      return { changes: ch };
+      var reason = gxClosed(v) ? gxReasonVal() : '';
+      if (gxClosed(v) && Object.keys(ch).length && reason.length < 5) return { error: GX_FORM_TEXT.REASON_REQUIRED, focus: 'gxReason' };
+      return { changes: ch, reason: reason };
     },
-    save: function(c){ return gxRpc('airvalet_guest_visit_update', { p_passenger_id: v.id, p_changes: c.changes, p_client_key: gxKey() }).then(function(r){
+    save: function(c){ return gxRpc('airvalet_guest_visit_update', { p_passenger_id: v.id, p_changes: c.changes, p_client_key: gxKey(), p_reason: c.reason || null }).then(function(r){
       if (r.result === 'OK') { var dd = paxById(v.id); if (dd) Object.keys(c.changes).forEach(function(k){ dd[k] = k === 'car' || k === 'return_flight' ? String(c.changes[k] || '').toUpperCase() || null : (c.changes[k] || null); }); }
       return r; }); },
     done: function(r){ showMsg('✓ Visit ' + (v.ticket || '') + ' updated (' + (r.changed || 0) + (r.changed === 1 ? ' field).' : ' fields).'), false); render(); gxReload(); } });
@@ -8891,7 +8915,7 @@ function pickupReleaseRender(r){
   box.hidden=false;
   box.innerHTML='<div class="ci2-rel-h">Who is picking up the car?</div>'+
     '<label class="ci2-rel-o"><input type="radio" name="relWho" value="AUTHORIZED"><span><b>'+escapeHTML(r.pickup_auth_name)+'</b><small>Authorized pickup'+(r.pickup_auth_phone?' · '+escapeHTML(fmtP(r.pickup_auth_phone)):'')+(r.pickup_auth_location?' · '+escapeHTML(r.pickup_auth_location):'')+'</small></span></label>'+
-    '<label class="ci2-rel-o"><input type="radio" name="relWho" value="GUEST"><span><b>'+escapeHTML(r.name||'')+'</b><small>Guest on the ticket</small></span></label>'+
+    '<label class="ci2-rel-o"><input type="radio" name="relWho" value="GUEST"><span><b>'+escapeHTML(r.name||'')+'</b><small>Passenger on the ticket</small></span></label>'+
     (r.pickup_auth_notes?'<div class="ci2-rel-n">'+escapeHTML(r.pickup_auth_notes)+'</div>':'')+
     '<label class="ci2-rel-id"><input type="checkbox" id="relIdOk"><span>I checked this person’s photo ID</span></label>'+
     '<div class="ci2-rel-n">Having the valet pass link is not enough.</div>';
@@ -8906,7 +8930,7 @@ function pickupReleaseRender(r){
 function pickupAuthPanelHtml(r){
   var h='<div class="di ci2-pk" style="grid-column:1/-1" id="pkPanel"><div class="di-l">Authorized pickup</div><div class="di-v">';
   if(r.released_to_name){
-    h+='<div class="ci2-pk-rel">Released to <b>'+escapeHTML(r.released_to_name)+'</b> ('+(r.released_to_kind==='GUEST'?'guest':'authorized pickup')+')'+
+    h+='<div class="ci2-pk-rel">Released to <b>'+escapeHTML(r.released_to_name)+'</b> ('+(r.released_to_kind==='GUEST'?'passenger':'authorized pickup')+')'+
        (r.released_id_checked?' · ID checked':'')+(r.released_by?' by '+escapeHTML(String(r.released_by).split('@')[0]):'')+
        (r.released_at?' · '+escapeHTML(new Date(r.released_at).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})):'')+'</div>';
   }
@@ -8929,7 +8953,7 @@ function pickupAuthEdit(id){
     '<select class="ci2-search" id="pkLoc">'+locs.map(function(l){return '<option value="'+l+'"'+((r.pickup_auth_location||'')===l?' selected':'')+'>'+(l||'Pickup location')+'</option>';}).join('')+'</select>'+
     '<textarea class="ci2-search ci2-ta" id="pkNotes" maxlength="500" placeholder="Relationship, ID to check">'+escapeHTML(r.pickup_auth_notes||'')+'</textarea>'+
     '<div class="ci2-btnrow"><button type="button" class="ci2-btn" onclick="pickupAuthSave('+id+')">Save authorization</button><button type="button" class="ci2-btn line" onclick="document.getElementById(\'pkForm\').innerHTML=\'\'">Cancel</button></div>'+
-    '<div class="ci2-pk-n">Nothing is texted to this person. The guest keeps the valet pass.</div></div>';
+    '<div class="ci2-pk-n">Nothing is texted to this person. The passenger keeps the valet pass.</div></div>';
   document.getElementById('pkPhone').addEventListener('input',function(){fmtPhoneInput(this);});
   document.getElementById('pkName').addEventListener('input',function(){this.value=this.value.toUpperCase();});
   document.getElementById('pkName').focus();
@@ -8998,7 +9022,7 @@ async function deliverWithTip(id, deliveryType, tipReceived, inPerson){
     if(deliveryType==='LOCKBOX'&&hasPickupAuth(r)){ showMsg('Authorized pickup on file: hand the key in person and check a photo ID (no lockbox).',true); return false; }
     var rel=pickupReleaseChoice(r);
     if(rel&&rel.error){ showMsg(rel.error,true); return false; }
-    if(rel){ Object.assign(upd,rel); tipNote+=' | Released to '+rel.released_to_name+' ('+(rel.released_to_kind==='GUEST'?'guest':'authorized pickup')+', ID checked)'; }
+    if(rel){ Object.assign(upd,rel); tipNote+=' | Released to '+rel.released_to_name+' ('+(rel.released_to_kind==='GUEST'?'passenger':'authorized pickup')+', ID checked)'; }
     var tov=(typeof document!=='undefined')?document.getElementById('tipOv'):null;
     if(tov&&tov.getAttribute('data-early')==='1'){
       var eo=((r.obs||'').replace('APPROX DATE','').replace(' | ','').trim());
@@ -13852,7 +13876,7 @@ function crUpdateTotal(){
   if(c.state==='EMPTY'){ box.className='cr-recon'; box.textContent='Count the cash in the tip box and type the total ($0 if none).'; return; }
   if(c.state==='INVALID'){ box.className='cr-recon bad'; box.textContent='Not a valid amount.'; return; }
   if(c.state==='RECONCILED'){ box.className='cr-recon ok'; box.innerHTML='<i class="fa-solid fa-circle-check"></i> Reconciled — the cash matches the tickets.'; return; }
-  if(c.state==='OTHER_TIPS'){ box.className='cr-recon info'; box.innerHTML='<b>Other Tips '+crFmtMoney(c.other)+'</b> — loose tips, luggage help or guests without a ticket.'; return; }
+  if(c.state==='OTHER_TIPS'){ box.className='cr-recon info'; box.innerHTML='<b>Other Tips '+crFmtMoney(c.other)+'</b> — loose tips, luggage help or passengers without a ticket.'; return; }
   box.className='cr-recon bad';
   box.innerHTML='<b>Difference −'+crFmtMoney(-c.diff)+'</b> — less cash in the box than recorded on tickets. Check the tickets below; correct a wrong amount on the car card.'+
     '<div class="cr-recon-list">'+_crCashRows.map(function(t){ return '<div><span>'+escapeHTML(t.ticket||'—')+'</span><span>'+crFmtMoney(t.amount_cents)+'</span><span>'+escapeHTML(tipWho(t.recorded_by))+'</span></div>'; }).join('')+'</div>'+
@@ -16825,7 +16849,7 @@ async function offlineSyncPending(manual){
       var msg = '✓ '+done+' offline check-in'+(done>1?'s':'')+' uploaded.';
       if(smsSent) msg += ' Welcome text requested for '+smsSent+'.';
       if(smsLater) msg += ' '+smsLater+' welcome text'+(smsLater>1?'s':'')+' not sent — send from the car card.';
-      if(shareN) msg += ' '+shareN+' international guest'+(shareN>1?'s':'')+': open the ticket and tap Send pass link (WhatsApp / iMessage).';
+      if(shareN) msg += ' '+shareN+' international passenger'+(shareN>1?'s':'')+': open the ticket and tap Send pass link (WhatsApp / iMessage).';
       if(smsRetryN) msg += ' Texts for '+smsRetryN+' will be sent when the connection is stable.';
       if(renum) msg += ' '+renum+' ticket number'+(renum>1?'s':'')+' changed — reprint tags.';
       showMsg(msg, renum>0 || failed>0);

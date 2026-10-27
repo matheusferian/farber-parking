@@ -9,11 +9,14 @@
 --      ticket. Ticket edits are also written to the ticket history (activity_log), like the
 --      ticket card does.
 --   3. airvalet_guest_profile_save(key, name, phone)       ops roles; corrected details
---      airvalet_guest_visit_update(ticket, changes)          ops roles; vehicle, color, return
---          flight, arrival time, notes of ONE ticket. Never name, phone, return date, status,
+--      airvalet_guest_visit_update(ticket, changes, reason)  vehicle, color, return flight,
+--          arrival time, notes of ONE ticket. Never name, phone, return date, status,
 --          money, consent: those keep their own screens and rules.
---      airvalet_guest_vehicle_update(key, tickets[], car, color)  ops roles; the same vehicle
+--      airvalet_guest_vehicle_update(key, tickets[], car, color, reason)  the same vehicle
 --          correction on the tickets the staff ticked (all of that guest), nothing else.
+--      Owner rules (2026-10-27): active tickets → ops roles (ADMIN, MANAGER, IPAD_OPS,
+--      IPHONE_OPS). Closed visits (DELIVERED / FINALIZED / ARCHIVED / CANCELLED) → ADMIN or
+--      MANAGER only, with a reason (5–300 chars) kept in both histories. TV never edits.
 --   4. search / profile / check-in lookup (v87) show the corrected details; their v87
 --      definitions are restored exactly by the safe rollback.
 -- Re-runnable. Rollback (keeps every correction and its history): 20261115_airvalet_guest_edit_rollback_safe.sql
@@ -39,8 +42,10 @@ create table if not exists public.airvalet_guest_changes (
   old_value   text,
   new_value   text,
   changed_by  text not null,
-  changed_at  timestamptz not null default now()
+  changed_at  timestamptz not null default now(),
+  reason      text check (reason is null or char_length(reason) between 5 and 300)   -- required for closed visits
 );
+alter table public.airvalet_guest_changes add column if not exists reason text check (reason is null or char_length(reason) between 5 and 300);
 create index if not exists airvalet_guest_changes_key on public.airvalet_guest_changes (guest_key);
 create index if not exists airvalet_guest_changes_pax on public.airvalet_guest_changes (passenger_id);
 create index if not exists airvalet_guest_changes_action on public.airvalet_guest_changes (action_key);
@@ -55,6 +60,16 @@ begin
     execute format('create policy %I on public.%I for select to authenticated using (public.current_user_role() = any (array[''ADMIN'', ''IPAD_OPS'', ''IPHONE_OPS'', ''MANAGER'']::public.account_role[]))', t || '_select_ops', t);
   end loop;
 end $$;
+
+-- Closed visit = history: only ADMIN / MANAGER may change it, always with a reason.
+create or replace function public.airvalet_guest_visit_closed(p_status text)
+returns boolean language sql immutable set search_path = '' as $$
+  select upper(btrim(coalesce(p_status, ''))) in ('DELIVERED', 'FINALIZED', 'ARCHIVED', 'CANCELLED', 'CANCELED')
+$$;
+create or replace function public.airvalet_guest_is_manager()
+returns boolean language sql stable set search_path = '' as $$
+  select coalesce(public.current_user_role() = any (array['ADMIN', 'MANAGER']::public.account_role[]), false)
+$$;
 
 -- The corrected details of a guest (latest), found by key (incl. merges) or by its tickets.
 create or replace function public.airvalet_guest_profile_row(p_key text)
@@ -109,7 +124,7 @@ begin
 end $$;
 
 -- One ticket: vehicle, color, return flight, arrival time, notes. Audited twice (ticket history + Guests).
-create or replace function public.airvalet_guest_apply_ticket_change(p_action uuid, p_key text, p_id bigint, p_field text, p_new text, p_actor text)
+create or replace function public.airvalet_guest_apply_ticket_change(p_action uuid, p_key text, p_id bigint, p_field text, p_new text, p_actor text, p_reason text)
 returns boolean language plpgsql security definer set search_path = '' as $$
 declare v_p public.passengers%rowtype; v_old text; v_label text;
 begin
@@ -126,23 +141,29 @@ begin
   v_label := case p_field when 'car' then 'Vehicle' when 'color' then 'Color' when 'return_flight' then 'Return Flight' when 'departure_time' then 'Departure Time' else 'Notes' end;
   insert into public.activity_log (ts, action, passenger, ticket, location, detail, passenger_id, changed_by, field_name, old_value, new_value)
   values (to_char(now() at time zone 'America/New_York', 'MM/DD/YYYY, HH12:MI:SS AM'), 'EDITED', v_p.name, v_p.ticket, v_p.loc,
-          v_label || ' changed: ' || coalesce(nullif(v_old, ''), '—') || ' → ' || coalesce(nullif(p_new, ''), '—') || ' | From Passengers', p_id, p_actor, p_field, v_old, p_new);
-  insert into public.airvalet_guest_changes (action_key, guest_key, passenger_id, ticket, field, old_value, new_value, changed_by)
-  values (p_action, p_key, p_id, v_p.ticket, p_field, v_old, p_new, p_actor);
+          v_label || ' changed: ' || coalesce(nullif(v_old, ''), '—') || ' → ' || coalesce(nullif(p_new, ''), '—') || ' | From Passengers' || coalesce(' | Reason: ' || p_reason, ''), p_id, p_actor, p_field, v_old, p_new);
+  insert into public.airvalet_guest_changes (action_key, guest_key, passenger_id, ticket, field, old_value, new_value, changed_by, reason)
+  values (p_action, p_key, p_id, v_p.ticket, p_field, v_old, p_new, p_actor, p_reason);
   return true;
 end $$;
-revoke all on function public.airvalet_guest_apply_ticket_change(uuid, text, bigint, text, text, text) from public, anon, authenticated;
+revoke all on function public.airvalet_guest_apply_ticket_change(uuid, text, bigint, text, text, text, text) from public, anon, authenticated;
 
-create or replace function public.airvalet_guest_visit_update(p_passenger_id bigint, p_changes jsonb, p_client_key uuid)
+create or replace function public.airvalet_guest_visit_update(p_passenger_id bigint, p_changes jsonb, p_client_key uuid, p_reason text default null)
 returns jsonb language plpgsql security definer set search_path = '' as $$
 declare
   v_actor text := coalesce(nullif(btrim(coalesce(auth.jwt() ->> 'email', '')), ''), 'unknown');
+  v_reason text := nullif(btrim(regexp_replace(coalesce(p_reason, ''), '\s+', ' ', 'g')), '');
   v_key text; k text; v text; n int := 0;
 begin
   if not public.airvalet_guest_is_ops() then raise exception 'airvalet_guest_visit_update: not allowed' using errcode = '42501'; end if;
   if p_client_key is null or jsonb_typeof(p_changes) is distinct from 'object' then return jsonb_build_object('result', 'INVALID'); end if;
   if exists (select 1 from public.airvalet_guest_changes c where c.action_key = p_client_key) then return jsonb_build_object('result', 'OK', 'duplicate', true); end if;
   if not exists (select 1 from public.passengers p where p.id = p_passenger_id) then return jsonb_build_object('result', 'NOT_FOUND'); end if;
+  if v_reason is not null and char_length(v_reason) not between 5 and 300 then return jsonb_build_object('result', 'REASON_REQUIRED'); end if;
+  if exists (select 1 from public.passengers p where p.id = p_passenger_id and public.airvalet_guest_visit_closed(p.status)) then
+    if not public.airvalet_guest_is_manager() then return jsonb_build_object('result', 'CLOSED_VISIT_MANAGER_ONLY'); end if;
+    if v_reason is null then return jsonb_build_object('result', 'REASON_REQUIRED'); end if;
+  end if;
   for k in select jsonb_object_keys(p_changes) loop
     if k not in ('car', 'color', 'return_flight', 'departure_time', 'obs') then return jsonb_build_object('result', 'FIELD_NOT_ALLOWED', 'field', k); end if;
   end loop;
@@ -157,19 +178,20 @@ begin
     v := nullif(btrim(coalesce(v, '')), '');
     if k = 'car' then v := upper(v); end if;
     if k = 'return_flight' then v := upper(v); end if;
-    if public.airvalet_guest_apply_ticket_change(p_client_key, v_key, p_passenger_id, k, v, v_actor) then n := n + 1; end if;
+    if public.airvalet_guest_apply_ticket_change(p_client_key, v_key, p_passenger_id, k, v, v_actor, v_reason) then n := n + 1; end if;
   end loop;
   return jsonb_build_object('result', case when n = 0 then 'UNCHANGED' else 'OK' end, 'changed', n);
 end $$;
 
 -- The same vehicle correction on the tickets the staff ticked (they must all be this guest's).
-create or replace function public.airvalet_guest_vehicle_update(p_key text, p_passenger_ids bigint[], p_car text, p_color text, p_client_key uuid)
+create or replace function public.airvalet_guest_vehicle_update(p_key text, p_passenger_ids bigint[], p_car text, p_color text, p_client_key uuid, p_reason text default null)
 returns jsonb language plpgsql security definer set search_path = '' as $$
 declare
   v_actor text := coalesce(nullif(btrim(coalesce(auth.jwt() ->> 'email', '')), ''), 'unknown');
   v_key text := public.airvalet_guest_resolve(btrim(coalesce(p_key, '')));
   v_car text := upper(nullif(btrim(coalesce(p_car, '')), ''));
   v_color text := nullif(btrim(coalesce(p_color, '')), '');
+  v_reason text := nullif(btrim(regexp_replace(coalesce(p_reason, ''), '\s+', ' ', 'g')), '');
   v_ids bigint[]; i bigint; n int := 0; t int := 0;
 begin
   if not public.airvalet_guest_is_ops() then raise exception 'airvalet_guest_vehicle_update: not allowed' using errcode = '42501'; end if;
@@ -179,10 +201,15 @@ begin
   if coalesce(cardinality(p_passenger_ids), 0) = 0 or cardinality(p_passenger_ids) > 50 then return jsonb_build_object('result', 'NO_VISITS'); end if;
   v_ids := array(select public.airvalet_guest_members(v_key));
   if exists (select 1 from unnest(p_passenger_ids) x where x <> all (v_ids)) then return jsonb_build_object('result', 'NOT_THIS_GUEST'); end if;
+  if v_reason is not null and char_length(v_reason) not between 5 and 300 then return jsonb_build_object('result', 'REASON_REQUIRED'); end if;
+  if exists (select 1 from public.passengers p where p.id = any (p_passenger_ids) and public.airvalet_guest_visit_closed(p.status)) then
+    if not public.airvalet_guest_is_manager() then return jsonb_build_object('result', 'CLOSED_VISIT_MANAGER_ONLY'); end if;
+    if v_reason is null then return jsonb_build_object('result', 'REASON_REQUIRED'); end if;
+  end if;
   foreach i in array (select array_agg(distinct x order by x) from unnest(p_passenger_ids) x) loop
     t := 0;
-    if public.airvalet_guest_apply_ticket_change(p_client_key, v_key, i, 'car', v_car, v_actor) then t := 1; end if;
-    if public.airvalet_guest_apply_ticket_change(p_client_key, v_key, i, 'color', v_color, v_actor) then t := 1; end if;
+    if public.airvalet_guest_apply_ticket_change(p_client_key, v_key, i, 'car', v_car, v_actor, v_reason) then t := 1; end if;
+    if public.airvalet_guest_apply_ticket_change(p_client_key, v_key, i, 'color', v_color, v_actor, v_reason) then t := 1; end if;
     n := n + t;
   end loop;
   return jsonb_build_object('result', case when n = 0 then 'UNCHANGED' else 'OK' end, 'tickets_changed', n);
@@ -347,7 +374,7 @@ begin
     'profile', (select jsonb_build_object('name', gp.display_name, 'phone', gp.phone, 'updated_by', gp.updated_by, 'updated_at', gp.updated_at)
                   from public.airvalet_guest_profile_row(v_key) gp),
     'changes', coalesce((select jsonb_agg(jsonb_build_object('field', c.field, 'old', c.old_value, 'new', c.new_value, 'by', c.changed_by, 'at', c.changed_at,
-                                   'ticket', c.ticket, 'passenger_id', c.passenger_id) order by c.changed_at desc, c.id desc)
+                                   'ticket', c.ticket, 'passenger_id', c.passenger_id, 'reason', c.reason) order by c.changed_at desc, c.id desc)
                            from (select * from public.airvalet_guest_changes c where public.airvalet_guest_resolve(c.guest_key) = v_key or c.passenger_id = any (v_ids)
                                   order by c.changed_at desc, c.id desc limit 100) c), '[]'::jsonb));
   if v_res -> 'profile' ->> 'name' is not null then v_res := jsonb_set(v_res, '{name}', to_jsonb(v_res -> 'profile' ->> 'name')); end if;
@@ -385,11 +412,13 @@ end $function$;
 do $$
 declare f text;
 begin
-  foreach f in array array['airvalet_guest_profile_save(text,text,text,uuid)', 'airvalet_guest_visit_update(bigint,jsonb,uuid)', 'airvalet_guest_vehicle_update(text,bigint[],text,text,uuid)'] loop
+  foreach f in array array['airvalet_guest_profile_save(text,text,text,uuid)', 'airvalet_guest_visit_update(bigint,jsonb,uuid,text)', 'airvalet_guest_vehicle_update(text,bigint[],text,text,uuid,text)'] loop
     execute format('revoke all on function public.%s from public, anon', f);
     execute format('grant execute on function public.%s to authenticated', f);
   end loop;
   execute 'revoke all on function public.airvalet_guest_profile_row(text) from public, anon, authenticated';
+  execute 'revoke all on function public.airvalet_guest_visit_closed(text) from public, anon, authenticated';
+  execute 'revoke all on function public.airvalet_guest_is_manager() from public, anon, authenticated';
 end $$;
 
 commit;
