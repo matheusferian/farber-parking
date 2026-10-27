@@ -138,6 +138,8 @@ try {
   check(lim === 'LIMITED', 'more than 6 sessions per link per 10 minutes → LIMITED', lim);
   check(!((await pv({ t: 'AAAAAAAAAAAAAAAAA', action: 'gratuity_checkout', amount_cents: 2000, ck: 'ck_bad_tok_' + RUN })).body?.url), 'unknown token → no session');
 
+  check(await rows(`passenger_id = ${PAX} and stripe_checkout_session_id like 'cs_test_mock_%'`) === '0' && await tipsToday() - t0 === 2500 + 3700 + 2000,  // QR + referenced + tampered-reference tips so far
+    'sessions created but not paid → nothing recorded, Closing Report unchanged');
   // Stripe completes the $20 session → recorded with the car, once.
   const m = log[0].resp;
   const done = { ...m, payment_status: 'paid', payment_link: null, payment_intent: `pi_localref_${RUN}_dyn`, amount_total: 2000 };
