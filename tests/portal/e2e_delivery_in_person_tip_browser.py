@@ -118,6 +118,7 @@ async def main():
               deliverDisabled: document.getElementById('tipYesBtn').disabled, h: Math.round(document.querySelector('#tipInPerson label').getBoundingClientRect().height) })''')
             check(not st['checked'] and st['amtHidden'] and not st['deliverDisabled'], 'modal: in-person tip unchecked, amount hidden, Deliver enabled', st)
             check(st['h'] >= 44, 'modal: in-person row is a 44 px target', st)
+            await page.wait_for_timeout(600)  # modal fade-in done
             await page.screenshot(path=os.environ.get('SHOT_DIR', '/tmp') + '/stage1_staff_delivery_modal_%s.png' % ENGINE)
             await page.evaluate('closeTipModal()')
 
