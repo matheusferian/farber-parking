@@ -8,6 +8,7 @@
   var app = document.getElementById('app');
   var sheetBg = document.getElementById('sheetBg');
   var sheet = document.getElementById('sheet');
+  var hero = document.getElementById('hero');
   var pass = null;
   var lastFocus = null;
   var form = {};           // current sheet state
@@ -111,13 +112,41 @@
   }
 
   function renderMessage(title, text, retry) {
+    setHero(null);
     app.innerHTML = '<div class="center"><img src="assets/makers-valet-badge.png" alt="Makers Air Valet" width="64" height="64">' +
       '<h2>' + esc(title) + '</h2><p class="muted">' + esc(text) + '</p>' +
       (retry ? '<button class="btn quiet" type="button" id="retry">Try again</button>' : '') + '</div>';
     var b = document.getElementById('retry'); if (b) b.addEventListener('click', load);
   }
 
-  // ── Valet pass (boarding-pass layout, 2026-10-25) ──
+  // ── Hero (Concept C, approved 2026-10-11) ──
+  // Static markup in pass.html: never re-created, so the flight plays once per
+  // page load. Only its text and state classes change; a class that is already
+  // set never restarts an animation. The flight starts with the first pass
+  // (state known); DELIVERED (first load or a real change) departs once.
+  function setHero(p) {
+    var h1 = document.getElementById('hello'), sub = document.getElementById('helloSub');
+    if (!p) { h1.hidden = true; sub.hidden = true; return; }
+    var done = p.status === 'DELIVERED';
+    var t = done ? (p.first_name ? 'Thank you, ' + p.first_name + '.' : 'Thank you.') : (p.first_name ? 'Welcome, ' + p.first_name + '.' : 'Welcome.');
+    var st = done ? 'Safe travels, and see you on your next trip.' : 'Your Makers Air Valet pass';
+    if (h1.textContent !== t) h1.textContent = t;
+    if (sub.textContent !== st) sub.textContent = st;
+    h1.hidden = false; sub.hidden = false;
+    if (!hero.classList.contains('go')) hero.classList.add('go');
+    if (hero.classList.contains('done') !== done) hero.classList.toggle('done', done);
+  }
+  // Progress line: Checked in → Parked → Ready → Delivered (Customs counts as Ready).
+  function progress(p) {
+    var at = p.status === 'DELIVERED' ? 3 : (p.status === 'READY' || p.status === 'CUSTOMS_CONFIRMED') ? 2 : 1;
+    var names = ['Checked in', 'Parked', 'Ready', 'Delivered'];
+    return '<ol class="tl tl-' + at + '" aria-label="Progress">' + names.map(function (n, i) {
+      var c = i < at || (at === 3) ? 'done' : i === at ? 'now' : '';
+      return '<li class="' + c + '"' + (i === at ? ' aria-current="step"' : '') + '><span class="dot" aria-hidden="true"></span>' + n + '</li>';
+    }).join('') + '</ol>';
+  }
+
+  // ── Valet pass (boarding-pass layout, 2026-10-25; Concept C cards 2026-10-27) ──
   function statusInfo(p) {
     if (p.status === 'READY') {
       return { tone: 'ready', word: 'Ready',
@@ -164,17 +193,20 @@
 
   function passCard(p) {
     var st = statusInfo(p), done = p.status === 'DELIVERED';
-    var html = '<section class="pass tone-' + st.tone + '" aria-label="Your valet pass">' +
-      '<div class="pass-top">' +
+    var html = '<div class="pass tone-' + st.tone + '" role="region" aria-label="Your valet pass">' +
+      '<section class="card tcard">' +
+        '<p class="lbl">Your valet pass</p>' +
         '<p class="pass-car">' + (p.vehicle ? esc(niceVehicle(p.vehicle)) : 'Vehicle details will be updated soon.') + '</p>' +
-        '<p class="pass-status">' + esc(st.word) + '</p>' +
-        '<p class="pass-line">' + st.line + '</p>' +
-      '</div><div class="pass-tear" aria-hidden="true"></div><div class="pass-bottom">';
+        '<p class="pass-status"><i aria-hidden="true"></i>' + esc(st.word) + '</p>' +
+        '<p class="pass-line">' + st.line + '</p>' + progress(p) +
+      '</section>';
     if (done) {
-      html += '<p class="k">A note from your valet team</p>' +
+      html += '<section class="card farewell"><div class="fw-plane" aria-hidden="true">' + planeSvg() + '</div>' +
+        '<p class="k">A note from your valet team</p>' +
         '<p class="note-text">Thank you for trusting us with your car' + (p.first_name ? ', ' + esc(p.first_name) : '') + '. It was a pleasure taking care of it. Safe travels, and see you on your next trip!</p>';
-      return html + ticketLine(p) + '</div></section>';
+      return html + ticketLine(p) + '</section></div>';
     }
+    html += '<section class="card dcard">';
     var date = fmtDate(p.return_date), time = fmtTime(p.return_time), place = pickupText(p);
     var steps = p.pickup === 'HANGAR_19' && p.status === 'PARKED';
     html += '<div class="pass-grid">' +
@@ -198,8 +230,10 @@
     var pend = p.pending_return;
     if (pend) html += '<p class="pending">Change requested: ' + esc(fmtIsoDate(pend.date) || '') + (pend.time ? ', ' + esc(fmtTime(pend.time)) : '') +
       (pend.carrier ? ' with ' + esc(pend.carrier) : '') + '. Waiting for our team to confirm.</p>';
-    return html + ticketLine(p) + '</div></section>';
+    return html + ticketLine(p) + '</section></div>';
   }
+  // The farewell card reuses the hero aircraft drawing (one source of truth).
+  function planeSvg() { var s = hero.querySelector('.plane svg'); return s ? s.outerHTML : ''; }
 
   // Gratuity (owner 2026-10-27): never mandatory, nothing pre-selected, no
   // percentages. With gratuity_checkout ($5 $10 $20 / $40 $50 Other) every tap
@@ -277,8 +311,8 @@
 
   function render() {
     var p = pass, done = p.status === 'DELIVERED';
-    var html = '<header class="top"><img src="assets/makers-air-valet-lockup-white.png" alt="Makers Air Valet" width="200" height="52">' +
-      '<h1>' + (p.first_name ? 'Welcome, ' + esc(p.first_name) : 'Welcome') + '</h1></header><main>';
+    setHero(p);
+    var html = '<main>';
     html += passCard(p);
     if (p.lockbox && !done && p.status !== 'CUSTOMS_CONFIRMED') html += '<button class="btn primary green" type="button" data-open="lockbox">View after-hours pickup instructions</button>';
     if (done && hasGratuity(p)) html += gratuityCard(p);
@@ -298,7 +332,8 @@
     html += '<p class="contact-line">Questions? <a href="' + esc(tel(contactValet(p))) + '">Call ' + esc(contactValet(p)) + '</a></p>' +
       (c.reservations_phone ? '<p class="fine">Flights: <a href="' + esc(tel(c.reservations_phone)) + '">Makers Air ' + esc(c.reservations_phone) + '</a></p>' : '');
     // Operator credit (owner 2026-10-25): Farber Parking badge + office phone in the footer only.
-    html += '<footer><div class="operator"><img src="assets/farber-parking-badge.png" alt="Farber Parking" width="44" height="44">' +
+    html += '<footer><img class="foot-logo" src="assets/makers-air-valet-by-farber-blue.png" alt="Makers Air Valet by Farber Parking" width="220" height="77">' +
+      '<div class="operator"><img src="assets/farber-parking-badge.png" alt="Farber Parking" width="44" height="44">' +
       '<div><p>Operated by Farber Parking</p><p><a href="tel:+15617740494">(561) 774-0494</a></p></div></div>' +
       '<p>Makers Air Valet, Hangar 19, Fort Lauderdale</p>' +
       '<p><button class="flink" type="button" data-open="info">Valet information</button> · ' +
@@ -528,6 +563,7 @@
   window.addEventListener('hashchange', function () {
     TOKEN = String(location.hash || '').replace(/^#/, ''); pass = null; chatMsgs = []; lastOk = null;
     if (!sheetBg.hidden) closeSheet();
+    setHero(null);  // never keep the previous guest's name on screen
     app.innerHTML = '<div class="center"><p class="muted">Loading your valet pass…</p></div>';
     load();
   });

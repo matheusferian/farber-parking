@@ -127,7 +127,8 @@ try:
         check(h >= 44, 'F-8 call link is a 44 pt target (%d)' % h)
         # F-13: another link in the same tab never shows the previous chat
         p.evaluate("location.hash = '%s'" % TOK[1]); p.wait_for_selector('.pass'); p.wait_for_timeout(500)
-        check('PASS NORMAL'.split()[0].title() in p.inner_text('#app') or 'Pass' in p.inner_text('#app'), 'F-13 hash change loads the other pass')
+        # Concept C (2026-10-27): the greeting lives in the static hero, outside #app.
+        check('PASS NORMAL'.split()[0].title() in p.inner_text('body') or 'Pass' in p.inner_text('#hello'), 'F-13 hash change loads the other pass')
         c.close()
         b.close()
 finally:

@@ -24,6 +24,10 @@ cp events/makers-halloween-2026/index.html events/makers-halloween-2026/t.html \
 # Makers Air Valet passenger page (/a#<token>, see vercel.json rewrite).
 # Static, not an app-shell file, not in SHELL_FILES.
 cp pass.html pass.js pass.css dist/
+# Self-hosted Sora / Inter for the passenger page (no Google Fonts request).
+# Versioned file names: a new font file = a new name, never overwrite.
+mkdir -p dist/assets/fonts
+cp assets/fonts/*.woff2 dist/assets/fonts/
 # Intro films for the passenger page (versioned names: a change = new version, never overwrite).
 mkdir -p dist/cine
 cp cine/cinematic-v1.js cine/*.mp4 cine/*.jpg cine/*.png dist/cine/

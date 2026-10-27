@@ -1,12 +1,15 @@
 /* Makers Air Valet passenger page (pass.html). Identity: Makers Air
-   Concept C (approved 2026-10-11): navy #011532, blue #1B66FD, gold #FFC547,
-   Sora + Inter. 2026-10-25 premium pass: the car is a boarding pass (navy top,
-   perforation, white stub with Pickup / Return); everything else stays quiet.
-   Mobile-first, 44px targets, left-aligned text, reduced motion respected. */
+   Concept C (approved 2026-10-11, ported 2026-10-27): navy hero with the
+   Grand Caravan flight band, white cards, gold accent, Sora + Inter
+   (self-hosted). Mobile-first, 44px targets, left-aligned text, reduced
+   motion respected (static aircraft; static fallback without offset-path). */
+@font-face{font-family:Sora;font-style:normal;font-weight:600 800;font-display:swap;src:url(assets/fonts/sora-latin-v17.woff2) format("woff2");unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:Inter;font-style:normal;font-weight:400 700;font-display:swap;src:url(assets/fonts/inter-latin-v20.woff2) format("woff2");unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
 :root{
-  --navy:#011532;--navy2:#0B2547;--blue:#1557E0;--gold:#FFC547;--brass:#C79A2B;--green:#0E6A4C;
-  --ink:#0E1B33;--mu:#5A6782;--soft:#EEF2F8;--bg:#F2F5FA;--line:#DCE3EE;--card:#FFFFFF;
-  --amber-bg:#FFF4D6;--amber-ink:#6B4300;--ok-bg:#E7F6EF;--ok-ink:#0B4D37;
+  --navy:#061433;--navy2:#0B2547;--blue:#1557E0;--gold:#FFC547;--accent:#E8A93B;--accent-soft:rgba(232,169,59,.14);--brass:#C79A2B;--green:#0E6A4C;
+  --ink:#0B1A33;--mu:#5A6B8C;--soft:#EEF2F8;--bg:#F4F6FB;--line:#E1E7F2;--card:#FFFFFF;
+  --amber-bg:#FFF4D6;--amber-ink:#6B4300;--ok-bg:#E9F7F0;--ok-ink:#11744D;
+  --shadow:0 14px 34px -20px rgba(11,37,71,.45);
 }
 *{box-sizing:border-box}
 html{font-size:17px;-webkit-text-size-adjust:100%}
@@ -17,30 +20,81 @@ button,a.btn{font:inherit}
 :focus-visible{outline:2px solid var(--blue);outline-offset:2px}
 .wrap{max-width:28rem;margin:0 auto}
 
-header.top{background:var(--navy);color:#fff;padding:calc(1.5rem + env(safe-area-inset-top)) 1.35rem 3.6rem;text-align:center}
-header.top img{display:block;width:10.5rem;height:auto;margin:0 auto}
-header.top h1{margin:1.3rem 0 0;font-size:1.75rem;font-weight:700;line-height:1.1;letter-spacing:-.01em}
-main{padding:0 1.1rem 2.4rem;margin-top:-2.4rem;display:flex;flex-direction:column;gap:.9rem}
+/* Hero: static markup (pass.html), animated once per page load */
+.hero{position:relative;overflow:hidden;background:linear-gradient(165deg,#061433 0%,#0B2547 55%,#16407A 100%);color:#fff;text-align:center;
+  padding:calc(1.6rem + env(safe-area-inset-top)) 1.2rem 3.9rem}
+.hero::after{content:"";position:absolute;left:-10%;right:-10%;bottom:-1px;height:3.4rem;background:var(--bg);border-radius:50% 50% 0 0/100% 100% 0 0}
+.stars{position:absolute;inset:0;background-image:radial-gradient(1px 1px at 20% 30%,rgba(255,255,255,.5),transparent),radial-gradient(1px 1px at 70% 20%,rgba(255,255,255,.35),transparent),radial-gradient(1px 1px at 85% 55%,rgba(255,255,255,.3),transparent),radial-gradient(1.5px 1.5px at 40% 65%,rgba(255,197,71,.35),transparent);opacity:.8}
+.hero-logo{position:relative;z-index:3;display:block;width:min(17rem,74vw);height:auto;margin:0 auto}
+.sky{position:relative;z-index:2;width:390px;height:96px;left:50%;margin:.3rem 0 0 -195px;pointer-events:none}
+.route{position:absolute;inset:0;width:390px;height:96px;overflow:visible}
+.route .trail{fill:none;stroke:rgba(255,255,255,.28);stroke-width:1.4;stroke-dasharray:2 7;stroke-linecap:round}
+.route .glow{fill:none;stroke:var(--gold);stroke-width:2.2;stroke-linecap:round;stroke-dasharray:0 1000;opacity:.9}
+.plane{position:absolute;left:0;top:0;width:112px;height:41px;color:#fff;--plane-win:#0B2547;opacity:0;
+  offset-path:path("M -130 62 C -10 62, 110 54, 215 56 S 390 42, 540 36");offset-rotate:auto;offset-distance:0%}
+.plane svg,.fw-plane svg{display:block;width:100%;height:100%;overflow:visible}
+.plane .b,.fw-plane .b{fill:currentColor}.plane .d,.fw-plane .d{fill:currentColor;fill-opacity:.6}
+.plane .w,.fw-plane .w{fill:var(--plane-win)}.plane .l{stroke:var(--plane-win);stroke-opacity:.45;stroke-width:.35;fill:none}
+.plane .s,.fw-plane .s{stroke:currentColor;stroke-width:1.1;stroke-linecap:round;fill:none}.plane .st,.fw-plane .st{stroke-width:.8}
+.plane .pd,.fw-plane .pd{fill:currentColor;fill-opacity:.22}.plane .pb,.fw-plane .pb{fill:currentColor;fill-opacity:.7}.pb2{opacity:.55}
+.nav-g{fill:#3DDC84}.beacon{fill:#FF5A5A}.strobe{fill:#fff;opacity:0}
+.fw-plane .l,.fw-plane .lt{display:none}
+.hello{position:relative;z-index:3;margin:.2rem 0 0;font:800 1.75rem/1.12 Sora,Inter,sans-serif;letter-spacing:-.01em;overflow-wrap:anywhere}
+.hello-sub{position:relative;z-index:3;margin:.35rem 0 0;font-size:.95rem;color:#A9BBD9}
+.hello[hidden],.hello-sub[hidden]{display:none}
+/* the flight: starts once the first pass is known (.go), departs on DELIVERED (.done) */
+.hero.go .plane{opacity:1;animation:fly 5.8s cubic-bezier(.45,.05,.25,1) .3s both}
+.hero.go .route .glow{animation:trace 5.8s cubic-bezier(.45,.05,.25,1) .3s both}
+.hero.go .plane .strobe{animation:strobe 2.6s ease-in-out infinite}
+.hero.go .plane .beacon{animation:navglow 2.8s ease-in-out infinite}
+.hero.go.done .plane{animation:depart 6.5s cubic-bezier(.5,0,.2,1) .4s both}
+.hero.go.done .route .glow{stroke-dasharray:none;opacity:.6;animation:none}
+@keyframes fly{from{offset-distance:0%}to{offset-distance:62%}}
+@keyframes depart{from{offset-distance:62%}to{offset-distance:118%}}
+@keyframes trace{from{stroke-dasharray:0 1000}to{stroke-dasharray:1000 0}}
+@keyframes strobe{0%,86%,100%{opacity:0}90%{opacity:1}}
+@keyframes navglow{0%,100%{opacity:.35}50%{opacity:1}}
+/* Reduced motion: the aircraft is simply there (gone after delivery), nothing moves. */
+@media (prefers-reduced-motion: reduce){
+  .hero.go .plane,.hero.go.done .plane{animation:none;offset-distance:62%}
+  .hero.go.done .plane{opacity:0}
+  .hero.go .route .glow{animation:none;stroke-dasharray:none;opacity:.35}
+  .hero.go .plane .lt{animation:none}
+}
+/* No CSS motion path (older iOS): a static aircraft on the line, no flight. */
+@supports not (offset-path: path("M 0 0")){
+  .plane{left:203px;top:16px;transform:rotate(-3deg)}
+  .hero.go .plane,.hero.go.done .plane{animation:none}
+  .hero.go.done .plane{opacity:0}
+  .hero.go .route .glow{animation:none;stroke-dasharray:none;opacity:.35}
+}
+main{position:relative;z-index:4;padding:0 1rem 2.4rem;margin-top:-2.6rem;display:flex;flex-direction:column;gap:.75rem}
 
-/* The pass */
-.pass{position:relative;border-radius:1.4rem;overflow:hidden;background:var(--card);box-shadow:0 18px 40px -22px rgba(1,21,50,.45)}
-.pass-top{background:var(--navy2);color:#fff;padding:1.25rem 1.35rem 1.35rem}
-.tone-ready .pass-top{background:var(--green)}
-.tone-customs .pass-top{background:#123E8C}
-.tone-returning .pass-top{background:#0F3B6E}
-.tone-done .pass-top{background:var(--navy)}
-.pass-car{margin:0;font-size:.92rem;font-weight:500;color:rgba(255,255,255,.78)}
-.pass-status{margin:.15rem 0 0;font-family:Sora,Inter,sans-serif;font-size:2.6rem;font-weight:800;line-height:1.02;letter-spacing:-.02em}
-.tone-ready .pass-status{color:var(--gold)}
-.pass-line{margin:.45rem 0 0;font-size:1rem;line-height:1.45;color:rgba(255,255,255,.9);max-width:24rem}
-.pass-tear{position:relative;height:0;border-top:2px dashed var(--line);margin:0 1.1rem}
-.pass-tear::before,.pass-tear::after{content:"";position:absolute;top:-.85rem;width:1.7rem;height:1.7rem;border-radius:50%;background:var(--bg)}
-.pass-tear::before{left:-1.95rem}.pass-tear::after{right:-1.95rem}
-.pass-bottom{padding:1.15rem 1.35rem 1.3rem}
+/* The pass: ticket card + details card */
+.pass{display:flex;flex-direction:column;gap:.75rem}
+.card{background:var(--card);border:1px solid var(--line);border-radius:1.3rem;padding:1.05rem 1.15rem 1.1rem;box-shadow:var(--shadow)}
+.lbl{margin:0;font:700 .66rem/1.3 Inter,sans-serif;letter-spacing:.14em;text-transform:uppercase;color:var(--mu)}
+.tcard{text-align:center}
+.pass-car{margin:.35rem 0 0;font:700 1.05rem/1.3 Sora,Inter,sans-serif;color:var(--ink)}
+.pass-status{display:inline-flex;align-items:center;gap:.5rem;margin:.65rem 0 0;border-radius:999px;padding:.42rem .95rem;font:700 .95rem/1.2 Inter,sans-serif;background:var(--ok-bg);color:var(--ok-ink)}
+.pass-status i{width:.5rem;height:.5rem;border-radius:50%;background:currentColor;flex:none}
+.tone-ready .pass-status{background:#FFF3D6;color:#7A4A00}
+.tone-customs .pass-status,.tone-returning .pass-status{background:#E6EEFF;color:#123E8C}
+.pass-line{margin:.6rem auto 0;font-size:.98rem;line-height:1.45;color:var(--ink);max-width:22rem}
+.tl{display:flex;justify-content:space-between;position:relative;list-style:none;margin:1rem .2rem .1rem;padding:0}
+.tl::before{content:"";position:absolute;left:1.9rem;right:1.9rem;top:.6rem;height:2px;background:var(--line)}
+.tl::after{content:"";position:absolute;left:1.9rem;top:.6rem;height:2px;background:var(--accent);width:0}
+.tl-1::after{width:calc((100% - 3.8rem) / 3)}.tl-2::after{width:calc((100% - 3.8rem) * 2 / 3)}.tl-3::after{width:calc(100% - 3.8rem)}
+.tl li{position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;gap:.35rem;width:3.8rem;font:600 .68rem/1.2 Inter,sans-serif;color:var(--mu);text-align:center}
+.tl .dot{width:1.25rem;height:1.25rem;border-radius:50%;background:var(--card);border:2px solid var(--line);display:grid;place-items:center}
+.tl .done .dot{background:var(--accent);border-color:var(--accent)}
+.tl .done .dot::after{content:"";width:.38rem;height:.38rem;border-radius:50%;background:var(--card)}
+.tl .now{color:var(--ink)}
+.tl .now .dot{border-color:var(--accent);box-shadow:0 0 0 5px var(--accent-soft)}
 .pass-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
 .pass-grid.flight{margin-top:1rem;padding-top:1rem;border-top:1px solid var(--soft)}
 .k{margin:0;font-size:.82rem;font-weight:500;color:var(--mu)}
-.v{margin:.2rem 0 0;font-family:Sora,Inter,sans-serif;font-size:1.3rem;font-weight:700;line-height:1.2;color:var(--navy)}
+.v{margin:.2rem 0 0;font-family:Sora,Inter,sans-serif;font-size:1.25rem;font-weight:700;line-height:1.2;color:var(--navy2)}
 .v-soft{font-family:Inter,sans-serif;font-size:.95rem;font-weight:500;color:var(--mu)}
 .v2{margin:.1rem 0 0;font-size:.95rem;font-weight:600;color:var(--ink)}
 .link{margin-top:.55rem;padding:.35rem 0;min-height:2.75rem;border:0;background:none;color:var(--blue);font-weight:600;font-size:.95rem;cursor:pointer;text-align:left}
@@ -55,7 +109,11 @@ main{padding:0 1.1rem 2.4rem;margin-top:-2.4rem;display:flex;flex-direction:colu
 .pass-ticket{margin:1rem 0 0;padding-top:.8rem;border-top:1px solid var(--soft);font-size:.82rem;color:var(--mu)}
 .pass-ticket strong{color:var(--ink);font-weight:600;letter-spacing:.02em}
 .pending{margin:.9rem 0 0;background:var(--amber-bg);color:var(--amber-ink);border-radius:.8rem;padding:.65rem .8rem;font-size:.92rem}
+.farewell{text-align:center}
+.fw-plane{width:9rem;height:3.3rem;margin:.2rem auto .6rem;color:var(--accent);--plane-win:var(--card)}
+.farewell .k{margin-top:.2rem}
 .note-text{margin:.35rem 0 0;font-size:1.05rem;line-height:1.5}
+.farewell .pass-ticket{text-align:left}
 
 /* Actions */
 .btn{white-space:nowrap;min-height:2.75rem;border-radius:.95rem;border:0;padding:0 1rem;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;text-decoration:none}
@@ -80,6 +138,7 @@ main{padding:0 1.1rem 2.4rem;margin-top:-2.4rem;display:flex;flex-direction:colu
 .muted{margin:0;font-size:.9rem;color:var(--mu)}
 footer{margin-top:1.2rem;padding-top:1rem;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:.25rem;font-size:.78rem;color:var(--mu)}
 footer p{margin:0}
+.foot-logo{display:block;width:13rem;max-width:70%;height:auto;margin:.4rem auto 1rem}
 .operator{display:flex;align-items:center;gap:.75rem;margin-bottom:.5rem}
 .operator img{width:2.75rem;height:2.75rem;flex:none;border-radius:50%}
 .operator p{font-size:.85rem;color:var(--ink)}
@@ -163,3 +222,7 @@ header.top h1,.pass-car,.v{overflow-wrap:anywhere}
 .info-v a{display:inline-flex;align-items:center;min-height:44px;font-weight:600}
 .flink{border:0;background:none;padding:0;font:inherit;color:var(--mu);text-decoration:underline;cursor:pointer}
 footer a,footer .flink{display:inline-flex;align-items:center;min-height:44px;padding:0}
+
+/* Concept C cards (2026-10-27): the other blocks match the pass cards */
+.list,.hours,.grat{border:1px solid var(--line);box-shadow:var(--shadow)}
+.hours{margin:0}
