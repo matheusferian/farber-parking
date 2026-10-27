@@ -404,7 +404,7 @@ async def main():
                 elif label == 'stripe':
                     check('Thank you for your kindness' in txt and not grat_card and quiet and '15' not in txt.replace('ST-10', ''),
                           'pass after a confirmed Stripe gratuity: thank-you, no highlighted ask, quiet optional row, no amount', txt[:300])
-                    await pp.screenshot(path=SHOT + '/smart_tips_pass_stripe_iphone_%s.png' % ENGINE, full_page=True)
+                    await pp.screenshot(path=SHOT + '/smart_tips_pass_stripe_thanks_iphone_%s.png' % ENGINE, full_page=True)
                     sql("update public.payments set status = 'refunded' where stripe_event_id = 'evt_e2e_st_1'")
                     await pp.reload(); await pp.wait_for_selector('.pass', timeout=20000); await pp.wait_for_timeout(2500)
                     check(await pp.evaluate('!!document.querySelector("section.grat")'), 'Stripe gratuity refunded → pass back to the normal gratuity card')
