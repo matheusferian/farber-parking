@@ -88,7 +88,7 @@ select pg_temp.check(public.airvalet_guest_visit_update(983003, '{"car":"Mercede
 select pg_temp.check(public.airvalet_guest_visit_update(983003, '{"car":"MERCEDES GLS"}', gen_random_uuid()) ->> 'result' = 'UNCHANGED', 'no change → unchanged');
 reset role;
 select pg_temp.check((select car = 'MERCEDES GLS' and color = 'Silver' and return_flight = 'MA 318' and departure_time = '18:05' and status = 'PENDING' from public.passengers where id = 983003), 'ticket updated, status untouched');
-select pg_temp.check((select count(*) = 5 from public.activity_log where passenger_id = 983003 and action = 'EDITED' and changed_by = 'localipad@airvalet.local' and detail like '%| From Guests')
+select pg_temp.check((select count(*) = 5 from public.activity_log where passenger_id = 983003 and action = 'EDITED' and changed_by = 'localipad@airvalet.local' and detail like '%| From Passengers')
   and (select old_value = 'MERCEDES GLE' and new_value = 'MERCEDES GLS' from public.activity_log where passenger_id = 983003 and field_name = 'car'), 'ticket history: 5 lines, old / new / who');
 select pg_temp.check((select count(*) = 5 from public.airvalet_guest_changes where passenger_id = 983003 and ticket = 'GE-3'), 'Guests history: 5 lines with the ticket');
 select pg_temp.check((select md5(string_agg(x::text, '|' order by x.id)) from public.airvalet_pass_links x where passenger_id between 983001 and 983004) = (select links from t_snap)

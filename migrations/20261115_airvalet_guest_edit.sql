@@ -126,7 +126,7 @@ begin
   v_label := case p_field when 'car' then 'Vehicle' when 'color' then 'Color' when 'return_flight' then 'Return Flight' when 'departure_time' then 'Departure Time' else 'Notes' end;
   insert into public.activity_log (ts, action, passenger, ticket, location, detail, passenger_id, changed_by, field_name, old_value, new_value)
   values (to_char(now() at time zone 'America/New_York', 'MM/DD/YYYY, HH12:MI:SS AM'), 'EDITED', v_p.name, v_p.ticket, v_p.loc,
-          v_label || ' changed: ' || coalesce(nullif(v_old, ''), '—') || ' → ' || coalesce(nullif(p_new, ''), '—') || ' | From Guests', p_id, p_actor, p_field, v_old, p_new);
+          v_label || ' changed: ' || coalesce(nullif(v_old, ''), '—') || ' → ' || coalesce(nullif(p_new, ''), '—') || ' | From Passengers', p_id, p_actor, p_field, v_old, p_new);
   insert into public.airvalet_guest_changes (action_key, guest_key, passenger_id, ticket, field, old_value, new_value, changed_by)
   values (p_action, p_key, p_id, v_p.ticket, p_field, v_old, p_new, p_actor);
   return true;

@@ -2525,7 +2525,7 @@ body.tv-stale .tv-stale-banner{display:block;}
   .gx-cmp th,.gx-cmp td{border-top:0;padding:4px 6px}
   .gx-cmp tbody th{width:auto}
   .gx-cmp td::before{display:block;font:700 10.5px 'Inter',sans-serif;letter-spacing:.05em;text-transform:uppercase;color:var(--mu)}
-  .gx-cmp td:nth-of-type(1)::before{content:"Guest A"}.gx-cmp td:nth-of-type(2)::before{content:"Guest B"}
+  .gx-cmp td:nth-of-type(1)::before{content:"Passenger A"}.gx-cmp td:nth-of-type(2)::before{content:"Passenger B"}
   .gx-pair{grid-template-columns:1fr}
   .gx-arrow{justify-self:center;transform:rotate(90deg)}
   .gx-act-btns .gx-btn{flex:1}
