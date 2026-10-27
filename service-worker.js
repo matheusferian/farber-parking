@@ -173,13 +173,26 @@ self.addEventListener('push', function(event){
     data: { url: d.url === '/' ? './' : './#messages' }
   }));
 });
+// Tap on a notification: bring AirValet to the front on the right screen.
+// Staff alerts (url './': check-in, tip, reminders) → Dashboard; guest
+// messages / requests ('./#messages') → Messages. An already open window is
+// told where to go (it switches tabs itself, nothing reloads, the login and
+// anything being typed stay) and focused; if focus is refused or no window
+// exists, the app is opened at that URL (a fresh start lands on Dashboard).
+// The TV page (?mode=tv / #tv) never gets this.
 self.addEventListener('notificationclick', function(event){
   event.notification.close();
+  var url = (event.notification.data && event.notification.data.url) || './#messages';
+  var target = url.indexOf('#messages') >= 0 ? 'OPEN_MESSAGES' : 'OPEN_DASHBOARD';
   event.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(list){
-    var url = (event.notification.data && event.notification.data.url) || './#messages';
+    var app = null;
     for (var i = 0; i < list.length; i++) {
-      if ('focus' in list[i]) { if (url.indexOf('#messages') >= 0) list[i].postMessage({ type: 'OPEN_MESSAGES' }); return list[i].focus(); }
+      var u = list[i].url || '';
+      if (/[?&]mode=tv(&|$)|#tv$/.test(u)) continue;
+      if (!app || list[i].focused || list[i].visibilityState === 'visible') app = list[i];
     }
-    return self.clients.openWindow(url);
+    if (!app) return self.clients.openWindow(url);
+    try { app.postMessage({ type: target }); } catch (e) {}
+    return ('focus' in app ? app.focus() : Promise.reject()).catch(function(){ return self.clients.openWindow(url); });
   }));
 });

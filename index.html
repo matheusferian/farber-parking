@@ -5135,7 +5135,17 @@ function vpBeep(){
 }
 if (navigator.serviceWorker) navigator.serviceWorker.addEventListener('message', function(ev){
   if (ev.data && ev.data.type === 'OPEN_MESSAGES') vpOpenMessages();
+  if (ev.data && ev.data.type === 'OPEN_DASHBOARD') vpOpenDashboard();
 });
+// Tap on a staff alert (check-in / tip / reminder): show the Dashboard. Only on
+// that tap, never during normal use; an open form (check-in, ticket) stays as
+// it is so nothing typed is lost; never on the TV.
+function vpOpenDashboard(){
+  if (typeof isTvMode === 'function' && isTvMode()) return;
+  vpHideBanner();
+  var tab = document.querySelector('.tab[data-t="day"]');
+  if (tab && !tab.classList.contains('on')) tab.click();
+}
 
 // Web Push on this device (iPad on the Home Screen; iPadOS 16.4+).
 function vpB64ToBytes(s){
