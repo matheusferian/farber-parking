@@ -173,13 +173,24 @@
   </div>
 </div>
 <div class="pane on" id="pane-day">
-  <div class="stripe-kpi" id="stripeTipsKpi">
-    <div class="stripe-kpi-icon"><i class="fa-solid fa-bolt"></i></div>
-    <div class="stripe-kpi-body">
-      <div class="stripe-kpi-val" id="stripeTipsTodayNum">$0.00</div>
-      <div class="stripe-kpi-label">Stripe Tips Today</div>
+  <!-- DAILY TIPS (owner 2026-10-28): cash the team recorded + online (Stripe) = total recorded.
+       Read-only (airvalet_daily_tips); no split between staff. Falls back to the Stripe total alone. -->
+  <section class="dtp" id="stripeTipsKpi" aria-labelledby="dtpTitle">
+    <div class="dtp-h">
+      <h2 id="dtpTitle">Daily tips</h2>
+      <div class="dtp-day">
+        <button type="button" id="dtpPrev" aria-label="Previous day" onclick="dailyTipsShift(-1)">‹</button>
+        <span id="dtpDate">Today</span>
+        <button type="button" id="dtpNext" aria-label="Next day" onclick="dailyTipsShift(1)" disabled>›</button>
+      </div>
     </div>
-  </div>
+    <dl class="dtp-grid">
+      <div><dt>Cash tips</dt><dd id="dtpCash">—</dd></div>
+      <div><dt>Online tips</dt><dd id="stripeTipsTodayNum">$0.00</dd></div>
+      <div class="dtp-tot"><dt>Total recorded</dt><dd id="dtpTotal">—</dd></div>
+    </dl>
+    <p class="dtp-note" id="dtpNote">Cash shows only what the team recorded. Some tips may not be recorded.</p>
+  </section>
   <div class="dsec">
     <div class="dtitle" style="color:var(--ok)" id="titleArrived">&#128663; Arrived Today <span class="tbadge" style="background:var(--ok);color:#000">0</span></div>
     <div class="dsub">Registered today</div>
@@ -681,7 +692,8 @@
         <button type="button" id="tipIpN" aria-pressed="false" onclick="tipInPersonPick('NO')">No</button>
       </div>
       <div id="tipIpMore" hidden>
-        <div class="stp-amt"><span class="stp-cur">$</span><input type="text" inputmode="decimal" id="tipIpAmt" placeholder="Amount (optional)" maxlength="7" autocomplete="off" oninput="crSanitizeCurrency(this);tipInPersonHint()"><span class="stp-cash">Cash</span></div>
+        <div class="stp-quick" id="tipIpQuick"><div class="stp-qrow" role="group" aria-label="Tip amount"><button type="button" aria-pressed="false" data-c="500">$5</button><button type="button" aria-pressed="false" data-c="1000">$10</button><button type="button" aria-pressed="false" data-c="2000">$20</button><button type="button" aria-pressed="false" data-c="5000">$50</button><button type="button" aria-pressed="false" data-c="other">Other</button></div>
+        <div class="stp-amt"><span class="stp-cur">$</span><input type="text" inputmode="decimal" id="tipIpAmt" placeholder="Amount (optional)" maxlength="7" autocomplete="off" aria-label="Tip amount in dollars"><span class="stp-cash">Cash</span></div></div>
         <div id="tipIpWho" class="stp-who" hidden></div>
         <div id="tipIpHint" class="stp-hint">Leave the amount empty if you don’t know it.</div>
       </div>
@@ -6948,7 +6960,7 @@ function ci2Open(){
   if (_ci && _ci.pollTimer) clearTimeout(_ci.pollTimer);
   _ci = { op:'MAKERS', consent:null, timer:null, busy:false, created:false, id:null, ticket:'', offline:false,
           ret:'', noDate:false, other:false, hangar:'', make:'', model:'', vehText:'', color:'', printed:false,
-          pick:null, pickLoc:'', calOpen:{}, calMonth:{}, msgId:null, pollN:0, pollTimer:null };
+          pick:null, pickLoc:'', calOpen:{}, calMonth:{}, msgId:null, pollN:0, pollTimer:null, tipKey:null, tipBusy:false, tips:[] };
   document.getElementById('ciLegacy').hidden = true;
   var box = document.getElementById('ci2'); box.hidden = false; box.innerHTML = ci2Html();
   ci2WideModal(true); ci2ModeRow(true);
@@ -7025,6 +7037,8 @@ function ci2Html(){
   +     '<div class="ci2-btnrow"><button type="button" class="ci2-btn" id="ci2PSave">Save authorization</button><button type="button" class="ci2-btn line danger" id="ci2PRevoke" hidden>Revoke</button></div>'
   +     '<p class="ci2-hint">At delivery the team checks this person’s photo ID and records who took the car. Having the valet pass link is never enough.</p></div>')
   +   ci2Sec('ci2SMore', 'More', 'Car wash, notes', '<p class="ci2-sub">Car wash</p><div class="ci2-chipset" id="ci2Wash"></div><p class="ci2-sub">Notes</p><textarea class="ci2-search ci2-ta" id="ci2Notes" placeholder="Anything the team should know"></textarea>')
+  +   ci2Sec('ci2STip', 'Tip', '+ Add tip', '<p class="ci2-hint" style="margin-top:0">Cash received now, if any. Optional — skip it and nothing is recorded.</p>' + tipQuickHtml('ci2Tip')
+  +     '<div class="ci2-btnrow"><button type="button" class="ci2-btn" id="ci2TipSave">Save tip</button></div><p class="ci2-hint" id="ci2TipMsg" aria-live="polite"></p>')
   + '</div></div>'
   + '<div class="ci2-dock" id="ci2Dock" hidden><div class="ci2-need"><span id="ci2NH">Hangar</span><span id="ci2NM">Make or model</span><span id="ci2NC">Color</span></div>'
   +   '<button type="button" class="ci2-btn line" onclick="ci2Done()">Done</button>'
@@ -7079,6 +7093,8 @@ function ci2Bind(){
   ci2El('ci2PPhone').addEventListener('input', function(){ fmtPhoneInput(this); });
   ci2El('ci2PName').addEventListener('input', function(){ this.value = this.value.toUpperCase(); });
   ci2El('ci2PSave').addEventListener('click', ci2PickSave);
+  tipQuickBind(ci2El('ci2Tip'));
+  ci2El('ci2TipSave').addEventListener('click', ci2TipSave);
   ci2El('ci2PRevoke').addEventListener('click', ci2PickRevoke);
   ci2El('ci2Print').addEventListener('click', ci2PrintTap);
   ci2El('ci2Reprint').querySelectorAll('[data-print]').forEach(function(b){ b.addEventListener('click', function(){ ci2ReprintMenu(false); ci2Print(b.dataset.print); }); });
@@ -7571,6 +7587,35 @@ function ci2RenderWash(){
 }
 function ci2SaveNotes(v){ if (_ci.created) ci2Save({ obs: v.toUpperCase() }, 'ci2SMore', 'Notes updated'); }
 
+// ── Tip at check-in (owner 2026-10-28): optional, never part of saving the ticket.
+// Each Save is one ledger row (CHECK-IN stage); its key is kept until the server
+// answers, so a retry after a dropped connection never records it twice.
+async function ci2TipSave(){
+  if (!_ci || _ci.tipBusy) return;
+  var msg = ci2El('ci2TipMsg'), say = function(t, bad){ msg.textContent = t; msg.classList.toggle('bad', !!bad); };
+  if (!_ci.created) return say('Save the check-in first.', true);
+  if (ci2LocalOnly()) return say('Saved offline — add the tip from the car card (Tips) once the ticket uploads.', true);
+  var c = tipQuickCents(ci2El('ci2Tip'));
+  if (c === null) return say('Pick an amount or type it.', true);
+  if (c === false) return say(TIP_FIX_TEXT.INVALID, true);
+  _ci.tipBusy = true; _ci.tipKey = _ci.tipKey || tipNewKey();
+  var b = ci2El('ci2TipSave'); b.disabled = true; say('Saving…');
+  var id = _ci.id, out = await tipRpc('airvalet_tip_record', { p_passenger_id: id, p_amount_cents: c, p_client_key: _ci.tipKey, p_received_by: null, p_source: 'CHECKIN' });
+  if (!_ci || _ci.id !== id) return;
+  _ci.tipBusy = false; b.disabled = false;
+  if (out.result !== 'OK') {
+    if (out.result === 'ERROR') return say('Tip not saved — check the connection and tap Save tip again. The check-in is saved.', true);
+    _ci.tipKey = null;
+    return say(TIP_FIX_TEXT[out.result] || ('Not saved: ' + out.result), true);
+  }
+  _ci.tipKey = null;
+  if (!out.duplicate) _ci.tips.push(c);
+  tipQuickReset(ci2El('ci2Tip'));
+  var tot = _ci.tips.reduce(function(a, x){ return a + x; }, 0), v = ci2El('ci2STipV');
+  v.textContent = tipMoney(tot) + ' recorded'; v.className = 'v done';
+  say('✓ ' + tipMoney(c) + ' cash saved' + (_ci.tips.length > 1 ? ' · ' + tipMoney(tot) + ' at check-in' : '') + '. Another tip? Pick it and save again.');
+}
+
 // ── Authorized pickup (same ticket; nothing texted to that person) ──
 function ci2RenderPickLoc(){ ci2ChipSet(ci2El('ci2PLoc'), CI2_PICKUP_LOCS, _ci.pickLoc, function(k){ _ci.pickLoc = k; ci2RenderPickLoc(); }); }
 function ci2PickToggle(on){
@@ -7974,15 +8019,19 @@ function tipNewKey(){
   var h=Array.prototype.map.call(b,function(x){return ('0'+x.toString(16)).slice(-2);}).join('');
   return h.slice(0,8)+'-'+h.slice(8,12)+'-'+h.slice(12,16)+'-'+h.slice(16,20)+'-'+h.slice(20);
 }
+var _tipIpBound=false;
 function tipInPersonReset(){
   _tipIp={answer:null, key:tipNewKey(), who:''};
+  var q=document.getElementById('tipIpQuick');
+  if(q&&!_tipIpBound){ _tipIpBound=true; tipQuickBind(q, tipInPersonHint); }
+  if(q) tipQuickReset(q);
   var a=document.getElementById('tipIpAmt'); if(a) a.value='';
   tipInPersonPaint();
   tipOnShiftLoad();
 }
 function tipInPersonPick(ans){
   _tipIp.answer=(_tipIp.answer===ans)?null:ans;   // tap again = back to "not answered"
-  if(_tipIp.answer!=='YES'){ var a=document.getElementById('tipIpAmt'); if(a) a.value=''; _tipIp.who=''; }
+  if(_tipIp.answer!=='YES'){ var a=document.getElementById('tipIpAmt'); if(a) a.value=''; _tipIp.who=''; var q=document.getElementById('tipIpQuick'); if(q) tipQuickSync(q); }
   tipInPersonPaint();
   if(_tipIp.answer==='YES'){ var a2=document.getElementById('tipIpAmt'); if(a2&&!('ontouchstart' in window)) a2.focus(); }
 }
@@ -7993,6 +8042,34 @@ function tipInPersonPaint(){
   if(m) m.hidden=_tipIp.answer!=='YES';
   tipOnShiftPaint(); tipInPersonHint();
 }
+// Quick amounts (owner 2026-10-28): $5 $10 $20 $50 or Other (typed). Nothing is
+// pre-selected; an empty field means "not recorded", never $0.
+var TIP_QUICK=[500,1000,2000,5000];
+function tipQuickHtml(id){
+  return '<div class="stp-quick" id="'+id+'"><div class="stp-qrow" role="group" aria-label="Tip amount">'+
+    TIP_QUICK.map(function(c){ return '<button type="button" aria-pressed="false" data-c="'+c+'">$'+(c/100)+'</button>'; }).join('')+
+    '<button type="button" aria-pressed="false" data-c="other">Other</button></div>'+
+    '<div class="stp-amt"><span class="stp-cur">$</span><input type="text" inputmode="decimal" placeholder="0.00" maxlength="7" autocomplete="off" aria-label="Tip amount in dollars"><span class="stp-cash">Cash</span></div></div>';
+}
+function tipQuickSync(box){
+  var i=box.querySelector('input'), c=tipParseCents(i.value), hit=false;
+  box.querySelectorAll('button[data-c]').forEach(function(b){
+    var on=b.dataset.c!=='other'&&Number(b.dataset.c)===c; if(on) hit=true; b.setAttribute('aria-pressed', String(on));
+  });
+  if(!hit&&String(i.value).trim()) box.querySelector('button[data-c="other"]').setAttribute('aria-pressed','true');
+}
+function tipQuickBind(box, onChange){
+  if(!box) return;
+  var i=box.querySelector('input');
+  box.querySelectorAll('button[data-c]').forEach(function(b){ b.addEventListener('click', function(){
+    if(b.dataset.c==='other'){ i.value=''; tipQuickSync(box); box.querySelector('button[data-c="other"]').setAttribute('aria-pressed','true'); i.focus(); }
+    else { i.value=b.getAttribute('aria-pressed')==='true'?'':(Number(b.dataset.c)/100).toFixed(2); tipQuickSync(box); }
+    if(onChange) onChange();
+  }); });
+  i.addEventListener('input', function(){ crSanitizeCurrency(i); tipQuickSync(box); if(onChange) onChange(); });
+}
+function tipQuickCents(box){ return box?tipParseCents(box.querySelector('input').value):null; }
+function tipQuickReset(box){ if(!box) return; box.querySelector('input').value=''; tipQuickSync(box); }
 // Amount in cents, null when empty, false when typed but not usable.
 function tipParseCents(s){
   s=String(s||'').trim(); if(!s) return null;
@@ -8038,7 +8115,9 @@ async function tipRpc(fn, args){
     var res=await fetch(SUPABASE_URL+'/rest/v1/rpc/'+fn,{method:'POST',headers:Object.assign({},sbHeaders(),{'Content-Type':'application/json'}),body:JSON.stringify(args)});
     if(res.status===404) return {result:'NO_LEDGER'};
     if(!res.ok) return {result:'ERROR', message:'HTTP '+res.status};
-    return await res.json();
+    var out=await res.json();
+    if(out&&out.result==='OK'&&!out.duplicate) setTimeout(refreshStripeTipsKpi,0);   // DAILY TIPS follows each new amount
+    return out;
   }catch(e){ return {result:'ERROR', message:e.message}; }
 }
 function tipMoney(c){ return '$'+((Number(c)||0)/100).toFixed(2); }
@@ -8048,47 +8127,58 @@ function tipWhen(iso){ return iso?new Date(iso).toLocaleString('en-US',{timeZone
 // Car card (delivered): cash tip with its history, Stripe tips of this
 // ticket (separate, confirmed only), and the manual delivery message.
 var _tipsCard=null;   // {r, rows, active}
+var TIP_STAGE_LABEL={CHECKIN:'At check-in', CHECKOUT:'At delivery', LATER:'Added later'};
 async function tipsLoad(r){
   var el=document.getElementById('tipsSec'); if(!el) return;
-  if(!r||r.status!=='DELIVERED'||r.isOfflinePending){ el.innerHTML=''; _tipsCard=null; return; }
+  if(!r||r.isOfflinePending||r.status==='ARCHIVED'&&_currentUserRole!=='ADMIN'){ el.innerHTML=''; _tipsCard=null; return; }
+  var done=r.status==='DELIVERED'||r.status==='ARCHIVED';
   el.innerHTML='<div class="htitle" style="margin-top:4px">Tips</div><div class="vps stp-card"><div class="vps-s">Loading…</div></div>';
   var q=function(p){ return fetch(SUPABASE_URL+'/rest/v1/'+p,{headers:sbHeaders()}).then(function(x){ return x.ok?x.json():null; }).catch(function(){ return null; }); };
   var nowIso=encodeURIComponent(new Date().toISOString());
   var res=await Promise.all([
     q('airvalet_tip_records?passenger_id=eq.'+r.id+'&order=id.asc'),
-    q('payments?passenger_id=eq.'+r.id+'&type=eq.TIP&select=amount_cents,status,created_at&order=created_at.asc'),
-    isServerSms()?q('airvalet_sms_messages?passenger_id=eq.'+r.id+'&message_type=eq.VEHICLE_DELIVERED&direction=eq.outbound&select=status,error_code,created_at,idempotency_key&order=created_at.desc'):Promise.resolve([]),
-    isServerSms()?q('airvalet_pass_links?passenger_id=eq.'+r.id+'&revoked_at=is.null&expires_at=gt.'+nowIso+'&select=id&limit=1'):Promise.resolve([])
+    done?q('payments?passenger_id=eq.'+r.id+'&type=eq.TIP&select=amount_cents,status,created_at&order=created_at.asc'):Promise.resolve([]),
+    done&&isServerSms()?q('airvalet_sms_messages?passenger_id=eq.'+r.id+'&message_type=eq.VEHICLE_DELIVERED&direction=eq.outbound&select=status,error_code,created_at,idempotency_key&order=created_at.desc'):Promise.resolve([]),
+    done&&isServerSms()?q('airvalet_pass_links?passenger_id=eq.'+r.id+'&revoked_at=is.null&expires_at=gt.'+nowIso+'&select=id&limit=1'):Promise.resolve([])
   ]);
   if(!document.getElementById('tipsSec')||!document.getElementById('detOv').classList.contains('on')) return;
-  var rows=res[0]||[], active=rows.filter(function(t){return !t.voided_at;})[0]||null;
-  _tipsCard={r:r, rows:rows, active:active};
+  var rows=res[0]||[], active=rows.filter(function(t){return !t.voided_at;});
+  _tipsCard={r:r, rows:rows, active:active[0]||null, actives:active, sel:null};
   var h='<div class="htitle" style="margin-top:4px">Tips</div><div class="vps stp-card">';
-  // Cash (in person)
+  // Cash (in person): every amount recorded on this ticket, never overwritten.
   h+='<div class="vps-r stp-row"><div class="stp-l"><b>In person · Cash</b>';
   if(res[0]===null) h+='<small class="stp-bad">Could not load. Reopen the car.</small>';
-  else if(active) h+='<span class="stp-v">'+tipMoney(active.amount_cents)+'</span><small>'+escapeHTML('Recorded by '+tipWho(active.recorded_by)+(active.received_by_name?' · received by '+active.received_by_name:'')+' · '+tipWhen(active.recorded_at))+'</small>';
-  else if(r.tip_received===true) h+='<small>Tip received · amount not recorded</small>';
-  else if(r.tip_received===false) h+='<small>No tip in person</small>';
-  else h+='<small>Not recorded</small>';
+  else if(!active.length) h+='<small>'+(r.tip_received===true?'Tip received · amount not recorded':r.tip_received===false?'No tip in person':'Not recorded')+'</small>';
   h+='</div>';
-  if(res[0]!==null) h+=active?'<button type="button" class="vps-tg" onclick="tipFixOpen(\'CORRECT\')">Correct</button>'
-                             :'<button type="button" class="vps-tg" onclick="tipFixOpen(\'ADD\')">'+(r.tip_received===true?'Add amount':'Add cash tip')+'</button>';
+  if(res[0]!==null) h+='<button type="button" class="vps-tg" onclick="tipFixOpen(\'ADD\')">'+(!active.length&&r.tip_received===true?'+ Add amount':'+ Add tip')+'</button>';
   h+='</div>';
+  if(active.length){
+    h+=active.map(function(t){
+      return '<div class="stp-tiprow"><div class="stp-l"><span class="stp-stage">'+escapeHTML(TIP_STAGE_LABEL[t.stage]||'Cash')+'</span><span class="stp-v">'+tipMoney(t.amount_cents)+'</span>'+
+        '<small>'+escapeHTML('Recorded by '+tipWho(t.recorded_by)+(t.received_by_name?' · received by '+t.received_by_name:'')+' · '+tipWhen(t.recorded_at))+'</small></div>'+
+        '<button type="button" class="vps-tg" onclick="tipFixOpen(\'CORRECT\','+t.id+')">Correct</button></div>';
+    }).join('');
+    if(active.length>1) h+='<div class="stp-total"><span>Cash recorded on this ticket</span><b>'+tipMoney(active.reduce(function(a,t){return a+t.amount_cents;},0))+'</b></div>';
+  }
   var voided=rows.filter(function(t){return t.voided_at;});
   if(voided.length){
     h+='<div class="stp-hist">'+voided.map(function(t){
       return '<div><s>'+tipMoney(t.amount_cents)+'</s> '+escapeHTML((rows.some(function(n){return n.supersedes_id===t.id;})?'corrected':'removed')+' by '+tipWho(t.voided_by)+' · '+tipWhen(t.voided_at)+' · “'+t.void_reason+'”')+'</div>';
     }).join('')+'</div>';
   }
-  // Stripe (separate; only what Stripe confirmed)
-  var pay=(res[1]||[]).filter(function(p){return p.status==='succeeded'||p.status==='refunded';});
-  h+='<div class="vps-r stp-row"><div class="stp-l"><b>Digital · Stripe</b>'+
-     (pay.length?pay.map(function(p){ return '<small>'+tipMoney(p.amount_cents)+' · '+(p.status==='refunded'?'refunded':'confirmed')+' · '+escapeHTML(tipWhen(p.created_at))+'</small>'; }).join('')
-                :'<small>'+(res[1]===null?'Could not load.':'None confirmed for this ticket')+'</small>')+'</div></div>';
-  h+=tipsDeliveryMsgHtml(r, res[2], res[3]);
+  if(done){
+    // Stripe (separate; only what Stripe confirmed)
+    var pay=(res[1]||[]).filter(function(p){return p.status==='succeeded'||p.status==='refunded';});
+    h+='<div class="vps-r stp-row"><div class="stp-l"><b>Digital · Stripe</b>'+
+       (pay.length?pay.map(function(p){ return '<small>'+tipMoney(p.amount_cents)+' · '+(p.status==='refunded'?'refunded':'confirmed')+' · '+escapeHTML(tipWhen(p.created_at))+'</small>'; }).join('')
+                  :'<small>'+(res[1]===null?'Could not load.':'None confirmed for this ticket')+'</small>')+'</div></div>';
+    h+=tipsDeliveryMsgHtml(r, res[2], res[3]);
+  }
   h+='<div class="vps-s">Staff only. The passenger never sees an amount.</div></div>';
   el.innerHTML=h;
+  // The car's own fields mirror the delivery tips (check-in tips stay on the ledger only).
+  var d=paxById(r.id);
+  if(d&&res[0]!==null){ var m=active.filter(function(t){return t.stage!=='CHECKIN';}).reduce(function(a,t){return a+t.amount_cents;},0); d.tip_in_person_cents=m||null; }
 }
 // Manual delivery message (owner 2026-10-27): never automatic from here, only
 // for tickets that already have an active Valet Pass (no new link for older
@@ -8127,22 +8217,26 @@ async function tipsSendDeliveryMsg(id, resend){
 
 // Add / correct (audited): one key per opening, reason required to correct.
 var _tipFix=null;
-function tipFixOpen(mode){
+function tipFixOpen(mode, tipId){
   if(!_tipsCard) return;
-  _tipFix={mode:mode, key:tipNewKey(), busy:false, remove:false};
-  var a=_tipsCard.active, r=_tipsCard.r;
+  var a=mode==='CORRECT'?(_tipsCard.actives||[]).filter(function(t){return t.id===tipId;})[0]:null, r=_tipsCard.r;
+  if(mode==='CORRECT'&&!a) return;
+  _tipFix={mode:mode, key:tipNewKey(), busy:false, remove:false, tip:a};
   document.getElementById('tipFixPanel').innerHTML=
     '<h2>'+(mode==='CORRECT'?'Correct cash tip':'Add cash tip')+'</h2>'+
     '<div class="msub">'+escapeHTML((r.ticket?r.ticket+' · ':'')+(r.name||''))+'</div>'+
-    (a?'<div class="stp-now">Recorded: <b>'+tipMoney(a.amount_cents)+'</b> by '+escapeHTML(tipWho(a.recorded_by))+'</div>':'')+
-    '<label class="stp-f">'+(mode==='CORRECT'?'Correct amount':'Amount')+
-      '<div class="stp-amt"><span class="stp-cur">$</span><input type="text" inputmode="decimal" id="tipFixAmt" maxlength="7" autocomplete="off" oninput="crSanitizeCurrency(this)"><span class="stp-cash">Cash</span></div></label>'+
+    (a?'<div class="stp-now">'+escapeHTML(TIP_STAGE_LABEL[a.stage]||'Recorded')+': <b>'+tipMoney(a.amount_cents)+'</b> by '+escapeHTML(tipWho(a.recorded_by))+'</div>':'')+
+    (mode==='CORRECT'
+      ?'<label class="stp-f">Correct amount<div class="stp-amt"><span class="stp-cur">$</span><input type="text" inputmode="decimal" id="tipFixAmt" maxlength="7" autocomplete="off" oninput="crSanitizeCurrency(this)"><span class="stp-cash">Cash</span></div></label>'
+      :'<div class="stp-f">Amount'+tipQuickHtml('tipFixQuick')+'</div>'+
+       ((_tipsCard.actives||[]).length?'<div class="stp-hint">Adds to the '+tipMoney(_tipsCard.actives.reduce(function(x,t){return x+t.amount_cents;},0))+' already recorded. To change an amount, use Correct.</div>':''))+
     (mode==='CORRECT'?'<label class="stp-chk"><input type="checkbox" id="tipFixRemove" onchange="tipFixRemoveSync()"> No cash tip on this ticket (remove)</label>':'')+
     (mode==='CORRECT'?'<label class="stp-f">Reason <span class="stp-req">required</span><textarea id="tipFixReason" maxlength="200" placeholder="e.g. Typed 20, it was 25"></textarea></label>':'')+
     '<div class="stp-hint" id="tipFixMsg">'+(mode==='CORRECT'?'The old amount stays in the history with your reason.':'Saved with this login, date and time.')+'</div>'+
     '<div class="mact"><button class="btnc" id="tipFixCancel" onclick="tipFixClose()">Cancel</button><button class="btnp" id="tipFixSave" onclick="tipFixSave()">Save</button></div>';
   document.getElementById('tipFixOv').classList.add('on');
-  var i=document.getElementById('tipFixAmt'); if(i&&!('ontouchstart' in window)) i.focus();
+  var qb=document.getElementById('tipFixQuick'); if(qb){ tipQuickBind(qb); qb.querySelector('input').id='tipFixAmt'; }
+  var i=document.getElementById('tipFixAmt'); if(i&&!('ontouchstart' in window)&&mode==='CORRECT') i.focus();
 }
 function tipFixRemoveSync(){
   var rm=document.getElementById('tipFixRemove'), a=document.getElementById('tipFixAmt');
@@ -8150,6 +8244,8 @@ function tipFixRemoveSync(){
 }
 function tipFixClose(){ if(_tipFix&&_tipFix.busy) return; document.getElementById('tipFixOv').classList.remove('on'); }
 var TIP_FIX_TEXT={DAY_CLOSED:'That day’s Closing Report is closed. Only an ADMIN can change it.', ALREADY_RECORDED:'A cash tip is already recorded on this ticket. Use Correct.',
+  RECENT_SAME:'This same amount was just recorded on this ticket (maybe on another device). Check the list before adding it again.',
+  ALREADY_DELIVERED:'The car is already delivered — add the tip from the car card (Tips).', ARCHIVED:'Archived ticket. Only an ADMIN can add a tip.',
   ALREADY_CORRECTED:'Changed on another device. Close and reopen the car.', REASON_REQUIRED:'Write the reason (3+ characters).', UNCHANGED:'Same amount as recorded.',
   INVALID:'Enter an amount from $0.01 to $1,000.', NOT_DELIVERED:'The car is not delivered.', NOT_FOUND:'Not found. Reopen the car.', NO_LEDGER:'Tips are not available yet on this server.'};
 async function tipFixSave(){
@@ -8161,12 +8257,16 @@ async function tipFixSave(){
   if(_tipFix.mode==='CORRECT'&&reason.length<3) return bad(TIP_FIX_TEXT.REASON_REQUIRED);
   _tipFix.busy=true; ['tipFixSave','tipFixCancel'].forEach(function(b){ document.getElementById(b).disabled=true; });
   var r=_tipsCard.r, out=_tipFix.mode==='CORRECT'
-    ?await tipRpc('airvalet_tip_correct',{p_tip_id:_tipsCard.active.id,p_new_amount_cents:c,p_reason:reason,p_client_key:_tipFix.key})
+    ?await tipRpc('airvalet_tip_correct',{p_tip_id:_tipFix.tip.id,p_new_amount_cents:c,p_reason:reason,p_client_key:_tipFix.key})
     :await tipRpc('airvalet_tip_record',{p_passenger_id:r.id,p_amount_cents:c,p_client_key:_tipFix.key,p_received_by:null,p_source:'ADDED_LATER'});
   _tipFix.busy=false; ['tipFixSave','tipFixCancel'].forEach(function(b){ var e=document.getElementById(b); if(e) e.disabled=false; });
   if(out.result!=='OK') return bad(TIP_FIX_TEXT[out.result]||('Not saved: '+(out.message||out.result)));
-  var d=paxById(r.id);
-  if(d){ d.tip_in_person_cents=c||null; d.tip_received=c?true:(_tipFix.mode==='CORRECT'?null:d.tip_received); }
+  var d=paxById(r.id), stage=_tipFix.mode==='CORRECT'?_tipFix.tip.stage:(out.tip&&out.tip.stage);
+  if(d&&stage!=='CHECKIN'){
+    // The server keeps the car's tip fields (sum of the delivery tips); read them back.
+    try{ var pr=await fetch(SUPABASE_URL+'/rest/v1/passengers?id=eq.'+r.id+'&select=tip_received,tip_in_person_cents',{headers:sbHeaders()});
+         var pj=pr.ok?(await pr.json())[0]:null; if(pj){ d.tip_received=pj.tip_received; d.tip_in_person_cents=pj.tip_in_person_cents; } }catch(e){}
+  }
   document.getElementById('tipFixOv').classList.remove('on');
   showMsg(c?'✓ Cash tip '+tipMoney(c)+' saved.':'✓ Cash tip removed (kept in the history).', false);
   render(); if(d) tipsLoad(d);
@@ -9037,7 +9137,7 @@ async function deliverWithTip(id, deliveryType, tipReceived, inPerson){
     var tipSaved=null, tipWarn='';
     if(inPerson&&inPerson.answer==='YES'&&inPerson.cents){
       var tr=await tipRpc('airvalet_tip_record',{p_passenger_id:r.id,p_amount_cents:inPerson.cents,p_client_key:inPerson.key,p_received_by:inPerson.who,p_source:'DELIVERY'});
-      if(tr.result==='OK'||tr.result==='ALREADY_RECORDED') tipSaved=tr.tip&&tr.tip.amount_cents;
+      if(tr.result==='OK'||tr.result==='ALREADY_RECORDED'||tr.result==='RECENT_SAME') tipSaved=tr.tip&&tr.tip.amount_cents;
       else tipWarn=' Cash tip not saved — add it from the car card (Tips).';
     } else if(inPerson&&inPerson.invalid){
       tipWarn=' Tip amount not saved (not a valid amount) — add it from the car card (Tips).';
@@ -10092,14 +10192,33 @@ function showApp() {
 // America/New_York "today" math in Postgres (see migration) — never
 // hand-rolled here. Only succeeded Stripe tips are summed (RPC itself
 // filters status='succeeded').
+var _dtpOffset=0, _dtpSeq=0;   // 0 = today (America/New_York), -1 = yesterday…
+function dailyTipsDate(off){
+  var t=new Date(new Date().toLocaleString('en-US',{timeZone:'America/New_York'})); t.setDate(t.getDate()+off);
+  return t.getFullYear()+'-'+('0'+(t.getMonth()+1)).slice(-2)+'-'+('0'+t.getDate()).slice(-2);
+}
+function dailyTipsShift(d){ _dtpOffset=Math.min(0,Math.max(-60,_dtpOffset+d)); refreshStripeTipsKpi(); }
 async function refreshStripeTipsKpi(){
+  if(_currentUserRole==='TV_ONLY') return;   // the TV never shows tip totals
+  var seq=++_dtpSeq, day=dailyTipsDate(_dtpOffset);
+  var set=function(id,t){ var e=document.getElementById(id); if(e) e.textContent=t; };
+  var money=function(c){ return '$'+((Number(c)||0)/100).toFixed(2); };
+  set('dtpDate', _dtpOffset===0?'Today':_dtpOffset===-1?'Yesterday':new Date(day+'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}));
+  var nx=document.getElementById('dtpNext'); if(nx) nx.disabled=_dtpOffset>=0;
   try{
-    var res = await fetch(SUPABASE_URL+'/rest/v1/rpc/get_stripe_tips_today_cents', {method:'POST', headers: sbHeaders()});
-    if(!res.ok) return;
-    var cents = await res.json();
-    var el = document.getElementById('stripeTipsTodayNum');
-    if(el) el.textContent = '$'+((Number(cents)||0)/100).toFixed(2);
-  }catch(e){ console.error('Stripe tips KPI refresh failed', e); }
+    var res = await fetch(SUPABASE_URL+'/rest/v1/rpc/airvalet_daily_tips', {method:'POST', headers: Object.assign({}, sbHeaders(), {'Content-Type':'application/json'}), body: JSON.stringify({p_date: day})});
+    if(seq!==_dtpSeq) return;
+    if(res.ok){
+      var d=await res.json(); if(!d||d.result!=='OK') return;
+      set('dtpCash', money(d.cash.cents)); set('stripeTipsTodayNum', money(d.online.cents)); set('dtpTotal', money(d.total_recorded_cents));
+      return;
+    }
+    if(res.status!==404||_dtpOffset!==0) return;
+    // Server without DAILY TIPS yet: today's Stripe total alone, as before.
+    var r2 = await fetch(SUPABASE_URL+'/rest/v1/rpc/get_stripe_tips_today_cents', {method:'POST', headers: sbHeaders()});
+    if(!r2.ok||seq!==_dtpSeq) return;
+    set('stripeTipsTodayNum', money(await r2.json())); set('dtpCash','—'); set('dtpTotal','—');
+  }catch(e){ console.error('Daily tips refresh failed', e); }
 }
 // Realtime, not polling: subscribes once per session to new payments
 // rows and refetches the aggregate (never trusts the row payload

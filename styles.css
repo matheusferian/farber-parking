@@ -2545,3 +2545,31 @@ body.tv-stale .tv-stale-banner{display:block;}
 .gx-ci .gx-fine{margin:6px 0 0}
 @media (max-width:600px){.gx-ci-r{flex-wrap:wrap}.gx-ci-r>span{flex-basis:100%}}
 .gx-tk-btn{background:#FFF4D6;color:#5C3E00;border:1px solid #F2D383;border-radius:8px;padding:6px 12px;font:700 11px 'Sora',sans-serif;cursor:pointer}
+/* In-person tip quick amounts (owner 2026-10-28): $5 $10 $20 $50 Other — check-in, delivery, car card */
+.stp-quick{margin-top:10px}
+.stp-qrow{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
+.stp-qrow button{min-height:44px;border-radius:12px;border:1.5px solid var(--b);background:#fff;color:var(--navy);font:700 14px 'Sora',sans-serif;cursor:pointer;padding:0 4px;-webkit-tap-highlight-color:transparent}
+.stp-qrow button[aria-pressed="true"]{background:var(--navy);border-color:var(--navy);color:#fff}
+.stp-qrow button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.stp-quick .stp-amt{margin-top:8px}
+.stp-tiprow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-top:1px solid var(--b)}
+.stp-tiprow:first-of-type{border-top:0}
+.stp-stage{font:700 10px 'Sora',sans-serif;letter-spacing:.6px;text-transform:uppercase;color:var(--mu)}
+.stp-total{display:flex;justify-content:space-between;align-items:baseline;padding:8px 0 2px;border-top:1px solid var(--b);font-size:13px;color:var(--mu)}
+.stp-total b{font:800 16px 'Sora',sans-serif;color:var(--navy)}
+/* DAILY TIPS (owner 2026-10-28) — replaces the Stripe-only KPI on the Dashboard */
+.dtp{margin:16px 16px 0;padding:14px 18px 12px;border:1px solid var(--b);border-radius:14px;background:var(--s)}
+.dtp-h{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.dtp-h h2{margin:0;font:800 15px 'Sora',sans-serif;color:var(--navy)}
+.dtp-day{display:flex;align-items:center;gap:4px;font:600 13px 'Inter',sans-serif;color:var(--mu)}
+.dtp-day span{min-width:88px;text-align:center}
+.dtp-day button{width:36px;height:36px;border-radius:10px;border:1px solid var(--b);background:transparent;color:var(--navy);font:700 18px 'Sora',sans-serif;cursor:pointer;line-height:1}
+.dtp-day button:disabled{opacity:.3;cursor:default}
+.dtp-day button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.dtp-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:12px 0 0}
+.dtp-grid div{min-width:0}
+.dtp-grid dt{font:600 12px 'Inter',sans-serif;color:var(--mu)}
+.dtp-grid dd{margin:2px 0 0;font:800 22px 'Sora',sans-serif;color:var(--navy);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dtp-tot{border-left:2px solid var(--gold);padding-left:10px}
+.dtp-note{margin:10px 0 0;font:500 12px 'Inter',sans-serif;color:var(--mu);line-height:1.4}
+@media (max-width:600px){.dtp{margin:12px 14px 0;padding:12px 14px}.dtp-grid dd{font-size:18px}.dtp-grid{gap:8px}}

@@ -57,11 +57,13 @@
 // v87: Guests — staff guest profiles (search, visits, activity, tips & notes),
 //      returning-guest hint at check-in, Guest Profile on the ticket
 //      (index.html + styles.css changed). Same SHELL_FILES. Needs 20261114.
+// v90: In-person tips at check-in / delivery / later (several per ticket, $5 $10 $20 $50 Other)
+//      + DAILY TIPS on the Dashboard (index.html + styles.css). Same SHELL_FILES. Needs 20261117.
 // v86: Smart Tips — cash tips at Deliver go to the audited ledger, car card Tips,
 //      manual delivery message, Closing Report cash reconciliation
 //      (index.html + styles.css changed). Same SHELL_FILES. Needs 20261113.
 // v47: AirValet SMS inbox + server-side texts (only when SMS_PROVIDER = 'twilio').
-var CACHE_VERSION = 'v89';
+var CACHE_VERSION = 'v90';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 var SHELL_FILES = [
