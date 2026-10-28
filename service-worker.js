@@ -63,7 +63,10 @@
 //      manual delivery message, Closing Report cash reconciliation
 //      (index.html + styles.css changed). Same SHELL_FILES. Needs 20261113.
 // v47: AirValet SMS inbox + server-side texts (only when SMS_PROVIDER = 'twilio').
-var CACHE_VERSION = 'v90';
+// v91: Key Copy + Flight Tag V2 — portrait tags (Epson page mode) sized for the key
+//      sleeve, car wash + notes printed, flight tag offer after tail + time
+//      (index.html + utils.js). Same SHELL_FILES. No migration.
+var CACHE_VERSION = 'v91';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 var SHELL_FILES = [

@@ -2340,7 +2340,7 @@ async function printFlightBagOne(id) {
   var r = data.find(function(x){ return x.id === id; });
   if (!r) { showMsg('Passenger not found', true); return; }
   if (!confirm('Print flight tag for ' + getShortPassengerName(r.name) + '?')) return;
-  return epsonSend(buildFlightBagXml(r), 'Flight Tag');
+  return epsonSend(flightTagXml(r), 'Flight Tag');
 }
 
 async function printFlightBagAll(type) {
@@ -2352,7 +2352,7 @@ async function printFlightBagAll(type) {
   if (!rows.length) { showMsg('Nothing to print', true); return; }
   if (!confirm('Print all flight tags for ' + typeLabel + '? Total: ' + rows.length)) return;
   for (var i = 0; i < rows.length; i++) {
-    await epsonSend(buildFlightBagXml(rows[i]), 'Flight Tag ' + (i + 1) + '/' + rows.length);
+    await epsonSend(flightTagXml(rows[i]), 'Flight Tag ' + (i + 1) + '/' + rows.length);
   }
 }
 
@@ -2409,6 +2409,7 @@ async function saveDepartureTime(id, value) {
       });
     }
     showMsg(value ? 'Departure time saved: ' + value : 'Departure time cleared', false);
+    suggestFlightTag(r);
     return true;
   } catch(e) {
     r.departure_time = oldValue;
@@ -2431,8 +2432,27 @@ async function printCustomerTicket(r) {
   return epsonSend(buildCustomerTicketXml(r), 'Customer');
 }
 
+// Key Copy + Flight Tag V2 (portrait, utils.js tagLayout). A device with
+// localStorage tags_v1 = '1' prints the old tags (fallback without a deploy).
+function tagsV1(){ try { return localStorage.getItem('tags_v1') === '1'; } catch(e){ return false; } }
+// The ticket's car wash state as printed. A passenger request counts only
+// while no status is set and it is still undecided; if the Inbox list does
+// not have it, nothing is printed (never a wrong state).
+function keyCopyWash(r){
+  var s = r && r.carwash_status;
+  if (s === 'CARWASH' || s === 'SEND_PRICE' || s === 'WASHED') return s;
+  var q = (typeof _vp !== 'undefined' && _vp.requests) || [];
+  return q.some(function(x){ return Number(x.passenger_id) === Number(r.id) && x.kind === 'CAR_WASH' && x.status === 'PENDING'; }) ? 'REQUESTED' : '';
+}
+function tagOpts(r){
+  return { ascend: isAscend(r), pickupAuth: hasPickupAuth(r), approx: isApproxRecord(r), wash: keyCopyWash(r), now: new Date() };
+}
+function flightTagXml(r){
+  return tagsV1() ? buildFlightBagXml(r) : tagPageXml(tagLayout('flight', r, tagOpts(r)).rows);
+}
+
 async function printKeyTicket(r) {
-  return epsonSend(buildKeyTicketXml(r), 'Key');
+  return epsonSend(tagsV1() ? buildKeyTicketXml(r) : tagPageXml(tagLayout('key', r, tagOpts(r)).rows), 'Key');
 }
 
 async function printDashboardTicket(r) {
@@ -6754,7 +6774,8 @@ async function saveEntry(sendSms, printMode, opts){
         var savedRec={ticket:ticket,name:nameUpper,phone:phoneFull,
                       ret:finalDate,car:carVal,color:colorVal,loc:locVal,
                       not_returning_with_makers_air:notReturning,
-                      delivery_at_customs:deliveryAtCustoms, return_operator:returnOp};
+                      delivery_at_customs:deliveryAtCustoms, return_operator:returnOp,
+                      carwash_status:carwashStatus, obs:finalObs};
         // Customer copy is no longer automatic (owner 2026-10-25: the digital
         // pass replaces it); print it on request from the car's 🧾 Customer Copy.
         await printKeyTicket(savedRec);
@@ -6861,7 +6882,8 @@ async function saveEntry(sendSms, printMode, opts){
       var savedRecOff={ticket:ticket,name:nameUpper,phone:phoneFull,
                     ret:finalDate,car:carVal,color:colorVal,loc:locVal,
                     not_returning_with_makers_air:notReturning,
-                    delivery_at_customs:deliveryAtCustoms, return_operator:returnOp};
+                    delivery_at_customs:deliveryAtCustoms, return_operator:returnOp,
+                    carwash_status:carwashStatus, obs:finalObs};
       await printKeyTicket(savedRecOff);
       await printDashboardTicket(savedRecOff);
     }catch(printErr){
@@ -7687,7 +7709,7 @@ function ci2PrintRec(){
   // The tags follow the card (also offline, where details are not saved yet).
   if (r) return Object.assign({}, r, { loc: _ci.hangar || r.loc, car: ci2VehCar() || r.car, color: _ci.color || r.color });
   return { ticket: _ci.ticket, name: ci2El('ci2Who').textContent.split(' · ')[0], phone: ci2El('ci2Phone').value.trim(), ret: _ci.ret ? d2us(_ci.ret) : '',
-                car: ci2VehCar(), color: _ci.color, loc: _ci.hangar, return_operator: _ci.other ? 'OTHER' : _ci.op };
+                car: ci2VehCar(), color: _ci.color, loc: _ci.hangar, return_operator: _ci.other ? 'OTHER' : _ci.op, carwash_status: _ci.wash || null };
 }
 async function ci2Print(which){
   if (!_ci || !_ci.created || _ci.printing) return;
@@ -12114,10 +12136,40 @@ async function saveReturnFlight(id, value) {
       );
     }
     showMsg(value ? 'Flight saved: ' + value : 'Flight cleared', false);
+    suggestFlightTag(r);
   } catch(e) {
     showMsg('Flight save failed: ' + e.message, true);
     console.error(e);
   }
+}
+
+// Afternoon update: once a car has both tail and return time saved, offer its
+// flight tag at the bottom of the screen. Never prints by itself; one offer
+// per tail + time (changing either offers again).
+var _flightTagOffered = {};
+function suggestFlightTag(r){
+  var tail = String((r && r.return_flight) || '').trim().toUpperCase(), time = getDepartureTime(r);
+  if (!tail || !time || r.status === 'DELIVERED' || r.status === 'ARCHIVED') return;
+  if (_flightTagOffered[r.id] === tail + '|' + time) return;
+  _flightTagOffered[r.id] = tail + '|' + time;
+  var el = document.getElementById('flightTagOffer');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'flightTagOffer';
+    el.setAttribute('role', 'status');
+    el.style.cssText = 'position:fixed;left:12px;right:12px;margin:0 auto;width:fit-content;bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:9997;display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--navy);color:#fff;border-radius:12px;padding:10px 12px 10px 16px;box-shadow:0 6px 24px rgba(1,21,50,.35);font-family:Sora,sans-serif;font-size:13px;';
+    document.body.appendChild(el);
+  }
+  el.innerHTML = '<span>Print flight tag for <b>' + escapeHTML(getShortPassengerName(r.name)) + '</b> · ' + escapeHTML(tail) + ' ' + escapeHTML(time) + '?</span>' +
+    '<button type="button" onclick="flightTagOfferPrint(' + Number(r.id) + ')" style="background:var(--gold);color:var(--navy);border:none;border-radius:8px;padding:8px 14px;font-weight:700;font-family:Sora,sans-serif;font-size:13px;cursor:pointer;">🖨 Print</button>' +
+    '<button type="button" onclick="flightTagOfferClose()" style="background:transparent;color:#fff;border:1px solid rgba(255,255,255,.35);border-radius:8px;padding:8px 12px;font-family:Sora,sans-serif;font-size:13px;cursor:pointer;">Not now</button>';
+  el.hidden = false;
+}
+function flightTagOfferClose(){ var el = document.getElementById('flightTagOffer'); if (el) el.hidden = true; }
+async function flightTagOfferPrint(id){
+  flightTagOfferClose();
+  var r = data.find(function(x){ return x.id === id; });
+  if (r) await epsonSend(flightTagXml(r), 'Flight Tag');
 }
 
 // ── PASSENGER CONTACTS EXPORT ──────────────────────────────────
