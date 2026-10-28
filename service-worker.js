@@ -61,7 +61,7 @@
 //      manual delivery message, Closing Report cash reconciliation
 //      (index.html + styles.css changed). Same SHELL_FILES. Needs 20261113.
 // v47: AirValet SMS inbox + server-side texts (only when SMS_PROVIDER = 'twilio').
-var CACHE_VERSION = 'v89';
+var CACHE_VERSION = 'v90-rollback';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 var SHELL_FILES = [
