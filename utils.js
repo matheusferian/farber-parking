@@ -234,10 +234,6 @@ function tagDate(ret) {
   return { year: d.getFullYear(),
     label: (d.toLocaleDateString('en-US', { weekday: 'short' }) + ' ' + d.toLocaleDateString('en-US', { month: 'short' }) + ' ' + d.getDate()).toUpperCase() };
 }
-function tagStamp(now) {
-  var h = now.getHours(), mm = String(now.getMinutes()); if (mm.length < 2) mm = '0' + mm;
-  return 'PRINTED ' + (now.getMonth() + 1) + '/' + now.getDate() + ' ' + ((h % 12) || 12) + ':' + mm + (h < 12 ? 'A' : 'P');
-}
 var TAG_WASH_TEXT = { CARWASH: 'CAR WASH · CONFIRMED', SEND_PRICE: 'CAR WASH? PRICE PENDING', REQUESTED: 'CAR WASH REQUESTED', WASHED: 'CAR WASH · DONE' };
 
 // o = { ascend, pickupAuth, approx, wash: 'CARWASH'|'SEND_PRICE'|'WASHED'|'REQUESTED'|'', now: Date }
@@ -245,30 +241,33 @@ function keyCopyRows(r, o, fit) {
   var cols = Math.floor(TAG_READ_W / 12), half = Math.floor(cols / 2), out = [];
   var A = function(t, x){ return tagSeg(t, 'A', x); }, B = function(t, x){ return tagSeg(t, 'B', x); };
   var lines = function(t, x){ return tagWrap(t, cols).map(function(l){ return { L: [A(l, x)] }; }); };
-  // fit.dense (last resort): single-height name, ticket and bars, tighter gaps,
-  // stamp on the top line. Hangar and return stay big; nothing is dropped.
+  // fit.dense (last resort): single-height name, ticket and bars, tighter gaps.
+  // The return-date bar stays big; nothing is dropped.
   var gap = function(n){ return { feed: fit.dense ? Math.round(n / 3) : n }; }, bigH = fit.dense ? 1 : 2;
-  out.push({ L: [B(o.ascend ? 'ASCEND · PRIVATE FLIGHT' : 'MAKERS AIR VALET', { em: 1 })], R: fit.dense ? [B(tagStamp(o.now))] : [] }, gap(8));
+  out.push({ L: [B(o.ascend ? 'ASCEND · PRIVATE FLIGHT' : 'MAKERS AIR VALET', { em: 1 })] }, gap(8));
   var n = ((o.ascend ? '[A] ' : '') + String(r.name || '')).trim().toUpperCase();
   if (n.length <= half) out.push({ L: [A(n, { w: 2, h: bigH, em: 1 })] }); else out = out.concat(lines(n, { h: bigH, em: 1 }));
   out.push(gap(8));
+  // Return date is the black bar (owner 10/28); the hangar is plain big text.
+  var d = tagDate(r.ret), tm = tagTime(r.departure_time);
+  var rl = d ? d.label + (d.year !== o.now.getFullYear() ? ' ' + d.year : '') : 'NO DATE';
+  // Dense: the label goes inside the bar ('RET FRI OCT 30') instead of its own row.
+  if (fit.dense && rl.length + 4 <= half) rl = 'RET ' + rl; else out.push({ L: [B('RETURN')] });
+  if (rl.length <= half) out.push({ L: [A(tagPadCenter(rl, half), { w: 2, h: fit.retH, em: 1, rev: 1 })] });
+  else out.push({ L: [A(tagPadCenter(rl, cols), { h: fit.retH, em: 1, rev: 1 })] });
+  var extra = [tm, d && !tm && o.approx ? 'APPROX' : '', d ? '' : 'CONFIRM RETURN'].filter(Boolean).join(' · ');
+  if (extra) out.push({ L: [A(extra, { h: bigH, em: 1 })] });
+  out.push(gap(8));
   var loc = String(r.loc || '').trim().toUpperCase();
-  if (!loc) out.push({ L: [A('NO HANGAR', { w: 2, h: 2, em: 1 })] });
-  else if (loc.length <= half) out.push({ L: [A(tagPadCenter(loc, half), { w: 2, h: fit.hangH, em: 1, rev: 1 })] });
-  else out.push({ L: [A(tagPadCenter(loc, cols), { h: fit.hangH, em: 1, rev: 1 })] });
+  if (!loc) out.push({ L: [A('NO HANGAR', { w: 2, h: bigH, em: 1 })] });
+  else if (loc.length <= half) out.push({ L: [A(loc, { w: 2, h: bigH, em: 1 })] });
+  else out = out.concat(lines(loc, { h: bigH, em: 1 }));
   if (pickupLocation(r) === 'CUSTOMS') {
     out.push(gap(4), { L: [A(tagPadCenter('DELIVER TO CUSTOMS', cols), { h: bigH, em: 1, rev: 1 })] });
     if (isCustomsException(r)) out = out.concat(lines('MAKERS EXCEPTION - APPROVED', { em: 1 }));
   }
   if (isCustomsRequestPending(r)) out = out.concat(lines('CUSTOMS REQUESTED - PENDING · HANGAR 19 UNTIL APPROVED', { em: 1 }));
-  out.push(gap(8));
-  if (r.ticket) out.push({ L: [B('TICKET '), A(r.ticket, { w: 2, h: bigH })] });
-  var d = tagDate(r.ret), tm = tagTime(r.departure_time);
-  var retL = [A('RETURN ', { h: 2 }), A(d ? d.label : 'NO DATE', { w: 2, h: 2, em: 1 })];
-  var extra = [d && d.year !== o.now.getFullYear() ? String(d.year) : '', tm, d && !tm && o.approx ? 'APPROX' : '', d ? '' : 'CONFIRM'].filter(Boolean).join(' ');
-  var retW = retL.reduce(function(a, s){ return a + tagSegW(s); }, 0);
-  if (extra && retW + (extra.length + 1) * 12 <= TAG_READ_W) out.push({ L: retL, R: [A(extra, { h: 2 })] });
-  else { out.push({ L: retL }); if (extra) out.push({ L: [A(extra, { em: 1 })] }); }
+  if (r.ticket) out.push(gap(4), { L: [B('TICKET '), A(r.ticket, { w: 2, h: bigH })] });
   if (o.wash === 'CARWASH') out.push(gap(6), { L: [A(tagPadCenter(TAG_WASH_TEXT.CARWASH, cols), { h: bigH, em: 1, rev: 1 })] });
   else if (TAG_WASH_TEXT[o.wash]) out.push(gap(6), { L: [A(TAG_WASH_TEXT[o.wash], { em: o.wash !== 'REQUESTED' })] });
   out.push(gap(14));
@@ -278,7 +277,6 @@ function keyCopyRows(r, o, fit) {
   if (o.pickupAuth) out = out.concat(lines('AUTH PICKUP: ' + String(r.pickup_auth_name).trim().toUpperCase() + (r.pickup_auth_phone ? ' ' + fmtP(r.pickup_auth_phone) : '') + ' · CHECK ID', { em: 1 }));
   if (returnOperator(r) === 'OTHER') out = out.concat(lines('RETURNING WITH OTHER · CONFIRM BEFORE STAGING', { em: 1 }));
   out = out.concat(tagObsRows(r, cols, fit.obs, A, B));
-  if (!fit.dense) out.push({ feed: 8 }, { L: [B(tagStamp(o.now))] });
   return out;
 }
 
@@ -288,18 +286,16 @@ function flightTagRows(r, o, fit) {
   var cols = Math.floor(TAG_READ_W / 12), half = Math.floor(cols / 2), out = [];
   var A = function(t, x){ return tagSeg(t, 'A', x); }, B = function(t, x){ return tagSeg(t, 'B', x); };
   var lines = function(t, x){ return tagWrap(t, cols).map(function(l){ return { L: [A(l, x)] }; }); };
-  // fit.dense (last resort): single-height name, tighter gaps, stamp on the
-  // top line. Tail and return time stay big; nothing is dropped.
+  // fit.dense (last resort): single-height name, tighter gaps. The black bar
+  // (tail + return time, owner 10/28) stays big; nothing is dropped.
   var gap = function(n){ return { feed: fit.dense ? Math.round(n / 3) : n }; };
-  out.push({ L: [B(o.ascend ? 'ASCEND · FLIGHT' : 'MAKERS AIR VALET · FLIGHT', { em: 1 })], R: fit.dense ? [B(tagStamp(o.now))] : [] }, gap(8), { L: [B('TAIL')] });
-  var tail = String(r.return_flight || '').trim().toUpperCase();
-  if (!tail) out.push({ L: [A('NO FLIGHT YET', { w: 2, h: 2, em: 1 })] });
-  else if (tail.length <= half) out.push({ L: [A(tagPadCenter(tail, half), { w: 2, h: fit.big, em: 1, rev: 1 })] });
-  else out = out.concat(tagWrap(tail, cols).map(function(l){ return { L: [A(tagPadCenter(l, cols), { h: fit.big, em: 1, rev: 1 })] }; }));
-  out.push(gap(8), { L: [B('RETURN')] });
-  var tm = tagTime(r.departure_time), d = tagDate(r.ret);
+  out.push({ L: [B(o.ascend ? 'ASCEND · FLIGHT' : 'MAKERS AIR VALET · FLIGHT', { em: 1 })] }, gap(8), { L: [B('TAIL · RETURN TIME')] });
+  var tail = String(r.return_flight || '').trim().toUpperCase(), tm = tagTime(r.departure_time), d = tagDate(r.ret);
+  var bar = (tail || 'NO FLIGHT') + '  ' + (tm || 'TIME TBD');
+  if (bar.length <= half) out.push({ L: [A(tagPadCenter(bar, half), { w: 2, h: fit.big, em: 1, rev: 1 })] });
+  else out = out.concat(tagWrap(bar, cols).map(function(l){ return { L: [A(tagPadCenter(l, cols), { h: fit.big, em: 1, rev: 1 })] }; }));
   var dl = d ? d.label + (d.year !== o.now.getFullYear() ? ' ' + d.year : '') : 'NO DATE';
-  out.push({ L: [A(tm || 'TIME TBD', { w: 2, h: fit.big, em: 1 })], R: [A(dl, { h: 2 })] });
+  out.push(gap(8), { L: [A('RETURN ', { h: 2 }), A(dl, { w: 7 * 12 + dl.length * 24 <= TAG_READ_W ? 2 : 1, h: 2, em: 1 })] });
   out.push(gap(12));
   out = out.concat(lines(((o.ascend ? '[A] ' : '') + String(r.name || '')).trim().toUpperCase(), { h: fit.dense ? 1 : 2, em: 1 }));
   var where = [String(r.loc || '').trim().toUpperCase(), r.ticket ? 'TICKET ' + r.ticket : ''].filter(Boolean).join(' · ');
@@ -314,7 +310,6 @@ function flightTagRows(r, o, fit) {
   if (o.pickupAuth) out = out.concat(lines('AUTH PICKUP: ' + String(r.pickup_auth_name).trim().toUpperCase() + ' · CHECK ID', { em: 1 }));
   if (returnOperator(r) === 'OTHER') out = out.concat(lines('RETURNING WITH OTHER · CONFIRM', { em: 1 }));
   out = out.concat(tagObsRows(r, cols, fit.obs, A, B));
-  if (!fit.dense) out.push({ feed: 8 }, { L: [B(tagStamp(o.now))] });
   return out;
 }
 // Notes only when there are any; past the limit say so on paper.
@@ -327,7 +322,7 @@ function tagObsRows(r, cols, max, A, B) {
 }
 // Biggest layout that fits the reading height; the last step is used anyway
 // (fits:false) — nothing is ever dropped.
-var KEY_COPY_FITS = [{ hangH: 3, obs: 2 }, { hangH: 2, obs: 2 }, { hangH: 2, obs: 1 }, { hangH: 2, obs: 1, dense: 1 }];
+var KEY_COPY_FITS = [{ retH: 3, obs: 2 }, { retH: 2, obs: 2 }, { retH: 2, obs: 1 }, { retH: 2, obs: 1, dense: 1 }];
 var FLIGHT_TAG_FITS = [{ big: 3, obs: 2 }, { big: 3, obs: 1 }, { big: 2, obs: 1 }, { big: 2, obs: 1, dense: 1 }];
 function tagLayout(kind, r, o) {
   var steps = kind === 'flight' ? FLIGHT_TAG_FITS : KEY_COPY_FITS, rows = null;

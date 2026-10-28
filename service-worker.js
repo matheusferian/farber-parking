@@ -66,7 +66,9 @@
 // v91: Key Copy + Flight Tag V2 — portrait tags (Epson page mode) sized for the key
 //      sleeve, car wash + notes printed, flight tag offer after tail + time
 //      (index.html + utils.js). Same SHELL_FILES. No migration.
-var CACHE_VERSION = 'v91';
+// v92: Key Copy black bar = return date (hangar plain); Flight Tag black bar = tail + return time;
+//      no print stamp on either tag (utils.js).
+var CACHE_VERSION = 'v92';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 var SHELL_FILES = [

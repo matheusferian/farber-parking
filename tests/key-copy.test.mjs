@@ -41,8 +41,12 @@ function assertSound(lay, label) {
 
 test('short name, full vehicle: every core field once', () => {
   const t = assertSound(key(rec()), 'short');
-  for (const s of ['MAKERS AIR VALET', 'ANA LIMA', 'HANGAR 7', '1028-2', 'RETURN', 'FRI OCT 30', 'TESLA MODEL Y · WHITE', '(954) 555-0142', 'PRINTED 10/28 2:05P']) assert.ok(t.includes(s), s);
-  assert.doesNotMatch(t, /OBS|CAR WASH|CUSTOMS/);
+  for (const s of ['MAKERS AIR VALET', 'ANA LIMA', 'HANGAR 7', '1028-2', 'RETURN', 'FRI OCT 30', 'TESLA MODEL Y · WHITE', '(954) 555-0142']) assert.ok(t.includes(s), s);
+  assert.doesNotMatch(t, /OBS|CAR WASH|CUSTOMS|PRINTED/);
+  const lay = key(rec());
+  const seg = (x) => lay.rows.flatMap((l) => [...(l.L || []), ...(l.R || [])]).find((s) => s.t.includes(x));
+  assert.ok(seg('FRI OCT 30').rev && seg('FRI OCT 30').w === 2, 'return date = black bar');
+  assert.ok(!seg('HANGAR 7').rev && seg('HANGAR 7').w === 2, 'hangar = plain big text');
 });
 
 test('long name wraps on words, never cut mid-word', () => {
@@ -108,16 +112,18 @@ test('worst case still fits (long name + everything)', () => {
   assertSound(flight(Object.assign({ return_flight: 'N512MA' }, r), { ascend: true, pickupAuth: true, wash: 'CARWASH' }), 'flight worst');
 });
 
-test('flight tag: tail and time are the big items; hangar is a plain line', () => {
+test('flight tag: tail + return time share the black bar; hangar is a plain line; no print stamp', () => {
   const lay = flight(rec({ return_flight: 'n512ma', departure_time: '17:30' }), { wash: 'CARWASH' });
   const t = assertSound(lay, 'flight');
   const seg = (s) => lay.rows.flatMap((l) => [...(l.L || []), ...(l.R || [])]).find((x) => x.t.includes(s));
-  assert.ok(seg('N512MA').rev && seg('N512MA').w === 2, 'tail = big black bar');
-  assert.ok(seg('5:30 PM').w === 2 && seg('5:30 PM').h >= 2, 'time = big');
+  assert.ok(seg('N512MA').rev && seg('N512MA').w === 2 && seg('N512MA').t.includes('5:30 PM'), 'tail + time = one big black bar');
+  assert.doesNotMatch(t, /PRINTED/);
   assert.ok(!seg('HANGAR 7').rev && seg('HANGAR 7').w === 1, 'hangar = plain');
   assert.ok(t.includes('HANGAR 7 · TICKET 1028-2') && t.includes('[ CAR WASH · CONFIRMED ]'));
   const none = assertSound(flight(rec()), 'no flight');
-  assert.ok(none.includes('NO FLIGHT YET') && none.includes('TIME TBD'));
+  assert.ok(none.includes('NO FLIGHT') && none.includes('TIME TBD'));
+  const longTail = assertSound(flight(rec({ return_flight: 'N1234567890AB', departure_time: '12:45', ret: '1/4/2027' })), 'long tail');
+  assert.ok(longTail.includes('N1234567890AB') && longTail.includes('12:45 PM') && longTail.includes('MON JAN 4 2027'));
 });
 
 test('XML escapes passenger text', () => {
