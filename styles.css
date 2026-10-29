@@ -2573,3 +2573,10 @@ body.tv-stale .tv-stale-banner{display:block;}
 .dtp-tot{border-left:2px solid var(--gold);padding-left:10px}
 .dtp-note{margin:10px 0 0;font:500 12px 'Inter',sans-serif;color:var(--mu);line-height:1.4}
 @media (max-width:600px){.dtp{margin:12px 14px 0;padding:12px 14px}.dtp-grid dd{font-size:18px}.dtp-grid{gap:8px}}
+/* DAILY TIPS show / hide (owner 2026-10-29): hidden by default on every app open */
+.dtp-h h2{margin-right:auto}
+.dtp-eye{display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:0 12px;border-radius:10px;border:1px solid var(--b);background:transparent;color:var(--navy);font:700 13px 'Sora',sans-serif;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.dtp-eye[aria-pressed="true"]{background:#FBF5E6;border-color:var(--gold)}
+.dtp-eye:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.dtp-grid.is-hidden dd{color:var(--mu);letter-spacing:1px}
+@media (max-width:600px){.dtp-eye span{display:none}.dtp-eye{min-width:40px;justify-content:center;padding:0}}

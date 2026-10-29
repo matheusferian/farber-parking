@@ -57,6 +57,7 @@
 // v87: Guests — staff guest profiles (search, visits, activity, tips & notes),
 //      returning-guest hint at check-in, Guest Profile on the ticket
 //      (index.html + styles.css changed). Same SHELL_FILES. Needs 20261114.
+// v93: DAILY TIPS amounts hidden by default, Show / Hide button (index.html + styles.css). Same SHELL_FILES.
 // v90: In-person tips at check-in / delivery / later (several per ticket, $5 $10 $20 $50 Other)
 //      + DAILY TIPS on the Dashboard (index.html + styles.css). Same SHELL_FILES. Needs 20261117.
 // v86: Smart Tips — cash tips at Deliver go to the audited ledger, car card Tips,
@@ -68,7 +69,7 @@
 //      (index.html + utils.js). Same SHELL_FILES. No migration.
 // v92: Key Copy black bar = return date (hangar plain); Flight Tag black bar = tail + return time;
 //      no print stamp on either tag (utils.js).
-var CACHE_VERSION = 'v92';
+var CACHE_VERSION = 'v93';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 var SHELL_FILES = [

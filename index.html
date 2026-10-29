@@ -178,15 +178,17 @@
   <section class="dtp" id="stripeTipsKpi" aria-labelledby="dtpTitle">
     <div class="dtp-h">
       <h2 id="dtpTitle">Daily tips</h2>
+      <!-- Amounts hidden by default on every app open (owner 2026-10-29); tap to show / hide. -->
+      <button type="button" class="dtp-eye" id="dtpEye" aria-pressed="false" aria-controls="dtpGrid" onclick="dailyTipsToggle()"><i class="fa-solid fa-eye" aria-hidden="true"></i><span>Show</span></button>
       <div class="dtp-day">
         <button type="button" id="dtpPrev" aria-label="Previous day" onclick="dailyTipsShift(-1)">‹</button>
         <span id="dtpDate">Today</span>
         <button type="button" id="dtpNext" aria-label="Next day" onclick="dailyTipsShift(1)" disabled>›</button>
       </div>
     </div>
-    <dl class="dtp-grid">
+    <dl class="dtp-grid is-hidden" id="dtpGrid">
       <div><dt>Cash tips</dt><dd id="dtpCash">—</dd></div>
-      <div><dt>Online tips</dt><dd id="stripeTipsTodayNum">$0.00</dd></div>
+      <div><dt>Online tips</dt><dd id="stripeTipsTodayNum">—</dd></div>
       <div class="dtp-tot"><dt>Total recorded</dt><dd id="dtpTotal">—</dd></div>
     </dl>
     <p class="dtp-note" id="dtpNote">Cash shows only what the team recorded. Some tips may not be recorded.</p>
@@ -10220,10 +10222,27 @@ function dailyTipsDate(off){
   return t.getFullYear()+'-'+('0'+(t.getMonth()+1)).slice(-2)+'-'+('0'+t.getDate()).slice(-2);
 }
 function dailyTipsShift(d){ _dtpOffset=Math.min(0,Math.max(-60,_dtpOffset+d)); refreshStripeTipsKpi(); }
+// Hidden: the amounts never reach the screen (kept in data-v), so a glance or a
+// screenshot over someone's shoulder shows nothing. Not remembered: every app open starts hidden.
+var _dtpHidden=true, DTP_MASK='$ ••••';
+function dailyTipsPaint(){
+  ['dtpCash','stripeTipsTodayNum','dtpTotal'].forEach(function(id){
+    var e=document.getElementById(id); if(!e) return;
+    var v=e.getAttribute('data-v'); if(v===null) v=e.textContent;
+    e.textContent=_dtpHidden&&v!=='—'?DTP_MASK:v;
+  });
+  var g=document.getElementById('dtpGrid'); if(g) g.classList.toggle('is-hidden',_dtpHidden);
+  var b=document.getElementById('dtpEye');
+  if(b){ b.setAttribute('aria-pressed',String(!_dtpHidden)); b.setAttribute('aria-label',_dtpHidden?'Show tip amounts':'Hide tip amounts');
+    b.innerHTML='<i class="fa-solid '+(_dtpHidden?'fa-eye':'fa-eye-slash')+'" aria-hidden="true"></i><span>'+(_dtpHidden?'Show':'Hide')+'</span>'; }
+}
+function dailyTipsToggle(){ _dtpHidden=!_dtpHidden; dailyTipsPaint(); }
 async function refreshStripeTipsKpi(){
   if(_currentUserRole==='TV_ONLY') return;   // the TV never shows tip totals
   var seq=++_dtpSeq, day=dailyTipsDate(_dtpOffset);
-  var set=function(id,t){ var e=document.getElementById(id); if(e) e.textContent=t; };
+  var set=function(id,t){ var e=document.getElementById(id); if(!e) return;
+    if(id==='dtpDate'){ e.textContent=t; return; }
+    e.setAttribute('data-v',t); dailyTipsPaint(); };
   var money=function(c){ return '$'+((Number(c)||0)/100).toFixed(2); };
   set('dtpDate', _dtpOffset===0?'Today':_dtpOffset===-1?'Yesterday':new Date(day+'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}));
   var nx=document.getElementById('dtpNext'); if(nx) nx.disabled=_dtpOffset>=0;
