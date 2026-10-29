@@ -117,7 +117,8 @@ async def add_later(page, pid, chip=None, typed=None):
 async def daily(page):
     await closeall(page)
     await page.evaluate('refreshStripeTipsKpi()'); await page.wait_for_timeout(1200)
-    return await page.evaluate('({ cash: dtpCash.textContent, online: stripeTipsTodayNum.textContent, total: dtpTotal.textContent, day: dtpDate.textContent, next: dtpNext.disabled })')
+    # v93: amounts are masked on screen by default; the value lives in data-v.
+    return await page.evaluate('({ cash: dtpCash.getAttribute("data-v"), online: stripeTipsTodayNum.getAttribute("data-v"), total: dtpTotal.getAttribute("data-v"), day: dtpDate.textContent, next: dtpNext.disabled })')
 
 
 def money(c): return '$%.2f' % (int(c) / 100)

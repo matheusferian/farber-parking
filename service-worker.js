@@ -57,7 +57,8 @@
 // v87: Guests — staff guest profiles (search, visits, activity, tips & notes),
 //      returning-guest hint at check-in, Guest Profile on the ticket
 //      (index.html + styles.css changed). Same SHELL_FILES. Needs 20261114.
-// v93: DAILY TIPS amounts hidden by default, Show / Hide button (index.html + styles.css). Same SHELL_FILES.
+// v93: DAILY TIPS hidden by default + Show / Hide + cash counted at closing; Closing Report image
+//      redesigned (1080 px, numbers on top) and shared as a JPEG photo (WhatsApp preview). Same SHELL_FILES.
 // v90: In-person tips at check-in / delivery / later (several per ticket, $5 $10 $20 $50 Other)
 //      + DAILY TIPS on the Dashboard (index.html + styles.css). Same SHELL_FILES. Needs 20261117.
 // v86: Smart Tips — cash tips at Deliver go to the audited ledger, car card Tips,

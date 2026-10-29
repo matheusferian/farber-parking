@@ -2580,3 +2580,9 @@ body.tv-stale .tv-stale-banner{display:block;}
 .dtp-eye:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 .dtp-grid.is-hidden dd{color:var(--mu);letter-spacing:1px}
 @media (max-width:600px){.dtp-eye span{display:none}.dtp-eye{min-width:40px;justify-content:center;padding:0}}
+/* DAILY TIPS: cash counted in the box at closing (owner 2026-10-29) */
+.dtp-box{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 10px;margin-top:12px;padding:10px 12px;border:1px solid var(--b);border-radius:10px;background:var(--s2)}
+.dtp-box span{font:600 12px 'Inter',sans-serif;color:var(--mu)}
+.dtp-box b{font:800 18px 'Sora',sans-serif;color:var(--navy)}
+.dtp-box small{margin-left:auto;font:500 12px 'Inter',sans-serif;color:var(--mu)}
+.dtp-grid.is-hidden ~ .dtp-box b{color:var(--mu);letter-spacing:1px}

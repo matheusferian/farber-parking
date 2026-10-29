@@ -191,6 +191,7 @@
       <div><dt>Online tips</dt><dd id="stripeTipsTodayNum">—</dd></div>
       <div class="dtp-tot"><dt>Total recorded</dt><dd id="dtpTotal">—</dd></div>
     </dl>
+    <div class="dtp-box" id="dtpBox"><span>Cash counted at closing</span><b id="dtpCounted" data-v="—">—</b><small id="dtpBoxSub"></small></div>
     <p class="dtp-note" id="dtpNote">Cash shows only what the team recorded. Some tips may not be recorded.</p>
   </section>
   <div class="dsec">
@@ -10226,7 +10227,7 @@ function dailyTipsShift(d){ _dtpOffset=Math.min(0,Math.max(-60,_dtpOffset+d)); r
 // screenshot over someone's shoulder shows nothing. Not remembered: every app open starts hidden.
 var _dtpHidden=true, DTP_MASK='$ ••••';
 function dailyTipsPaint(){
-  ['dtpCash','stripeTipsTodayNum','dtpTotal'].forEach(function(id){
+  ['dtpCash','stripeTipsTodayNum','dtpTotal','dtpCounted'].forEach(function(id){
     var e=document.getElementById(id); if(!e) return;
     var v=e.getAttribute('data-v'); if(v===null) v=e.textContent;
     e.textContent=_dtpHidden&&v!=='—'?DTP_MASK:v;
@@ -10237,6 +10238,23 @@ function dailyTipsPaint(){
     b.innerHTML='<i class="fa-solid '+(_dtpHidden?'fa-eye':'fa-eye-slash')+'" aria-hidden="true"></i><span>'+(_dtpHidden?'Show':'Hide')+'</span>'; }
 }
 function dailyTipsToggle(){ _dtpHidden=!_dtpHidden; dailyTipsPaint(); }
+// Cash counted in the box (Closing Report of that day, owner 2026-10-29). Read-only, ops roles (RLS).
+async function dailyTipsCounted(day, seq){
+  var v='—', sub='Not closed yet';
+  try{
+    var r=await fetch(SUPABASE_URL+'/rest/v1/daily_closing_reports?report_date=eq.'+day+'&select=cash_counted_cents,closed_at&limit=1',{headers:sbHeaders()});
+    if(seq!==_dtpSeq) return;
+    var row=r.ok?(await r.json())[0]:null;
+    if(row&&row.cash_counted_cents!=null){
+      v='$'+(row.cash_counted_cents/100).toFixed(2);
+      sub=row.closed_at?'Closed '+new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',hour:'numeric',minute:'2-digit'}).format(new Date(row.closed_at)):'Closing not finished';
+    } else if(row) sub='Closing started, cash not counted yet';
+  }catch(e){ sub='Could not load'; }
+  if(seq!==_dtpSeq) return;
+  var e=document.getElementById('dtpCounted'); if(e) e.setAttribute('data-v',v);
+  var s2=document.getElementById('dtpBoxSub'); if(s2) s2.textContent=sub;
+  dailyTipsPaint();
+}
 async function refreshStripeTipsKpi(){
   if(_currentUserRole==='TV_ONLY') return;   // the TV never shows tip totals
   var seq=++_dtpSeq, day=dailyTipsDate(_dtpOffset);
@@ -10252,6 +10270,7 @@ async function refreshStripeTipsKpi(){
     if(res.ok){
       var d=await res.json(); if(!d||d.result!=='OK') return;
       set('dtpCash', money(d.cash.cents)); set('stripeTipsTodayNum', money(d.online.cents)); set('dtpTotal', money(d.total_recorded_cents));
+      dailyTipsCounted(day, seq);
       return;
     }
     if(res.status!==404||_dtpOffset!==0) return;
@@ -13960,8 +13979,8 @@ async function dcSavePdf(){
 // all business-day calculations. Reads passengers read-only.
 // Stripe tips via Matt Solutions account only (verified at build).
 // ═══════════════════════════════════════════════════════════════
-var CR_EXPORT_HOST_WIDTH=390;
-var CR_EXPORT_TARGET_PNG_WIDTH=3240;
+var CR_EXPORT_HOST_WIDTH=432;           // v93: wide + short card, sent as a photo
+var CR_EXPORT_TARGET_PNG_WIDTH=1080;     // 1080 px wide = WhatsApp photo size (was 3240 → 2 MB file)
 var _crBooted=false;
 var _crBusinessDate='';
 var _crValets=[];
@@ -14518,8 +14537,10 @@ async function crGenerateReport(){
   }
 }
 
+// Closing image v93 (owner 2026-10-29): sent to WhatsApp as a photo. Wide and short so the chat
+// preview shows the whole summary; the numbers that matter are big and at the top.
 function crBuildExportMarkup(report){
-  var dateLabel=crFmtDateLong(report.report_date);
+  var dateLabel=new Date(report.report_date+'T12:00:00').toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'});   // one line: "Wednesday, Oct 28"
   var stripe=Number(report.stripe_tips_cents)||0;
   var other=Number(report.other_tips_cents)||0;
   var total=Number(report.total_tips_cents)||(stripe+other);
@@ -14535,88 +14556,63 @@ function crBuildExportMarkup(report){
     var cd=new Date(report.closed_at);
     closedTime=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',hour:'numeric',minute:'2-digit',hour12:true}).format(cd);
   }
+  var S="font-family:'Sora',sans-serif;", I="font-family:'Inter','Segoe UI',Arial,sans-serif;";
+  var mu='rgba(255,255,255,.62)', line='1px solid rgba(255,255,255,.10)';
+  var tile=function(n,l,gold){
+    return '<div style="background:'+(gold?'rgba(255,197,71,.12)':'rgba(255,255,255,.06)')+';border:1px solid '+(gold?'rgba(255,197,71,.45)':'rgba(255,255,255,.08)')+';border-radius:14px;padding:14px 12px">'
+      +'<div style="'+S+'font-weight:800;font-size:44px;line-height:1;color:'+(gold?'#FFC547':'#fff')+'">'+n+'</div>'
+      +'<div style="'+I+'font-weight:600;font-size:14px;color:'+mu+';margin-top:6px">'+l+'</div></div>';
+  };
+  var row=function(l,v,c){ return '<div style="display:flex;justify-content:space-between;gap:12px;'+I+'font-size:15px;padding:3px 0;color:'+(c||'rgba(255,255,255,.82)')+'"><span>'+l+'</span><span style="font-weight:700">'+v+'</span></div>'; };
 
-  var h='<div id="crExportRoot" style="width:390px;box-sizing:border-box;font-family:\'Inter\',\'Segoe UI\',Arial,sans-serif;background:#011532;color:#fff;padding:0">';
-  h+='<div style="padding:32px 28px 20px;text-align:center;background:linear-gradient(180deg,#0B2547 0%,#011532 100%);border-bottom:1px solid rgba(255,255,255,.08)">';
-  h+='<img src="assets/logo-icon.png" style="height:36px;margin-bottom:8px">';
-  h+='<div style="font:800 20px \'Sora\',sans-serif;letter-spacing:2px;margin-bottom:2px">CLOSING REPORT</div>';
-  h+='<div style="font:600 13px \'Sora\',sans-serif;color:#32C5E6;margin-bottom:2px">MAKERS AIR</div>';
-  h+='<div style="font:400 12px \'Inter\',sans-serif;color:rgba(255,255,255,.5)">'+escapeHTML(dateLabel)+'</div>';
+  var h='<div id="crExportRoot" style="width:'+CR_EXPORT_HOST_WIDTH+'px;box-sizing:border-box;'+I+'background:#011532;color:#fff;padding:22px 22px 14px">';
+  // Header: who, which day, when it was closed.
+  h+='<div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">';
+  h+='<img src="assets/logo-icon.png" style="height:34px">';
+  h+='<div style="flex:1;min-width:0"><div style="'+I+'font-weight:600;font-size:13px;color:#32C5E6">Closing report · Makers Air</div>';
+  h+='<div style="'+S+'font-weight:800;font-size:22px;line-height:1.15">'+escapeHTML(dateLabel)+'</div></div>';
+  if(closedTime) h+='<div style="text-align:right;'+I+'font-size:12px;color:'+mu+';line-height:1.3">Closed<br><b style="color:#fff;font-size:14px">'+escapeHTML(closedTime)+'</b></div>';
   h+='</div>';
-
-  h+='<div style="padding:20px 24px">';
-
-  h+='<div style="margin-bottom:20px">';
-  h+='<div style="font:700 10px \'Sora\',sans-serif;text-transform:uppercase;letter-spacing:2px;color:#32C5E6;margin-bottom:12px;padding-bottom:6px;border-bottom:1px solid rgba(255,255,255,.08)">VEHICLES</div>';
-  h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">';
-  h+='<div style="text-align:center;background:rgba(255,255,255,.05);border-radius:12px;padding:14px 8px;border:1px solid rgba(255,255,255,.06)">';
-  h+='<div style="font:800 30px \'Sora\',sans-serif;line-height:1">'+checkins+'</div>';
-  h+='<div style="font:700 9px \'Sora\',sans-serif;text-transform:uppercase;letter-spacing:1px;color:rgba(255,255,255,.5);margin-top:4px">CHECK-INS</div>';
+  // Vehicles.
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:12px">';
+  h+=tile(checkins,'Check-ins')+tile(delivered,'Delivered')+tile(inCustody,'In custody',true);
   h+='</div>';
-  h+='<div style="text-align:center;background:rgba(255,255,255,.05);border-radius:12px;padding:14px 8px;border:1px solid rgba(255,255,255,.06)">';
-  h+='<div style="font:800 30px \'Sora\',sans-serif;line-height:1">'+delivered+'</div>';
-  h+='<div style="font:700 9px \'Sora\',sans-serif;text-transform:uppercase;letter-spacing:1px;color:rgba(255,255,255,.5);margin-top:4px">DELIVERED</div>';
-  h+='</div>';
-  h+='<div style="text-align:center;background:rgba(255,197,71,.1);border-radius:12px;padding:14px 8px;border:1px solid rgba(255,197,71,.3)">';
-  h+='<div style="font:800 30px \'Sora\',sans-serif;line-height:1;color:#FFC547">'+inCustody+'</div>';
-  h+='<div style="font:700 9px \'Sora\',sans-serif;text-transform:uppercase;letter-spacing:1px;color:#FFC547;margin-top:4px">IN CUSTODY</div>';
-  h+='</div>';
-  h+='</div></div>';
-
-  h+='<div style="margin-bottom:20px">';
-  h+='<div style="font:700 10px \'Sora\',sans-serif;text-transform:uppercase;letter-spacing:2px;color:#32C5E6;margin-bottom:12px;padding-bottom:6px;border-bottom:1px solid rgba(255,255,255,.08)">TIPS</div>';
-  var pngRow=function(l,v,c){ return '<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.06)"><span style="font:500 12px \'Inter\',sans-serif;color:'+(c||'rgba(255,255,255,.5)')+'">'+l+'</span><span style="font:700 14px \'JetBrains Mono\',monospace'+(c?';color:'+c:'')+'">'+v+'</span></div>'; };
+  // Tips.
+  h+='<div style="border:1.5px solid #FFC547;border-radius:14px;padding:14px 16px;margin-bottom:12px">';
+  h+='<div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:6px">';
+  h+='<span style="'+S+'font-weight:700;font-size:16px;color:#FFC547">Total tips</span>';
+  h+='<span style="'+S+'font-weight:800;font-size:40px;line-height:1;color:#FFC547">'+crFmtMoney(total)+'</span></div>';
   if(report.cash_counted_cents!=null){
     // Smart Tips report: cash counted (B) is the cash; Total = Stripe + B.
     var diff=Number(report.cash_difference_cents)||0;
-    h+=pngRow('Stripe Tips (confirmed)',crFmtMoney(stripe));
-    h+=pngRow('Cash Tips on tickets',crFmtMoney(report.ticket_cash_tips_cents));
-    h+=pngRow('Other Tips',crFmtMoney(other));
-    h+=pngRow('Total Cash Counted',crFmtMoney(report.cash_counted_cents),'#fff');
-    if(report.cash_reconciliation==='SHORT') h+=pngRow('Cash difference · reviewed','−'+crFmtMoney(-diff),'#FF8A80');
-    else h+=pngRow(report.cash_reconciliation==='RECONCILED'?'Cash reconciled':'Cash reconciled · Other Tips added','✓','#7BE0B0');
+    h+=row('Cash counted',crFmtMoney(report.cash_counted_cents),'#fff');
+    h+=row('Cash tips on tickets',crFmtMoney(report.ticket_cash_tips_cents));
+    h+=row('Other tips',crFmtMoney(other));
+    h+=row('Stripe (online)',crFmtMoney(stripe));
+    if(report.cash_reconciliation==='SHORT') h+=row('Cash difference · reviewed','−'+crFmtMoney(-diff),'#FF8A80');
+    else h+=row(report.cash_reconciliation==='RECONCILED'?'Cash reconciled':'Cash reconciled · other tips added','✓','#7BE0B0');
   } else {
-    h+=pngRow('Stripe Tips',crFmtMoney(stripe));
-    h+=pngRow('Other Tips',crFmtMoney(other));
+    h+=row('Stripe tips',crFmtMoney(stripe));
+    h+=row('Other tips',crFmtMoney(other));
   }
-  h+='<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0 2px;border-top:2px solid #FFC547;margin-top:6px">';
-  h+='<span style="font:700 12px \'Sora\',sans-serif;color:#FFC547">TOTAL TIPS</span>';
-  h+='<span style="font:800 20px \'Sora\',sans-serif;color:#FFC547">'+crFmtMoney(total)+'</span>';
-  h+='</div></div>';
-
-  if(valets.length>0){
-    h+='<div style="margin-bottom:20px">';
-    h+='<div style="font:700 10px \'Sora\',sans-serif;text-transform:uppercase;letter-spacing:2px;color:#32C5E6;margin-bottom:12px;padding-bottom:6px;border-bottom:1px solid rgba(255,255,255,.08)">VALETS</div>';
+  h+='</div>';
+  // Team: valets + who holds the cash.
+  if(valets.length||cashCustodian){
+    h+='<div style="background:rgba(255,255,255,.04);border:'+line+';border-radius:14px;padding:10px 16px;margin-bottom:12px">';
     for(var i=0;i<valets.length;i++){
-      var bdr=i<valets.length-1?'border-bottom:1px solid rgba(255,255,255,.06);':'';
-      h+='<div style="padding:8px 0;'+bdr+'">';
-      h+='<div style="font:700 13px \'Sora\',sans-serif">'+escapeHTML(valets[i].name)+'</div>';
-      h+='<div style="font:500 12px \'JetBrains Mono\',monospace;color:rgba(255,255,255,.5)">'+crFmtTime12(valets[i].time_in)+' — '+crFmtTime12(valets[i].time_out)+'</div>';
-      h+='</div>';
+      h+=row(escapeHTML(valets[i].name),crFmtTime12(valets[i].time_in)+' – '+crFmtTime12(valets[i].time_out));
     }
+    if(cashCustodian) h+=row('Cash with',escapeHTML(cashCustodian),'#fff');
     h+='</div>';
   }
-
-  if(cashCustodian){
-    h+='<div style="margin-bottom:20px">';
-    h+='<div style="font:700 10px \'Sora\',sans-serif;text-transform:uppercase;letter-spacing:2px;color:#32C5E6;margin-bottom:12px;padding-bottom:6px;border-bottom:1px solid rgba(255,255,255,.08)">CASH CUSTODY</div>';
-    h+='<div style="font:700 14px \'Sora\',sans-serif">'+escapeHTML(cashCustodian)+'</div>';
-    h+='</div>';
-  }
-
+  // Leaving tomorrow: count first, then every car (owner 2026-10-27).
   if(ltCount>0){
-    h+='<div style="margin-bottom:0">';
-    h+='<div style="font:700 10px \'Sora\',sans-serif;text-transform:uppercase;letter-spacing:2px;color:#32C5E6;margin-bottom:12px;padding-bottom:6px;border-bottom:1px solid rgba(255,255,255,.08)">LEAVING TOMORROW</div>';
-    h+='<div style="display:flex;align-items:baseline;gap:6px">';
-    h+='<span style="font:800 28px \'Sora\',sans-serif">'+ltCount+'</span>';
-    h+='<span style="font:400 12px \'Inter\',sans-serif;color:rgba(255,255,255,.5)">passengers</span>';
-    h+='</div>'+crLtListHTML(ltRows, true)+'</div>';
+    h+='<div style="background:rgba(50,197,230,.08);border:1px solid rgba(50,197,230,.35);border-radius:14px;padding:12px 16px;margin-bottom:12px">';
+    h+='<div style="display:flex;justify-content:space-between;align-items:baseline"><span style="'+S+'font-weight:700;font-size:16px;color:#32C5E6">Leaving tomorrow</span>';
+    h+='<span style="'+S+'font-weight:800;font-size:32px;line-height:1;color:#32C5E6">'+ltCount+'</span></div>';
+    h+=crLtListHTML(ltRows, true)+'</div>';
   }
-
-  h+='</div>';
-  h+='<div style="text-align:center;padding:12px 24px 20px;font:400 10px \'Inter\',sans-serif;color:rgba(255,255,255,.25);border-top:1px solid rgba(255,255,255,.06)">';
-  h+='Generated at '+escapeHTML(closedTime)+' · AirValet';
-  h+='</div>';
+  h+='<div style="text-align:center;'+I+'font-size:11px;color:rgba(255,255,255,.35)">Generated'+(closedTime?' at '+escapeHTML(closedTime):'')+' · AirValet</div>';
   h+='</div>';
   return h;
 }
@@ -14639,7 +14635,7 @@ async function crCaptureCanvas(report){
   var canvas=await html2canvas(el,{
     scale:scale,
     useCORS:true,
-    backgroundColor:null,
+    backgroundColor:'#011532',
     logging:false,
     width:CR_EXPORT_HOST_WIDTH,
     windowWidth:CR_EXPORT_HOST_WIDTH
@@ -14697,42 +14693,40 @@ async function crShowExistingReport(report){
   crShowScreen('crExistsScreen');
 }
 
+// WhatsApp (owner 2026-10-29): a JPEG shared alone (no title / text) arrives as a photo with its
+// preview; a PNG shared with text arrived as a "document" you had to tap to open.
+var CR_JPEG_QUALITY=0.9;
+function crJpegBlob(canvas){ return new Promise(function(resolve){ canvas.toBlob(resolve,'image/jpeg',CR_JPEG_QUALITY); }); }
 async function crShareAll(){
   if(!_crCanvas&&_crSavedReport){
     try{_crCanvas=await crCaptureCanvas(_crSavedReport);}catch(e){console.error(e);showMsg('Failed to generate image.',true);return;}
   }
   if(!_crCanvas){showMsg('No report image to share.',true);return;}
   try{
-    var crBlob=await new Promise(function(resolve){_crCanvas.toBlob(resolve,'image/png');});
-    var crFname='AirValet-Closing-Report-'+_crBusinessDate+'.png';
-    var crFile=new File([crBlob],crFname,{type:'image/png'});
+    var crBlob=await crJpegBlob(_crCanvas);
+    var crFname='AirValet-Closing-Report-'+_crBusinessDate+'.jpg';
+    var crFile=new File([crBlob],crFname,{type:'image/jpeg'});
     var files=[crFile];
     if(_crLtCount>0){
       try{
         if(!_crLtCanvas) _crLtCanvas=await captureLeavingTomorrowCanvas();
-        var ltBlob=await new Promise(function(resolve){_crLtCanvas.toBlob(resolve,'image/png');});
-        var ltFname='AirValet-Leaving-Tomorrow-'+_crBusinessDate+'.png';
-        var ltFile=new File([ltBlob],ltFname,{type:'image/png'});
+        var ltBlob=await crJpegBlob(_crLtCanvas);
+        var ltFname='AirValet-Leaving-Tomorrow-'+_crBusinessDate+'.jpg';
+        var ltFile=new File([ltBlob],ltFname,{type:'image/jpeg'});
         files.push(ltFile);
       }catch(e){console.error('Leaving Tomorrow image failed, sharing Closing only',e);}
     }
     if(navigator.share&&navigator.canShare&&navigator.canShare({files:files})){
-      await navigator.share({files:files,title:'AirValet Closing',text:'Closing Report — Makers Air — '+crFmtDateLong(_crBusinessDate)});
+      await navigator.share({files:files});
     }else{
-      for(var i=0;i<files.length;i++){
-        var b=await files[i].arrayBuffer();
-        downloadBlobAs(new Blob([b],{type:'image/png'}),files[i].name);
-      }
+      for(var i=0;i<files.length;i++) downloadBlobAs(files[i],files[i].name);
       showMsg('Images saved ('+files.length+' files).');
     }
   }catch(e){
     if(e.name==='AbortError') return;
     console.error(e);
     showMsg('Share failed — image saved instead.',true);
-    try{
-      var blob2=await new Promise(function(resolve){_crCanvas.toBlob(resolve,'image/png');});
-      downloadBlobAs(blob2,'AirValet-Closing-Report-'+_crBusinessDate+'.png');
-    }catch(e2){console.error(e2);}
+    try{ downloadBlobAs(await crJpegBlob(_crCanvas),'AirValet-Closing-Report-'+_crBusinessDate+'.jpg'); }catch(e2){console.error(e2);}
   }
 }
 
@@ -14744,8 +14738,8 @@ async function crSaveImage(){
   }
   if(!_crCanvas){showMsg('No report image to save.',true);return;}
   try{
-    var blob=await new Promise(function(resolve){_crCanvas.toBlob(resolve,'image/png');});
-    downloadBlobAs(blob,'AirValet-Closing-Report-'+_crBusinessDate+'.png');
+    var blob=await crJpegBlob(_crCanvas);
+    downloadBlobAs(blob,'AirValet-Closing-Report-'+_crBusinessDate+'.jpg');
     showMsg('Image saved.');
   }catch(e){
     console.error(e);

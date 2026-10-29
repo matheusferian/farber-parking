@@ -368,7 +368,7 @@ async def main():
             exp = '%d|%d|0|-500|SHORT|true|%d|%d' % (a_db - 500, a_db, stripe + a_db - 500, stripe)
             check(row == exp, 'saved report: B, A, Other 0, −$5, reviewed, total = Stripe + B', (row, exp))
             png = await page.evaluate('crBuildExportMarkup(_crSavedReport)')
-            check('Total Cash Counted' in png and 'Cash difference' in png and 'Cash Tips on tickets' in png, 'shared PNG carries the cash rows')
+            check('Cash counted' in png and 'Cash difference' in png and 'Cash tips on tickets' in png, 'shared image (v93) carries the cash rows')
             late = await page.evaluate('tipRpc("airvalet_tip_record", {p_passenger_id: 970102, p_amount_cents: 700, p_client_key: tipNewKey(), p_received_by: null, p_source: "ADDED_LATER"})')
             check(late['result'] == 'DAY_CLOSED', 'after closing: staff cannot add a tip to the closed day', late)
             await ctx.close()

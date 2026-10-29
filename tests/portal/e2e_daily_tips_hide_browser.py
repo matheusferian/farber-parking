@@ -46,7 +46,7 @@ async def login(b, vp, user):
 
 async def state(page):
     return await page.evaluate('''() => ({ text: document.getElementById('stripeTipsKpi').innerText,
-      cash: dtpCash.textContent, total: dtpTotal.textContent, btn: dtpEye.getAttribute('aria-pressed'),
+      cash: dtpCash.textContent, total: dtpTotal.textContent, btn: dtpEye.getAttribute('aria-pressed'), counted: dtpCounted.textContent, sub: dtpBoxSub.textContent,
       over: document.scrollingElement.scrollWidth > innerWidth, h: Math.round(dtpEye.getBoundingClientRect().height) })''')
 
 
@@ -58,6 +58,7 @@ async def main():
             ctx, page, errs = await login(b, vp, user)
             s = await state(page)
             check('12.34' not in s['text'] and s['cash'] == '$ ••••' and s['btn'] == 'false', name + ': opens hidden, real amount not on the page', s)
+            check(s['counted'] == '—' and s['sub'] == 'Not closed yet', name + ': cash counted line: today not closed yet', s)
             await page.screenshot(path=SHOT + '/dtp_hidden_%s_%s.png' % (name, ENGINE), clip={'x': 0, 'y': 0, 'width': vp['width'], 'height': 400})
             await page.click('#dtpEye'); await page.wait_for_timeout(200)
             s = await state(page)
@@ -65,8 +66,12 @@ async def main():
             await page.screenshot(path=SHOT + '/dtp_shown_%s_%s.png' % (name, ENGINE), clip={'x': 0, 'y': 0, 'width': vp['width'], 'height': 400})
             await page.evaluate('refreshStripeTipsKpi()'); await page.wait_for_timeout(1200)
             check((await state(page))['cash'] == '$12.34', name + ': a refresh keeps the choice while the app is open')
-            await page.click('#dtpPrev'); await page.wait_for_timeout(1200)
-            check((await state(page))['cash'] != '$ ••••', name + ': other days follow the same choice')
+            await page.click('#dtpPrev'); await page.wait_for_timeout(1500)
+            s2 = await state(page)
+            check(s2['cash'] != '$ ••••' and s2['counted'] == '$55.00' and s2['sub'].startswith('Closed'), name + ': yesterday shows the cash counted at closing ($55.00)', s2)
+            await page.click('#dtpEye'); await page.wait_for_timeout(200)
+            check((await state(page))['counted'] == '$ ••••', name + ': cash counted hides with the rest')
+            await page.click('#dtpEye'); await page.wait_for_timeout(200)
             await page.click('#dtpNext'); await page.wait_for_timeout(800)
             await page.click('#dtpEye'); await page.wait_for_timeout(200)
             s = await state(page)
