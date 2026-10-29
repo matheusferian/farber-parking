@@ -68,7 +68,7 @@
 //      (index.html + utils.js). Same SHELL_FILES. No migration.
 // v92: Key Copy black bar = return date (hangar plain); Flight Tag black bar = tail + return time;
 //      no print stamp on either tag (utils.js).
-var CACHE_VERSION = 'v92';
+var CACHE_VERSION = 'v93-rollback';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 var SHELL_FILES = [
