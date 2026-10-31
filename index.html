@@ -12184,7 +12184,12 @@ async function saveReturnFlight(id, value) {
 // Afternoon update: once a car has both tail and return time saved, offer its
 // flight tag at the bottom of the screen. Never prints by itself; one offer
 // per tail + time (changing either offers again).
-var _flightTagOffered = {};
+// Fix 2026-10-31 (owner): the offer never went away. The element carries an
+// inline display:flex, and an inline display beats the [hidden] attribute, so
+// "Not now", Print and nothing else could hide it. Now: hidden with
+// display:none, closes by itself after 10 s, one offer at a time, Print closes
+// only after the printer confirms.
+var _flightTagOffered = {}, _flightTagOfferTimer = null, FLIGHT_TAG_OFFER_MS = 10000;
 function suggestFlightTag(r){
   var tail = String((r && r.return_flight) || '').trim().toUpperCase(), time = getDepartureTime(r);
   if (!tail || !time || r.status === 'DELIVERED' || r.status === 'ARCHIVED') return;
@@ -12195,19 +12200,45 @@ function suggestFlightTag(r){
     el = document.createElement('div');
     el.id = 'flightTagOffer';
     el.setAttribute('role', 'status');
-    el.style.cssText = 'position:fixed;left:12px;right:12px;margin:0 auto;width:fit-content;bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:9997;display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--navy);color:#fff;border-radius:12px;padding:10px 12px 10px 16px;box-shadow:0 6px 24px rgba(1,21,50,.35);font-family:Sora,sans-serif;font-size:13px;';
+    el.style.cssText = 'position:fixed;left:12px;right:12px;margin:0 auto;width:fit-content;bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:9997;display:none;align-items:center;gap:10px;flex-wrap:wrap;background:var(--navy);color:#fff;border-radius:12px;padding:10px 12px 10px 16px;box-shadow:0 6px 24px rgba(1,21,50,.35);font-family:Sora,sans-serif;font-size:13px;';
     document.body.appendChild(el);
   }
+  el.setAttribute('data-id', String(Number(r.id)));
   el.innerHTML = '<span>Print flight tag for <b>' + escapeHTML(getShortPassengerName(r.name)) + '</b> · ' + escapeHTML(tail) + ' ' + escapeHTML(time) + '?</span>' +
     '<button type="button" onclick="flightTagOfferPrint(' + Number(r.id) + ')" style="background:var(--gold);color:var(--navy);border:none;border-radius:8px;padding:8px 14px;font-weight:700;font-family:Sora,sans-serif;font-size:13px;cursor:pointer;">🖨 Print</button>' +
     '<button type="button" onclick="flightTagOfferClose()" style="background:transparent;color:#fff;border:1px solid rgba(255,255,255,.35);border-radius:8px;padding:8px 12px;font-family:Sora,sans-serif;font-size:13px;cursor:pointer;">Not now</button>';
   el.hidden = false;
+  el.style.display = 'flex';
+  flightTagOfferArm();
 }
-function flightTagOfferClose(){ var el = document.getElementById('flightTagOffer'); if (el) el.hidden = true; }
+function flightTagOfferArm(){
+  clearTimeout(_flightTagOfferTimer);
+  _flightTagOfferTimer = setTimeout(function(){ flightTagOfferClose(); }, FLIGHT_TAG_OFFER_MS);
+}
+// id given: close only if that car's offer is still the one on screen.
+function flightTagOfferClose(id){
+  var el = document.getElementById('flightTagOffer');
+  if (!el) return;
+  if (id != null && el.getAttribute('data-id') !== String(Number(id))) return;
+  clearTimeout(_flightTagOfferTimer); _flightTagOfferTimer = null;
+  el.hidden = true;
+  el.style.display = 'none';
+}
 async function flightTagOfferPrint(id){
-  flightTagOfferClose();
+  var el = document.getElementById('flightTagOffer');
   var r = data.find(function(x){ return x.id === id; });
-  if (r) await epsonSend(flightTagXml(r), 'Flight Tag');
+  if (!r) { flightTagOfferClose(id); return; }
+  clearTimeout(_flightTagOfferTimer);   // no closing in the middle of a print
+  if (el) el.querySelectorAll('button').forEach(function(b){ b.disabled = true; });
+  var ok = false;
+  try { ok = await epsonSend(flightTagXml(r), 'Flight Tag'); } catch (e) { console.error(e); }
+  if (ok) { flightTagOfferClose(id); return; }
+  // Not printed (epsonSend already said why): the offer stays to try again, then closes by itself.
+  el = document.getElementById('flightTagOffer');
+  if (el && el.getAttribute('data-id') === String(Number(id))) {
+    el.querySelectorAll('button').forEach(function(b){ b.disabled = false; });
+    flightTagOfferArm();
+  }
 }
 
 // ── PASSENGER CONTACTS EXPORT ──────────────────────────────────
