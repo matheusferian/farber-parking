@@ -6,16 +6,22 @@
 // node tests/event_valet/e2e_errors.mjs <password> <anonKey> <serviceKey>
 import { spawn } from 'node:child_process';
 const [PW, ANON, SERVICE] = process.argv.slice(2);
-const SB = 'http://127.0.0.1:55331', PAGE = 'http://localhost:8789/events/makers-halloween-2026/', PRN = 'http://127.0.0.1:8791', PORT = 9366;
+// EV_EVENT=watermakers-veterans-2026 runs the same suite on the Watermakers page.
+const EV = process.env.EV_EVENT || 'makers-halloween-2026';
+const LOC = EV === 'watermakers-veterans-2026'
+  ? { 'HANGAR 19': 'FRONT', 'HANGAR 18': 'SIDE', 'GRASS': 'BACK', 'FENCE': 'SIDE' }
+  : { 'HANGAR 19': 'HANGAR 19', 'HANGAR 18': 'HANGAR 18', 'GRASS': 'GRASS', 'FENCE': 'FENCE' };
+const TOP = EV === 'watermakers-veterans-2026' ? 30 : 20;
+const SB = 'http://127.0.0.1:55331', PAGE = `http://localhost:8789/events/${EV}/`, PRN = 'http://127.0.0.1:8791', PORT = 9366;
 const chrome = spawn('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', ['--headless=new', '--disable-gpu', `--remote-debugging-port=${PORT}`, `--user-data-dir=/tmp/ev-e2e-${Date.now()}`, 'about:blank'], { stdio: 'ignore' });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 for (let i = 0; i < 50; i++) { try { await fetch(`http://127.0.0.1:${PORT}/json/version`); break; } catch { await sleep(200); } }
 const results = [];
 const check = (name, ok, info = '') => { results.push({ name, ok: !!ok }); console.log((ok ? 'PASS ' : 'FAIL ') + name + (ok ? '' : '  → ' + JSON.stringify(info))); };
 const rest = async (path, init = {}) => { const r = await fetch(`${SB}/rest/v1/${path}`, { ...init, headers: { apikey: SERVICE, Authorization: `Bearer ${SERVICE}`, 'Content-Type': 'application/json', ...(init.headers ?? {}) } }); const t = await r.text(); return t ? JSON.parse(t) : null; };
-const tickets = () => rest('event_valet_tickets?event_id=eq.makers-halloween-2026&select=id,ticket_code,slot_no,vehicle,status,print_count,parking_location&order=ticket_no');
+const tickets = () => rest(`event_valet_tickets?event_id=eq.${EV}&select=id,ticket_code,slot_no,vehicle,status,print_count,parking_location&order=ticket_no`);
 const byVeh = async (v) => (await tickets()).filter((t) => t.vehicle === v);
-const msgs = (kind) => rest(`event_valet_messages?event_id=eq.makers-halloween-2026&direction=eq.OUT&kind=eq.${kind}&select=ticket_id,status`);
+const msgs = (kind) => rest(`event_valet_messages?event_id=eq.${EV}&direction=eq.OUT&kind=eq.${kind}&select=ticket_id,status`);
 const printed = async () => Number(await (await fetch(`${PRN}/count`)).text());
 const printerFail = async (on) => { const t = await (await fetch(`${PRN}/fail`)).text(); if ((t === 'fail=true') !== on) await fetch(`${PRN}/fail`); };
 const waitFor = async (fn, ms = 15000) => { const end = Date.now() + ms; while (Date.now() < end) { try { if (await fn()) return true; } catch {} await sleep(500); } return false; };
@@ -65,10 +71,10 @@ const more = (tab, id, action) => tap(tab, `${cardSel(id)}.querySelector('[data-
 const confirmYes = (tab) => tap(tab, `document.getElementById('mYes').click()`);
 
 // ── reset ──
-await rest('event_valet_messages?event_id=eq.makers-halloween-2026', { method: 'DELETE' });
-await rest('event_valet_audit?event_id=eq.makers-halloween-2026', { method: 'DELETE' });
-await rest('event_valet_tickets?event_id=eq.makers-halloween-2026', { method: 'DELETE' });
-await rest('event_valet_events?id=eq.makers-halloween-2026', { method: 'PATCH', body: JSON.stringify({ sms_enabled: true, sms_test_only: false, tip_enabled: true, tip_links: { sms: 'https://buy.stripe.com/test', other: 'https://buy.stripe.com/test' } }) });
+await rest(`event_valet_messages?event_id=eq.${EV}`, { method: 'DELETE' });
+await rest(`event_valet_audit?event_id=eq.${EV}`, { method: 'DELETE' });
+await rest(`event_valet_tickets?event_id=eq.${EV}`, { method: 'DELETE' });
+await rest(`event_valet_events?id=eq.${EV}`, { method: 'PATCH', body: JSON.stringify({ sms_enabled: true, sms_test_only: false, tip_enabled: true, tip_links: { sms: 'https://buy.stripe.com/test', other: 'https://buy.stripe.com/test' } }) });
 await printerFail(false);
 
 const PRINT_BASE = await printed();
@@ -131,10 +137,10 @@ check('slow signal (2.5 s): ticket #0103 created', (await A.ev(txt('dTicket'))) 
 
 // ── 6 Wi-Fi drop: printer unreachable → queue → prints by itself once ──
 await printerFail(true);
-await tap(A, `document.querySelector('#dLocs [data-loc="HANGAR 19"]').click()`); await sleep(2500);
+await tap(A, `document.querySelector('#dLocs [data-loc="${LOC['HANGAR 19']}"]').click()`); await sleep(2500);
 check('printer down: "will print automatically"', /automatically/i.test(await A.ev(txt('dPrint'))), await A.ev(txt('dPrint')));
 check('printer down: header shows 1 QUEUED', /1 QUEUED/.test(await A.ev(txt('bPrinter'))), await A.ev(txt('bPrinter')));
-check('printer down: location saved', (await byVeh('LEXUS RX'))[0].parking_location === 'HANGAR 19');
+check('printer down: location saved', (await byVeh('LEXUS RX'))[0].parking_location === LOC['HANGAR 19']);
 const p0 = await printed();
 await printerFail(false);
 const auto = await waitFor(async () => (await printed()) - p0 === 1 && (await byVeh('LEXUS RX'))[0].print_count === 1, 15000);
@@ -170,7 +176,7 @@ check('same last 4 at the same time → 0909 + 10909', JSON.stringify(c909) === 
 // ── 9 board flow + sync between phones ──
 await board(A); await board(B); await sleep(3500);
 H = (await byVeh('HONDA CIVIC'))[0];
-await tap(A, `${cardSel(H.id)}.querySelector('[data-loc="GRASS"]').click()`); await sleep(1500);
+await tap(A, `${cardSel(H.id)}.querySelector('[data-loc="${LOC['GRASS']}"]').click()`); await sleep(1500);
 check('board: location from card prints the key ticket', (await byVeh('HONDA CIVIC'))[0].print_count === 1);
 await sleep(3500);
 await tap(A, `${cardSel(H.id)}.querySelector('[data-a=REQUESTED]').click()`); await sleep(1500);
@@ -195,12 +201,12 @@ const before = (await tickets()).length;
 await checkin(A, '9545557777', 'PORSCHE', 'CAYENNE', 6000);
 check('offline: check-in still works (offline ticket #7777)', (await A.ev(txt('dTicket'))) === '#7777' && /OFFLINE/.test(await A.ev(txt('dRef'))), [await A.ev(txt('dTicket')), await A.ev(txt('dRef'))]);
 check('offline: header shows OFFLINE · 1 TO SYNC', /OFFLINE · 1 TO SYNC/.test(await A.ev(txt('bNet'))), await A.ev(txt('bNet')));
-check('offline: key slot taken from the top (20)', (await A.ev(txt('dSlot'))) === '20', await A.ev(txt('dSlot')));
+check(`offline: key slot taken from the top (${TOP})`, (await A.ev(txt('dSlot'))) === String(TOP), await A.ev(txt('dSlot')));
 const q0 = await printed();
-await tap(A, `document.querySelector('#dLocs [data-loc="FENCE"]').click()`); await sleep(2500);
+await tap(A, `document.querySelector('#dLocs [data-loc="${LOC['FENCE']}"]').click()`); await sleep(2500);
 check('offline: key ticket prints right away (Wi-Fi printer)', (await printed()) - q0 === 1 && /Printed/.test(await A.ev(txt('dPrint'))), await A.ev(txt('dPrint')));
 await checkin(A, '9545558888', 'MINI', '', 1200);
-check('offline: next check-in is instant, slot 19', (await A.ev(txt('dTicket'))) === '#8888' && (await A.ev(txt('dSlot'))) === '19');
+check(`offline: next check-in is instant, slot ${TOP - 1}`, (await A.ev(txt('dTicket'))) === '#8888' && (await A.ev(txt('dSlot'))) === String(TOP - 1));
 await board(A); await sleep(400);
 check('offline: offline cars show on the board', (await A.ev(`document.querySelectorAll('.card.LOCAL').length`)) === 2);
 check('offline: nothing reached the server yet', (await tickets()).length === before);
@@ -210,7 +216,7 @@ await A.blockServer(false);
 const synced = await waitFor(async () => (await A.ev(`outbox().length`)) === 0, 20000);
 const P7 = (await byVeh('PORSCHE CAYENNE'))[0], M8 = (await byVeh('MINI'))[0];
 check('internet back: offline tickets synced by themselves', synced && P7 && M8);
-check('sync keeps the printed code / slot / location', P7 && P7.ticket_code === '7777' && P7.slot_no === 20 && P7.parking_location === 'FENCE' && P7.print_count === 1, P7);
+check('sync keeps the printed code / slot / location', P7 && P7.ticket_code === '7777' && P7.slot_no === TOP && P7.parking_location === LOC['FENCE'] && P7.print_count === 1, P7);
 check('conflict → new code 18888 + warning shown', M8 && M8.ticket_code === '18888' && /changed after sync/.test(await A.ev(`document.getElementById('modalBody').innerText`)), [M8, await A.ev(`document.getElementById('modalBody').innerText`)]);
 check('guest SMS sent after sync, once each', (await msgs('CHECKIN')).filter((m) => m.ticket_id === P7.id || m.ticket_id === M8.id).length === 2);
 check('header back to normal', await A.ev(`document.getElementById('bNet').classList.contains('hidden')`));
@@ -220,7 +226,7 @@ await tap(A, `(document.getElementById('mClose') || {click(){}}).click()`);
 await A.net(true); await printerFail(true);
 await sleep(7000);
 await checkin(A, '9545556060', 'VOLVO', 'XC90', 3000);
-await tap(A, `document.querySelector('#dLocs [data-loc="HANGAR 18"]').click()`); await sleep(2000);
+await tap(A, `document.querySelector('#dLocs [data-loc="${LOC['HANGAR 18']}"]').click()`); await sleep(2000);
 check('full offline: ticket saved + print queued', (await A.ev(`outbox().length`)) === 1 && (await A.ev(`printq().length`)) === 1);
 await A.net(false); await printerFail(false);
 const both = await waitFor(async () => { const v = (await byVeh('VOLVO XC90'))[0]; return v && v.print_count === 1 && (await A.ev(`printq().length`)) === 0; }, 25000);

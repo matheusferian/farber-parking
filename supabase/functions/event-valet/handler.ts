@@ -114,7 +114,8 @@ export function makeHandler(env: Env, fetchImpl: typeof fetch = fetch) {
     if (!row) return { status: 'DUPLICATE' };
 
     let link: string | null = null;
-    // Tip SMS: a direct Stripe (Matt Solutions) Payment Link when configured —
+    // Tip SMS: a direct Stripe Payment Link when configured (per event: Matt Solutions
+    // for Makers Air Halloween, Farber for Watermakers) —
     // short, and the guest goes straight to the optional tip.
     const tipSms = String(ev.tip_links?.sms ?? '');
     if (kind === 'TIP' && /^https:\/\/buy\.stripe\.com\/[A-Za-z0-9]+$/.test(tipSms)) {
@@ -123,7 +124,7 @@ export function makeHandler(env: Env, fetchImpl: typeof fetch = fetch) {
       const tok = await rpc('event_valet_mint_guest_token', { p_ticket: t.id });
       link = `${SITE}/events/${ev.id}/t#${tok}`;
     }
-    const body = composeSms(kind, t.ticket_code, link, opts.options ?? []);
+    const body = composeSms(kind, t.ticket_code, link, opts.options ?? [], ev.id);
     const stored = maskLink(body, link);
     if (MODE === 'mock') {
       const sid = 'SMMOCK' + crypto.randomUUID().replace(/-/g, '').slice(0, 26);
@@ -148,7 +149,7 @@ export function makeHandler(env: Env, fetchImpl: typeof fetch = fetch) {
     await pushStaff(t, ev).catch((e) => log('push_error', { msg: String(e).slice(0, 120) }));
     const phones: string[] = (ev.staff_alert_phones ?? []).filter((p: string) => /^\+[1-9]\d{7,14}$/.test(p));
     if (!ev.sms_enabled || !phones.length) return;
-    const body = composeStaffAlert(t as any, via);
+    const body = composeStaffAlert(t as any, via, ev.id);
     for (const phone of phones) {
       const row = await insertMessage({ event_id: ev.id, ticket_id: t.id, direction: 'OUT', kind: 'STAFF_ALERT', phone_e164: phone,
         status: 'SENDING', body, dedupe_key: `ALERT:${t.id}:${t.requested_at}:${phone}` });

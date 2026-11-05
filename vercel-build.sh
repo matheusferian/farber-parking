@@ -21,6 +21,10 @@ cp sms.html privacy.html terms.html dist/
 mkdir -p dist/events/makers-halloween-2026
 cp events/makers-halloween-2026/index.html events/makers-halloween-2026/t.html \
    events/makers-halloween-2026/sw.js events/makers-halloween-2026/manifest.webmanifest dist/events/makers-halloween-2026/
+# Event Valet: FARBER PARKING — WATERMAKERS VALET (2026-11-11), same module, own pages.
+mkdir -p dist/events/watermakers-veterans-2026
+cp events/watermakers-veterans-2026/index.html events/watermakers-veterans-2026/t.html \
+   events/watermakers-veterans-2026/sw.js events/watermakers-veterans-2026/manifest.webmanifest dist/events/watermakers-veterans-2026/
 # Makers Air Valet passenger page (/a#<token>, see vercel.json rewrite).
 # Static, not an app-shell file, not in SHELL_FILES.
 cp pass.html pass.js pass.css dist/

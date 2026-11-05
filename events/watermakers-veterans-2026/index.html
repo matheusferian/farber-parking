@@ -1,0 +1,1268 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#0b0b0e">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Watermakers Valet</title>
+<link rel="icon" href="/favicon-32x32.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="manifest" href="/events/watermakers-veterans-2026/manifest.webmanifest">
+<style>
+:root{
+  --bg:#0b0b0e; --panel:#141418; --panel2:#1b1b21; --line:#2a2a33; --text:#f4f1ea; --muted:#9a968c;
+  --gold:#d6b25e; --gold2:#f1d48a; --orange:#ff7a1a; --green:#3ecf75; --red:#ff5a5a; --grey:#6d6d76;
+  --r:18px;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Helvetica Neue",Arial,sans-serif;
+  -webkit-text-size-adjust:100%}
+body{min-height:100vh;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+button,input{font:inherit}
+.hidden{display:none!important}
+
+/* header */
+header{position:sticky;top:0;z-index:20;background:rgba(11,11,14,.94);backdrop-filter:blur(10px);
+  border-bottom:1px solid var(--line);padding:12px 16px 10px}
+.brand{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.brand h1{margin:0;font-size:20px;letter-spacing:.06em;font-weight:800;color:var(--gold2)}
+.brand h1 span{color:var(--orange)}
+.brand .sub{font-size:11px;letter-spacing:.14em;color:var(--muted);margin-top:2px;text-transform:uppercase}
+.badges{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.badge{font-size:11px;font-weight:700;letter-spacing:.06em;padding:5px 9px;border-radius:999px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+.badge.ok{color:var(--green);border-color:rgba(62,207,117,.4)}
+.badge.warn{color:var(--orange);border-color:rgba(255,122,26,.45)}
+.badge.bad{color:var(--red);border-color:rgba(255,90,90,.45)}
+.counts{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px}
+.count{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:7px 8px;text-align:center}
+.count b{display:block;font-size:24px;line-height:1.1}
+.count small{font-size:11px;letter-spacing:.12em;color:var(--muted)}
+.count.req b{color:var(--orange)} .count.rdy b{color:var(--green)} .count.dlv b{color:var(--grey)}
+.count.req.hot{border-color:var(--orange);box-shadow:0 0 0 1px var(--orange) inset}
+.tabs{display:flex;gap:8px;margin-top:10px}
+.tab{flex:1;padding:12px;border-radius:12px;border:1px solid var(--line);background:var(--panel);color:var(--muted);font-weight:800;letter-spacing:.08em}
+.tab.on{color:#111;background:var(--gold);border-color:var(--gold)}
+.tab .dot{display:inline-block;min-width:22px;padding:2px 6px;margin-left:6px;border-radius:999px;background:var(--orange);color:#111;font-size:12px}
+
+main{padding:16px;max-width:1280px;margin:0 auto}
+@media (max-width:600px){
+  header{padding:10px 12px 8px}
+  .brand{flex-direction:column;align-items:flex-start;gap:6px}
+  .brand h1{font-size:16px;letter-spacing:.04em;white-space:nowrap}
+  .brand .sub{font-size:11px;letter-spacing:.1em}
+  .badges{justify-content:flex-start}
+  .badge{font-size:11px;padding:4px 8px}
+  .counts{gap:6px;margin-top:8px}
+  .count{padding:6px 4px}
+  .count b{font-size:22px}
+  .count small{font-size:11px;letter-spacing:.08em}
+  .tab{padding:10px}
+  main{padding:12px}
+  .field{font-size:24px;padding:14px}
+}
+.layout{display:grid;gap:16px}
+@media (min-width:900px){
+  .tabs{display:none}
+  .layout{grid-template-columns:minmax(360px,420px) 1fr;align-items:start}
+  #viewCheckin,#viewBoard{display:block!important}
+  #viewCheckin{position:sticky;top:150px}
+}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:18px}
+.label{display:block;font-size:12px;font-weight:800;letter-spacing:.16em;color:var(--gold);margin:0 0 8px}
+.field{width:100%;padding:16px 16px;font-size:28px;font-weight:700;color:var(--text);background:var(--bg);
+  border:2px solid var(--line);border-radius:14px;outline:none;letter-spacing:.02em}
+.field:focus{border-color:var(--gold)}
+.field.err{border-color:var(--red)}
+.fgroup{margin-bottom:16px}
+.label .tag{font-size:11px;letter-spacing:.12em;padding:2px 6px;border-radius:6px;background:rgba(214,178,94,.16);color:var(--gold2);margin-left:6px;vertical-align:2px}
+.label .tag.opt{background:#22222a;color:var(--muted)}
+.sugg{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.sugg:empty{display:none}
+.sugg button{padding:11px 12px;border-radius:10px;border:1px solid var(--line);background:var(--panel2);color:var(--text);font-weight:800;font-size:15px;letter-spacing:.03em}
+.sugg button:active{border-color:var(--gold);color:var(--gold2)}
+.hint{font-size:13px;color:var(--muted);margin:-4px 0 14px;line-height:1.4}
+.err-msg{color:var(--red);font-weight:700;font-size:15px;min-height:20px;margin:4px 0 10px}
+.btn{display:block;width:100%;border:0;border-radius:14px;padding:18px;font-size:20px;font-weight:900;letter-spacing:.1em;cursor:pointer}
+.btn:disabled{opacity:.5}
+.btn-gold{background:linear-gradient(180deg,var(--gold2),var(--gold));color:#141008}
+.btn-dark{background:var(--panel2);color:var(--text);border:1px solid var(--line)}
+.btn-orange{background:var(--orange);color:#140a02}
+.btn-green{background:var(--green);color:#04140a}
+.btn-sm{padding:12px 10px;font-size:14px;letter-spacing:.06em;border-radius:12px}
+
+/* confirmation */
+.confirm{text-align:center}
+.confirm .ok{color:var(--green);font-weight:900;letter-spacing:.14em;font-size:14px}
+.bigrow{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:14px 0}
+.big{background:var(--bg);border:1px solid var(--line);border-radius:14px;padding:12px 6px}
+.big small{display:block;font-size:11px;letter-spacing:.16em;color:var(--muted);font-weight:800}
+.big b{display:block;font-size:52px;line-height:1.05;font-weight:900;color:var(--gold2)}
+.big.slot b{color:var(--text)}
+.veh{font-size:22px;font-weight:800;letter-spacing:.04em;margin:4px 0 12px}
+.locs{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0 0 12px}
+.locs .btn{padding:16px 6px;font-size:17px;letter-spacing:.06em}
+.card .locs{margin:10px 0 0}
+.card .locs .btn{padding:16px 4px;font-size:15px}
+.loc-chip{display:inline-block;margin-top:8px;margin-left:6px;font-size:12px;font-weight:900;letter-spacing:.08em;padding:4px 8px;border-radius:999px;background:#1f2a3a;color:#cfe3ff}
+.loc-chip.none{background:rgba(255,122,26,.18);color:var(--orange)}
+.stat{display:flex;justify-content:space-between;align-items:center;gap:10px;background:var(--bg);border:1px solid var(--line);
+  border-radius:12px;padding:10px 12px;margin-bottom:8px;font-size:15px;font-weight:700;text-align:left}
+.stat .v{font-weight:800}
+.v.ok{color:var(--green)} .v.bad{color:var(--red)} .v.wait{color:var(--gold2)} .v.off{color:var(--muted)}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+
+/* board */
+.toolbar{display:flex;gap:8px;margin-bottom:12px}
+.search{flex:1;padding:13px 14px;font-size:17px;color:var(--text);background:var(--panel);border:1px solid var(--line);border-radius:12px;outline:none}
+.sound{white-space:nowrap}
+.section-title{scroll-margin-top:230px;font-size:12px;letter-spacing:.18em;color:var(--muted);font-weight:800;margin:18px 2px 8px}
+.cards{display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(270px,1fr))}
+.card{position:relative;background:var(--panel);border:1px solid var(--line);border-left:6px solid #8b8676;border-radius:16px;padding:12px 14px}
+.card.REQUESTED{border-color:rgba(255,122,26,.7);border-left-color:var(--orange);background:linear-gradient(180deg,rgba(255,122,26,.16),var(--panel) 70%)}
+.card.READY{border-left-color:var(--green);background:linear-gradient(180deg,rgba(62,207,117,.12),var(--panel) 70%)}
+.card.LOCAL{border-style:dashed;border-left-style:solid;border-left-color:var(--orange)}
+.card.flash{animation:flash 1s ease-in-out 3}
+@keyframes flash{50%{box-shadow:0 0 0 3px var(--orange)}}
+.crow{display:flex;align-items:center;gap:10px}
+.code{flex:1;min-width:0;font-size:34px;font-weight:900;color:var(--gold2);line-height:1;letter-spacing:.01em}
+.code small{display:block;font-size:11px;letter-spacing:.14em;color:var(--muted);font-weight:800;margin-bottom:4px}
+.kslot{text-align:center;min-width:62px;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:5px 8px}
+.kslot small{display:block;font-size:11px;letter-spacing:.14em;color:var(--muted);font-weight:800}
+.kslot b{display:block;font-size:26px;font-weight:900;line-height:1.05}
+.kslot b.none{color:var(--red);font-size:13px;padding:5px 0}
+.morebtn{width:46px;height:46px;border-radius:12px;border:1px solid var(--line);background:var(--panel2);color:var(--text);font-size:22px;font-weight:900;line-height:1}
+.cveh{font-size:18px;font-weight:800;margin:8px 0 0;letter-spacing:.03em}
+.facts{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.fact{font-size:12px;font-weight:800;letter-spacing:.03em;padding:4px 8px;border-radius:8px;background:#1d1d24;color:#cfcac0}
+.fact.loc{background:#1f2a3a;color:#cfe3ff}
+.fact.bad{background:rgba(255,90,90,.16);color:#ff9a9a}
+.fact.warn{background:rgba(255,122,26,.16);color:var(--orange)}
+.inb{font-size:13px;margin-top:8px;color:var(--gold2)}
+.actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+.actions .btn{padding:15px 8px;font-size:16px;letter-spacing:.06em}
+.actions .full{grid-column:1/-1}
+.drow{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;background:var(--panel);border:1px solid var(--line);color:var(--muted)}
+.drow b{color:var(--text);font-size:17px;min-width:70px}
+.drow span{flex:1;min-width:0;font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.drow .morebtn{width:40px;height:40px;font-size:18px}
+.sheet .btn{margin-top:8px}
+.empty{color:var(--muted);text-align:center;padding:30px 10px;border:1px dashed var(--line);border-radius:16px}
+
+/* login + modal + toast */
+.center{min-height:80vh;display:flex;align-items:center;justify-content:center;padding:16px}
+.login{width:100%;max-width:420px}
+.login h2{margin:0 0 4px;color:var(--gold2);letter-spacing:.06em}
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px}
+.modal{width:100%;max-width:420px}
+.modal h3{margin:0 0 6px;font-size:22px}
+.modal p{color:var(--muted);margin:0 0 14px}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:60;
+  background:var(--panel2);border:1px solid var(--line);padding:12px 16px;border-radius:12px;font-weight:700;max-width:92vw}
+.offline{background:#b3261e;color:#fff;text-align:center;font-weight:800;padding:6px;font-size:13px;letter-spacing:.06em}
+
+/* ── Type & spacing system (owner spec 2026-10-23) ─────────────────────
+   title 24 · section 18 · vehicle 17 · text 15–16 · secondary 13–14 ·
+   buttons 16 · ticket 20 · spacing 4/8/12/16/24 · touch ≥ 48px */
+.brand .eyebrow{font-size:13px;font-weight:600;letter-spacing:.08em;color:var(--muted);text-transform:uppercase}
+.brand h1{font-size:24px;font-weight:600;letter-spacing:0;color:var(--gold2);line-height:1.15;margin:2px 0 0}
+.brand .sub{display:none}
+.badge{font-size:13px;font-weight:600;letter-spacing:.02em;padding:5px 10px}
+.count small{font-size:13px;letter-spacing:0;font-weight:500}
+.count b{font-weight:600}
+.tab{font-size:16px;font-weight:600;letter-spacing:.04em;min-height:48px}
+.label{font-size:13px;font-weight:600;letter-spacing:.08em;margin-bottom:8px}
+.label .tag{font-size:12px;letter-spacing:.06em;font-weight:600}
+.field{font-size:22px;font-weight:600}
+.sugg button{font-size:15px;font-weight:600;min-height:44px}
+.hint{font-size:15px;line-height:1.45;margin:0 0 16px}
+.err-msg{font-size:15px;font-weight:600}
+.btn{font-size:16px;font-weight:600;letter-spacing:.04em;padding:14px 12px;min-height:48px;border-radius:14px}
+#ciBtn,#dNext{min-height:56px;font-size:17px}
+.btn-sm{font-size:15px;font-weight:600;letter-spacing:.02em;min-height:48px}
+.confirm .ok{font-size:15px;font-weight:600;letter-spacing:.08em}
+.big small{font-size:13px;font-weight:600;letter-spacing:.08em}
+.big b{font-size:40px;font-weight:700}
+.veh{font-size:18px;font-weight:600;letter-spacing:.02em;margin:8px 0 16px}
+.locs .btn{font-size:16px;font-weight:600;letter-spacing:.02em;min-height:52px}
+.stat{font-size:15px;font-weight:500}
+.stat .v{font-weight:600}
+.search{font-size:16px;min-height:48px}
+.section-title{font-size:18px;font-weight:600;letter-spacing:0;color:var(--text);margin:24px 2px 12px}
+.section-title .n{color:var(--muted);font-weight:500}
+.cards{gap:12px}
+.card{padding:16px}
+.crow{gap:12px;align-items:flex-start}
+.code{font-size:20px;font-weight:600;color:var(--gold2);line-height:1.2}
+.code small{font-size:13px;font-weight:500;letter-spacing:.04em;margin-bottom:2px}
+.kslot{min-width:76px;padding:6px 10px;border-color:#3a3a45}
+.kslot small{font-size:13px;font-weight:600;letter-spacing:.06em}
+.kslot b{font-size:32px;font-weight:700;color:var(--text)}
+.kslot b.none{font-size:14px;font-weight:600}
+.morebtn{width:48px;height:48px;font-weight:600}
+.cveh{font-size:17px;font-weight:500;letter-spacing:.01em;margin:4px 0 0;color:var(--text)}
+.facts{gap:8px;margin-top:12px}
+.fact{font-size:13px;font-weight:600;letter-spacing:.01em;padding:5px 9px}
+.status{font-size:13px;font-weight:700;letter-spacing:.06em;padding:5px 9px;border-radius:8px;border:1px solid}
+.status.PARKED{color:#e9e4d6;border-color:#55524a}
+.status.REQUESTED{color:#140a02;background:var(--orange);border-color:var(--orange)}
+.status.READY{color:#04140a;background:var(--green);border-color:var(--green)}
+.status.DELIVERED{color:var(--muted);border-color:var(--line)}
+.inb{font-size:14px;margin-top:12px}
+.actions{gap:8px;margin-top:16px}
+.actions .btn{font-size:16px;font-weight:600;letter-spacing:.04em;min-height:52px}
+.card .locs{margin:16px 0 0}
+.card .locs .btn{font-size:15px;min-height:52px}
+.drow{padding:12px 14px;min-height:60px}
+.drow b{font-size:17px;font-weight:600}
+.drow span{font-size:14px;font-weight:500}
+.drow .morebtn{width:44px;height:44px}
+.modal h3{font-size:20px;font-weight:600}
+.modal-bg{align-items:flex-start;padding:max(16px, env(safe-area-inset-top)) 16px 16px}
+.modal{max-height:calc(100vh - 32px - env(safe-area-inset-top));overflow-y:auto;-webkit-overflow-scrolling:touch;margin:auto 0}
+.modal p{font-size:15px;line-height:1.45}
+.toast{font-size:15px;font-weight:600}
+.offline{font-size:14px;font-weight:600;letter-spacing:.01em;padding:8px 12px}
+/* SMS preview (View details) */
+.thread{display:flex;flex-direction:column;gap:8px;margin:4px 0 16px;max-height:42vh;overflow-y:auto;padding:4px 2px}
+.bubble{max-width:86%;padding:9px 12px;border-radius:16px;font-size:15px;line-height:1.38;white-space:pre-line;overflow-wrap:anywhere}
+.bubble.out{align-self:flex-start;background:#26262e;color:var(--text);border-bottom-left-radius:5px}
+.bubble.in{align-self:flex-end;background:#2f6fe4;color:#fff;border-bottom-right-radius:5px}
+.bmeta{font-size:13px;color:var(--muted);margin:-4px 4px 2px}
+.bmeta.in{align-self:flex-end}
+.bmeta.bad{color:#ff9a9a}
+@media (max-width:600px){
+  .brand h1{font-size:24px}
+  .badge{font-size:13px;padding:4px 9px}
+  .count small{font-size:13px}
+  .field{font-size:22px}
+  .tab{padding:10px 8px}
+}
+</style>
+</head>
+<body>
+<div id="offline" class="offline hidden">📴 No internet · Check-ins are saved on this phone and will sync automatically.</div>
+
+<!-- LOGIN -->
+<section id="viewLogin" class="center hidden">
+  <div class="panel login">
+    <h2>🇺🇸 WATERMAKERS VALET</h2>
+    <p class="hint" style="margin:0 0 16px">Farber Parking valet team sign-in</p>
+    <div class="fgroup"><label class="label" for="lgUser">USERNAME</label>
+      <input id="lgUser" class="field" style="font-size:20px" autocapitalize="none" autocomplete="username" spellcheck="false"></div>
+    <div class="fgroup"><label class="label" for="lgPwd">PASSWORD</label>
+      <input id="lgPwd" class="field" style="font-size:20px" type="password" autocomplete="current-password"></div>
+    <div id="lgErr" class="err-msg"></div>
+    <button id="lgBtn" class="btn btn-gold">SIGN IN</button>
+  </div>
+</section>
+
+<!-- APP -->
+<div id="app" class="hidden">
+  <header>
+    <div class="brand">
+      <div>
+        <div class="eyebrow">Farber Parking · Watermakers · Nov 11</div>
+        <h1>🇺🇸 Watermakers Valet</h1>
+      </div>
+      <div class="badges"><span id="bNet" class="badge bad hidden">OFFLINE</span><span id="bAlerts" class="badge">🔔 …</span><span id="bPrinter" class="badge">PRINTER …</span><span id="bSms" class="badge">SMS …</span></div>
+    </div>
+    <div class="counts">
+      <div class="count"><b id="cP">0</b><small>Checked in</small></div>
+      <div class="count req" id="cReqBox"><b id="cR">0</b><small>Requested</small></div>
+      <div class="count rdy"><b id="cY">0</b><small>Ready</small></div>
+      <div class="count dlv"><b id="cD">0</b><small>Delivered</small></div>
+    </div>
+    <div class="tabs">
+      <button class="tab on" data-tab="checkin">CHECK IN</button>
+      <button class="tab" data-tab="board">VALET BOARD<span id="tabDot" class="dot hidden">0</span></button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section id="viewCheckin">
+      <!-- form -->
+      <div id="ciForm" class="panel">
+        <div class="fgroup">
+          <label class="label" for="ciPhone">PHONE NUMBER</label>
+          <input id="ciPhone" class="field" type="tel" inputmode="tel" autocomplete="off" placeholder="(954) 555-0123" maxlength="16" enterkeyhint="next">
+        </div>
+        <div class="fgroup">
+          <label class="label" for="ciMake">MAKE <span class="tag">REQUIRED</span></label>
+          <input id="ciMake" class="field" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" placeholder="BMW, Tesla, Honda…" maxlength="24" enterkeyhint="next">
+          <div class="sugg" id="sgMake"></div>
+        </div>
+        <div class="fgroup">
+          <label class="label" for="ciModel">MODEL <span class="tag opt">OPTIONAL</span></label>
+          <input id="ciModel" class="field" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" placeholder="X5, Model Y, Civic…" maxlength="30" enterkeyhint="go">
+          <div class="sugg" id="sgModel"></div>
+        </div>
+        <p class="hint">Tell the guest: “Your ticket number is the last 4 digits of your phone. When you’re ready to leave, just reply READY to our text.”</p>
+        <div id="ciErr" class="err-msg"></div>
+        <button id="ciBtn" class="btn btn-gold">CHECK IN</button>
+      </div>
+      <!-- confirmation -->
+      <div id="ciDone" class="panel confirm hidden">
+        <div class="ok">✓ CHECKED IN</div>
+        <div class="bigrow">
+          <div class="big"><small>TICKET</small><b id="dTicket">#0000</b><small id="dRef" style="margin-top:4px;letter-spacing:.08em"></small></div>
+          <div class="big slot"><small>KEY SLOT</small><b id="dSlot">00</b></div>
+        </div>
+        <div class="veh" id="dVeh">—</div>
+        <label class="label" style="text-align:left">PARKING LOCATION · select after parking</label>
+        <div class="locs" id="dLocs"></div>
+        <div class="stat"><span>🖨 Key ticket</span><span id="dPrint" class="v wait">Select a location to print</span></div>
+        <div class="stat"><span>💬 Guest text</span><span id="dSms" class="v wait">Sending…</span></div>
+        <button id="dNext" class="btn btn-gold" style="margin-top:12px">NEXT CHECK-IN</button>
+        <div class="row2">
+          <button id="dReprint" class="btn btn-dark btn-sm">REPRINT KEY TICKET</button>
+          <button id="dResend" class="btn btn-dark btn-sm">RESEND TEXT</button>
+        </div>
+        <button id="dDelete" class="btn btn-dark btn-sm" style="margin-top:8px;color:var(--red)">DELETE TICKET</button>
+      </div>
+    </section>
+
+    <section id="viewBoard" class="hidden">
+      <div class="toolbar">
+        <input id="q" class="search" placeholder="Last 4 digits or vehicle" autocomplete="off" inputmode="search">
+        <button id="soundBtn" class="btn btn-dark btn-sm sound" style="width:auto">🔔 SOUND ON</button>
+      </div>
+      <div id="board"></div>
+    </section>
+  </main>
+</div>
+
+<div id="modal" class="modal-bg hidden"><div class="panel modal" id="modalBody"></div></div>
+<div id="toast" class="toast hidden"></div>
+
+<script src="/vendor/supabase.js"></script>
+<script>
+'use strict';
+// ── CONFIG ─────────────────────────────────────────────────────────────
+// Same Supabase project + anon key as the main AirValet app (index.html).
+// The event module only calls event_valet_* functions; nothing else.
+var EVENT_ID = 'watermakers-veterans-2026';
+var SB_URL = 'https://sfewtirvqhrpanwhbchd.supabase.co';
+var SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNmZXd0aXJ2cWhycGFud2hiY2hkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkyNzExMjcsImV4cCI6MjA5NDg0NzEyN30.UFf22k7Zn7v72IPujuF1YRrK6PPbp8K_uz6TkYlhOl8';
+var FN_URL = SB_URL + '/functions/v1/event-valet';
+// Local testing only: a backend override is honoured on localhost, never on
+// the public host (an override link must not be able to phish a password).
+if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) {
+  try {
+    var lc = JSON.parse(localStorage.getItem('ev_local_cfg') || 'null');
+    if (lc && lc.url) { SB_URL = lc.url; SB_KEY = lc.key; FN_URL = lc.fn; }
+  } catch (e) {}
+}
+// Printer: the same Epson TM-m30II + ePOS-Print over HTTPS the main app uses
+// (printer_host is shared through localStorage on this origin).
+// Off-site event (not the Hangar network): the valet can set the printer IP for this page only.
+var PRINTER_HOST = localStorage.getItem('ev_printer_host') || localStorage.getItem('printer_host') || '10.20.60.142';
+var PRINTER_URL = 'https://' + PRINTER_HOST + '/cgi-bin/epos/service.cgi?devid=local_printer&timeout=10000';
+if (typeof lc !== 'undefined' && lc && lc.printer) PRINTER_URL = lc.printer;  // localhost test printer only
+var TZ = 'America/New_York';
+var POLL_MS = 3000;
+
+// Weak / oscillating signal: every request gives up after 12 s instead of
+// hanging, and safe operations retry automatically (the server makes them
+// idempotent: same check-in key → same ticket, same status/location → no-op).
+var NET_TIMEOUT = 12000;
+function fetchWithTimeout(url, opts){
+  opts = opts || {};
+  if (!opts.signal) {
+    var c = new AbortController(); setTimeout(function(){ c.abort(); }, NET_TIMEOUT);
+    opts = Object.assign({}, opts, { signal: c.signal });
+  }
+  return fetch(url, opts);
+}
+var sb = supabase.createClient(SB_URL, SB_KEY, { global: { fetch: fetchWithTimeout } });
+function isNetErr(e){
+  var m = (e && (e.message || e.details || e.hint)) || String(e || '');
+  return !e || /Failed to fetch|Load failed|NetworkError|network|abort|timed? ?out|connection/i.test(m) || e.name === 'AbortError';
+}
+async function rpcRetry(name, args, tries){
+  tries = tries || 4;
+  for (var i = 1; ; i++) {
+    var r;
+    try { r = await sb.rpc(name, args); } catch (e) { r = { error: e }; }
+    if (!r.error || !isNetErr(r.error) || i >= tries) return r;
+    await new Promise(function(res){ setTimeout(res, 600 * i); });
+  }
+}
+var state = { board: null, seenRequested: {}, firstLoad: true, sound: true, last: null, busy: {}, fails: 0, offline: false, synced: {} };
+
+function $(id){ return document.getElementById(id); }
+function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+function pad3(n){ return ('00' + n).slice(-3); }
+function pad2(n){ return ('0' + n).slice(-2); }
+function toast(msg, ms){ var t = $('toast'); t.textContent = msg; t.classList.remove('hidden'); clearTimeout(toast._t); toast._t = setTimeout(function(){ t.classList.add('hidden'); }, ms || 2600); }
+function timeOf(iso){ return iso ? new Date(iso).toLocaleTimeString('en-US', { timeZone: TZ, hour: 'numeric', minute: '2-digit' }) : ''; }
+function errText(e){
+  var m = (e && (e.message || e.error_description || e.error)) || String(e);
+  var map = { INVALID_PHONE: 'Check the phone number (10 digits).', INVALID_VEHICLE: 'Enter the vehicle make.',
+    NOT_AUTHORIZED: 'This login is not allowed to operate the valet.', EVENT_CLOSED: 'Event is closed.',
+    SLOT_OCCUPIED: 'That key slot is in use by another car.', INVALID_SLOT: 'Key slot must be between 1 and the capacity.',
+    ALREADY_DELIVERED: 'Already delivered.', TICKET_NOT_FOUND: 'Ticket not found.' };
+  for (var k in map) if (m.indexOf(k) >= 0) return map[k];
+  if (/Failed to fetch|NetworkError|Load failed/i.test(m)) return 'No connection. Try again.';
+  return m;
+}
+
+// ── AUTH (same username → email mapping as index.html) ─────────────────
+function canonicalizeUsername(raw){
+  var lower = String(raw || '').trim().toLowerCase();
+  return lower.normalize('NFKD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '');
+}
+function emailForLoginUsername(u){
+  var t = String(u || '').trim();
+  if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(t)) return t;
+  var c = canonicalizeUsername(t);
+  if (!c) return null;
+  return c === 'admin' ? 'makers@farber.local' : c + '@airvalet.local';
+}
+async function doLogin(){
+  var email = emailForLoginUsername($('lgUser').value), pwd = $('lgPwd').value;
+  $('lgErr').textContent = '';
+  if (!email || !pwd) { $('lgErr').textContent = 'Enter username and password.'; return; }
+  $('lgBtn').disabled = true;
+  var r = await sb.auth.signInWithPassword({ email: email, password: pwd });
+  $('lgBtn').disabled = false;
+  if (r.error) { $('lgErr').textContent = 'Invalid login credentials.'; return; }
+  start();
+}
+$('lgBtn').onclick = doLogin;
+$('lgPwd').addEventListener('keydown', function(e){ if (e.key === 'Enter') doLogin(); });
+async function jwt(){ var s = await sb.auth.getSession(); return s.data.session ? s.data.session.access_token : null; }
+
+// ── TABS ───────────────────────────────────────────────────────────────
+function showTab(name){
+  document.querySelectorAll('.tab').forEach(function(b){ b.classList.toggle('on', b.dataset.tab === name); });
+  $('viewCheckin').classList.toggle('hidden', name !== 'checkin');
+  $('viewBoard').classList.toggle('hidden', name !== 'board');
+  if (name === 'board') renderBoard();
+}
+document.querySelectorAll('.tab').forEach(function(b){ b.onclick = function(){ showTab(b.dataset.tab); }; });
+
+// ── PHONE FORMAT ───────────────────────────────────────────────────────
+function phoneDigits(v){ var d = String(v || '').replace(/\D/g, ''); if (d.length === 11 && d[0] === '1') d = d.slice(1); return d.slice(0, 10); }
+function fmtPhone(d){
+  if (d.length < 4) return d;
+  if (d.length < 7) return '(' + d.slice(0,3) + ') ' + d.slice(3);
+  return '(' + d.slice(0,3) + ') ' + d.slice(3,6) + '-' + d.slice(6);
+}
+function validPhone(d){ return d.length === 10 && !/[01]/.test(d[0]) && !/[01]/.test(d[3]); }
+$('ciPhone').addEventListener('input', function(){
+  var el = $('ciPhone'); el.value = fmtPhone(phoneDigits(el.value)); el.classList.remove('err'); clientKey = null;
+});
+$('ciPhone').addEventListener('keydown', function(e){ if (e.key === 'Enter') $('ciMake').focus(); });
+
+// ── VEHICLE: make (required) + model (optional), suggestions while typing ─
+var CARS = {
+  'ACURA':['MDX','RDX','TLX','INTEGRA'], 'ALFA ROMEO':['GIULIA','STELVIO','TONALE'], 'ASTON MARTIN':['DBX','DB12','VANTAGE'],
+  'AUDI':['Q5','Q7','Q3','Q8','A4','A6','A5','A3','A8','E-TRON','RS6','R8'], 'BENTLEY':['BENTAYGA','CONTINENTAL GT','FLYING SPUR'],
+  'BMW':['X5','X3','X7','X6','X1','3 SERIES','5 SERIES','7 SERIES','4 SERIES','M3','M4','M5','I4','I7','IX'],
+  'BUICK':['ENCLAVE','ENCORE','ENVISION'], 'CADILLAC':['ESCALADE','XT5','XT6','XT4','CT5','LYRIQ'],
+  'CHEVROLET':['TAHOE','SILVERADO','SUBURBAN','EQUINOX','TRAVERSE','MALIBU','CORVETTE','CAMARO','BLAZER','TRAX'],
+  'CHRYSLER':['PACIFICA','300'], 'DODGE':['DURANGO','CHARGER','CHALLENGER','HORNET'],
+  'FERRARI':['PUROSANGUE','ROMA','296','SF90','F8','812'], 'FIAT':['500'],
+  'FORD':['F-150','EXPLORER','EXPEDITION','BRONCO','MUSTANG','ESCAPE','EDGE','MAVERICK','RANGER','F-250','TRANSIT'],
+  'GENESIS':['GV80','GV70','G80','G90','G70'], 'GMC':['YUKON','SIERRA','ACADIA','TERRAIN','CANYON'],
+  'HONDA':['CIVIC','ACCORD','CR-V','PILOT','HR-V','ODYSSEY','PASSPORT','RIDGELINE'],
+  'HYUNDAI':['TUCSON','SANTA FE','PALISADE','ELANTRA','SONATA','KONA','IONIQ 5'], 'INFINITI':['QX60','QX80','QX50','Q50'],
+  'JAGUAR':['F-PACE','E-PACE','F-TYPE','XF'], 'JEEP':['GRAND CHEROKEE','WRANGLER','CHEROKEE','COMPASS','GLADIATOR','WAGONEER'],
+  'KIA':['TELLURIDE','SORENTO','SPORTAGE','K5','FORTE','SOUL','CARNIVAL','EV6','EV9'], 'LAMBORGHINI':['URUS','HURACAN','REVUELTO'],
+  'LAND ROVER':['RANGE ROVER','RANGE ROVER SPORT','DEFENDER','RANGE ROVER VELAR','RANGE ROVER EVOQUE','DISCOVERY'],
+  'LEXUS':['RX','NX','ES','GX','LX','IS','UX','TX'], 'LINCOLN':['NAVIGATOR','AVIATOR','NAUTILUS','CORSAIR'], 'LUCID':['AIR','GRAVITY'],
+  'MASERATI':['LEVANTE','GRECALE','GHIBLI','QUATTROPORTE','MC20'], 'MAZDA':['CX-5','CX-90','CX-50','CX-30','MAZDA3','MX-5'],
+  'MCLAREN':['750S','720S','ARTURA','GT'],
+  'MERCEDES-BENZ':['GLE','GLC','C-CLASS','E-CLASS','S-CLASS','G-CLASS','GLS','GLA','GLB','CLA','AMG GT','EQS','SPRINTER','MAYBACH'],
+  'MINI':['COOPER','COUNTRYMAN'], 'MITSUBISHI':['OUTLANDER','ECLIPSE CROSS','MIRAGE'],
+  'NISSAN':['ROGUE','ALTIMA','PATHFINDER','SENTRA','MURANO','FRONTIER','ARMADA','KICKS','VERSA','LEAF'], 'POLESTAR':['2','3'],
+  'PORSCHE':['CAYENNE','MACAN','911','PANAMERA','TAYCAN','718'], 'RAM':['1500','2500','PROMASTER'], 'RIVIAN':['R1S','R1T'],
+  'ROLLS-ROYCE':['CULLINAN','GHOST','PHANTOM','SPECTRE','WRAITH'], 'SUBARU':['OUTBACK','FORESTER','CROSSTREK','ASCENT','WRX'],
+  'TESLA':['MODEL Y','MODEL 3','MODEL X','MODEL S','CYBERTRUCK'],
+  'TOYOTA':['CAMRY','RAV4','COROLLA','HIGHLANDER','TACOMA','TUNDRA','4RUNNER','SIENNA','GRAND HIGHLANDER','SEQUOIA','PRIUS'],
+  'VOLKSWAGEN':['TIGUAN','ATLAS','JETTA','PASSAT','GOLF','ID.4','TAOS'], 'VOLVO':['XC90','XC60','XC40','S60','S90','V60']
+};
+// What people say → make (+ model)
+var ALIASES = { 'MERCEDES': ['MERCEDES-BENZ'], 'BENZ': ['MERCEDES-BENZ'], 'CHEVY': ['CHEVROLET'], 'VW': ['VOLKSWAGEN'],
+  'RANGE ROVER': ['LAND ROVER', 'RANGE ROVER'], 'ROLLS': ['ROLLS-ROYCE'], 'G WAGON': ['MERCEDES-BENZ', 'G-CLASS'], 'MAYBACH': ['MERCEDES-BENZ', 'MAYBACH'] };
+var POPULAR = ['TESLA', 'BMW', 'MERCEDES-BENZ', 'TOYOTA', 'HONDA', 'LEXUS', 'PORSCHE', 'LAND ROVER'];
+function norm(v){ return String(v || '').toUpperCase().replace(/\s+/g, ' ').replace(/^\s/, ''); }
+function wordStart(name, q){ return name.indexOf(q) === 0 || name.split(/[ -]/).some(function(w){ return w.indexOf(q) === 0; }); }
+function chips(el, items){
+  el.innerHTML = items.map(function(it){ return '<button type="button" data-v="' + esc(it.v) + '"' + (it.m ? ' data-m="' + esc(it.m) + '"' : '') + '>' + esc(it.label) + '</button>'; }).join('');
+}
+function suggestMake(){
+  var q = norm($('ciMake').value).trim(), out = [];
+  if (!q) { chips($('sgMake'), POPULAR.map(function(m){ return { v: m, label: m }; })); return; }
+  if (CARS[q]) { $('sgMake').innerHTML = ''; return; }            // exact make typed
+  Object.keys(ALIASES).forEach(function(a){ if (a.indexOf(q) === 0) out.push({ v: ALIASES[a][0], m: ALIASES[a][1], label: ALIASES[a][1] ? a : ALIASES[a][0] }); });
+  Object.keys(CARS).forEach(function(m){ if (wordStart(m, q) && !out.some(function(o){ return o.v === m && !o.m; })) out.push({ v: m, label: m }); });
+  chips($('sgMake'), out.slice(0, 8));
+}
+function suggestModel(){
+  var make = norm($('ciMake').value).trim(), q = norm($('ciModel').value).trim(), list = CARS[make] || [];
+  if (list.indexOf(q) >= 0) { $('sgModel').innerHTML = ''; return; }
+  chips($('sgModel'), list.filter(function(m){ return !q || wordStart(m, q); }).slice(0, 10).map(function(m){ return { v: m, label: m }; }));
+}
+$('ciMake').addEventListener('input', function(){ $('ciMake').classList.remove('err'); suggestMake(); suggestModel(); });
+$('ciMake').addEventListener('focus', suggestMake);
+$('ciModel').addEventListener('input', suggestModel);
+$('ciModel').addEventListener('focus', suggestModel);
+$('sgMake').addEventListener('click', function(e){
+  var b = e.target.closest('button'); if (!b) return;
+  $('ciMake').value = b.dataset.v; $('ciMake').classList.remove('err'); $('sgMake').innerHTML = '';
+  if (b.dataset.m) { $('ciModel').value = b.dataset.m; $('sgModel').innerHTML = ''; $('ciModel').focus(); }
+  else { $('ciModel').value = ''; $('ciModel').focus(); suggestModel(); }
+});
+$('sgModel').addEventListener('click', function(e){
+  var b = e.target.closest('button'); if (!b) return;
+  $('ciModel').value = b.dataset.v; $('sgModel').innerHTML = ''; $('ciModel').blur();
+});
+$('ciMake').addEventListener('keydown', function(e){ if (e.key === 'Enter') { e.preventDefault(); $('ciModel').focus(); } });
+$('ciModel').addEventListener('keydown', function(e){ if (e.key === 'Enter') { e.preventDefault(); $('ciModel').blur(); doCheckin(); } });
+function vehicleText(){ return (norm($('ciMake').value).trim() + ' ' + norm($('ciModel').value).trim()).trim().slice(0, 60); }
+
+// ── CHECK-IN ───────────────────────────────────────────────────────────
+var clientKey = null;
+async function doCheckin(){
+  var d = phoneDigits($('ciPhone').value), veh = vehicleText();
+  $('ciErr').textContent = '';
+  if (!validPhone(d)) { $('ciPhone').classList.add('err'); $('ciErr').textContent = 'Enter a valid 10-digit US phone number.'; $('ciPhone').focus(); return; }
+  if (!norm($('ciMake').value).trim()) { $('ciMake').classList.add('err'); $('ciErr').textContent = 'Enter the vehicle make (for example, BMW or Tesla).'; $('ciMake').focus(); return; }
+  if ($('ciBtn').disabled) return;
+  $('ciBtn').disabled = true; $('ciBtn').textContent = 'CHECKING IN…';
+  // one key per form submission: a retry after a timeout returns the same ticket
+  clientKey = clientKey || (Date.now().toString(36) + Math.random().toString(36).slice(2, 10));
+  try {
+    if (state.offline) { checkinOffline('+1' + d, veh); return; }   // known offline → instant
+    NET_TIMEOUT = 6000;                                                // don't keep a guest waiting
+    var r = await rpcRetry('event_valet_checkin', { p_event: EVENT_ID, p_phone: '+1' + d, p_vehicle: veh, p_client_key: clientKey }, 2);
+    NET_TIMEOUT = 12000;
+    if (r.error && isNetErr(r.error)) { setOffline(true); checkinOffline('+1' + d, veh); return; }
+    if (r.error) throw r.error;
+    var res = r.data, t = res.ticket;
+    clientKey = null;
+    showConfirmation(t, res.slots_full);
+    refresh();
+    // Print + SMS run in parallel and never block the ticket.
+    // created=false = same submission retried after a lost answer: still the same
+    // ticket; the server never sends the check-in SMS twice.
+    setStat($('dPrint'), t.print_count ? 'Printed ✓' : 'Select a location to print', t.print_count ? 'ok' : 'wait');
+    sendSms(t, 'CHECKIN', false, $('dSms'));
+  } catch (e) {
+    $('ciErr').textContent = isNetErr(e) ? 'Weak signal — not confirmed. Tap CHECK IN again (it will NOT create a duplicate).' : errText(e);
+  } finally {
+    NET_TIMEOUT = 12000;
+    $('ciBtn').disabled = false; $('ciBtn').textContent = 'CHECK IN';
+  }
+}
+$('ciBtn').onclick = doCheckin;
+
+function showConfirmation(t, slotsFull){
+  state.last = t;
+  $('dLocs').innerHTML = locButtons(t);
+  $('dTicket').textContent = '#' + t.ticket_code;
+  $('dTicket').style.fontSize = t.ticket_code.length > 4 ? '36px' : '';
+  $('dRef').textContent = t.local ? 'OFFLINE · will sync' : 'REF #' + pad3(t.ticket_no);
+  $('dSlot').textContent = t.slot_no ? pad2(t.slot_no) : '—';
+  $('dVeh').textContent = t.vehicle;
+  $('ciForm').classList.add('hidden'); $('ciDone').classList.remove('hidden');
+  if (slotsFull) toast('All key slots are full. Assign a slot from View details.', 5000);
+}
+$('dNext').onclick = function(){
+  $('ciPhone').value = ''; $('ciMake').value = ''; $('ciModel').value = ''; $('ciErr').textContent = '';
+  $('sgMake').innerHTML = ''; $('sgModel').innerHTML = ''; clientKey = null;
+  $('ciDone').classList.add('hidden'); $('ciForm').classList.remove('hidden');
+  state.last = null; $('ciPhone').focus();
+};
+$('dLocs').addEventListener('click', function(e){
+  var b = e.target.closest('[data-loc]'); if (b && state.last) chooseLocation(state.last, b.dataset.loc, $('dPrint'), b);
+});
+$('dReprint').onclick = function(){ if (state.last) printTicket(state.last, 'REPRINT', $('dPrint'), $('dReprint')); };
+$('dDelete').onclick = function(){
+  var t = state.last; if (!t) return;
+  if (t.local) { deleteLocal(t); $('dNext').click(); return; }
+  confirmModal('Delete ticket #' + t.ticket_code + '?', esc(t.vehicle) + ' · This removes the ticket and frees key slot ' + (t.slot_no ? pad2(t.slot_no) : '—') + '. Use only for mistakes or tests.', 'DELETE TICKET', 'btn-orange',
+    async function(){
+      var r = await rpcRetry('event_valet_delete_ticket', { p_ticket: t.id });
+      if (r.error) { toast(errText(r.error), 4000); return; }
+      toast('Ticket #' + t.ticket_code + ' deleted.'); $('dNext').click(); refresh();
+    });
+};
+$('dResend').onclick = function(){
+  if (!state.last) return;
+  if (state.last.local) { toast('Offline. The check-in text goes out automatically when the phone is back online.', 4000); return; }
+  sendSms(state.last, 'CHECKIN', true, $('dSms'), $('dResend'));
+};
+
+// ── PRINT (Epson ePOS-Print, same transport as the main app) ───────────
+function xmlEsc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]; }); }
+function keyTicketXml(t){
+  var when = new Date(t.checked_in_at);
+  var date = when.toLocaleDateString('en-US', { timeZone: TZ, month: 'short', day: 'numeric', year: 'numeric' }).toUpperCase();
+  var time = when.toLocaleTimeString('en-US', { timeZone: TZ, hour: 'numeric', minute: '2-digit' });
+  var slot = t.slot_no ? pad2(t.slot_no) : '--';
+  return '<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"><s:Body>'
+    + '<epos-print xmlns="http://www.epson-pos.com/schemas/2011/03/epos-print">'
+    + '<text align="center" em="true" width="2" height="2">FARBER PARKING&#10;</text>'
+    + '<text align="center" em="true" width="1" height="1">WATERMAKERS VALET&#10;</text>'
+    + '<text align="center" em="false">------------------------&#10;</text>'
+    + '<text align="center">TICKET&#10;</text>'
+    + '<text align="center" em="true" width="' + (t.ticket_code.length > 4 ? 3 : 4) + '" height="4">#' + xmlEsc(t.ticket_code) + '&#10;</text>'
+    + (t.ticket_no ? '<text align="center" em="false" width="1" height="1">REF #' + pad3(t.ticket_no) + '&#10;</text>' : '')
+    + '<feed line="1"/>'
+    + '<text align="center" em="false" width="1" height="1">KEY SLOT&#10;</text>'
+    + '<text align="center" em="true" width="4" height="4">' + slot + '&#10;</text>'
+    + '<text align="center" em="false" width="1" height="1">------------------------&#10;</text>'
+    + '<text align="center" em="false" width="1" height="1">LOCATION&#10;</text>'
+    + '<text align="center" em="true" width="2" height="2">' + xmlEsc(t.parking_location || '') + '&#10;</text>'
+    + '<text align="center" em="false" width="1" height="1">------------------------&#10;</text>'
+    + '<text align="center">VEHICLE&#10;</text>'
+    + '<text align="center" em="true" width="2" height="2">' + xmlEsc(String(t.vehicle).slice(0, 24)) + '&#10;</text>'
+    + '<feed line="1"/>'
+    + '<text align="center" em="false" width="1" height="1">' + xmlEsc(date) + '&#10;</text>'
+    + '<text align="center">' + xmlEsc(time) + '&#10;</text>'
+    + '<feed line="3"/><cut type="feed"/>'
+    + '</epos-print></s:Body></s:Envelope>';
+}
+async function epsonPost(xml){
+  var res = await fetch(PRINTER_URL, { method: 'POST', body: xml,
+    headers: { 'Content-Type': 'text/xml; charset=utf-8', 'SOAPAction': '"http://www.epson-pos.com/schemas/2011/03/epos-print"' },
+    signal: AbortSignal.timeout ? AbortSignal.timeout(12000) : undefined });
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  var txt = await res.text();
+  var ok = (txt.match(/success="([^"]*)"/) || [])[1];
+  var code = (txt.match(/code="([^"]*)"/) || [])[1] || '';
+  if (ok !== 'true') throw new Error(code || 'printer error');
+  return true;
+}
+// ── PARKING LOCATION (set after parking; printing waits for it) ────────
+var LOCATIONS = ['FRONT', 'SIDE', 'BACK'];
+function locButtons(t){
+  return LOCATIONS.map(function(l){
+    return '<button class="btn ' + (t.parking_location === l ? 'btn-gold' : 'btn-dark') + '" data-loc="' + l + '">' + l + '</button>';
+  }).join('');
+}
+async function chooseLocation(t, loc, statusEl, btn){
+  if (t.local && state.synced[t.lid]) t = state.synced[t.lid];         // synced meanwhile
+  if (t.local) {
+    var box = outbox(), e = box.filter(function(x){ return x.lid === t.lid; })[0];
+    if (!e) { toast('This ticket is syncing. Try again in a moment.', 3000); return; }
+    e.location = loc; saveOutbox(box);
+    var lt = localTicket(e);
+    if (state.last && state.last.lid === lt.lid) { state.last = lt; $('dLocs').innerHTML = locButtons(lt); }
+    if (!e.printed) printTicket(lt, 'AUTO', statusEl);
+    renderBoard(); return;
+  }
+  var key = 'loc:' + t.id; if (state.busy[key]) return;
+  state.busy[key] = true; if (btn) btn.disabled = true;
+  try {
+    var r = await rpcRetry('event_valet_set_location', { p_ticket: t.id, p_location: loc });
+    if (r.error) throw r.error;
+    var nt = r.data.ticket;
+    if (state.last && state.last.id === nt.id) { state.last = nt; $('dLocs').innerHTML = locButtons(nt); }
+    if (!nt.print_count) printTicket(nt, 'AUTO', statusEl);                 // first time → print now
+    else if (r.data.changed) toast('#' + nt.ticket_code + ' moved to ' + loc + '. Tap REPRINT for a new key ticket.', 4500);
+    refresh();
+  } catch (e) { toast(errText(e), 4000); }
+  finally { state.busy[key] = false; if (btn) btn.disabled = false; }
+}
+
+async function printTicket(t, kind, statusEl, btn){
+  if (!t.parking_location) { setStat(statusEl, 'Select a parking location first', 'wait'); toast('Select the parking location first. The key ticket prints right after.', 3500); return; }
+  var key = 'print:' + t.id;
+  if (state.busy[key]) return;                       // no accidental double print
+  state.busy[key] = true; if (btn) btn.disabled = true;
+  setStat(statusEl, 'Printing…', 'wait');
+  try {
+    await epsonPost(keyTicketXml(t));
+    unqueuePrint(t.id);
+    setStat(statusEl, kind === 'REPRINT' ? 'Reprinted ✓' : 'Printed ✓', 'ok');
+    setPrinter(true);
+    afterPrinted(t, kind);
+  } catch (e) {
+    // Wi-Fi down / printer off: never lose it — queued and printed as soon as the printer answers.
+    queuePrint(t, kind);
+    setStat(statusEl, 'Printer offline · will print automatically', 'bad');
+    setPrinter(false);
+    if (!statusEl) toast('Printer offline · #' + t.ticket_code + ' will print automatically.', 4500);
+  } finally {
+    setTimeout(function(){ state.busy[key] = false; if (btn) btn.disabled = false; }, 4000);
+  }
+}
+function setStat(el, text, cls){ if (!el) return; el.textContent = text; el.className = 'v ' + cls; }
+function setPrinter(ok){
+  state.printerOk = ok;
+  var b = $('bPrinter'), q = printq().length;
+  b.textContent = (ok ? 'PRINTER ✓' : 'PRINTER ✕') + (q ? ' · ' + q + ' QUEUED' : '');
+  b.className = 'badge ' + (q ? 'warn' : ok ? 'ok' : 'bad');
+}
+async function checkPrinter(){
+  try {
+    await epsonPost('<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"><s:Body><epos-print xmlns="http://www.epson-pos.com/schemas/2011/03/epos-print"></epos-print></s:Body></s:Envelope>');
+    setPrinter(true);
+  } catch (e) { setPrinter(false); }
+}
+$('bPrinter').onclick = function(){
+  var q = printq().map(function(x){ var t = ticketById(x.id); return t ? '#' + esc(t.ticket_code) + ' ' + esc(t.vehicle) : null; }).filter(Boolean);
+  openModal('<h3>Printer</h3><p>Epson TM-m30II · ' + esc(PRINTER_HOST) + ' (Wi-Fi only)<br>If it shows ✕: be on the same Wi-Fi as the printer, open the printer page once and accept the certificate (Show Details → Visit This Website).</p>'
+    + (q.length ? '<p><b style="color:var(--orange)">Waiting to print (' + q.length + '):</b><br>' + q.join('<br>') + '</p><button class="btn btn-orange" id="mPrQ">PRINT QUEUE NOW</button>' : '')
+    + '<button class="btn btn-gold" id="mPrTest" style="margin-top:8px">CHECK CONNECTION</button>'
+    + '<button class="btn btn-dark btn-sm" style="margin-top:8px" id="mPrOpen">OPEN PRINTER PAGE</button>'
+    + '<button class="btn btn-dark btn-sm" style="margin-top:8px" id="mPrIp">CHANGE PRINTER IP</button>'
+    + '<button class="btn btn-dark btn-sm" style="margin-top:8px" id="mClose">CLOSE</button>');
+  $('mPrTest').onclick = function(){ checkPrinter().then(function(){ toast($('bPrinter').textContent); }); };
+  if ($('mPrQ')) $('mPrQ').onclick = function(){ closeModal(); drainPrintq(true); };
+  $('mPrOpen').onclick = function(){ window.open('https://' + PRINTER_HOST, '_blank', 'noopener'); };
+  $('mPrIp').onclick = function(){
+    var v = (window.prompt('Printer IP (printed on the Epson status sheet):', PRINTER_HOST) || '').trim();
+    if (!v) return;
+    if (!/^(\d{1,3})(\.\d{1,3}){3}$/.test(v) || v.split('.').some(function(n){ return +n > 255; })) { toast('That is not a valid IP address.', 3000); return; }
+    try { localStorage.setItem('ev_printer_host', v); } catch (e) {}
+    PRINTER_HOST = v; PRINTER_URL = 'https://' + v + '/cgi-bin/epos/service.cgi?devid=local_printer&timeout=10000';
+    closeModal(); checkPrinter().then(function(){ toast('Printer ' + v + ' · ' + $('bPrinter').textContent, 3000); });
+  };
+  $('mClose').onclick = closeModal;
+};
+
+// ── OFFLINE MODE + PRINT QUEUE ─────────────────────────────────────────
+// No internet but printer on Wi-Fi → check-in is saved on this phone (code =
+// last 4, key slot taken from the top: 20, 19, … so it rarely clashes with
+// other phones), the key ticket prints right away, and everything syncs (and
+// the guest SMS goes out) when the connection comes back. Wi-Fi down but 4G up
+// → the system keeps working and key tickets wait in a print queue that
+// prints by itself as soon as the printer answers again. Both live in
+// localStorage, so closing the app does not lose them.
+var OUTBOX_KEY = 'ev_outbox_' + EVENT_ID, PRINTQ_KEY = 'ev_printq_' + EVENT_ID;
+function lsGet(k){ try { return JSON.parse(localStorage.getItem(k) || '[]'); } catch (e) { return []; } }
+function lsSet(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+function outbox(){ return lsGet(OUTBOX_KEY); }
+function saveOutbox(o){ lsSet(OUTBOX_KEY, o); updateNetBadge(); }
+function printq(){ return lsGet(PRINTQ_KEY); }
+function savePrintq(q){ lsSet(PRINTQ_KEY, q); setPrinter(state.printerOk !== false); }
+function localTicket(e){
+  return { id: 'local:' + e.lid, lid: e.lid, local: true, ticket_no: null, ticket_code: e.code, slot_no: e.slot, vehicle: e.vehicle,
+    phone_e164: e.phone, status: 'PARKED', parking_location: e.location, checked_in_at: e.at, print_count: e.printed ? 1 : 0, sms: [] };
+}
+function setOffline(on){
+  if (state.offline === on) return;
+  state.offline = on; updateNetBadge();
+  if (on) toast('📴 No internet · Offline mode is on. Check-ins are saved on this phone and still print.', 5000);
+}
+function updateNetBadge(){
+  var n = outbox().length, b = $('bNet');
+  if (!state.offline && !n) { b.classList.add('hidden'); return; }
+  b.classList.remove('hidden');
+  b.textContent = state.offline ? '📴 OFFLINE' + (n ? ' · ' + n + ' TO SYNC' : '') : '⟳ SYNCING ' + n;
+  b.className = 'badge ' + (state.offline ? 'bad' : 'warn');
+}
+$('bNet').onclick = function(){
+  var list = outbox().map(function(e){ return '#' + esc(e.code) + ' · ' + esc(e.vehicle) + ' · slot ' + (e.slot ? pad2(e.slot) : '—') + (e.printed ? ' · printed' : ''); });
+  openModal('<h3>' + (state.offline ? '📴 Offline mode' : '⟳ Syncing') + '</h3><p>Check-ins saved on this phone (' + list.length + '):<br>' + (list.join('<br>') || '—')
+    + '<br><br>They sync and the guest SMS is sent automatically when the internet is back. Do not delete the app or clear Safari data.</p>'
+    + '<button class="btn btn-gold" id="mSync">TRY TO SYNC NOW</button><button class="btn btn-dark btn-sm" style="margin-top:8px" id="mClose">CLOSE</button>');
+  $('mSync').onclick = function(){ closeModal(); refresh(); };
+  $('mClose').onclick = closeModal;
+};
+function checkinOffline(phone, vehicle){
+  var tickets = (state.board && state.board.tickets) || [], box = outbox(), used = {}, taken = {};
+  tickets.forEach(function(t){ used[t.ticket_code] = 1; if (t.status !== 'DELIVERED' && t.slot_no) taken[t.slot_no] = 1; });
+  box.forEach(function(e){ used[e.code] = 1; if (e.slot) taken[e.slot] = 1; });
+  var l4 = phone.slice(-4), code = l4;
+  for (var n = 1; used[code] && n <= 9; n++) code = n + l4;
+  var cap = (state.board && state.board.event.slot_capacity) || 30, slot = null;
+  for (var sl = cap; sl >= 1; sl--) if (!taken[sl]) { slot = sl; break; }
+  var e = { lid: Date.now().toString(36) + Math.random().toString(36).slice(2, 7), key: clientKey, phone: phone, vehicle: vehicle,
+            code: code, slot: slot, location: null, at: new Date().toISOString(), printed: false };
+  box.push(e); saveOutbox(box);
+  clientKey = null;
+  var t = localTicket(e);
+  showConfirmation(t, !slot);
+  setStat($('dPrint'), 'Select a location to print', 'wait');
+  setStat($('dSms'), 'Offline · sends when back online', 'wait');
+  renderBoard();
+}
+function deleteLocal(t){
+  saveOutbox(outbox().filter(function(e){ return e.lid !== t.lid; }));
+  unqueuePrint(t.id); toast('Offline ticket #' + t.ticket_code + ' deleted.'); renderBoard();
+}
+var flushing = false;
+async function flushOutbox(){
+  var box = outbox(); if (flushing || !box.length) return;
+  flushing = true;
+  try {
+    for (var i = 0; i < box.length; i++) {
+      var e = box[i];
+      var r = await rpcRetry('event_valet_checkin_offline', { p_event: EVENT_ID, p_phone: e.phone, p_vehicle: e.vehicle, p_client_key: e.key,
+        p_code_hint: e.code, p_slot_hint: e.slot, p_location: e.location, p_checked_in_at: e.at, p_printed: !!e.printed }, 1);
+      if (r.error) { if (isNetErr(r.error)) break; toast('Could not sync #' + e.code + ': ' + errText(r.error), 6000); continue; }
+      var t = r.data.ticket;
+      // the phone may have printed / set the location after this request left
+      var cur = outbox().filter(function(x){ return x.lid === e.lid; })[0] || e;
+      saveOutbox(outbox().filter(function(x){ return x.lid !== e.lid; }));
+      state.synced[e.lid] = t;
+      if (cur.location && cur.location !== t.parking_location) {
+        var lr = await rpcRetry('event_valet_set_location', { p_ticket: t.id, p_location: cur.location }, 2); if (!lr.error) t = lr.data.ticket;
+      }
+      if (cur.printed && !t.print_count) rpcRetry('event_valet_mark_printed', { p_ticket: t.id, p_kind: 'OFFLINE' }, 2);
+      retargetPrint('local:' + e.lid, t.id);
+      var onScreen = state.last && state.last.lid === e.lid && !$('ciDone').classList.contains('hidden');
+      if (onScreen) { state.last = t; showConfirmation(t); setStat($('dPrint'), cur.printed ? 'Printed ✓' : 'Select a location to print', cur.printed ? 'ok' : 'wait'); }
+      sendSms(t, 'CHECKIN', false, onScreen ? $('dSms') : null);
+      if (r.data.code_changed || r.data.slot_changed) syncChanged(cur, t);
+    }
+  } finally { flushing = false; updateNetBadge(); }
+}
+function syncChanged(e, t){
+  openModal('<h3>⚠️ Ticket changed after sync</h3><p>Offline ticket <b>#' + esc(e.code) + '</b> (' + esc(t.vehicle) + ') is now <b>#' + esc(t.ticket_code)
+    + '</b>, key slot <b>' + (t.slot_no ? pad2(t.slot_no) : '—') + '</b>' + (e.slot !== t.slot_no ? ' — move the key from slot ' + (e.slot ? pad2(e.slot) : '—') : '')
+    + '.<br>The guest SMS has the new number.</p><button class="btn btn-gold" id="mRe">REPRINT KEY TICKET</button><button class="btn btn-dark btn-sm" style="margin-top:8px" id="mClose">OK</button>');
+  $('mRe').onclick = function(){ closeModal(); printTicket(t, 'REPRINT', null); };
+  $('mClose').onclick = closeModal;
+  beep();
+}
+function queuePrint(t, kind){ var q = printq().filter(function(x){ return x.id !== t.id; }); q.push({ id: t.id, kind: kind, at: Date.now() }); savePrintq(q); }
+function unqueuePrint(id){ if (printq().some(function(x){ return x.id === id; })) savePrintq(printq().filter(function(x){ return x.id !== id; })); }
+function retargetPrint(oldId, newId){ savePrintq(printq().map(function(x){ return x.id === oldId ? { id: newId, kind: x.kind, at: x.at } : x; })); }
+function ticketById(id){
+  if (id.indexOf('local:') === 0) { var e = outbox().filter(function(x){ return 'local:' + x.lid === id; })[0]; return e ? localTicket(e) : null; }
+  return state.board ? findT(id) : undefined;     // undefined = board not loaded yet (keep it queued)
+}
+function afterPrinted(t, kind){
+  if (t.local) { var box = outbox(); box.forEach(function(e){ if ('local:' + e.lid === t.id) e.printed = true; }); saveOutbox(box); renderBoard(); return; }
+  rpcRetry('event_valet_mark_printed', { p_ticket: t.id, p_kind: kind }).then(function(){ refresh(); });
+}
+var draining = false;
+async function drainPrintq(manual){
+  var q = printq(); if (draining || !q.length) return;
+  draining = true;
+  try {
+    for (var i = 0; i < q.length; i++) {
+      if (Date.now() - (q[i].at || 0) > 6 * 3600 * 1000) { unqueuePrint(q[i].id); continue; }   // stale (e.g. a test from last night)
+      var t = ticketById(q[i].id);
+      if (t === undefined) continue;
+      if (!t || t.status === 'DELIVERED') { unqueuePrint(q[i].id); continue; }      // deleted or already gone
+      try { await epsonPost(keyTicketXml(t)); }
+      catch (e) { setPrinter(false); if (manual) toast('The printer is still offline. Check the Wi-Fi connection.', 4000); break; }
+      unqueuePrint(q[i].id); setPrinter(true); afterPrinted(t, q[i].kind);
+      toast('🖨 Printed #' + t.ticket_code + ' (was waiting).', 3500);
+    }
+  } finally { draining = false; }
+}
+setInterval(function(){ if (printq().length) drainPrintq(); }, 8000);
+
+// ── SMS (server side; Twilio secrets never reach the browser) ──────────
+var SMS_LABEL = { ACCEPTED: 'Sent ✓', QUEUED: 'Sent ✓', SENDING: 'Sending…', SENT: 'Sent ✓', DELIVERED: 'Delivered ✓',
+  MOCK_SENT: 'Sent (test) ✓', DUPLICATE: 'Already sent', SKIPPED_SMS_OFF: 'Texts are off', SKIPPED_TEST_MODE: 'Test mode · not sent',
+  SKIPPED_TIP_OFF: 'Tip text is off', NOT_CONFIGURED: 'Texting not set up', FAILED: 'Not delivered', UNDELIVERED: 'Not delivered',
+  UNCONFIRMED: 'Unconfirmed', RECEIVED: 'Received', REQUESTED: 'Car requested', AMBIGUOUS: 'Asked which car', NO_MATCH: 'Unknown ticket',
+  ALREADY: 'Already requested' };
+var KIND_LABEL = { CHECKIN: 'Check-in', REQUESTED: 'Request received', READY: 'Car ready', TIP: 'Thank-you', AMBIGUOUS: 'Which vehicle?',
+  NO_MATCH: 'Ticket not found', STAFF_ALERT: 'Team alert', INBOUND: 'Guest reply' };
+function smsClass(s){ return /SENT|ACCEPTED|QUEUED|DELIVERED$|DUPLICATE/.test(s) && s !== 'UNDELIVERED' ? 'ok' : /FAILED|UNDELIVERED|UNCONFIRMED/.test(s) ? 'bad' : /SENDING/.test(s) ? 'wait' : 'off'; }
+async function sendSms(t, kind, resend, statusEl, btn){
+  var key = 'sms:' + kind + ':' + t.id;
+  if (state.busy[key]) return;
+  state.busy[key] = true; if (btn) btn.disabled = true;
+  setStat(statusEl, 'Sending…', 'wait');
+  try {
+    var token = await jwt(), r;
+    for (var i = 1; ; i++) {   // network retries are safe: the server sends each SMS once
+      try {
+        r = await fetchWithTimeout(FN_URL + '/send', { method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token, 'apikey': SB_KEY },
+          body: JSON.stringify({ ticket_id: t.id, kind: kind, resend: !!resend }) });
+        break;
+      } catch (e) { if (i >= 3) throw e; await new Promise(function(res){ setTimeout(res, 800 * i); }); }
+    }
+    var j = await r.json().catch(function(){ return {}; });
+    if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+    var label = (SMS_LABEL[j.status] || j.status) + (j.error_code ? ' (' + j.error_code + ')' : '');
+    setStat(statusEl, label, smsClass(j.status));
+    if (statusEl == null) toast((KIND_LABEL[kind] || 'Text') + ' text: ' + label);
+  } catch (e) {
+    setStat(statusEl, 'Text failed · tap RESEND', 'bad');
+    if (statusEl == null) toast('Text failed: ' + errText(e), 4000);
+  } finally {
+    setTimeout(function(){ state.busy[key] = false; if (btn) btn.disabled = false; }, 3000);
+    refresh();
+  }
+}
+
+// ── BOARD ──────────────────────────────────────────────────────────────
+var refreshing = false;
+async function refresh(){
+  if (refreshing) return; refreshing = true;
+  try {
+    var r = await sb.rpc('event_valet_board', { p_event: EVENT_ID });
+    if (r.error) throw r.error;
+    $('offline').classList.add('hidden');
+    state.board = r.data;
+    state.fails = 0;
+    setOffline(false);
+    onBoard();
+    if (outbox().length) flushOutbox();
+  } catch (e) {
+    if (/NOT_AUTHORIZED/.test(errText(e)) || /not allowed/.test(errText(e))) { showNotAllowed(); }
+    else if (isNetErr(e) && ++state.fails >= 2) { $('offline').classList.remove('hidden'); setOffline(true); renderBoard(); }
+  } finally { refreshing = false; }
+}
+function onBoard(){
+  var b = state.board, c = b.counts;
+  $('cP').textContent = c.PARKED + outbox().length; $('cR').textContent = c.REQUESTED; $('cY').textContent = c.READY; $('cD').textContent = c.DELIVERED;
+  $('cReqBox').classList.toggle('hot', c.REQUESTED > 0);
+  $('tabDot').textContent = c.REQUESTED; $('tabDot').classList.toggle('hidden', !c.REQUESTED);
+  var ev = b.event, s = $('bSms');
+  if (!ev.sms_enabled) { s.textContent = 'SMS OFF'; s.className = 'badge bad'; }
+  else if (ev.sms_test_only) { s.textContent = 'SMS TEST'; s.className = 'badge warn'; }
+  else { s.textContent = 'SMS LIVE'; s.className = 'badge ok'; }
+  // new requests → alert
+  var fresh = [];
+  b.tickets.forEach(function(t){
+    if (t.status === 'REQUESTED' && !state.seenRequested[t.id + t.requested_at]) {
+      state.seenRequested[t.id + t.requested_at] = true;
+      if (!state.firstLoad) fresh.push(t);
+    }
+  });
+  state.firstLoad = false;
+  if (fresh.length) {
+    beep();
+    toast('🚗 Car requested: ' + fresh.map(function(t){ return '#' + t.ticket_code + ' · Key ' + (t.slot_no ? pad2(t.slot_no) : '—'); }).join('  '), 6000);
+    if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+  }
+  renderBoard(fresh.map(function(t){ return t.id; }));
+}
+function lastSms(t){ return t.sms && t.sms.length ? t.sms[t.sms.length - 1] : null; }
+function smsFact(t){
+  var ls = lastSms(t); if (!ls) return '';
+  if (/FAILED|UNDELIVERED/.test(ls.status)) return '<span class="fact bad">💬 Text not delivered · tell the guest #' + esc(t.ticket_code) + '</span>';
+  if (/UNCONFIRMED/.test(ls.status)) return '<span class="fact warn">💬 Text unconfirmed</span>';
+  return '';
+}
+var STATUS_LABEL = { PARKED: 'CHECKED IN', REQUESTED: 'REQUESTED', READY: 'READY', DELIVERED: 'DELIVERED' };
+function cardHtml(t, flash){
+  if (t.status === 'DELIVERED') {
+    return '<div class="drow" data-id="' + t.id + '"><b>#' + esc(t.ticket_code) + '</b><span>' + esc(t.vehicle) + ' · ' + esc(timeOf(t.delivered_at)) + '</span>'
+      + '<button class="morebtn" data-more="1" aria-label="View details" title="View details">⋯</button></div>';
+  }
+  var slot = t.slot_no ? '<b>' + pad2(t.slot_no) + '</b>' : '<b class="none">NONE</b>';
+  var src = t.request_source === 'SMS' ? ' by text' : t.request_source === 'GUEST_LINK' ? ' by link' : '';
+  var when = t.status === 'REQUESTED' ? timeOf(t.requested_at) + src : t.status === 'READY' ? 'since ' + timeOf(t.ready_at) : 'in ' + timeOf(t.checked_in_at);
+  var queued = printq().some(function(x){ return x.id === t.id; });
+  var facts = '<span class="status ' + t.status + '">' + STATUS_LABEL[t.status] + '</span>'
+    + (t.parking_location ? '<span class="fact loc">📍 ' + esc(t.parking_location) + '</span>' : '')
+    + '<span class="fact">' + esc(when) + '</span>'
+    + (queued ? '<span class="fact warn">🖨 waiting for printer</span>' : t.parking_location && !t.print_count ? '<span class="fact bad">🖨 not printed</span>' : '')
+    + (t.local ? '<span class="fact warn">📴 offline · will sync</span>' : '') + smsFact(t);
+  var act;
+  if (!t.parking_location) act = '<div class="locs">' + locButtons(t) + '</div>';
+  else if (t.local) act = '';
+  else if (t.status === 'PARKED') act = '<div class="actions"><button class="btn btn-orange full" data-a="REQUESTED">REQUEST CAR</button></div>';
+  else if (t.status === 'REQUESTED') act = '<div class="actions"><button class="btn btn-green" data-a="READY">CAR READY</button><button class="btn btn-gold" data-a="DELIVERED">DELIVERED</button></div>';
+  else act = '<div class="actions"><button class="btn btn-gold full" data-a="DELIVERED">DELIVERED</button></div>';
+  return '<div class="card ' + t.status + (t.local ? ' LOCAL' : '') + (flash ? ' flash' : '') + '" data-id="' + t.id + '">'
+    + '<div class="crow"><div class="code"><small>' + (t.local ? 'Offline ticket' : 'Ticket') + '</small>#' + esc(t.ticket_code)
+    + '<div class="cveh">' + esc(t.vehicle) + '</div></div>'
+    + '<div class="kslot"><small>KEY</small>' + slot + '</div><button class="morebtn" data-more="1" aria-label="View details" title="View details">⋯</button></div>'
+    + '<div class="facts">' + facts + '</div>'
+    + (t.last_inbound ? '<div class="inb">💬 “' + esc(t.last_inbound.body) + '” ' + esc(timeOf(t.last_inbound.at)) + '</div>' : '')
+    + act + '</div>';
+}
+function renderBoard(flashIds){
+  var all = (state.board ? state.board.tickets : []).concat(outbox().map(localTicket));
+  var q = $('q').value.trim().toUpperCase().replace(/^#/, '');
+  var list = all.filter(function(t){
+    if (!q) return true;
+    var qc = q.replace(/[\s-]/g, '');
+    if (/^\d{1,5}$/.test(qc)) {
+      return t.ticket_code.replace('-', '').indexOf(qc) === 0 || t.ticket_no === parseInt(qc, 10)
+        || (/^\d+$/.test(qc) && qc.length >= 3 && t.phone_e164.slice(-qc.length) === qc);
+    }
+    return t.vehicle.indexOf(q) >= 0;
+  });
+  var groups = [['REQUESTED', 'Requested'], ['READY', 'Ready for pickup'], ['NOLOC', 'Checked in · select location'], ['PARKED', 'Checked in'], ['DELIVERED', 'Delivered']];
+  var html = '';
+  flashIds = flashIds || [];
+  groups.forEach(function(g){
+    var items = list.filter(function(t){
+      if (g[0] === 'NOLOC') return t.status === 'PARKED' && !t.parking_location;
+      if (g[0] === 'PARKED') return t.status === 'PARKED' && !!t.parking_location;
+      return t.status === g[0];
+    });
+    if (g[0] === 'REQUESTED') items.sort(function(a, b){ return new Date(a.requested_at) - new Date(b.requested_at); });
+    else if (g[0] === 'DELIVERED') items.sort(function(a, b){ return new Date(b.delivered_at) - new Date(a.delivered_at); });
+    else items.sort(function(a, b){ return (a.ticket_no || 9999) - (b.ticket_no || 9999); });
+    if (!items.length) return;
+    html += '<div class="section-title" id="sec-' + g[0] + '">' + g[1] + ' <span class="n">· ' + items.length + '</span></div><div class="cards">'
+      + items.map(function(t){ return cardHtml(t, flashIds.indexOf(t.id) >= 0); }).join('') + '</div>';
+  });
+  $('board').innerHTML = html || '<div class="empty">' + (q ? 'No car matches “' + esc(q) + '”.' : 'No cars yet. Check in the first guest.') + '</div>';
+}
+$('q').addEventListener('input', function(){ renderBoard(); });
+// Tap a counter → board, scrolled to that list (e.g. DELIVERED cars).
+[['cP','PARKED'],['cReqBox','REQUESTED'],['cY','READY'],['cD','DELIVERED']].forEach(function(x){
+  var box = $(x[0]).closest('.count'); box.style.cursor = 'pointer';
+  box.onclick = function(){
+    $('q').value = '';
+    if (!window.matchMedia('(min-width:900px)').matches) showTab('board'); else renderBoard();
+    var sec = (x[1] === 'PARKED' && $('sec-NOLOC')) || $('sec-' + x[1]);
+    if (sec) sec.scrollIntoView({ behavior: 'smooth', block: 'start' }); else toast('No ' + ({ PARKED: 'checked-in', REQUESTED: 'requested', READY: 'ready', DELIVERED: 'delivered' })[x[1]] + ' cars yet.');
+  };
+});
+function findT(id){
+  if (String(id).indexOf('local:') === 0) return ticketById(id) || null;
+  return state.board ? state.board.tickets.filter(function(t){ return t.id === id; })[0] : null;
+}
+
+$('board').addEventListener('click', function(e){
+  var btn = e.target.closest('button'); if (!btn) return;
+  var card = btn.closest('[data-id]'); var t = findT(card.dataset.id); if (!t) return;
+  if (btn.dataset.loc) { chooseLocation(t, btn.dataset.loc, null, btn); return; }
+  if (btn.dataset.more) { openMore(t); return; }
+  if (btn.dataset.a) {
+    var to = btn.dataset.a;
+    if (to === 'DELIVERED') {
+      confirmModal('Mark #' + t.ticket_code + ' as delivered?', esc(t.vehicle) + ' · Key slot ' + (t.slot_no ? pad2(t.slot_no) : '—') + ' will be freed and the guest will get the thank-you text.', 'DELIVERED', 'btn-gold',
+        function(){ setStatus(t, to, btn); });
+    } else setStatus(t, to, btn);
+  }
+});
+function openMore(t){
+  var b = [], recent = t.delivered_at && Date.now() - new Date(t.delivered_at).getTime() < 15 * 60000;
+  if (t.status !== 'DELIVERED') {
+    if (t.parking_location) b.push(['reprint', '🖨 REPRINT KEY TICKET', 'btn-gold']);
+    if (t.parking_location) b.push(['loc', '📍 CHANGE LOCATION', 'btn-dark']);
+    if (!t.local) {
+      b.push(['slot', '🔑 CHANGE KEY SLOT', 'btn-dark']);
+      b.push(['resend', '💬 RESEND CHECK-IN TEXT', 'btn-dark']);
+      if (t.status === 'PARKED') b.push(['ready', '✅ CAR READY', 'btn-dark']);
+      if (t.status !== 'PARKED') b.push(['park', '↩︎ BACK TO CHECKED IN', 'btn-dark']);
+    }
+  } else {
+    if (recent) b.push(['undo', '↩︎ UNDO DELIVERY', 'btn-dark']);
+    b.push(['tip', '💬 RESEND THANK-YOU TEXT', 'btn-dark']);
+  }
+  b.push(['del', '🗑 DELETE TICKET', 'btn-dark" style="color:var(--red);margin-top:22px']);
+  openModal('<div class="sheet"><h3>#' + esc(t.ticket_code) + ' · ' + esc(t.vehicle) + '</h3><p>' + STATUS_LABEL[t.status] + ' · Key slot ' + (t.slot_no ? pad2(t.slot_no) : '—')
+    + (t.parking_location ? ' · ' + esc(t.parking_location) : '') + (t.local ? ' · Offline (not synced yet)' : ' · Ref #' + pad3(t.ticket_no) + ' · Phone …' + esc(String(t.phone_e164).slice(-4))) + '</p>'
+    + (t.local ? '' : '<div class="label" style="margin-top:4px">TEXT MESSAGES</div><div class="thread" id="mThread"><div class="bmeta">Loading…</div></div>')
+    + b.map(function(x){ return '<button class="btn ' + x[2] + '" data-m="' + x[0] + '">' + x[1] + '</button>'; }).join('')
+    + '<button class="btn btn-dark btn-sm" style="margin-top:12px" id="mClose">CLOSE</button></div>');
+  $('mClose').onclick = closeModal;
+  $('modalBody').querySelectorAll('[data-m]').forEach(function(x){ x.onclick = function(){ closeModal(); doMore(t, x.dataset.m); }; });
+  if (!t.local) loadThread(t);
+}
+// SMS preview: the real texts this guest got (and their replies), like the Messages app.
+async function loadThread(t){
+  var r = await rpcRetry('event_valet_ticket_messages', { p_ticket: t.id }, 2);
+  var el = $('mThread'); if (!el) return;
+  if (r.error) { el.innerHTML = '<div class="bmeta">Could not load the texts.</div>'; return; }
+  var list = (r.data || []).filter(function(m){ return m.kind !== 'STAFF_ALERT'; });
+  if (!list.length) { el.innerHTML = '<div class="bmeta">No texts yet.</div>'; return; }
+  el.innerHTML = list.map(function(m){
+    var dir = m.dir === 'IN' ? 'in' : 'out', st = SMS_LABEL[m.status] || m.status, bad = /FAILED|UNDELIVERED/.test(m.status);
+    var meta = (dir === 'in' ? 'Guest reply' : (KIND_LABEL[m.kind] || m.kind)) + ' · ' + timeOf(m.at) + (dir === 'out' ? ' · ' + st : '') + (m.error_code ? ' (' + esc(m.error_code) + ')' : '');
+    if (!m.body) return '<div class="bmeta ' + (bad ? 'bad' : '') + '">' + esc(meta) + '</div>';
+    return '<div class="bubble ' + dir + '">' + esc(m.body).replace(/\n{2,}/g, '\n\n') + '</div><div class="bmeta ' + dir + (bad ? ' bad' : '') + '">' + esc(meta) + '</div>';
+  }).join('');
+  el.scrollTop = el.scrollHeight;
+}
+function doMore(t, m){
+  if (m === 'reprint') printTicket(t, 'REPRINT', null);
+  if (m === 'loc') {
+    openModal('<h3>Location · #' + esc(t.ticket_code) + '</h3><p>' + esc(t.vehicle) + ' · now ' + esc(t.parking_location || '—') + '</p><div class="locs" id="mLocs">' + locButtons(t) + '</div>'
+      + '<button class="btn btn-dark btn-sm" id="mClose">CANCEL</button>');
+    $('mClose').onclick = closeModal;
+    $('mLocs').onclick = function(e){ var b = e.target.closest('[data-loc]'); if (b) { closeModal(); chooseLocation(t, b.dataset.loc, null, null); } };
+  }
+  if (m === 'slot') editSlot(t);
+  if (m === 'resend') sendSms(t, 'CHECKIN', true, null);
+  if (m === 'tip') sendSms(t, 'TIP', true, null);
+  if (m === 'ready') setStatus(t, 'READY', null);
+  if (m === 'park') confirmModal('Move #' + t.ticket_code + ' back to checked in?', 'The request is cleared. Use this if the guest is not leaving yet.', 'BACK TO CHECKED IN', 'btn-dark', function(){ setStatus(t, 'PARKED', null); });
+  if (m === 'undo') confirmModal('Undo delivery?', 'Ticket #' + t.ticket_code + ' goes back to READY. If its slot was reused, assign a new slot.', 'UNDO', 'btn-dark', function(){ setStatus(t, 'READY', null); });
+  if (m === 'del') confirmModal('Delete ticket #' + t.ticket_code + '?', esc(t.vehicle) + ' · This removes the ticket and frees key slot ' + (t.slot_no ? pad2(t.slot_no) : '—') + '. Use only for mistakes or tests.', 'DELETE TICKET', 'btn-orange',
+    async function(){
+      if (t.local) { deleteLocal(t); return; }
+      var r = await rpcRetry('event_valet_delete_ticket', { p_ticket: t.id });
+      if (r.error) { toast(errText(r.error), 4000); return; }
+      unqueuePrint(t.id);
+      if (state.last && state.last.id === t.id) $('dNext').click();
+      toast('Ticket #' + t.ticket_code + ' deleted.'); refresh();
+    });
+}
+
+async function setStatus(t, to, btn){
+  var key = 'st:' + t.id; if (state.busy[key]) return;
+  state.busy[key] = true; if (btn) btn.disabled = true;
+  try {
+    var r = await rpcRetry('event_valet_set_status', { p_ticket: t.id, p_status: to });
+    if (r.error) throw r.error;
+    var res = r.data;
+    if (res.changed && to === 'REQUESTED') sendSms(res.ticket, 'REQUESTED', false, null);
+    if (res.changed && to === 'READY' && res.from !== 'DELIVERED') sendSms(res.ticket, 'READY', false, null);
+    if (res.changed && to === 'DELIVERED') sendSms(res.ticket, 'TIP', false, null);
+    if (res.changed) toast('#' + t.ticket_code + ' · ' + STATUS_LABEL[res.ticket.status].toLowerCase().replace(/^./, function(c){ return c.toUpperCase(); }));
+    await refresh();
+  } catch (e) { toast(errText(e), 4000); }
+  finally { state.busy[key] = false; if (btn) btn.disabled = false; }
+}
+
+function editSlot(t){
+  var cap = state.board.event.slot_capacity, used = {};
+  state.board.tickets.forEach(function(x){ if (x.status !== 'DELIVERED' && x.slot_no && x.id !== t.id) used[x.slot_no] = '#' + x.ticket_code; });
+  var grid = '';
+  for (var i = 1; i <= cap; i++) {
+    grid += '<button class="btn btn-sm ' + (used[i] ? 'btn-dark' : (t.slot_no === i ? 'btn-gold' : 'btn-dark')) + '" data-slot="' + i + '"' + (used[i] ? ' disabled' : '') + ' style="padding:10px 4px">'
+      + pad2(i) + (used[i] ? '<br><small style="font-size:11px">' + used[i] + '</small>' : '') + '</button>';
+  }
+  openModal('<h3>Key slot · #' + t.ticket_code + '</h3><p>' + esc(t.vehicle) + ' · Now ' + (t.slot_no ? pad2(t.slot_no) : 'none') + '. Choose an open slot.</p>'
+    + '<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px">' + grid + '</div>'
+    + '<button class="btn btn-dark btn-sm" style="margin-top:12px" id="mClose">CANCEL</button>');
+  $('mClose').onclick = closeModal;
+  $('modalBody').querySelectorAll('[data-slot]').forEach(function(b){
+    b.onclick = async function(){
+      var r = await rpcRetry('event_valet_set_slot', { p_ticket: t.id, p_slot: parseInt(b.dataset.slot, 10) });
+      if (r.error) { toast(errText(r.error), 4000); return; }
+      closeModal(); toast('#' + t.ticket_code + ' moved to key slot ' + pad2(r.data.ticket.slot_no) + '. Reprint the key ticket.', 4500);
+      refresh();
+    };
+  });
+}
+
+// ── MODAL ──────────────────────────────────────────────────────────────
+function openModal(html){ $('modalBody').innerHTML = html; $('modal').classList.remove('hidden'); }
+function closeModal(){ $('modal').classList.add('hidden'); $('modalBody').innerHTML = ''; }
+$('modal').addEventListener('click', function(e){ if (e.target === $('modal')) closeModal(); });
+function confirmModal(title, text, label, cls, onYes){
+  openModal('<h3>' + esc(title) + '</h3><p>' + text + '</p><button class="btn ' + cls + '" id="mYes">' + esc(label) + '</button>'
+    + '<button class="btn btn-dark btn-sm" style="margin-top:8px" id="mClose">CANCEL</button>');
+  $('mYes').onclick = function(){ closeModal(); onYes(); };
+  $('mClose').onclick = closeModal;
+}
+
+// ── SOUND (Web Audio; iOS needs one tap to unlock) ─────────────────────
+var actx = null;
+function unlockAudio(){ try { actx = actx || new (window.AudioContext || window.webkitAudioContext)(); if (actx.state === 'suspended') actx.resume(); } catch (e) {} }
+document.addEventListener('touchend', unlockAudio, { once: true });
+document.addEventListener('click', unlockAudio, { once: true });
+function beep(){
+  if (!state.sound || !actx) return;
+  try {
+    [0, 0.22].forEach(function(dt){
+      var o = actx.createOscillator(), g = actx.createGain();
+      o.type = 'sine'; o.frequency.value = 880; o.connect(g); g.connect(actx.destination);
+      g.gain.setValueAtTime(0.0001, actx.currentTime + dt);
+      g.gain.exponentialRampToValueAtTime(0.4, actx.currentTime + dt + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, actx.currentTime + dt + 0.18);
+      o.start(actx.currentTime + dt); o.stop(actx.currentTime + dt + 0.2);
+    });
+  } catch (e) {}
+}
+$('soundBtn').onclick = function(){ unlockAudio(); state.sound = !state.sound; $('soundBtn').textContent = state.sound ? '🔔 SOUND ON' : '🔕 SOUND OFF'; if (state.sound) beep(); };
+
+// ── PUSH ALERTS (installed app on the operator's phone) ────────────────
+// iPhone: works only when the page is opened from the Home Screen icon
+// (Share → Add to Home Screen), iOS 16.4+. The service worker is scoped to
+// this event folder and is separate from the main AirValet worker.
+var VAPID_PUBLIC = 'BJm_nXgr-rTu9ZWO3eVf8EGXCFDxVSWuOGII1WYd6WWDnoFnBJtAdCDqNqCkWCdGwzM13OI_x211Bn9eU1uuipI';
+var SW_SCOPE = '/events/watermakers-veterans-2026/';
+function isIOS(){ return /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1); }
+function isStandalone(){ return window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches; }
+function pushSupported(){ return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window; }
+function keyBytes(b){ var s = atob(b.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((b.length + 3) % 4)); var u = new Uint8Array(s.length); for (var i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return u; }
+function setAlerts(text, cls){ var b = $('bAlerts'); b.textContent = text; b.className = 'badge ' + cls; }
+async function activeReg(){
+  var reg = await navigator.serviceWorker.register(SW_SCOPE + 'sw.js', { scope: SW_SCOPE });
+  if (!reg.active) await new Promise(function(res){
+    var w = reg.installing || reg.waiting; if (!w) return res();
+    w.addEventListener('statechange', function(){ if (w.state === 'activated') res(); });
+    setTimeout(res, 6000);
+  });
+  return reg;
+}
+async function saveSub(sub){
+  var j = sub.toJSON();
+  var r = await rpcRetry('event_valet_push_subscribe', { p_event: EVENT_ID, p_endpoint: j.endpoint, p_p256dh: j.keys.p256dh, p_auth: j.keys.auth,
+    p_label: (isIOS() ? 'iPhone/iPad' : 'browser') + (isStandalone() ? ' app' : '') });
+  if (r.error) throw r.error;
+  return r.data;
+}
+async function refreshAlerts(){
+  if (!pushSupported()) { setAlerts(isIOS() && !isStandalone() ? '🔔 INSTALL APP' : '🔕 NO PUSH', isIOS() ? 'warn' : 'bad'); return; }
+  try {
+    var reg = await navigator.serviceWorker.getRegistration(SW_SCOPE);
+    var sub = reg && await reg.pushManager.getSubscription();
+    if (sub && Notification.permission === 'granted') { setAlerts('🔔 ALERTS ON', 'ok'); saveSub(sub).catch(function(){}); }
+    else setAlerts('🔕 ALERTS OFF', 'warn');
+  } catch (e) { setAlerts('🔕 ALERTS OFF', 'warn'); }
+}
+async function enableAlerts(){
+  if (!pushSupported()) {
+    openModal('<h3>Turn on alerts</h3><p>' + (isIOS()
+      ? 'On iPhone, alerts work only from the installed app:<br>1. Open this page in <b>Safari</b><br>2. Tap <b>Share</b> → <b>Add to Home Screen</b><br>3. Open <b>Watermakers Valet</b> from the Home Screen and tap 🔔 again.'
+      : 'This browser does not support push alerts.') + '</p><button class="btn btn-dark btn-sm" id="mClose">OK</button>');
+    $('mClose').onclick = closeModal; return;
+  }
+  var perm = await Notification.requestPermission();   // must run inside the tap
+  if (perm !== 'granted') { toast('Notifications are blocked. Allow them in Settings › Notifications › Watermakers Valet.', 5000); setAlerts('🔕 ALERTS OFF', 'warn'); return; }
+  try {
+    setAlerts('🔔 …', 'warn');
+    var reg = await activeReg();
+    var sub = await reg.pushManager.getSubscription() || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(VAPID_PUBLIC) });
+    var d = await saveSub(sub);
+    setAlerts('🔔 ALERTS ON', 'ok');
+    toast('Alerts on for this phone (' + d.devices + ' device' + (d.devices === 1 ? '' : 's') + ').', 3500);
+  } catch (e) { setAlerts('🔕 ALERTS OFF', 'warn'); toast('Could not turn on alerts: ' + errText(e), 5000); }
+}
+async function testAlert(){
+  try {
+    var r = await fetch(FN_URL + '/push-test', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (await jwt()), 'apikey': SB_KEY },
+      body: JSON.stringify({ event_id: EVENT_ID }) });
+    var j = await r.json();
+    toast(j.ok ? 'Test alert sent to ' + j.ok + ' device' + (j.ok === 1 ? '' : 's') + '. Check your notifications.' : 'No device received it (' + (j.error || j.devices + ' devices') + ').', 5000);
+  } catch (e) { toast('Test failed: ' + errText(e), 4000); }
+}
+$('bAlerts').onclick = function(){
+  if ($('bAlerts').textContent.indexOf('ON') >= 0) {
+    openModal('<h3>🔔 Alerts are on</h3><p>This phone gets a notification when a guest asks for a car (SMS READY or link), even with the app closed.</p>'
+      + '<button class="btn btn-gold" id="mTest">SEND TEST ALERT</button><button class="btn btn-dark btn-sm" style="margin-top:8px" id="mClose">CLOSE</button>');
+    $('mTest').onclick = function(){ closeModal(); testAlert(); };
+    $('mClose').onclick = closeModal;
+  } else enableAlerts();
+};
+
+// ── START ──────────────────────────────────────────────────────────────
+var pollTimer = null;
+function showNotAllowed(){
+  $('app').classList.add('hidden'); $('viewLogin').classList.remove('hidden');
+  $('lgErr').textContent = 'This login cannot operate the valet. Use an AirValet operator account.';
+  if (pollTimer) clearInterval(pollTimer);
+}
+async function start(){
+  $('viewLogin').classList.add('hidden'); $('app').classList.remove('hidden');
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register(SW_SCOPE + 'sw.js', { scope: SW_SCOPE }).catch(function(){});
+  updateNetBadge(); setPrinter(true);
+  await refresh();
+  if (!state.board) renderBoard();
+  checkPrinter().then(function(){ if (printq().length) drainPrintq(); });
+  refreshAlerts();
+  if (pollTimer) clearInterval(pollTimer);
+  pollTimer = setInterval(function(){ if (!document.hidden) refresh(); }, POLL_MS);
+  if (window.matchMedia('(min-width:900px)').matches) $('ciPhone').focus();
+}
+document.addEventListener('visibilitychange', function(){ if (!document.hidden && pollTimer) refresh(); });
+window.addEventListener('online', refresh);
+window.addEventListener('offline', function(){ $('offline').classList.remove('hidden'); });
+(async function(){
+  var s = await sb.auth.getSession();
+  if (s.data.session) start(); else $('viewLogin').classList.remove('hidden');
+})();
+</script>
+</body>
+</html>

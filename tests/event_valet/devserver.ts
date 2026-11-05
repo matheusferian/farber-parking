@@ -11,13 +11,12 @@ const SERVICE = Deno.readTextFileSync(Deno.env.get('EV_SERVICE_KEY_FILE')!).trim
 const ANON = Deno.readTextFileSync(Deno.env.get('EV_ANON_KEY_FILE')!).trim();
 const JOBS = Deno.env.get('EV_PRINT_LOG') ?? '/tmp/ev_print_jobs.log';
 
-const REWRITES: Record<string, string> = {
-  '/events/makers-halloween-2026/t': '/events/makers-halloween-2026/t.html',
-};
+const EVENTS = ['makers-halloween-2026', 'watermakers-veterans-2026'];
+const REWRITES: Record<string, string> = Object.fromEntries(EVENTS.map((e) => [`/events/${e}/t`, `/events/${e}/t.html`]));
 const TYPES: Record<string, string> = { html: 'text/html; charset=utf-8', js: 'text/javascript', css: 'text/css', png: 'image/png', webmanifest: 'application/manifest+json' };
 Deno.serve({ port: 8789 }, async (req) => {
   let p = decodeURIComponent(new URL(req.url).pathname);
-  if (p === '/events/makers-halloween-2026') return Response.redirect(new URL('/events/makers-halloween-2026/', req.url), 302);
+  if (EVENTS.some((e) => p === `/events/${e}`)) return Response.redirect(new URL(p + '/', req.url), 302);
   p = REWRITES[p] ?? (p.endsWith('/') ? p + 'index.html' : p);
   if (p.includes('..')) return new Response('bad', { status: 400 });
   try {

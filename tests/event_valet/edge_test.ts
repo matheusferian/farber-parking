@@ -456,3 +456,18 @@ Deno.test('READY SMS only when the car is ready, once per ready; thank-you only 
   assertEquals(tw.sent.filter((x) => x.body.includes('optional tip')).length, 1);
   await reset({ sms_enabled: false, sms_test_only: true, tip_enabled: false, tip_links: {}, staff_alert_phones: [] });
 });
+
+Deno.test('Watermakers texts: Farber signature, own greeting; Halloween unchanged', () => {
+  const W = 'watermakers-veterans-2026';
+  const c = composeSms('CHECKIN', '0101', null, [], W);
+  assert(c.startsWith('🇺🇸 Welcome to Member Connect at Watermakers!') && c.includes('Ticket #0101') && c.includes('— Farber Parking Valet') && c.includes('Reply STOP'));
+  assert(!/Makers Air|Halloween|🎃/.test(c));
+  for (const k of ['CHECKIN', 'REQUESTED', 'READY', 'TIP', 'AMBIGUOUS', 'NO_MATCH'] as const) {
+    const m = composeSms(k, '0101', 'https://buy.stripe.com/x', [{ code: '0101', vehicle: 'TESLA MODEL Y' }], W);
+    assert(m.includes('— Farber Parking Valet') && !/Makers Air|Halloween|🎃/.test(m), k);
+  }
+  const t = composeSms('TIP', '0101', 'https://buy.stripe.com/x', [], W);
+  assert(t.includes('Thank you for joining us at Watermakers!') && t.includes('veterans') && t.includes('https://buy.stripe.com/x'));
+  assertEquals(composeSms('CHECKIN', '0101', null), composeSms('CHECKIN', '0101', null, [], 'makers-halloween-2026'));
+  assert(composeSms('CHECKIN', '0101', null).includes('🎃 Welcome to the Makers Air Halloween Celebration!'));
+});

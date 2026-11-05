@@ -1,4 +1,5 @@
-// Event Valet (MAKERS AIR — HALLOWEEN VALET, 2026-10-24) — pure helpers.
+// Event Valet (MAKERS AIR — HALLOWEEN VALET 2026-10-24; FARBER PARKING —
+// WATERMAKERS VALET 2026-11-11) — pure helpers.
 // Self-contained on purpose: shares nothing with the (unreleased) AirValet
 // SMS module, so the event can be turned off/removed without side effects.
 
@@ -7,13 +8,30 @@ const enc = new TextEncoder();
 // ── Messages ────────────────────────────────────────────────────────────
 export type Kind = 'CHECKIN' | 'REQUESTED' | 'READY' | 'TIP' | 'AMBIGUOUS' | 'NO_MATCH';
 
+// Per-event wording. The default is the Halloween text, unchanged (owner-approved
+// 2026-10-23); other events only swap the greeting, closing and signature.
+type Brand = { staff: string; sign: string; welcome: string; enjoy: string; thanks: string; thanks2?: string };
+const HALLOWEEN: Brand = {
+  staff: '— Halloween Valet', sign: '— Makers Air Valet',
+  welcome: '🎃 Welcome to the Makers Air Halloween Celebration!', enjoy: 'Enjoy the celebration!',
+  thanks: '🎃 Thank you for celebrating with Makers Air!',
+};
+const BRANDS: Record<string, Brand> = {
+  'watermakers-veterans-2026': {
+    staff: '— Watermakers Valet', sign: '— Farber Parking Valet',
+    welcome: '🇺🇸 Welcome to Member Connect at Watermakers!', enjoy: 'Enjoy the evening!',
+    thanks: '🇺🇸 Thank you for joining us at Watermakers!', thanks2: 'Thank you to all our veterans for your service.',
+  },
+};
+export const brandFor = (eventId?: string | null): Brand => (eventId && BRANDS[eventId]) || HALLOWEEN;
+
 // Operator alert (to staff phones, never to guests).
-export function composeStaffAlert(t: { ticket_code: string; slot_no: number | null; vehicle: string; parking_location?: string | null }, via: string): string {
+export function composeStaffAlert(t: { ticket_code: string; slot_no: number | null; vehicle: string; parking_location?: string | null }, via: string, eventId?: string | null): string {
   return [
     '🚗 Car requested' + (via ? ` · ${via}` : ''),
     `#${t.ticket_code} · Key ${t.slot_no ? String(t.slot_no).padStart(2, '0') : '--'} · ${t.parking_location || 'No location yet'}`,
     displayVehicle(t.vehicle),
-    '— Halloween Valet',
+    brandFor(eventId).staff,
   ].join('\n');
 }
 export type CarOption = { code: string; vehicle: string };
@@ -28,19 +46,20 @@ export function displayVehicle(v: string): string {
 // Ticket code = last 4 digits of the guest's phone ("0101"; a repeated last 4
 // becomes "10101", "20101"…). Templates approved by the owner 2026-10-23;
 // "Reply STOP" stays on the first message (A2P opt-out disclosure).
-export function composeSms(kind: Kind, code: string | null, link: string | null, options: CarOption[] = []): string {
+export function composeSms(kind: Kind, code: string | null, link: string | null, options: CarOption[] = [], eventId?: string | null): string {
   const no = code ?? '';
+  const b = brandFor(eventId);
   const list = options.map((o, i) => `${i + 1}. ${displayVehicle(o.vehicle)} — #${o.code}`);
   switch (kind) {
     case 'CHECKIN':
       return [
-        '🎃 Welcome to the Makers Air Halloween Celebration!',
+        b.welcome,
         'Your vehicle has been checked in with our valet team.',
         `Ticket #${no}`,
         'When you’re ready to leave, simply reply READY, and we’ll take care of the rest.',
         ...(link ? [`Your digital ticket: ${link}`] : []),
-        'Enjoy the celebration!',
-        '— Makers Air Valet',
+        b.enjoy,
+        b.sign,
         'Reply STOP to opt out.',
       ].join('\n');
     case 'REQUESTED':
@@ -48,23 +67,24 @@ export function composeSms(kind: Kind, code: string | null, link: string | null,
         '🚗 We’ve received your request!',
         `Ticket #${no}`,
         'Our valet team is preparing your vehicle. We’ll let you know when it’s ready for pickup.',
-        '— Makers Air Valet',
+        b.sign,
       ].join('\n');
     case 'READY':
       return [
         '🚘 Your vehicle is ready!',
         `Ticket #${no}`,
         'Please head to the valet pickup area. Our team will be happy to assist you.',
-        '— Makers Air Valet',
+        b.sign,
       ].join('\n');
     case 'TIP':
       return [
-        '🎃 Thank you for celebrating with Makers Air!',
+        b.thanks,
+        ...(b.thanks2 ? [b.thanks2] : []),
         'It was our pleasure taking care of your vehicle.',
         'Enjoyed our valet service? You can leave our team an optional tip here:',
         link ?? '',
         'Have a safe trip home!',
-        '— Makers Air Valet',
+        b.sign,
       ].join('\n');
     case 'AMBIGUOUS':
       return [
@@ -73,14 +93,14 @@ export function composeSms(kind: Kind, code: string | null, link: string | null,
         ...list,
         '',
         'Reply with the ticket number of the vehicle you’d like us to bring.',
-        '— Makers Air Valet',
+        b.sign,
       ].join('\n');
     case 'NO_MATCH':
       return [
         'We couldn’t find that ticket number for this phone.',
         ...(list.length ? ['', ...list, '', 'Please reply with one of the ticket numbers above, or visit the valet stand.']
                         : ['Please reply READY, or visit the valet stand.']),
-        '— Makers Air Valet',
+        b.sign,
       ].join('\n');
   }
 }
