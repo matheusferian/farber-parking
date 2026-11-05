@@ -48,6 +48,15 @@
       ]
     },
     {
+      "source": "/w",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-store" },
+        { "key": "X-Robots-Tag", "value": "noindex, nofollow" },
+        { "key": "Referrer-Policy", "value": "no-referrer" },
+        { "key": "X-Content-Type-Options", "value": "nosniff" }
+      ]
+    },
+    {
       "source": "/a",
       "headers": [
         { "key": "Cache-Control", "value": "no-store" },
@@ -93,6 +102,7 @@
     { "source": "/events/makers-halloween-2026/t", "destination": "/events/makers-halloween-2026/t.html" },
     { "source": "/events/makers-halloween-2026/", "destination": "/events/makers-halloween-2026/index.html" },
     { "source": "/events/watermakers-veterans-2026/t", "destination": "/events/watermakers-veterans-2026/t.html" },
+    { "source": "/w", "destination": "/events/watermakers-veterans-2026/t.html" },
     { "source": "/events/watermakers-veterans-2026/staff", "destination": "/events/watermakers-veterans-2026/staff.html" },
     { "source": "/events/watermakers-veterans-2026/admin", "destination": "/events/watermakers-veterans-2026/admin.html" },
     { "source": "/events/watermakers-veterans-2026/", "destination": "/events/watermakers-veterans-2026/index.html" },

@@ -10,7 +10,9 @@ export type Kind = 'CHECKIN' | 'REQUESTED' | 'READY' | 'TIP' | 'AMBIGUOUS' | 'NO
 
 // Per-event wording. The default is the Halloween text, unchanged (owner-approved
 // 2026-10-23); other events only swap the greeting, closing and signature.
-type Brand = { staff: string; sign: string; welcome: string; enjoy: string; thanks: string; thanks2?: string; note: string; place: string };
+type Brand = { staff: string; sign: string; welcome: string; enjoy: string; thanks: string; thanks2?: string; note: string; place: string;
+  // Optional (Watermakers, owner 2026-11-05): short pass-link path and a one-segment welcome text.
+  short?: string; checkin?: (no: string, link: string | null) => string };
 const HALLOWEEN: Brand = {
   staff: '— Halloween Valet', sign: '— Makers Air Valet',
   welcome: '🎃 Welcome to the Makers Air Halloween Celebration!', enjoy: 'Enjoy the celebration!',
@@ -23,6 +25,10 @@ const BRANDS: Record<string, Brand> = {
     welcome: '🇺🇸 Welcome to Member Connect at Watermakers!', enjoy: 'Enjoy the evening!',
     thanks: '🇺🇸 Thank you for joining us at Watermakers!', thanks2: 'Thank you to all our veterans for your service.',
     note: 'Thank you for joining us at Watermakers!', place: 'Watermakers',
+    short: '/w',
+    // Plain GSM-7 (no emoji, straight quotes) so it stays one SMS segment (<=160 chars).
+    checkin: (no, link) => `Farber Parking Valet: your car is checked in (#${no}). Reply READY` +
+      (link ? ` or tap ${link}` : '') + ` to get it. Reply STOP to opt out`,
   },
 };
 export const brandFor = (eventId?: string | null): Brand => (eventId && BRANDS[eventId]) || HALLOWEEN;
@@ -54,6 +60,7 @@ export function composeSms(kind: Kind, code: string | null, link: string | null,
   const list = options.map((o, i) => `${i + 1}. ${displayVehicle(o.vehicle)} — #${o.code}`);
   switch (kind) {
     case 'CHECKIN':
+      if (b.checkin) return b.checkin(no, link);
       return [
         b.welcome,
         'Your vehicle has been checked in with our valet team.',

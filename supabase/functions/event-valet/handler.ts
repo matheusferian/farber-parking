@@ -17,7 +17,7 @@
 // never logged or returned.
 
 import { sendPush } from './webpush.ts';
-import { CarOption, composeSms, composeStaffAlert, displayVehicle, Kind, maskLink, maskPhone, normalizePhone, parseInbound, timingSafeEqualStr, twilioSend, TwilioCfg, validSignature } from './lib.ts';
+import { brandFor, CarOption, composeSms, composeStaffAlert, displayVehicle, Kind, maskLink, maskPhone, normalizePhone, parseInbound, timingSafeEqualStr, twilioSend, TwilioCfg, validSignature } from './lib.ts';
 
 export type Env = (k: string) => string | undefined;
 type Json = Record<string, any>;
@@ -130,7 +130,8 @@ export function makeHandler(env: Env, fetchImpl: typeof fetch = fetch) {
       link = tipSms;
     } else if (kind === 'TIP' || kind === 'THANKS' || (kind === 'CHECKIN' && ev.include_ticket_link)) {
       const tok = await rpc('event_valet_mint_guest_token', { p_ticket: t.id });
-      link = `${SITE}/events/${ev.id}/t#${tok}`;
+      const short = brandFor(ev.id).short;
+      link = short ? `${SITE}${short}#${tok}` : `${SITE}/events/${ev.id}/t#${tok}`;
     }
     const body = composeSms(kind, t.ticket_code, link, opts.options ?? [], ev.id);
     const stored = maskLink(body, link);
@@ -243,7 +244,7 @@ export function makeHandler(env: Env, fetchImpl: typeof fetch = fetch) {
     const b = await req.json().catch(() => ({}));
     const action = b.action === 'request' ? 'request' : 'view';
     const r = await rpc('event_valet_guest', { p_token: String(b.token ?? ''), p_action: action });
-    if (r?.state !== 'ok') return json(req, 200, { state: 'invalid' });
+    if (r?.state !== 'ok') return json(req, 200, { state: r?.state === 'expired' ? 'expired' : 'invalid' });
     if (r.changed) {
       const x = await loadTicket(r.ticket_id);
       if (x) {

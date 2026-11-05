@@ -68,13 +68,17 @@ body{min-height:100vh;padding:0 0 max(24px,env(safe-area-inset-bottom))}
 <body>
 <header class="head">
   <div class="flag"></div>
-  <img class="wmlogo" src="watermakers-logo-reverse.png" alt="Watermakers">
+  <img class="wmlogo" src="/events/watermakers-veterans-2026/watermakers-logo-reverse.png" alt="Watermakers">
   <h1 class="serif">THANK YOU VETERANS</h1>
   <small>VALET PARKING BY FARBER PARKING</small>
-  <div class="farbline"><img src="farber-parking-logo.jpg" alt="Farber Parking">COMPLIMENTARY VALET</div>
+  <div class="farbline"><img src="/events/watermakers-veterans-2026/farber-parking-logo.jpg" alt="Farber Parking">COMPLIMENTARY VALET</div>
 </header>
 <div class="wrap">
   <div id="loading" class="fine">Loading your vehicle…</div>
+  <div id="expired" class="card hidden"><div class="veh">
+    <span class="vname" style="font-size:19px">Thank you for joining us!</span>
+    <p class="fine" style="text-align:left">This valet pass has expired. We hope to see you again soon. — Farber Parking Valet</p>
+  </div></div>
   <div id="invalid" class="card hidden"><div class="veh">
     <span class="vname" style="font-size:19px">This link is no longer active.</span>
     <p class="fine" style="text-align:left">Please use the most recent text from Farber Parking Valet, or visit the valet stand.</p>
@@ -133,6 +137,7 @@ async function call(action){
 }
 function render(d){
   $('loading').classList.add('hidden');
+  if (d && d.state === 'expired') { $('expired').classList.remove('hidden'); $('pass').classList.add('hidden'); $('thanks').classList.add('hidden'); if (timer) { clearInterval(timer); timer = null; } return false; }
   if (!d || d.state !== 'ok') { $('invalid').classList.remove('hidden'); $('pass').classList.add('hidden'); $('thanks').classList.add('hidden'); return false; }
   if (d.status === 'DELIVERED') {
     $('pass').classList.add('hidden'); $('thanks').classList.remove('hidden');
@@ -174,7 +179,7 @@ $('yesBtn').onclick = async function(){
   b.disabled = false; b.textContent = 'YES, BRING MY CAR';
 };
 window.addEventListener('hashchange', function(){ location.reload(); });  // a newer SMS link opened in the same tab
-if (!/^[0-9a-f]{64}$/.test(token)) render(null);
+if (!/^([0-9a-f]{64}|[A-Za-z0-9_-]{22})$/.test(token)) render(null);
 else load().then(function(ok){ if (ok && !$('thanks').offsetParent) timer = setInterval(function(){ if (!document.hidden) load(); }, 8000); });
 </script>
 </body>
