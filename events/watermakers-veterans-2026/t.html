@@ -179,7 +179,7 @@ $('yesBtn').onclick = async function(){
   b.disabled = false; b.textContent = 'YES, BRING MY CAR';
 };
 window.addEventListener('hashchange', function(){ location.reload(); });  // a newer SMS link opened in the same tab
-if (!/^([0-9a-f]{64}|[A-Za-z0-9_-]{22})$/.test(token)) render(null);
+if (!/^([0-9a-f]{64}|[A-Za-z0-9_-]{22}|[A-Za-z0-9_-]{12})$/.test(token)) render(null);
 else load().then(function(ok){ if (ok && !$('thanks').offsetParent) timer = setInterval(function(){ if (!document.hidden) load(); }, 8000); });
 </script>
 </body>

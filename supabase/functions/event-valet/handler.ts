@@ -131,7 +131,8 @@ export function makeHandler(env: Env, fetchImpl: typeof fetch = fetch) {
     } else if (kind === 'TIP' || kind === 'THANKS' || (kind === 'CHECKIN' && ev.include_ticket_link)) {
       const tok = await rpc('event_valet_mint_guest_token', { p_ticket: t.id });
       const short = brandFor(ev.id).short;
-      link = short ? `${SITE}${short}#${tok}` : `${SITE}/events/${ev.id}/t#${tok}`;
+      // Short form drops the scheme (owner 2026-11-05); phones still turn the domain into a link.
+      link = short ? `${SITE.replace(/^https?:\/\//, '')}${short}#${tok}` : `${SITE}/events/${ev.id}/t#${tok}`;
     }
     const body = composeSms(kind, t.ticket_code, link, opts.options ?? [], ev.id);
     const stored = maskLink(body, link);
