@@ -16,7 +16,8 @@ cleanup() {
      delete from event_valet_tickets where event_id='$EV';
      delete from event_valet_sessions where access_id in (select id from event_valet_access where event_id='$EV' and label like 'RACE%');
      delete from event_valet_access where event_id='$EV' and label like 'RACE%';
-     update event_valet_events set staff_access_enabled=false where id='$EV';" >/dev/null
+     update event_valet_events set staff_access_enabled = exists (select 1 from event_valet_access
+       where event_id='$EV' and revoked_at is null) where id='$EV';" >/dev/null   # other local keys (Android E2E) keep working
 }
 cleanup
 q "update event_valet_events set staff_access_enabled=true where id='$EV';

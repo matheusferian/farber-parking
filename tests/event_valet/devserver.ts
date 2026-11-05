@@ -12,8 +12,9 @@ const ANON = Deno.readTextFileSync(Deno.env.get('EV_ANON_KEY_FILE')!).trim();
 const JOBS = Deno.env.get('EV_PRINT_LOG') ?? '/tmp/ev_print_jobs.log';
 
 const EVENTS = ['makers-halloween-2026', 'watermakers-veterans-2026'];
-const REWRITES: Record<string, string> = Object.fromEntries(EVENTS.map((e) => [`/events/${e}/t`, `/events/${e}/t.html`]));
-const TYPES: Record<string, string> = { html: 'text/html; charset=utf-8', js: 'text/javascript', css: 'text/css', png: 'image/png', webmanifest: 'application/manifest+json' };
+const REWRITES: Record<string, string> = Object.fromEntries(EVENTS.flatMap((e) => [
+  [`/events/${e}/t`, `/events/${e}/t.html`], [`/events/${e}/staff`, `/events/${e}/staff.html`], [`/events/${e}/admin`, `/events/${e}/admin.html`]]));
+const TYPES: Record<string, string> = { jpg: 'image/jpeg', html: 'text/html; charset=utf-8', js: 'text/javascript', css: 'text/css', png: 'image/png', webmanifest: 'application/manifest+json' };
 Deno.serve({ port: 8789 }, async (req) => {
   let p = decodeURIComponent(new URL(req.url).pathname);
   if (EVENTS.some((e) => p === `/events/${e}`)) return Response.redirect(new URL(p + '/', req.url), 302);

@@ -93,6 +93,8 @@
     { "source": "/events/makers-halloween-2026/t", "destination": "/events/makers-halloween-2026/t.html" },
     { "source": "/events/makers-halloween-2026/", "destination": "/events/makers-halloween-2026/index.html" },
     { "source": "/events/watermakers-veterans-2026/t", "destination": "/events/watermakers-veterans-2026/t.html" },
+    { "source": "/events/watermakers-veterans-2026/staff", "destination": "/events/watermakers-veterans-2026/staff.html" },
+    { "source": "/events/watermakers-veterans-2026/admin", "destination": "/events/watermakers-veterans-2026/admin.html" },
     { "source": "/events/watermakers-veterans-2026/", "destination": "/events/watermakers-veterans-2026/index.html" },
     { "source": "/a", "destination": "/pass.html" }
   ]

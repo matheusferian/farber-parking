@@ -1,0 +1,299 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#060B2B">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self'; connect-src https://sfewtirvqhrpanwhbchd.supabase.co http://127.0.0.1:8790 http://localhost:8790; base-uri 'none'; form-action 'none'">
+<title>Watermakers Valet — Backup</title>
+<link rel="icon" href="/favicon-32x32.png">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;800&display=swap" rel="stylesheet">
+<style>
+/* Watermakers · Thank You Veterans (BRAND.md 2026-11-05): deep navy UI, Watermakers blue primary,
+   flag red for requests; green/amber only for status. No orange. */
+:root{--bg:#060B2B;--p1:#0E1640;--p2:#16205A;--line:#26306A;--tx:#FFFFFF;--mu:#A9B3D6;--gold:#0090D2;--gold2:#4DA6DE;
+  --park:#4DA6DE;--req:#B3262E;--ret:#8FA2FF;--rdy:#3DD68C;--amb:#FFC24A;--bad:#E0444C}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--tx);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Arial,sans-serif;-webkit-text-size-adjust:100%}
+body{padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
+button,input{font:inherit;color:inherit}
+.hidden{display:none!important}
+.top{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:10px;padding:10px 14px;background:#0A1448;border-bottom:1px solid var(--line)}
+.flag{height:5px;background:linear-gradient(90deg,#B3262E 0 33.3%,#FFFFFF 33.3% 66.6%,#0A1448 66.6%)}
+.top .wml{height:26px;width:auto;flex:none}
+.serif{font-family:"Playfair Display",Georgia,"Times New Roman",serif;font-weight:800;letter-spacing:.01em}
+.top .t{flex:1;min-width:0}.top b{display:block;font-size:17px;letter-spacing:.06em}.top small{display:block;color:var(--gold2);font-size:12px;font-weight:700}
+.back{width:46px;height:46px;border-radius:14px;background:var(--p2);border:0;font-size:22px}
+.net{font-size:12px;font-weight:850;padding:7px 10px;border-radius:999px}
+.net.on{background:rgba(61,214,140,.13);color:var(--rdy)}.net.off{background:rgba(255,194,74,.16);color:var(--amb)}
+.offbar{background:var(--amb);color:#1a1200;font-weight:850;font-size:14px;padding:10px 16px}
+.reqbar{display:block;width:100%;border:0;text-align:left;background:var(--req);color:#fff;padding:12px 16px;font-weight:850;font-size:15px}
+.body{padding:14px 16px 120px}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.stat{background:var(--p1);border:1px solid var(--line);border-radius:14px;padding:9px 6px;text-align:center}
+.stat b{display:block;font-size:24px}.stat small{font-size:11px;letter-spacing:.08em;color:var(--mu);font-weight:800}
+.tile{display:flex;align-items:center;gap:14px;width:100%;min-height:82px;margin-top:12px;padding:0 18px;border-radius:20px;background:var(--p1);border:1px solid var(--line);font-weight:850;font-size:19px;text-align:left}
+.tile.primary{background:var(--gold);border-color:var(--gold);color:#fff;min-height:104px;font-size:23px}
+.tile:disabled{opacity:.4}
+.tile .cnt{margin-left:auto;min-width:42px;height:42px;border-radius:12px;display:grid;place-items:center;background:var(--p2)}
+.tile .cnt.hot{background:var(--req);color:#fff}
+.note{color:var(--amb);font-size:14px;font-weight:750;margin-top:8px}
+.lab{display:block;font-size:12.5px;font-weight:850;letter-spacing:.14em;color:var(--gold2);margin:18px 0 8px}
+.field{width:100%;min-height:58px;padding:10px 14px;font-size:22px;font-weight:750;background:var(--p1);border:2px solid var(--line);border-radius:14px;outline:none}
+.field:focus{border-color:var(--gold)}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{min-height:46px;padding:0 14px;border-radius:13px;background:var(--p1);border:2px solid var(--line);font-weight:750;font-size:15.5px}
+.chip.on{border-color:var(--gold);background:#0B2D55;color:#fff}
+.locs{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.loc{min-height:70px;border-radius:16px;background:var(--p1);border:2px solid var(--line);font-weight:900;font-size:18px}
+.loc.on{background:var(--gold);border-color:var(--gold);color:#fff}
+.big{display:block;width:100%;min-height:64px;margin-top:12px;border:0;border-radius:18px;font-weight:900;font-size:19px;letter-spacing:.04em}
+.big.gold{background:var(--gold);color:#fff}.big.green{background:var(--rdy);color:#03200f}.big.red{background:var(--req);color:#fff}
+.big.violet{background:var(--ret);color:#060B2B}.big.dark{background:var(--p2);border:1px solid var(--line)}
+.big:disabled{opacity:.35}
+.foot{position:fixed;left:0;right:0;bottom:0;padding:10px 16px max(14px,env(safe-area-inset-bottom));background:linear-gradient(to top,var(--bg) 80%,transparent)}
+.hook{text-align:center;padding:20px 10px 24px;border-radius:24px;background:var(--p1);border:2px solid var(--gold);margin-top:8px}
+.hook small{font-weight:900;letter-spacing:.24em;color:var(--gold2)}.hook .n{font-size:130px;font-weight:900;line-height:1}
+.hook p{margin:0;font-size:18px;font-weight:750}
+.vc{display:flex;gap:12px;padding:12px;border-radius:18px;background:var(--p1);border:1px solid var(--line);margin-top:10px}
+.vc.REQUESTED{border-color:#E0444C}
+.vc .hn{flex:none;width:66px;border-radius:14px;background:var(--p2);display:flex;flex-direction:column;align-items:center;justify-content:center}
+.vc .hn small{font-size:10px;letter-spacing:.14em;color:var(--mu);font-weight:850}.vc .hn b{font-size:30px}
+.vc .i{flex:1;min-width:0}.vc .nm{font-size:17px;font-weight:850}.vc .meta{font-size:14px;color:var(--mu);margin-top:3px}
+.pill{display:inline-block;margin-top:6px;font-size:11.5px;font-weight:900;letter-spacing:.08em;padding:4px 9px;border-radius:999px}
+.pill.PARKED{background:rgba(77,166,222,.16);color:var(--park)}.pill.REQUESTED{background:rgba(179,38,46,.28);color:#FF9AA0}
+.pill.RETRIEVING{background:rgba(143,162,255,.18);color:var(--ret)}.pill.READY{background:rgba(61,214,140,.15);color:var(--rdy)}
+.pill.DELIVERED{background:rgba(140,140,147,.16);color:#8c8c93}
+.vc .act{margin-top:8px;width:100%;min-height:46px;border:0;border-radius:12px;font-weight:900;font-size:15px}
+.amts{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.amt{min-height:60px;border-radius:14px;background:var(--p1);border:2px solid var(--line);font-size:20px;font-weight:850}
+.amt.on{border-color:var(--rdy);color:var(--rdy)}
+.toast{position:fixed;left:14px;right:14px;bottom:96px;z-index:20;padding:14px 16px;border-radius:16px;background:var(--tx);color:#111;font-weight:800;font-size:15px}
+.toast.warn{background:var(--amb)}.toast.bad{background:var(--req);color:#fff}
+.empty{color:var(--mu);text-align:center;padding:30px 0}
+.center{text-align:center}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="toast" class="toast hidden"></div>
+<script>
+'use strict';
+// Watermakers Valet — BACKUP phone page (the S710 is the main device).
+// Auth = the individual link (#k=<token>) + a device session (employee name once).
+// Phone hooks are 41–50 only; check-in needs internet (the S710 is the only offline allocator).
+var API = 'https://sfewtirvqhrpanwhbchd.supabase.co/functions/v1/event-valet/staff';
+if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) API = 'http://127.0.0.1:8790/event-valet/staff';
+var COLORS = ['Black', 'White', 'Silver', 'Gray', 'Blue', 'Red', 'Other'];
+var MAKES = ['Toyota', 'Honda', 'Tesla', 'BMW', 'Mercedes', 'Lexus', 'Ford', 'Jeep', 'Chevy', 'Nissan'];
+function ls(k, v){ try { if (v === undefined) return localStorage.getItem(k); if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) { return null; } }
+// the token leaves the address bar right away (screenshots / shoulder surfing)
+var m = (location.hash || '').match(/k=([A-Za-z0-9_-]{43})/);
+if (m) { if (ls('wm_k') !== m[1]) { ls('wm_k', m[1]); ls('wm_s', null); } history.replaceState(null, '', location.pathname); }
+var KEY = ls('wm_k'), SESSION = ls('wm_s');
+var S = { view: 'home', st: null, online: true, draft: null, hook: null, ck: null, tip: null, q: '', results: null, busy: false };
+
+function $(id){ return document.getElementById(id); }
+function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+function pad2(n){ return ('0' + n).slice(-2); }
+function fmtPhone(d){ d = String(d || '').replace(/\D/g, '').slice(0, 10); if (d.length < 4) return d; if (d.length < 7) return '(' + d.slice(0, 3) + ') ' + d.slice(3); return '(' + d.slice(0, 3) + ') ' + d.slice(3, 6) + '-' + d.slice(6); }
+function mins(iso){ return iso ? Math.max(0, Math.round((Date.now() - new Date(iso)) / 60000)) : 0; }
+function toast(msg, kind){ var t = $('toast'); t.className = 'toast' + (kind ? ' ' + kind : ''); t.textContent = msg; clearTimeout(toast.t); toast.t = setTimeout(function(){ t.className = 'toast hidden'; }, 3200); }
+function uid(){ return 'web-' + (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random()); }
+
+async function api(method, op, body){
+  var h = { 'x-ev-key': KEY || '', 'content-type': 'application/json' };
+  if (SESSION) h['x-ev-session'] = SESSION;
+  var url = API + '/' + op + (method === 'GET' && body ? '?' + new URLSearchParams(body) : '');
+  var c = new AbortController(); var to = setTimeout(function(){ c.abort(); }, 10000);
+  try {
+    var r = await fetch(url, { method: method, headers: h, body: method === 'POST' ? JSON.stringify(body || {}) : undefined, signal: c.signal, cache: 'no-store' });
+    var j = await r.json().catch(function(){ return {}; });
+    setOnline(true);
+    if (!r.ok) { j.httpStatus = r.status; if (j.error === 'AUTH' && SESSION && /session/.test(JSON.stringify(j))) { ls('wm_s', null); SESSION = null; } throw j; }
+    return j;
+  } catch (e) {
+    if (e && e.error) throw e;
+    setOnline(false);
+    throw { error: 'OFFLINE', message: 'NO INTERNET — TRY AGAIN' };
+  } finally { clearTimeout(to); }
+}
+function setOnline(on){ if (S.online !== on) { S.online = on; render(); } }
+window.addEventListener('online', function(){ refresh(); });
+window.addEventListener('offline', function(){ setOnline(false); });
+
+async function refresh(){
+  if (!KEY || !SESSION) return;
+  try { S.st = await api('GET', 'state'); if (S.view === 'home' || S.view === 'cars') render(); }
+  catch (e) { if (e.error && e.error !== 'OFFLINE') { S.fatal = e; render(); } }
+}
+setInterval(function(){ if (!document.hidden) refresh(); }, 4000);
+
+// ── screens ──
+function topbar(title, sub, back){
+  var on = S.online;
+  var rq = S.st ? S.st.tickets.filter(function(t){ return t.status === 'REQUESTED'; }) : [];
+  return '<div class="flag"></div><div class="top">' + (back ? '<button class="back" data-a="home">‹</button>' : '<img class="wml" src="watermakers-logo-reverse.png" alt="Watermakers">') +
+    '<div class="t"><b>' + title + '</b><small>' + (sub || 'FARBER PARKING · BACKUP PHONE') + '</small></div>' +
+    '<span class="net ' + (on ? 'on' : 'off') + '">' + (on ? 'ONLINE' : 'OFFLINE') + '</span></div>' +
+    (on ? '' : '<div class="offbar">NO INTERNET — USE THE S710 TO CHECK IN CARS</div>') +
+    (rq.length && S.view !== 'cars' ? '<button class="reqbar" data-a="cars">CAR REQUESTED — HOOK ' + pad2(rq[0].hook) + ' · ' + rq.length + ' WAITING</button>' : '');
+}
+var R = {};
+R.blocked = function(e){
+  return '<div class="flag"></div><div class="body center" style="padding-top:40px"><img src="watermakers-logo-reverse.png" alt="Watermakers" style="display:block;width:180px;margin:0 auto 18px"><h2>' + esc(e.message || 'This link is not valid.') + '</h2>' +
+    '<p style="color:#A9B3D6">Watermakers Valet · Farber Parking</p></div>';
+};
+R.name = function(){
+  return '<div class="flag"></div><div class="body" style="padding-top:28px"><img src="watermakers-logo-reverse.png" alt="Watermakers" style="display:block;width:210px;margin:0 auto 10px">' +
+    '<h2 class="center serif" style="font-size:28px;margin:6px 0 4px">THANK YOU VETERANS</h2><p class="center" style="color:#4DA6DE;margin:0;font-weight:700;letter-spacing:.06em;font-size:13px">VALET PARKING BY FARBER PARKING · BACKUP PHONE</p>' +
+    '<img src="farber-parking-logo.jpg" alt="Farber Parking" style="display:block;width:110px;margin:14px auto 0;mix-blend-mode:lighten">' +
+    '<label class="lab" for="nm">YOUR NAME</label><input id="nm" class="field" autocomplete="off" autocapitalize="words" placeholder="First name">' +
+    '<button class="big gold" data-a="start">START SHIFT</button></div>';
+};
+R.home = function(){
+  var c = S.st ? S.st.counts : { active: 0, requested: 0, hooksFree: 0 };
+  return topbar('WATERMAKERS VALET', S.st ? 'Shift: ' + esc(S.st.me.employeeName) + ' · ' + esc(S.st.me.label) : '') + '<div class="body">' +
+    '<div class="stats"><div class="stat"><b>' + c.active + '</b><small>CARS</small></div><div class="stat"><b style="color:#FF9AA0">' + c.requested + '</b><small>REQUESTS</small></div><div class="stat"><b>' + c.hooksFree + '</b><small>HOOKS FREE</small></div></div>' +
+    '<button class="tile primary" data-a="checkin"' + (S.online ? '' : ' disabled') + '>＋ CHECK IN CAR</button>' +
+    (S.online ? '' : '<div class="note">NO INTERNET — USE THE S710 TO CHECK IN CARS</div>') +
+    '<button class="tile" data-a="cars">🚗 GET CAR<span class="cnt' + (c.requested ? ' hot' : '') + '">' + c.requested + '</span></button>' +
+    '<button class="tile" data-a="search">🔍 SEARCH</button>' +
+    '<button class="tile" data-a="tip">💵 RECORD CASH TIP</button>' +
+    '<p style="color:#A9B3D6;font-size:13px;margin-top:18px">Card tips are taken on the S710.</p></div>';
+};
+R.checkin = function(){
+  var d = S.draft;
+  var ok = d.phone.length === 10 && ((d.mode === 'make' && d.make) || (d.mode === 'plate' && d.plate.trim().length >= 2)) && d.loc;
+  return topbar('CHECK IN CAR', 'Phone · car · where it is parked', true) + '<div class="body">' +
+    '<label class="lab" for="ph">CUSTOMER PHONE</label><input id="ph" class="field" type="tel" inputmode="numeric" placeholder="(954) 555-0000" value="' + esc(fmtPhone(d.phone)) + '">' +
+    '<label class="lab">CAR</label><div class="chips">' +
+      '<button class="chip' + (d.mode === 'make' ? ' on' : '') + '" data-a="mode" data-v="make">Color + make</button>' +
+      '<button class="chip' + (d.mode === 'plate' ? ' on' : '') + '" data-a="mode" data-v="plate">License plate</button></div>' +
+    (d.mode === 'make'
+      ? '<div class="chips" style="margin-top:10px">' + COLORS.map(function(x){ return '<button class="chip' + (d.color === x ? ' on' : '') + '" data-a="color" data-v="' + x + '">' + x + '</button>'; }).join('') + '</div>' +
+        '<div class="chips" style="margin-top:10px">' + MAKES.map(function(x){ return '<button class="chip' + (d.make === x ? ' on' : '') + '" data-a="make" data-v="' + x + '">' + x + '</button>'; }).join('') + '</div>' +
+        '<input id="mk" class="field" style="margin-top:10px;font-size:18px" placeholder="Other make / model (optional)" value="' + esc(d.model) + '">'
+      : '<input id="pl" class="field" style="margin-top:10px;text-transform:uppercase" placeholder="ABC 1234" value="' + esc(d.plate) + '">') +
+    '<label class="lab">PARKED AT</label><div class="locs">' + ['FRONT', 'SIDE', 'BACK'].map(function(x){ return '<button class="loc' + (d.loc === x ? ' on' : '') + '" data-a="loc" data-v="' + x + '">' + x + '</button>'; }).join('') + '</div>' +
+    '</div><div class="foot"><button class="big gold" data-a="assign"' + (ok && S.online && !S.busy ? '' : ' disabled') + ' id="assign">ASSIGN KEY HOOK</button></div>';
+};
+R.hook = function(){
+  return topbar('KEY HOOK', 'Put the key on the hook, then confirm', true) + '<div class="body">' +
+    '<div class="hook"><small>HOOK</small><div class="n">' + pad2(S.hook) + '</div><p>PUT KEY ON HOOK ' + pad2(S.hook) + '</p></div>' +
+    '<button class="big dark" data-a="otherHook">USE ANOTHER HOOK</button></div>' +
+    '<div class="foot"><button class="big green" data-a="confirm"' + (S.busy ? ' disabled' : '') + '>✓ KEY STORED — DONE</button></div>';
+};
+function card(t){
+  var mine = S.st && t.retrievingBy && t.retrievingBy === S.st.me.employeeName;
+  var act = t.status === 'PARKED' || t.status === 'REQUESTED' ? '<button class="act" style="background:var(--req);color:#fff" data-a="st" data-id="' + t.id + '" data-to="RETRIEVING">GET CAR</button>'
+    : t.status === 'RETRIEVING' ? (mine ? '<button class="act" style="background:var(--gold);color:#fff" data-a="st" data-id="' + t.id + '" data-to="READY">CAR READY</button>' : '<div class="meta">' + esc(t.retrievingBy) + ' is getting this car</div>')
+    : t.status === 'READY' ? '<button class="act" style="background:var(--rdy);color:#03200f" data-a="st" data-id="' + t.id + '" data-to="DELIVERED">DELIVERED</button>' : '';
+  var wait = t.status === 'REQUESTED' ? ' · waiting ' + mins(t.requestedAt) + ' min' : '';
+  return '<div class="vc ' + t.status + '"><div class="hn"><small>HOOK</small><b>' + (t.status === 'DELIVERED' ? '—' : pad2(t.hook)) + '</b></div><div class="i">' +
+    '<div class="nm">' + esc(t.vehicleText) + '</div><div class="meta">' + esc(t.location || '') + ' · ••' + esc(t.phoneLast4) + wait + '</div>' +
+    '<span class="pill ' + t.status + '">' + t.status + (t.retrievingBy && t.status !== 'DELIVERED' && t.status !== 'PARKED' ? ' · ' + esc(t.retrievingBy) : '') + '</span>' + act + '</div></div>';
+}
+var ORD = { REQUESTED: 0, RETRIEVING: 1, READY: 2, PARKED: 3, DELIVERED: 4 };
+function sorted(list){ return list.slice().sort(function(a, b){ return ORD[a.status] - ORD[b.status] || (a.status === 'REQUESTED' ? new Date(a.requestedAt) - new Date(b.requestedAt) : (a.hook || 99) - (b.hook || 99)); }); }
+R.cars = function(){
+  var list = S.st ? sorted(S.st.tickets.filter(function(t){ return t.status !== 'DELIVERED'; })) : [];
+  return topbar('GET CAR', 'Requests first, oldest first', true) + '<div class="body">' + (list.length ? list.map(card).join('') : '<div class="empty">No cars right now.</div>') + '</div>';
+};
+R.search = function(){
+  return topbar('SEARCH', 'Phone, plate, car or hook #', true) + '<div class="body"><input id="q" class="field" placeholder="Phone, plate, car or hook #" value="' + esc(S.q) + '" autocomplete="off">' +
+    '<button class="big dark" data-a="doSearch">SEARCH</button>' +
+    (S.results ? (S.results.length ? sorted(S.results).map(card).join('') : '<div class="empty">No car found.</div>') : '') + '</div>';
+};
+R.tip = function(){
+  var t = S.tip, cars = S.st ? sorted(S.st.tickets) : [];
+  return topbar('RECORD CASH TIP', 'Cash only — card tips are on the S710', true) + '<div class="body">' +
+    '<label class="lab">AMOUNT</label><div class="amts">' + [5, 10, 20, 40].map(function(a){ return '<button class="amt' + (t.cents === a * 100 ? ' on' : '') + '" data-a="amt" data-v="' + a * 100 + '">$' + a + '</button>'; }).join('') + '</div>' +
+    '<input id="oth" class="field" style="margin-top:10px" type="number" inputmode="numeric" placeholder="Other amount ($)" value="' + (t.other || '') + '">' +
+    '<label class="lab">CAR (OPTIONAL)</label><select id="car" class="field" style="font-size:17px"><option value="">No car — event tip</option>' +
+      cars.map(function(c){ return '<option value="' + c.id + '"' + (t.ticketId === c.id ? ' selected' : '') + '>Hook ' + pad2(c.hook) + ' · ' + esc(c.vehicleText) + ' · ' + c.status + '</option>'; }).join('') + '</select>' +
+    '</div><div class="foot"><button class="big green" data-a="recordCash"' + (t.cents >= 100 && !S.busy ? '' : ' disabled') + '>RECORD $' + ((t.cents || 0) / 100) + ' CASH</button></div>';
+};
+function render(){
+  var a = $('app');
+  if (!KEY) { a.innerHTML = R.blocked({ message: 'Open the staff link your supervisor sent you.' }); return; }
+  if (S.fatal) { a.innerHTML = R.blocked(S.fatal); return; }
+  if (!SESSION) { a.innerHTML = R.name(); return; }
+  a.innerHTML = (R[S.view] || R.home)();
+}
+
+// ── actions ──
+function go(v){ S.view = v; render(); scrollTo(0, 0); }
+function fail(e){ toast(e.message || 'SOMETHING WENT WRONG — TRY AGAIN', e.error === 'OFFLINE' ? 'warn' : 'bad'); }
+document.addEventListener('input', function(e){
+  var d = S.draft;
+  if (e.target.id === 'ph') { d.phone = e.target.value.replace(/\D/g, '').slice(0, 10); e.target.value = fmtPhone(d.phone); }
+  else if (e.target.id === 'pl') d.plate = e.target.value;
+  else if (e.target.id === 'mk') d.model = e.target.value;
+  else if (e.target.id === 'q') { S.q = e.target.value; return; }
+  else if (e.target.id === 'oth') { S.tip.other = e.target.value; S.tip.cents = Math.round(parseFloat(e.target.value || '0') * 100) || 0; var b = document.querySelector('[data-a=recordCash]'); if (b) { b.disabled = S.tip.cents < 100; b.textContent = 'RECORD $' + S.tip.cents / 100 + ' CASH'; } return; }
+  else return;
+  if (S.view === 'checkin') { var ok = d.phone.length === 10 && ((d.mode === 'make' && d.make) || (d.mode === 'plate' && d.plate.trim().length >= 2)) && d.loc; $('assign').disabled = !(ok && S.online); }
+});
+document.addEventListener('change', function(e){ if (e.target.id === 'car') S.tip.ticketId = e.target.value || null; });
+document.addEventListener('click', async function(e){
+  var b = e.target.closest('[data-a]'); if (!b || b.disabled) return;
+  var a = b.getAttribute('data-a'), v = b.getAttribute('data-v'), d = S.draft;
+  try {
+    if (a === 'home') { S.draft = null; S.hook = null; go('home'); }
+    else if (a === 'start') {
+      var n = ($('nm').value || '').trim(); if (n.length < 2) return toast('TYPE YOUR NAME (2 LETTERS OR MORE)', 'warn');
+      var s = await api('POST', 'session', { name: n }); SESSION = s.sessionId; ls('wm_s', SESSION); await refresh(); go('home');
+    }
+    else if (a === 'checkin') { S.draft = { phone: '', mode: 'make', color: '', make: '', model: '', plate: '', loc: '' }; S.ck = uid(); go('checkin'); }
+    else if (a === 'mode') { d.mode = v; render(); }
+    else if (a === 'color') { d.color = v; render(); }
+    else if (a === 'make') { d.make = v; render(); }
+    else if (a === 'loc') { d.loc = v; render(); }
+    else if (a === 'assign') { S.busy = true; render(); var hres = await api('POST', 'hold', { clientKey: S.ck }); S.busy = false; S.hook = hres.hook; go('hook'); }
+    else if (a === 'otherHook') {
+      var x = prompt('Hook number (41–50 on this phone):'); if (!x) return;
+      if (!/^\d{1,2}$/.test(x.trim())) return toast('CHOOSE A HOOK NUMBER', 'warn');
+      S.hook = parseInt(x, 10); render();
+    }
+    else if (a === 'confirm') {
+      S.busy = true; render();
+      var veh = d.mode === 'make' ? { color: d.color === 'Other' ? '' : d.color, make: d.make, model: d.model } : { plate: d.plate };
+      var r = await api('POST', 'checkin', { clientKey: S.ck, phone: d.phone, vehicle: veh, location: d.loc, hook: S.hook, keyStoredAt: new Date().toISOString() });
+      S.busy = false; S.draft = null;
+      toast('CHECKED IN — HOOK ' + pad2(r.ticket.hook) + (r.sms && r.sms.welcome === 'SENT' ? ' · TEXT SENT' : ''));
+      await refresh(); go('home');
+    }
+    else if (a === 'cars') go('cars');
+    else if (a === 'search') { S.results = null; go('search'); setTimeout(function(){ var q = $('q'); if (q) q.focus(); }, 50); }
+    else if (a === 'doSearch') { var sr = await api('GET', 'search', { q: S.q }); S.results = sr.tickets; render(); }
+    else if (a === 'st') {
+      b.disabled = true;
+      var r2 = await api('POST', 'status', { clientKey: uid(), ticketId: b.getAttribute('data-id'), to: b.getAttribute('data-to') });
+      toast({ RETRIEVING: 'GO GET HOOK ' + pad2(r2.ticket.hook), READY: 'CAR READY — HOOK ' + pad2(r2.ticket.hook), DELIVERED: 'DELIVERED — HOOK ' + pad2(r2.ticket.hook) + ' IS FREE' }[r2.ticket.status] || 'DONE');
+      await refresh(); if (S.view === 'search') { S.results = null; go('cars'); } else render();
+    }
+    else if (a === 'tip') { S.tip = { cents: 0, other: '', ticketId: null, ck: uid(), dupOk: false }; go('tip'); }
+    else if (a === 'amt') { S.tip.cents = parseInt(v, 10); S.tip.other = ''; render(); }
+    else if (a === 'recordCash') {
+      S.busy = true; render();
+      try {
+        await api('POST', 'cash-tip', { clientKey: S.tip.ck, amountCents: S.tip.cents, ticketId: S.tip.ticketId || undefined, confirmDuplicate: S.tip.dupOk || undefined });
+      } catch (err) {
+        S.busy = false;
+        if (err.error === 'DUPLICATE_CASH' && confirm('This cash tip was already recorded by ' + (err.existing && err.existing.employeeName || 'someone') + '. Is this a SECOND tip?')) {
+          S.tip.dupOk = true; S.tip.ck = uid(); render(); return document.querySelector('[data-a=recordCash]').click();
+        }
+        render(); throw err;
+      }
+      S.busy = false; toast('$' + S.tip.cents / 100 + ' CASH RECORDED'); go('home');
+    }
+  } catch (err) { S.busy = false; if (S.view !== 'home') render(); fail(err); }
+});
+render();
+if (KEY && SESSION) refresh().then(render);
+</script>
+</body>
+</html>

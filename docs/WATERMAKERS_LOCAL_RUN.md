@@ -32,7 +32,7 @@ EV_SERVICE_KEY_FILE=$K/service.key EV_ANON_KEY_FILE=$K/anon.key \
 - `http://127.0.0.1:8789/` — pages from `dist/` (run `sh vercel-build.sh` first to refresh `dist/`).
   - backup staff page: `/events/watermakers-veterans-2026/staff#k=<LINK token>`
   - admin page: `/events/watermakers-veterans-2026/admin` (log in as `localadmin@airvalet.local`, password in `pw.txt`)
-  - customer pass: `/events/watermakers-veterans-2026/t#<guest token>`
+  - customer pass: `/events/watermakers-veterans-2026/t#<guest token>` (flyer look per `~/Documents/FARBERMAKERS/mockups/watermakers-valet/assets/BRAND.md`; official logos `watermakers-logo-reverse.png`, `farber-parking-logo.jpg`)
 - `:8791` fake printer (legacy Halloween page only).
 
 ## 3. Credentials for local testing
@@ -46,9 +46,9 @@ Turns Watermakers `staff_access_enabled` ON locally and writes two raw 43-char t
 
 Android `local.properties` (emulator): `AV_API_BASE=http://10.0.2.2:8790/event-valet`, `AV_EVENT_ID=watermakers-veterans-2026`.
 
-Note: `tests/event_valet/edge_s710_test.ts` tears down to "all switches OFF" (it turns
-`staff_access_enabled` off at the end). Re-run the mint script (or
-`update event_valet_events set staff_access_enabled=true where id='watermakers-veterans-2026'`) before an Android E2E.
+Note: the AirValet test suites leave other credentials alone (the page E2E's "close event" step
+restores them; staff access stays ON while any non-test credential is live). If a key stops
+working, re-run the mint script (it writes NEW tokens to the same files).
 
 Useful local switches (as postgres):
 ```sql
@@ -77,4 +77,6 @@ curl -s -XPOST $B/checkin -H "x-ev-key: $KEY" -H "x-ev-session: $S" -H 'content-
 | Halloween SQL (regression) | `… -v ipad=… -v tv=849c93a5-3c89-4255-b6a4-567d52b40a1f < tests/event_valet/sql_tests.sql` | 62/62 |
 | Halloween race (regression) | `sh tests/event_valet/race_test.sh b8d4fc9b-…` | 20/20 |
 | Halloween edge (regression) | `… deno test -A --no-check tests/event_valet/edge_test.ts` | 16/16 |
+| New pages E2E (staff.html, t.html pass + thank-you, admin.html; headless Chrome, devserver running) | `node tests/event_valet/e2e_s710_pages.mjs "$(cat pw.txt)" "$(cat anon.key)" "$(cat service.key)"` (`SHOTS=<dir>` saves screenshots) | 45/45 |
+| Legacy pages E2E (regression) | `node tests/event_valet/e2e_errors.mjs …` and `EV_EVENT=watermakers-veterans-2026 node tests/event_valet/e2e_errors.mjs …` | 64/64 + 64/64 |
 | AirValet shared SMS (regression, twilio-inbound) | `deno test -A --no-check supabase/functions/_shared/sms/sms.test.ts` | 75/75 |

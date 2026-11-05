@@ -38,8 +38,10 @@ async function wipe() {
   await rest(`event_valet_access?label=like.EDGE*`, { method: 'DELETE' });
   await rest(`event_valet_tickets?event_id=eq.${EV}`, { method: 'DELETE' });
   await rest(`passengers?phone=eq.(954) 555-0177`, { method: 'DELETE' });
+  // other local credentials (e.g. the Android E2E key from mint_local_keys.sh) keep working after the suite
+  const others = await rest(`event_valet_access?event_id=eq.${EV}&revoked_at=is.null&select=id`);
   await rest(`event_valet_events?id=eq.${EV}`, { method: 'PATCH', body: JSON.stringify({ is_open: true, closed_at: null,
-    staff_access_enabled: false, sms_enabled: false, sms_test_only: true, sms_test_phones: [], tip_enabled: false, thanks_enabled: false, sms_replies_enabled: false }) });
+    staff_access_enabled: others.length > 0, sms_enabled: false, sms_test_only: true, sms_test_phones: [], tip_enabled: false, thanks_enabled: false, sms_replies_enabled: false }) });
 }
 async function setup() {
   await wipe();

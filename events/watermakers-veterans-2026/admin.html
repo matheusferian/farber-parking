@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#060B2B">
+<title>Watermakers Valet — Admin</title>
+<link rel="icon" href="/favicon-32x32.png">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;800&display=swap" rel="stylesheet">
+<style>
+/* Watermakers · Thank You Veterans (BRAND.md): navy, Watermakers blue, flag red. No orange. */
+:root{--bg:#060B2B;--p1:#0E1640;--p2:#16205A;--line:#26306A;--tx:#FFFFFF;--mu:#A9B3D6;--gold:#0090D2;--gold2:#4DA6DE;--rdy:#3DD68C;--req:#E0444C;--amb:#FFC24A}
+.flag{height:6px;background:linear-gradient(90deg,#B3262E 0 33.3%,#FFFFFF 33.3% 66.6%,#0A1448 66.6%)}
+.serif{font-family:"Playfair Display",Georgia,"Times New Roman",serif;font-weight:800}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--tx);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Arial,sans-serif}
+button,input{font:inherit;color:inherit}
+.wrap{max-width:760px;margin:0 auto;padding:16px 16px 60px}
+h1{font-size:20px;letter-spacing:.08em;margin:6px 0 2px}
+.sub{color:var(--gold2);font-size:13px;font-weight:700}
+h2{font-size:12.5px;letter-spacing:.14em;color:var(--gold2);margin:26px 0 10px}
+.card{background:var(--p1);border:1px solid var(--line);border-radius:18px;padding:14px 16px}
+.row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #222226}
+.row:last-child{border-bottom:0}
+.row .g{flex:1;min-width:0}.row b{display:block}.row small{display:block;color:var(--mu);font-size:12.5px;margin-top:2px}
+.btn{min-height:44px;padding:0 14px;border-radius:12px;border:1px solid var(--line);background:var(--p2);font-weight:800;cursor:pointer}
+.btn.gold{background:var(--gold);border-color:var(--gold);color:#fff}.btn.red{background:#B3262E;border-color:#B3262E;color:#fff}
+.btn:disabled{opacity:.4}
+.sw{width:54px;height:32px;border-radius:999px;background:#3a3a40;position:relative;border:0;cursor:pointer;flex:none}
+.sw::after{content:"";position:absolute;top:3px;left:3px;width:26px;height:26px;border-radius:50%;background:#fff;transition:left .15s}
+.sw.on{background:var(--rdy)}.sw.on::after{left:25px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
+.kpi{background:var(--p1);border:1px solid var(--line);border-radius:14px;padding:12px}
+.kpi small{display:block;font-size:11.5px;letter-spacing:.08em;color:var(--mu);font-weight:800}.kpi b{display:block;font-size:26px;margin-top:4px}
+table{width:100%;border-collapse:collapse;font-size:14px}th{text-align:left;color:var(--mu);font-size:11.5px;letter-spacing:.08em;padding:8px 6px;border-bottom:1px solid var(--line)}
+td{padding:9px 6px;border-bottom:1px solid #1d1d21}td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+.field{width:100%;min-height:46px;padding:8px 12px;border-radius:12px;border:1px solid var(--line);background:var(--bg)}
+.tok{font-family:ui-monospace,Menlo,monospace;font-size:13px;word-break:break-all;background:#0A1448;border:1px dashed var(--gold);border-radius:12px;padding:12px;margin-top:10px}
+.warn{color:var(--amb)}.ok{color:var(--rdy)}.bad{color:var(--req)}
+.hidden{display:none!important}
+</style>
+</head>
+<body>
+<div class="flag"></div>
+<div class="wrap">
+  <img src="watermakers-logo-reverse.png" alt="Watermakers" style="display:block;width:170px;margin:8px 0 6px">
+  <h1 class="serif" style="letter-spacing:.02em">THANK YOU VETERANS — VALET ADMIN</h1>
+  <div class="sub">Valet parking by Farber Parking · Nov 11, 5:30–7:30 PM</div>
+
+  <div id="login" class="card" style="margin-top:20px">
+    <b>Admin sign-in</b>
+    <input id="lgUser" class="field" style="margin-top:10px" placeholder="Username" autocomplete="username">
+    <input id="lgPwd" class="field" style="margin-top:10px" type="password" placeholder="Password" autocomplete="current-password">
+    <button id="lgBtn" class="btn gold" style="margin-top:10px;width:100%">SIGN IN</button>
+    <div id="lgErr" class="bad" style="margin-top:8px"></div>
+  </div>
+
+  <div id="main" class="hidden">
+    <h2>SWITCHES — EACH ONE IS A SEPARATE DECISION</h2>
+    <div class="card" id="flags"></div>
+
+    <h2>STAFF ACCESS (S710 + BACKUP PHONE LINKS)</h2>
+    <div class="card">
+      <div id="access"></div>
+      <div class="row"><div class="g"><b>Extend every live credential</b><small id="winTxt"></small></div><button class="btn" id="ext30">+30 MIN</button></div>
+      <div class="row"><div class="g"><input id="newLabel" class="field" placeholder="Label (e.g. Carlos phone)"></div>
+        <button class="btn gold" id="newLink">NEW PHONE LINK</button><button class="btn" id="newDev">NEW S710 KEY</button></div>
+      <div id="newTok" class="hidden"></div>
+    </div>
+
+    <h2>REPORT</h2>
+    <div class="kpis" id="kpis"></div>
+    <h2>GRATUITIES</h2>
+    <div class="card" id="money"></div>
+    <h2>EMPLOYEES</h2>
+    <div class="card"><table id="emp"></table></div>
+    <h2>CASH TIPS (CORRECTIONS KEEP THE OLD VALUE IN THE AUDIT LOG)</h2>
+    <div class="card" id="cash"></div>
+    <h2>CLOSE</h2>
+    <div class="card">
+      <div id="blockers"></div>
+      <div class="row"><div class="g"><b>Export everything (CSV)</b><small>Vehicles, cash tips and card tips</small></div><button class="btn" id="csv">EXPORT CSV</button></div>
+      <div class="row"><div class="g"><b>Close the event</b><small>Turns off staff links and text replies. Keeps every record.</small></div><button class="btn red" id="close">CLOSE EVENT</button></div>
+    </div>
+    <p style="color:#a9a59d;font-size:12.5px;margin-top:20px"><button class="btn" id="refresh">REFRESH</button> &nbsp; <span id="updated"></span></p>
+  </div>
+</div>
+<script src="/vendor/supabase.js"></script>
+<script>
+'use strict';
+var EVENT_ID = 'watermakers-veterans-2026';
+var SB_URL = 'https://sfewtirvqhrpanwhbchd.supabase.co';
+var SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNmZXd0aXJ2cWhycGFud2hiY2hkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkyNzExMjcsImV4cCI6MjA5NDg0NzEyN30.UFf22k7Zn7v72IPujuF1YRrK6PPbp8K_uz6TkYlhOl8';
+var FN_URL = SB_URL + '/functions/v1/event-valet';
+var SITE = location.origin + '/events/' + EVENT_ID;
+if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) {
+  try { var lc = JSON.parse(localStorage.getItem('ev_local_cfg') || 'null'); if (lc && lc.url) { SB_URL = lc.url; SB_KEY = lc.key; FN_URL = lc.fn; } } catch (e) {}
+}
+var sb = supabase.createClient(SB_URL, SB_KEY);
+var REP = null, ACC = [];
+function $(id){ return document.getElementById(id); }
+function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+function usd(c){ return '$' + ((c || 0) / 100).toFixed(2); }
+function t(iso){ return iso ? new Date(iso).toLocaleString('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '—'; }
+function emailFor(u){ u = String(u || '').trim(); if (/@/.test(u)) return u; var c = u.toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, ''); return c === 'admin' ? 'makers@farber.local' : c + '@airvalet.local'; }
+async function rpc(name, args){ var r = await sb.rpc(name, args); if (r.error) throw r.error; return r.data; }
+async function jwt(){ var s = await sb.auth.getSession(); return s.data.session ? s.data.session.access_token : null; }
+
+$('lgBtn').onclick = async function(){
+  $('lgErr').textContent = '';
+  var r = await sb.auth.signInWithPassword({ email: emailFor($('lgUser').value), password: $('lgPwd').value });
+  if (r.error) { $('lgErr').textContent = 'Invalid login credentials.'; return; }
+  start();
+};
+async function start(){
+  try { await load(); $('login').classList.add('hidden'); $('main').classList.remove('hidden'); }
+  catch (e) { $('lgErr').textContent = /NOT_AUTHORIZED|403/.test(e.message || e.error || '') ? 'This login is not an admin.' : 'Could not load: ' + (e.message || e.error); }
+}
+async function load(){
+  var r = await fetch(FN_URL + '/admin/report', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + await jwt(), apikey: SB_KEY }, body: JSON.stringify({ event_id: EVENT_ID }) });
+  if (!r.ok) throw { message: r.status === 403 ? 'NOT_AUTHORIZED' : 'HTTP ' + r.status };
+  REP = await r.json();
+  ACC = await rpc('event_valet_admin_access_list', { p_event: EVENT_ID });
+  render();
+  $('updated').textContent = 'Updated ' + t(new Date().toISOString());
+}
+var FLAGS = [
+  ['staffAccess', 'STAFF ACCESS', 'S710 and phone links work (inside each credential window).'],
+  ['customerSms', 'CUSTOMER TEXTS', 'Welcome / on the way / ready texts from the AirValet number.'],
+  ['smsTestOnly', 'TEXTS: TEST PHONES ONLY', 'While ON, only the test phones receive texts.'],
+  ['smsReplies', 'READY REPLIES', 'Customers can reply READY (also needs EVENT_VALET_SMS_ROUTING=on on the server).'],
+  ['thanks', 'THANK-YOU TEXT', 'One note after delivery with the thank-you page link.'],
+  ['tips', 'TIPS', 'Thank-you page shows the optional tip (Farber Parking Stripe via Revenue).']
+];
+function render(){
+  var f = REP.event.flags;
+  $('flags').innerHTML = (REP.event.closedAt ? '<div class="row warn"><b>Event closed ' + t(REP.event.closedAt) + '</b></div>' : '') +
+    FLAGS.map(function(x){ return '<div class="row"><div class="g"><b>' + x[1] + '</b><small>' + x[2] + '</small></div><button class="sw' + (f[x[0]] ? ' on' : '') + '" data-flag="' + x[0] + '" aria-label="' + x[1] + '"></button></div>'; }).join('');
+  var live = ACC.filter(function(a){ return !a.revokedAt; });
+  var maxUntil = live.reduce(function(m, a){ return a.validUntil > m ? a.validUntil : m; }, '');
+  $('winTxt').textContent = live.length ? 'Latest end: ' + t(maxUntil) + ' (nothing closes by itself at 7:30 PM)' : 'No live credentials';
+  $('access').innerHTML = ACC.length ? ACC.map(function(a){
+    return '<div class="row"><div class="g"><b>' + esc(a.label) + ' · ' + (a.kind === 'DEVICE' ? 'S710 (hooks 01–40)' : 'phone link (hooks 41–50)') + (a.revokedAt ? ' <span class="bad">· OFF</span>' : '') + '</b>' +
+      '<small>valid ' + t(a.validFrom) + ' → ' + t(a.validUntil) + ' · last seen ' + t(a.lastSeenAt) + (a.pendingOps ? ' · <span class="warn">' + a.pendingOps + ' not synced</span>' : '') +
+      (a.employees && a.employees.length ? ' · ' + a.employees.map(esc).join(', ') : '') + '</small></div>' +
+      (a.revokedAt ? '' : '<button class="btn red" data-revoke="' + a.id + '">TURN OFF</button>') + '</div>';
+  }).join('') : '<div class="row"><small>No credentials yet.</small></div>';
+  var c = REP.counts;
+  $('kpis').innerHTML = [['CHECKED IN', c.checkedIn], ['PEAK AT ONCE', REP.peak.count + (REP.peak.at ? ' <small style="display:inline;font-size:12px">' + t(REP.peak.at) + '</small>' : '')],
+    ['ACTIVE', c.active], ['WAITING REQUESTS', c.requested], ['DELIVERED', c.delivered], ['HOOKS FREE', c.hooksFree],
+    ['AVG RETRIEVAL', REP.avgRetrievalSeconds == null ? '—' : Math.floor(REP.avgRetrievalSeconds / 60) + ':' + ('0' + REP.avgRetrievalSeconds % 60).slice(-2)]]
+    .map(function(k){ return '<div class="kpi"><small>' + k[0] + '</small><b>' + k[1] + '</b></div>'; }).join('');
+  var cards = REP.cards || {}, cash = REP.cash.totalCents;
+  var s710 = cards.available ? cards.s710.cents : 0, dig = cards.available ? cards.digital.cents : 0;
+  $('money').innerHTML = '<div class="row"><div class="g"><b>TOTAL GRATUITIES</b><small>' + (cards.available ? 'Card tips from Revenue (Farber Parking Stripe) + cash' : '<span class="warn">Card totals unavailable (' + esc(cards.error) + ') — cash only</span>') + '</small></div><b>' + usd(s710 + dig + cash) + '</b></div>' +
+    (cards.available ? '<div class="row"><div class="g"><b>S710 card tips</b><small>' + cards.s710.count + ' confirmed by Stripe · gross, before Stripe fees</small></div><b>' + usd(s710) + '</b></div>' +
+      '<div class="row"><div class="g"><b>Digital tips (thank-you page)</b><small>' + cards.digital.count + ' confirmed</small></div><b>' + usd(dig) + '</b></div>' +
+      '<div class="row"><div class="g"><b>Pending / failed / refunded</b><small>pending are NOT counted</small></div><span>' + cards.pending.count + ' (' + usd(cards.pending.cents) + ') · ' + cards.failed.count + ' · ' + cards.refunded.count + ' (' + usd(cards.refunded.cents) + ')</span></div>' : '') +
+    '<div class="row"><div class="g"><b>Cash tips</b><small>' + REP.cash.count + ' recorded by staff · not Stripe</small></div><b>' + usd(cash) + '</b></div>';
+  $('emp').innerHTML = '<tr><th>NAME</th><th class="n">IN</th><th class="n">GOT CAR</th><th class="n">DELIVERED</th><th class="n">CASH</th></tr>' +
+    REP.employees.map(function(e){ return '<tr><td>' + esc(e.name) + '</td><td class="n">' + e.checkins + '</td><td class="n">' + e.retrievals + '</td><td class="n">' + e.deliveries + '</td><td class="n">' + usd(e.cashCents) + '</td></tr>'; }).join('');
+  $('cash').innerHTML = REP.cash.tips.length ? REP.cash.tips.map(function(x){
+    return '<div class="row"><div class="g"><b>' + usd(x.amountCents) + ' · ' + (x.hook ? 'Hook ' + ('0' + x.hook).slice(-2) : 'Event tip') + ' · ' + esc(x.employeeName) + '</b><small>' + t(x.createdAt) +
+      (x.correctedAt ? ' · corrected from ' + usd(x.correctedFrom) + ' (' + esc(x.correctionReason) + ')' : '') + '</small></div><button class="btn" data-fix="' + x.id + '" data-amt="' + x.amountCents + '">FIX</button></div>';
+  }).join('') : '<div class="row"><small>No cash tips.</small></div>';
+  $('blockers').innerHTML = REP.blockers.length ? REP.blockers.map(function(b){ return '<div class="row warn"><b>' + (b.code === 'ACTIVE_VEHICLES' ? b.count + ' car(s) still active' : b.count + ' change(s) not synced on ' + esc((b.devices || []).join(', '))) + '</b></div>'; }).join('')
+    : '<div class="row ok"><b>Nothing blocks closing</b></div>';
+  $('close').disabled = !!REP.blockers.length || !!REP.event.closedAt;
+}
+document.addEventListener('click', async function(e){
+  var el = e.target.closest('[data-flag],[data-revoke],[data-fix]'); if (!el) return;
+  try {
+    if (el.dataset.flag) {
+      var k = el.dataset.flag, on = !REP.event.flags[k];
+      if (on && !confirm('Turn ON ' + FLAGS.filter(function(x){ return x[0] === k; })[0][1] + '?')) return;
+      var p = {}; p[k] = on; await rpc('event_valet_admin_set_flags', { p_event: EVENT_ID, p_flags: p });
+    } else if (el.dataset.revoke) {
+      if (!confirm('Turn this credential off now? It stops working on every device.')) return;
+      await rpc('event_valet_admin_access_revoke', { p_access: el.dataset.revoke });
+    } else if (el.dataset.fix) {
+      var v = prompt('Correct amount in dollars:', (el.dataset.amt / 100).toFixed(2)); if (v === null) return;
+      var why = prompt('Reason (required):'); if (!why || why.trim().length < 3) return alert('A reason is required.');
+      await rpc('event_valet_admin_cash_correct', { p_tip: el.dataset.fix, p_amount_cents: Math.round(parseFloat(v) * 100), p_reason: why.trim() });
+    }
+    await load();
+  } catch (err) { alert(err.message || err); }
+});
+async function mint(kind){
+  var label = $('newLabel').value.trim() || (kind === 'DEVICE' ? 'S710-1' : 'Phone link');
+  // default end 9:30 PM ET on Nov 11 (2026-11-12 02:30Z, EST) or 4 h from now if later; +30 MIN extends
+  var until = new Date(Math.max(Date.now() + 4 * 3600e3, new Date('2026-11-12T02:30:00Z').getTime())).toISOString();
+  var r = await rpc('event_valet_admin_access_create', { p_event: EVENT_ID, p_kind: kind, p_label: label, p_valid_until: until });
+  var box = $('newTok'); box.classList.remove('hidden');
+  box.innerHTML = '<div class="tok">' + (kind === 'LINK'
+    ? '<b>Send this link to the employee (shown once):</b><br>' + esc(SITE + '/staff#k=' + r.token)
+    : '<b>S710 device key (shown once) — put it in the S710 build as AV_DEVICE_KEY:</b><br>' + esc(r.token)) + '</div>';
+  $('newLabel').value = ''; await load();
+}
+$('newLink').onclick = function(){ mint('LINK').catch(function(e){ alert(e.message); }); };
+$('newDev').onclick = function(){ mint('DEVICE').catch(function(e){ alert(e.message); }); };
+$('ext30').onclick = async function(){
+  var live = ACC.filter(function(a){ return !a.revokedAt; }); if (!live.length) return;
+  var max = live.reduce(function(m, a){ return Math.max(m, new Date(a.validUntil).getTime()); }, 0);
+  await rpc('event_valet_admin_access_extend', { p_event: EVENT_ID, p_valid_until: new Date(max + 30 * 60e3).toISOString() }); await load();
+};
+$('close').onclick = async function(){
+  if (!confirm('Close the event? Staff links and the S710 stop working, text replies stop. All records are kept.')) return;
+  var r = await rpc('event_valet_admin_close', { p_event: EVENT_ID });
+  if (!r.closed) alert('Not closed: ' + r.blockers.map(function(b){ return b.code; }).join(', '));
+  await load();
+};
+$('refresh').onclick = function(){ load().catch(function(e){ alert(e.message); }); };
+function csvCell(v){ v = v == null ? '' : String(v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
+$('csv').onclick = function(){
+  var rows = [['section', 'event_code', 'hook', 'vehicle', 'plate', 'location', 'phone_last4', 'status', 'checked_in_at', 'checked_in_by', 'requested_at', 'request_source', 'retrieving_by', 'ready_at', 'delivered_at', 'delivered_by']];
+  REP.vehicles.forEach(function(v){ rows.push(['VEHICLE', 'WATERMAKERS_2026_11_11', v.hook, v.vehicleText, v.vehicle.plate, v.location, v.phoneLast4, v.status, v.checkedInAt, v.checkedInBy, v.requestedAt, v.requestSource, v.retrievingBy, v.readyAt, v.deliveredAt, v.deliveredBy]); });
+  rows.push([]); rows.push(['section', 'event_code', 'tip_id', 'hook', 'method', 'provider', 'amount_usd', 'employee', 'created_at', 'corrected_from_usd', 'correction_reason']);
+  REP.cash.tips.forEach(function(x){ rows.push(['CASH_TIP', 'WATERMAKERS_2026_11_11', x.id, x.hook, 'CASH', 'CASH', (x.amountCents / 100).toFixed(2), x.employeeName, x.createdAt, x.correctedFrom == null ? '' : (x.correctedFrom / 100).toFixed(2), x.correctionReason]); });
+  if (REP.cards && REP.cards.available) {
+    rows.push([]); rows.push(['section', 'event_code', 'op_ref', 'vehicle_ref', 'channel', 'provider', 'amount_usd', 'status', 'operator', 'created_at', 'payment_intent']);
+    (REP.cards.payments || []).forEach(function(p){ rows.push(['CARD_TIP', 'WATERMAKERS_2026_11_11', p.opRef, p.vehicleRef, p.channel, 'FARBER_PARKING_STRIPE', (p.amountCents / 100).toFixed(2), p.status, p.operatorName, p.createdAt, p.paymentIntentId]); });
+  }
+  var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([rows.map(function(r){ return r.map(csvCell).join(','); }).join('\n')], { type: 'text/csv' }));
+  a.download = 'watermakers_2026_11_11_report.csv'; document.body.appendChild(a); a.click(); a.remove();
+};
+sb.auth.getSession().then(function(s){ if (s.data.session) start(); });
+</script>
+</body>
+</html>

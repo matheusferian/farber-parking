@@ -11,7 +11,7 @@ const EV = process.env.EV_EVENT || 'makers-halloween-2026';
 const LOC = EV === 'watermakers-veterans-2026'
   ? { 'HANGAR 19': 'FRONT', 'HANGAR 18': 'SIDE', 'GRASS': 'BACK', 'FENCE': 'SIDE' }
   : { 'HANGAR 19': 'HANGAR 19', 'HANGAR 18': 'HANGAR 18', 'GRASS': 'GRASS', 'FENCE': 'FENCE' };
-const TOP = EV === 'watermakers-veterans-2026' ? 30 : 20;
+const TOP = EV === 'watermakers-veterans-2026' ? 50 : 20;
 const SB = 'http://127.0.0.1:55331', PAGE = `http://localhost:8789/events/${EV}/`, PRN = 'http://127.0.0.1:8791', PORT = 9366;
 const chrome = spawn('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', ['--headless=new', '--disable-gpu', `--remote-debugging-port=${PORT}`, `--user-data-dir=/tmp/ev-e2e-${Date.now()}`, 'about:blank'], { stdio: 'ignore' });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
