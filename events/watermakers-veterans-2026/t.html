@@ -177,8 +177,9 @@ function render(d){
 // payment page (?amountCents=) so the guest never picks twice. $1 to $500 (Revenue limits).
 var TIP_MIN = 100, TIP_MAX = 50000;
 function otherCents(){
+  // parse first, range-check after (renderGo): "1,000" must say "limited to $500", not "format"
   var v = $('otherAmt').value.replace(/[^0-9.]/g, '');
-  if (!/^\d{1,3}(\.\d{0,2})?$/.test(v)) return null;
+  if (!/^\d{1,6}(\.\d{0,2})?$/.test(v)) return null;
   return Math.round(parseFloat(v) * 100);
 }
 function fmt(c){ return '$' + (c % 100 ? (c / 100).toFixed(2) : String(c / 100)); }
