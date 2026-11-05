@@ -624,8 +624,14 @@
       <div class="vs-clock-in-card">
         <div class="vs-sec-title"><i class="fa-solid fa-right-to-bracket"></i> CLOCK IN</div>
         <div class="fr two">
-          <div class="fg"><label for="vsName">Name <span style="color:var(--red)">*</span></label><input type="text" id="vsName" placeholder="Valet name" style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase()"></div>
+          <div class="fg"><label for="vsName">Name <span style="color:var(--red)">*</span></label><input type="text" id="vsName" placeholder="Valet name" style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase();vsClearPresets()"></div>
           <div class="fg"><label for="vsTimeIn">Arrival</label><input type="time" id="vsTimeIn" step="60"></div>
+        </div>
+        <div id="vsNamePresets" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px">
+          <div class="ob" onclick="vsPickName(this,'DIEGO F')">DIEGO F</div>
+          <div class="ob" onclick="vsPickName(this,'MATHEUS F')">MATHEUS F</div>
+          <div class="ob" onclick="vsPickName(this,'MARCIO C')">MARCIO C</div>
+          <div class="ob" onclick="vsPickName(this,'EDUARDO')">EDUARDO</div>
         </div>
         <button class="cr-btn-primary" onclick="vsClockIn()" style="margin-top:8px"><i class="fa-solid fa-right-to-bracket"></i> Clock In</button>
       </div>
@@ -3966,9 +3972,20 @@ function vsWallClockToISO(dateStr, timeStr){
   return new Date(wallAsUTC.getTime()-offsetMs).toISOString();
 }
 
+// Fixed name buttons: one tap fills Name (the field stays editable for anyone else).
+function vsPickName(btn,name){
+  document.getElementById('vsName').value=name;
+  vsClearPresets();
+  if(btn) btn.classList.add('on');
+}
+function vsClearPresets(){
+  document.querySelectorAll('#vsNamePresets .ob').forEach(function(b){b.classList.remove('on');});
+}
+
 function vsOpenPanel(){
   document.getElementById('vsTimeIn').value=vsTimeNowET();
   document.getElementById('vsName').value='';
+  vsClearPresets();
   vsLoadActive();
 }
 
@@ -4047,6 +4064,7 @@ async function vsClockIn(){
     if(!res.ok){var e=await res.text();throw new Error(e);}
     showMsg(escapeHTML(name)+' clocked in!');
     document.getElementById('vsName').value='';
+    vsClearPresets();
     document.getElementById('vsTimeIn').value=vsTimeNowET();
     await vsLoadActive();
   }catch(e){

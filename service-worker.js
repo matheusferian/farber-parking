@@ -72,7 +72,9 @@
 //      (index.html + utils.js). Same SHELL_FILES. No migration.
 // v92: Key Copy black bar = return date (hangar plain); Flight Tag black bar = tail + return time;
 //      no print stamp on either tag (utils.js).
-var CACHE_VERSION = 'v94';
+// v95: Valet Clock In — fixed name buttons (DIEGO F, MATHEUS F, MARCIO C, EDUARDO) fill Name in one tap
+//      (index.html). Same SHELL_FILES. No migration.
+var CACHE_VERSION = 'v95';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 var SHELL_FILES = [
