@@ -30,10 +30,10 @@ begin
   r := public.event_valet_set_location(th, 'GRASS');
   insert into _r(name, ok, info) values ('Halloween still accepts GRASS', r#>>'{ticket,parking_location}' = 'GRASS', r::text);
 
-  -- 30 slots: cars 2..30 get slots 2..30, the 31st has no slot
-  for i in 2..30 loop perform public.event_valet_checkin(W, '95455502' || lpad(i::text, 2, '0'), 'CAR ' || i, 'wk' || i); end loop;
-  r := public.event_valet_checkin(W, '9545550231', 'CAR 31', 'wk31');
-  insert into _r(name, ok, info) values ('W 31st car: slots full', (r->>'slots_full')::boolean and r#>'{ticket,slot_no}' = 'null'::jsonb, r::text);
+  -- 50 slots (S710 change 2026-11-05): cars 2..50 get slots 2..50, the 51st has no slot
+  for i in 2..50 loop perform public.event_valet_checkin(W, '95455502' || lpad(i::text, 2, '0'), 'CAR ' || i, 'wk' || i); end loop;
+  r := public.event_valet_checkin(W, '9545550251', 'CAR 51', 'wk51');
+  insert into _r(name, ok, info) values ('W 51st car: slots full', (r->>'slots_full')::boolean and r#>'{ticket,slot_no}' = 'null'::jsonb, r::text);
 
   -- offline sync keeps a valid location, drops a foreign one
   r := public.event_valet_checkin_offline(W, '9545550301', 'TESLA', 'wo1', '0301', null, 'SIDE', now(), true);
@@ -52,8 +52,8 @@ do $$ begin
   update public.event_valet_tickets set parking_location = 'HANGAR 18' where event_id = 'watermakers-veterans-2026' and ticket_no = 1;
   insert into _r(name, ok) values ('trigger blocks foreign location on direct update', false);
 exception when others then insert into _r(name, ok, info) values ('trigger blocks foreign location on direct update', sqlerrm = 'INVALID_LOCATION', sqlerrm); end $$;
-insert into _r(name, ok, info) select 'W row: 30 slots, SMS off, test-only, tips off, no link',
-  slot_capacity = 30 and not sms_enabled and sms_test_only and not tip_enabled and not include_ticket_link, row_to_json(e)::text
+insert into _r(name, ok, info) select 'W row: 50 slots, SMS off, test-only, tips off, pass link on, switches off',
+  slot_capacity = 50 and not sms_enabled and sms_test_only and not tip_enabled and include_ticket_link and not staff_access_enabled and not sms_replies_enabled and not thanks_enabled and revenue_slug = 'watermakers-2026-11-11', row_to_json(e)::text
   from public.event_valet_events e where id = 'watermakers-veterans-2026';
 select n, case when ok then 'PASS' else 'FAIL' end, name, case when ok then '' else coalesce(info,'') end from _r order by n;
 select count(*) filter (where ok) || '/' || count(*) || ' passed' from _r;

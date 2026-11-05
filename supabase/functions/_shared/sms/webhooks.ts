@@ -27,6 +27,11 @@ export type WebhookDeps = {
   // Called after a NEW guest message is stored (never for keywords, admin
   // texts or Twilio retries). Must not throw; used for staff notifications.
   onGuestMessage?: (messageId: string) => void;
+  // Optional, OFF unless the caller passes it (twilio-inbound sets it only with
+  // EVENT_VALET_SMS_ROUTING=on): a signed, non-keyword, non-admin message may be
+  // claimed by the Event Valet module (READY for an active event car). null = not
+  // claimed → normal AirValet handling. Errors never affect the AirValet path.
+  preRoute?: (params: URLSearchParams, fromE164: string) => Promise<Response | null>;
 };
 
 export type Keyword = 'STOP' | 'START' | 'HELP';
@@ -114,6 +119,11 @@ export async function handleInbound(deps: WebhookDeps, req: Request): Promise<Re
     if (deps.isAdminPhone && await deps.isAdminPhone(from.e164)) {
       deps.log?.('twilio.inbound_admin_phone', { sid, keyword });
       return twiml();
+    }
+    if (!keyword && deps.preRoute) {
+      let claimed: Response | null = null;
+      try { claimed = await deps.preRoute(params, from.e164); } catch { deps.log?.('twilio.inbound_preroute_error', { sid }); }
+      if (claimed) return claimed;
     }
     const r = await deps.store.recordInbound(sid, from.e164, body, params.get('MessagingServiceSid'), keyword);
     deps.log?.('twilio.inbound', { sid, inserted: r.inserted, matched: r.match_method, keyword });

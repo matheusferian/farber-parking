@@ -6,21 +6,23 @@
 const enc = new TextEncoder();
 
 // ── Messages ────────────────────────────────────────────────────────────
-export type Kind = 'CHECKIN' | 'REQUESTED' | 'READY' | 'TIP' | 'AMBIGUOUS' | 'NO_MATCH';
+export type Kind = 'CHECKIN' | 'REQUESTED' | 'READY' | 'TIP' | 'AMBIGUOUS' | 'NO_MATCH' | 'ONWAY' | 'THANKS' | 'CROSS';
 
 // Per-event wording. The default is the Halloween text, unchanged (owner-approved
 // 2026-10-23); other events only swap the greeting, closing and signature.
-type Brand = { staff: string; sign: string; welcome: string; enjoy: string; thanks: string; thanks2?: string };
+type Brand = { staff: string; sign: string; welcome: string; enjoy: string; thanks: string; thanks2?: string; note: string; place: string };
 const HALLOWEEN: Brand = {
   staff: '— Halloween Valet', sign: '— Makers Air Valet',
   welcome: '🎃 Welcome to the Makers Air Halloween Celebration!', enjoy: 'Enjoy the celebration!',
   thanks: '🎃 Thank you for celebrating with Makers Air!',
+  note: 'Thank you for celebrating with Makers Air!', place: 'Halloween',
 };
 const BRANDS: Record<string, Brand> = {
   'watermakers-veterans-2026': {
     staff: '— Watermakers Valet', sign: '— Farber Parking Valet',
     welcome: '🇺🇸 Welcome to Member Connect at Watermakers!', enjoy: 'Enjoy the evening!',
     thanks: '🇺🇸 Thank you for joining us at Watermakers!', thanks2: 'Thank you to all our veterans for your service.',
+    note: 'Thank you for joining us at Watermakers!', place: 'Watermakers',
   },
 };
 export const brandFor = (eventId?: string | null): Brand => (eventId && BRANDS[eventId]) || HALLOWEEN;
@@ -93,6 +95,24 @@ export function composeSms(kind: Kind, code: string | null, link: string | null,
         ...list,
         '',
         'Reply with the ticket number of the vehicle you’d like us to bring.',
+        b.sign,
+      ].join('\n');
+    // S710 staff API (Watermakers 2026-11-05): car claimed by a valet, one thank-you
+    // note after delivery (contract text), and the "don't guess" answer when the
+    // same phone also has an active Makers Air trip.
+    case 'ONWAY':
+      return [
+        '🚗 Your vehicle is on the way!',
+        `Ticket #${no}`,
+        'Our valet team is bringing your car to the pickup area.',
+        b.sign,
+      ].join('\n');
+    case 'THANKS':
+      return `${b.note} Your valet has left you a note. View it here: ${link ?? ''} ${b.sign}`;
+    case 'CROSS':
+      return [
+        'You have valet with us at more than one place today.',
+        `To get your ${b.place} car, please tap the link in your ${b.place} text, or visit the valet stand.`,
         b.sign,
       ].join('\n');
     case 'NO_MATCH':

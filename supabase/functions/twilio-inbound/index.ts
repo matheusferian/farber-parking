@@ -19,6 +19,7 @@ import { supabaseSmsStore } from '../_shared/sms/supabase-store.ts';
 import { handleInbound } from '../_shared/sms/webhooks.ts';
 import { notifyEvent } from '../_shared/notify/notify.ts';
 import { makeNotifyDeps } from '../_shared/notify/runtime.ts';
+import { makeHandler as makeEventValet } from '../event-valet/handler.ts';
 
 declare const EdgeRuntime: { waitUntil(p: Promise<unknown>): void } | undefined;
 
@@ -40,6 +41,10 @@ Deno.serve((req) => {
     expectedMessagingServiceSid: get('TWILIO_MESSAGING_SERVICE_SID'),
     log,
     isAdminPhone: (e164) => store.isAdminAlertPhone!(e164),
+    // Event Valet READY routing (Watermakers): OFF unless EVENT_VALET_SMS_ROUTING=on.
+    preRoute: get('EVENT_VALET_SMS_ROUTING') === 'on'
+      ? (params) => makeEventValet(get).routedInbound(params)
+      : undefined,
     onGuestMessage: (messageId) => {
       const job = notifyEvent(makeNotifyDeps(admin, cfg, get, log), 'GUEST_MESSAGE', messageId);
       if (typeof EdgeRuntime !== 'undefined') EdgeRuntime.waitUntil(job); else job.catch(() => {});

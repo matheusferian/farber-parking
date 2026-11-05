@@ -5,6 +5,10 @@
 //   /guest    public     {token, action: view|request}  (token = guest link)
 //   /inbound  Twilio     incoming SMS ("READY")  — X-Twilio-Signature
 //   /status   Twilio     delivery status callback — X-Twilio-Signature
+//   /staff/*  S710 + staff links (x-ev-key + x-ev-session) — docs/WATERMAKERS_S710_CONTRACT.md §4
+//   /admin/report  ADMIN JWT — event report + card tips from Revenue (partner summary)
+// handle.routedInbound(params): READY replies arriving on the shared AirValet
+// number (twilio-inbound, behind EVENT_VALET_SMS_ROUTING=on) — null = not ours.
 //
 // Deploy with --no-verify-jwt (Twilio and the guest page have no JWT);
 // /send verifies the caller itself through event_valet_is_staff().
@@ -13,7 +17,7 @@
 // never logged or returned.
 
 import { sendPush } from './webpush.ts';
-import { CarOption, composeSms, composeStaffAlert, Kind, maskLink, maskPhone, normalizePhone, parseInbound, timingSafeEqualStr, twilioSend, TwilioCfg, validSignature } from './lib.ts';
+import { CarOption, composeSms, composeStaffAlert, displayVehicle, Kind, maskLink, maskPhone, normalizePhone, parseInbound, timingSafeEqualStr, twilioSend, TwilioCfg, validSignature } from './lib.ts';
 
 export type Env = (k: string) => string | undefined;
 type Json = Record<string, any>;
@@ -27,6 +31,8 @@ export function makeHandler(env: Env, fetchImpl: typeof fetch = fetch) {
   const MODE = env('EVENT_VALET_SMS_MODE') === 'mock' ? 'mock' : 'live';
   const PUBLIC_URL = (env('EVENT_VALET_PUBLIC_URL') ?? '').replace(/\/$/, '');
   const SITE = (env('EVENT_VALET_SITE_URL') ?? 'https://airvalet.farberos.com').replace(/\/$/, '');
+  const REVENUE = (env('REVENUE_PUBLIC_BASE_URL') ?? '').replace(/\/$/, '');
+  const PARTNER_KEY = env('EVENT_PAY_PARTNER_KEY') ?? '';
   const ORIGINS = (env('EVENT_VALET_ALLOWED_ORIGINS') ?? 'https://airvalet.farberos.com').split(',').map((s) => s.trim()).filter(Boolean);
   const AUTH_TOKEN = env('TWILIO_AUTH_TOKEN');
   // Webhook auth: X-Twilio-Signature (needs the Auth Token) OR, when the Auth
@@ -43,7 +49,7 @@ export function makeHandler(env: Env, fetchImpl: typeof fetch = fetch) {
       from: env('TWILIO_PHONE_NUMBER'),
     }
     : null;
-  const secrets = [SERVICE, AUTH_TOKEN, env('TWILIO_API_KEY_SECRET'), INBOUND_KEY, env('EVENT_VALET_VAPID_PRIVATE_JWK')].filter(Boolean) as string[];
+  const secrets = [SERVICE, AUTH_TOKEN, env('TWILIO_API_KEY_SECRET'), INBOUND_KEY, env('EVENT_VALET_VAPID_PRIVATE_JWK'), PARTNER_KEY].filter(Boolean) as string[];
   let VAPID: { privateJwk: JsonWebKey; publicKey: string; subject: string } | null = null;
   try {
     const jwk = env('EVENT_VALET_VAPID_PRIVATE_JWK'), pub = env('EVENT_VALET_VAPID_PUBLIC');
@@ -102,6 +108,7 @@ export function makeHandler(env: Env, fetchImpl: typeof fetch = fetch) {
     if (!ev.sms_enabled) return await skip('SKIPPED_SMS_OFF');
     if (ev.sms_test_only && !(ev.sms_test_phones ?? []).includes(t.phone_e164)) return await skip('SKIPPED_TEST_MODE');
     if (kind === 'TIP' && !ev.tip_enabled) return await skip('SKIPPED_TIP_OFF');
+    if (kind === 'THANKS' && !ev.thanks_enabled) return await skip('SKIPPED_THANKS_OFF');
     if (MODE === 'live' && (!twilio || !PUBLIC_URL)) return await skip('NOT_CONFIGURED');
 
     // REQUESTED is keyed on the request time, so a car re-requested after an
@@ -109,7 +116,8 @@ export function makeHandler(env: Env, fetchImpl: typeof fetch = fetch) {
     const dedupe = opts.dedupe ?? (opts.resend
       ? `${kind}:${t.id}:resend:${Math.floor(Date.now() / 30000)}`  // ≤ 1 resend / 30 s
       : kind === 'REQUESTED' ? `${kind}:${t.id}:${t.requested_at}`
-      : kind === 'READY' ? `${kind}:${t.id}:${t.ready_at}` : `${kind}:${t.id}`);
+      : kind === 'READY' ? `${kind}:${t.id}:${t.ready_at}`
+      : kind === 'ONWAY' ? `${kind}:${t.id}:${t.retrieving_at}` : `${kind}:${t.id}`);
     const row = await insertMessage({ ...base, status: 'SENDING', dedupe_key: dedupe });
     if (!row) return { status: 'DUPLICATE' };
 
@@ -120,7 +128,7 @@ export function makeHandler(env: Env, fetchImpl: typeof fetch = fetch) {
     const tipSms = String(ev.tip_links?.sms ?? '');
     if (kind === 'TIP' && /^https:\/\/buy\.stripe\.com\/[A-Za-z0-9]+$/.test(tipSms)) {
       link = tipSms;
-    } else if (kind === 'TIP' || (kind === 'CHECKIN' && ev.include_ticket_link)) {
+    } else if (kind === 'TIP' || kind === 'THANKS' || (kind === 'CHECKIN' && ev.include_ticket_link)) {
       const tok = await rpc('event_valet_mint_guest_token', { p_ticket: t.id });
       link = `${SITE}/events/${ev.id}/t#${tok}`;
     }
@@ -191,8 +199,8 @@ export function makeHandler(env: Env, fetchImpl: typeof fetch = fetch) {
     const ok = ORIGINS.includes(o) || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(o);
     return ok ? {
       'Access-Control-Allow-Origin': o, Vary: 'Origin',
-      'Access-Control-Allow-Methods': 'POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'authorization, apikey, content-type, x-client-info',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'authorization, apikey, content-type, x-client-info, x-ev-key, x-ev-session',
     } : {};
   }
   const json = (req: Request, status: number, body: Json) =>
@@ -244,6 +252,17 @@ export function makeHandler(env: Env, fetchImpl: typeof fetch = fetch) {
       }
     }
     const { ticket_id: _drop, ...pub } = r;
+    // Events whose card tips run through Revenue (Watermakers): thank-you page data and
+    // the Farber Parking Stripe tip page. Never the hook. Other events: unchanged reply.
+    const ex = await loadTicket(r.ticket_id).catch(() => null);
+    if (ex?.ev?.revenue_slug) {
+      pub.event_id = ex.ev.id;
+      pub.vehicle_text = displayVehicle(ex.t.vehicle);
+      pub.thank_you = r.status === 'DELIVERED';
+      pub.tip_links = null;
+      pub.tip_url = ex.ev.tip_enabled && REVENUE && r.status === 'DELIVERED'
+        ? `${REVENUE}/e/${encodeURIComponent(ex.ev.revenue_slug)}/tip?ref=${encodeURIComponent(r.ticket_id)}` : null;
+    }
     return json(req, 200, pub);
   }
 
@@ -264,6 +283,10 @@ export function makeHandler(env: Env, fetchImpl: typeof fetch = fetch) {
     if (!webhookReady) return new Response('not configured', { status: 503 });
     const p = await verifyTwilio(req, '/inbound');
     if (!p) return new Response('forbidden', { status: 403 });
+    return await processInbound(p);
+  }
+
+  async function processInbound(p: URLSearchParams) {
     const sid = p.get('MessageSid') ?? p.get('SmsSid') ?? '';
     const phone = normalizePhone(p.get('From'));
     const parsed = parseInbound(p.get('Body') ?? '');
@@ -318,6 +341,122 @@ export function makeHandler(env: Env, fetchImpl: typeof fetch = fetch) {
     return twiml();
   }
 
+  // ── READY on the shared AirValet number (called by twilio-inbound after ITS signature check) ──
+  async function routedInbound(p: URLSearchParams): Promise<Response | null> {
+    const phone = normalizePhone(p.get('From'));
+    const sid = p.get('MessageSid') ?? p.get('SmsSid') ?? '';
+    if (!phone || !sid) return null;
+    if (parseInbound(p.get('Body') ?? '').type !== 'ready') return null;   // chat / keywords stay with AirValet
+    const rc = await rpc('event_valet_route_check', { p_phone: phone });
+    if (rc?.route === 'EVENT') { log('routed_inbound', { from: maskPhone(phone) }); return await processInbound(p); }
+    if (rc?.route !== 'CROSS') return null;
+    // Same phone also has an active Makers Air trip: never guess which car.
+    const q = await db(`event_valet_tickets?phone_e164=eq.${encodeURIComponent(phone)}&status=neq.DELIVERED&event_id=eq.${encodeURIComponent(rc.eventId)}&select=id&limit=1`);
+    const rows: Json[] = q.ok ? await q.json() : [];
+    const x = rows[0] ? await loadTicket(rows[0].id) : null;
+    if (!x) return null;
+    await insertMessage({ event_id: x.ev.id, ticket_id: x.t.id, direction: 'IN', kind: 'READY', phone_e164: phone,
+      body: String(p.get('Body') ?? '').slice(0, 500), twilio_sid: sid, status: 'CROSS', dedupe_key: `IN:${sid}` });
+    await sendFor(x.t, x.ev, 'CROSS', { dedupe: `CROSS:${sid}` });
+    log('routed_inbound_cross', { from: maskPhone(phone) });
+    return twiml();
+  }
+
+  // ── S710 / staff links (contract §4) ──
+  const STAFF_OPS: Record<string, 'GET' | 'POST'> = {
+    session: 'POST', state: 'GET', search: 'GET', hold: 'POST', checkin: 'POST',
+    'move-hook': 'POST', status: 'POST', edit: 'POST', 'cash-tip': 'POST',
+  };
+  const ERR_STATUS: Record<string, number> = {
+    AUTH: 401, REVOKED: 401, OUTSIDE_WINDOW: 403, EVENT_CLOSED: 403, RATE_LIMIT: 429,
+    HOOK_TAKEN: 409, TAKEN_BY: 409, DUPLICATE_CASH: 409, BAD_INPUT: 400, NOT_FOUND: 404,
+  };
+  const pad2 = (n: unknown) => String(n ?? '').padStart(2, '0');
+  function staffMessage(code: string, d: Json): string {
+    switch (code) {
+      case 'AUTH': return 'This device or link is not set up. Ask your supervisor.';
+      case 'REVOKED': return 'This device or link was turned off. Ask your supervisor.';
+      case 'OUTSIDE_WINDOW': return 'Staff access is not open right now. Ask your supervisor.';
+      case 'EVENT_CLOSED': return 'The event is closed.';
+      case 'RATE_LIMIT': return 'Too many taps. Wait a few seconds and try again.';
+      case 'HOOK_TAKEN': return d.why === 'full' ? 'ALL HOOKS ARE IN USE — ASK YOUR SUPERVISOR'
+        : `HOOK ${pad2(d.hook)} ALREADY USED — ${d.suggestedHook ? `MOVE KEY TO HOOK ${pad2(d.suggestedHook)}` : 'CHOOSE ANOTHER'}`;
+      case 'TAKEN_BY': return `${String(d.by ?? 'SOMEONE').toUpperCase()} IS ALREADY GETTING THIS CAR`;
+      case 'DUPLICATE_CASH': return 'THIS CASH TIP WAS ALREADY RECORDED';
+      case 'NOT_FOUND': return 'CAR NOT FOUND';
+      case 'BAD_INPUT':
+        if (d.why === 'not_your_pool') return 'THAT HOOK BELONGS TO THE S710 — CHOOSE ANOTHER';
+        if (d.why === 'already_delivered') return 'THIS CAR WAS ALREADY DELIVERED';
+        if (d.why === 'too_many_cars') return 'TOO MANY CARS FOR THIS PHONE NUMBER';
+        return ({ phone: 'CHECK THE PHONE NUMBER', vehicle: 'ADD THE CAR MAKE OR THE PLATE', location: 'CHOOSE FRONT, SIDE OR BACK',
+          keyStoredAt: 'CONFIRM THE KEY IS ON THE HOOK', amountCents: 'TIP MUST BE $1 TO $500', name: 'TYPE YOUR NAME (2 LETTERS OR MORE)',
+          hook: 'CHOOSE A HOOK NUMBER', clientKey: 'PLEASE TRY AGAIN' } as Record<string, string>)[d.field] ?? 'SOMETHING IS MISSING — CHECK AND TRY AGAIN';
+      default: return 'SOMETHING WENT WRONG — TRY AGAIN';
+    }
+  }
+  const smsLabel = (st: string) => ['MOCK_SENT', 'ACCEPTED', 'QUEUED', 'SENDING', 'SENT', 'DELIVERED', 'DUPLICATE'].includes(st) ? 'SENT'
+    : st.startsWith('SKIPPED') || st === 'NOT_CONFIGURED' ? 'OFF' : 'FAILED';
+
+  async function routeStaff(req: Request, op: string) {
+    if (STAFF_OPS[op] !== req.method) return json(req, 405, { error: 'BAD_INPUT', message: 'SOMETHING WENT WRONG — TRY AGAIN' });
+    const token = req.headers.get('x-ev-key') ?? '';
+    const session = req.headers.get('x-ev-session');
+    let body: Json = {};
+    if (req.method === 'POST') body = await req.json().catch(() => ({}));
+    else {
+      const u = new URL(req.url).searchParams;
+      if (u.get('q') != null) body.q = u.get('q');
+      if (u.get('pending') != null) body.pending = u.get('pending');
+      if (u.get('since') != null) body.since = u.get('since');
+    }
+    if (typeof body !== 'object' || body === null || Array.isArray(body)) body = {};
+    const r = await db('rpc/event_valet_staff', { method: 'POST', body: JSON.stringify({
+      p_token: token, p_session: session && /^[0-9a-f-]{36}$/i.test(session) ? session : null, p_op: op, p_body: body }) });
+    const txt = await r.text();
+    if (!r.ok) {
+      let e: Json = {}; try { e = JSON.parse(txt); } catch { /* not json */ }
+      const code = String(e.message ?? '');
+      if (!(code in ERR_STATUS)) { log('staff_error', { op, status: r.status, msg: txt.slice(0, 160) }); return json(req, 500, { error: 'SERVER_ERROR', message: staffMessage('', {}) }); }
+      let d: Json = {}; try { d = e.details ? JSON.parse(e.details) : {}; } catch { d = {}; }
+      if (code === 'AUTH' || code === 'REVOKED') log('staff_denied', { op, code });
+      return json(req, ERR_STATUS[code], { error: code, message: staffMessage(code, d), ...d });
+    }
+    const out: Json = txt ? JSON.parse(txt) : {};
+    const notify = out.notify as string | undefined;
+    delete out.notify;
+    if (notify && !out.replayed && out.ticketId) {
+      const x = await loadTicket(out.ticketId);
+      if (x) {
+        const kind = (notify === 'CHECKIN' ? 'CHECKIN' : notify) as Kind;
+        const s = await sendFor(x.t, x.ev, kind).catch((err) => { log('sms_error', { msg: String(err).slice(0, 120) }); return { status: 'FAILED' }; });
+        out.sms = { [notify === 'CHECKIN' ? 'welcome' : notify.toLowerCase()]: smsLabel(String(s.status)) };
+      }
+    }
+    return json(req, 200, out);
+  }
+
+  // ── Admin report: event_valet_admin_report (role checked in SQL with the caller's JWT) + Revenue card tips ──
+  async function routeAdminReport(req: Request) {
+    const jwt = (req.headers.get('authorization') ?? '').replace(/^Bearer\s+/i, '');
+    if (!jwt) return json(req, 401, { error: 'NOT_AUTHORIZED' });
+    const b = await req.json().catch(() => ({}));
+    const r = await db('rpc/event_valet_admin_report', { method: 'POST', body: JSON.stringify({ p_event: String(b.event_id ?? '') }) }, jwt);
+    if (!r.ok) return json(req, r.status === 400 || r.status === 403 ? 403 : r.status, { error: 'NOT_AUTHORIZED' });
+    const rep: Json = await r.json();
+    rep.cards = { available: false, error: 'NOT_CONFIGURED' };
+    const slug = rep.event?.revenueSlug;
+    if (slug && REVENUE && PARTNER_KEY) {
+      try {
+        const pr = await fetchImpl(`${REVENUE}/api/event-pay/${encodeURIComponent(slug)}/partner/summary`, {
+          headers: { 'x-event-partner-key': PARTNER_KEY, accept: 'application/json' }, signal: AbortSignal.timeout(4000) });
+        rep.cards = pr.ok ? { available: true, ...(await pr.json()) } : { available: false, error: `REVENUE_${pr.status}` };
+      } catch {
+        rep.cards = { available: false, error: 'REVENUE_UNAVAILABLE' };
+      }
+    }
+    return json(req, 200, rep);
+  }
+
   async function routeStatus(req: Request) {
     if (!webhookReady) return new Response('not configured', { status: 503 });
     const p = await verifyTwilio(req, '/status');
@@ -334,11 +473,14 @@ export function makeHandler(env: Env, fetchImpl: typeof fetch = fetch) {
     return new Response(null, { status: 204 });
   }
 
-  return async function handle(req: Request): Promise<Response> {
+  const handle = async function handle(req: Request): Promise<Response> {
     if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors(req) });
-    if (req.method !== 'POST') return new Response('method not allowed', { status: 405 });
     const path = new URL(req.url).pathname.replace(/\/+$/, '');
+    const staff = path.match(/\/staff\/([a-z-]+)$/);
+    if (req.method !== 'POST' && !(staff && req.method === 'GET')) return new Response('method not allowed', { status: 405 });
     try {
+      if (staff) return await routeStaff(req, staff[1]);
+      if (path.endsWith('/admin/report')) return await routeAdminReport(req);
       if (path.endsWith('/send')) return await routeSend(req);
       if (path.endsWith('/guest')) return await routeGuest(req);
       if (path.endsWith('/push-test')) return await routePushTest(req);
@@ -352,4 +494,5 @@ export function makeHandler(env: Env, fetchImpl: typeof fetch = fetch) {
       return json(req, 500, { error: 'SERVER_ERROR' });
     }
   };
+  return Object.assign(handle, { routedInbound });
 }

@@ -30,6 +30,9 @@ const handle = makeHandler((k) => ({
   EVENT_VALET_SMS_MODE: 'mock', EVENT_VALET_PUBLIC_URL: 'http://127.0.0.1:8790/event-valet',
   EVENT_VALET_SITE_URL: 'http://127.0.0.1:8789', EVENT_VALET_ALLOWED_ORIGINS: 'http://127.0.0.1:8789',
   TWILIO_AUTH_TOKEN: 'local_test_auth_token', TWILIO_ACCOUNT_SID: 'AClocal', TWILIO_MESSAGING_SERVICE_SID: 'MGlocal',
+  // optional: local Revenue for the admin report card totals / customer tip page
+  REVENUE_PUBLIC_BASE_URL: Deno.env.get('EV_REVENUE_URL') ?? '',
+  EVENT_PAY_PARTNER_KEY: Deno.env.get('EV_PARTNER_KEY_FILE') ? Deno.readTextFileSync(Deno.env.get('EV_PARTNER_KEY_FILE')!).trim() : '',
 } as Record<string, string>)[k]);
 Deno.serve({ port: 8790 }, handle);
 
