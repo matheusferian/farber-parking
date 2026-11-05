@@ -74,7 +74,9 @@
 //      no print stamp on either tag (utils.js).
 // v95: Valet Clock In — fixed name buttons (DIEGO F, MATHEUS F, MARCIO C, EDUARDO) fill Name in one tap
 //      (index.html). Same SHELL_FILES. No migration.
-var CACHE_VERSION = 'v95';
+// v96: Closing shares ONE photo (no separate Leaving Tomorrow photo); Leaving Tomorrow list in the
+//      Closing gets the old photo's alerts (3+ cars same time, midday rush, no hangar, Customs, Ascend). index.html.
+var CACHE_VERSION = 'v96';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 var SHELL_FILES = [

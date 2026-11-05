@@ -14402,22 +14402,61 @@ function crLtRowsFor(dateStr){
   }));
 }
 function crLtListHTML(rows, dark){
+  return crLtAlertsHTML(rows, dark)+crLtListRowsHTML(rows, dark);
+}
+// Same rules as the old Leaving Tomorrow photo (buildLeavingTomorrowExportData), owner 2026-11-05:
+// 3+ cars at the same return time = rush alert + red mark on those cars; more than 2 cars
+// between 11:00 AM and 1:00 PM = midday rush; no hangar in red; US Customs and Ascend marked.
+function crLtRushTimes(rows){
+  var c={}, rush={};
+  rows.forEach(function(r){ var t=getDepartureTime(r); if(t) c[t]=(c[t]||0)+1; });
+  Object.keys(c).forEach(function(t){ if(c[t]>=3) rush[t]=c[t]; });
+  return rush;
+}
+function crLtAlertsHTML(rows, dark){
+  var red=dark?'#FF8A80':'var(--crit)', bg=dark?'rgba(255,138,128,.10)':'rgba(192,57,43,.07)', bd=dark?'rgba(255,138,128,.45)':'rgba(192,57,43,.35)';
+  var midday=rows.filter(function(r){ var t=getDepartureTime(r); return t&&t>='11:00'&&t<='13:00'; }).length;
+  if(midday<=2) return '';
+  return '<div style="margin:8px 0 4px;padding:7px 10px;border:1.5px solid '+bd+';background:'+bg+';border-radius:8px;font:700 12px \'Inter\',sans-serif;color:'+red+'">\u26A0 MIDDAY RUSH: '+midday+' cars between 11:00 AM and 1:00 PM</div>';
+}
+function crLtMarks(r, dark){
+  var red=dark?'#FF8A80':'var(--crit)', blue=dark?'#7FB2FF':'#2a5db0';
+  var m=[];
+  if(isAscend(r)) m.push('<span style="color:'+blue+';font-weight:800">ASCEND</span>');
+  if(!isAscend(r)&&pickupLocation(r)==='CUSTOMS') m.push('<span style="color:'+blue+';font-weight:700">\u2192 US Customs'+(isCustomsException(r)?' (exception)':'')+'</span>');
+  if(!r.loc||!String(r.loc).trim()) m.push('<span style="color:'+red+';font-weight:700">NO HANGAR</span>');
+  return m;
+}
+function crLtListRowsHTML(rows, dark){
   var mu=dark?'rgba(255,255,255,.5)':'var(--mu)', bd=dark?'rgba(255,255,255,.06)':'var(--b)';
+  var red=dark?'#FF8A80':'var(--crit)';
+  var rush=crLtRushTimes(rows);
+  var rushLbl=function(r, i){
+    var t=getDepartureTime(r);
+    if(!t||!rush[t]||(i>0&&getDepartureTime(rows[i-1])===t)) return '';
+    return '<div style="margin:8px 0 2px;font:700 12px \'Inter\',sans-serif;color:'+red+'">\u26A0 '+rush[t]+' CARS AT '+crFmtTime12(t)+'</div>';
+  };
+  var rushBar=function(r){ var t=getDepartureTime(r); return (t&&rush[t])?'border-left:3px solid '+red+';padding-left:8px;':''; };
   // More than 12 cars: one line each (time · name · hangar) so the image stays short and readable on WhatsApp (owner 2026-10-27).
   if(rows.length>12) return rows.map(function(r, i){
     var t=getDepartureTime(r);
-    return '<div style="display:flex;gap:8px;align-items:baseline;padding:4px 0;'+(i<rows.length-1?'border-bottom:1px solid '+bd+';':'')+'">'
+    var noLoc=!r.loc||!String(r.loc).trim();
+    var tag=isAscend(r)?'ASCEND':((!isAscend(r)&&pickupLocation(r)==='CUSTOMS')?'\u2192 Customs':'');
+    return rushLbl(r, i)+'<div style="display:flex;gap:8px;align-items:baseline;padding:4px 0;'+rushBar(r)+(i<rows.length-1?'border-bottom:1px solid '+bd+';':'')+'">'
       +'<span style="font:700 12px \'JetBrains Mono\',monospace;min-width:64px;flex:none;'+(t?'':'color:#FF8A80')+'">'+(t?crFmtTime12(t):'No time')+'</span>'
       +'<span style="flex:1;min-width:0;font:700 12px \'Sora\',sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escapeHTML(titleCaseName(r.name||''))+'</span>'
-      +'<span style="flex:none;font:600 11px \'Inter\',sans-serif;color:'+mu+'">'+escapeHTML(r.loc?titleCaseName(r.loc):'—')+'</span>'
+      +(tag?'<span style="flex:none;font:700 10px \'Inter\',sans-serif;color:'+(dark?'#7FB2FF':'#2a5db0')+'">'+tag+'</span>':'')
+      +'<span style="flex:none;font:600 11px \'Inter\',sans-serif;color:'+(noLoc?red:mu)+';'+(noLoc?'font-weight:700':'')+'">'+(noLoc?'NO HANGAR':escapeHTML(titleCaseName(r.loc)))+'</span>'
       +'</div>';
   }).join('');
   return rows.map(function(r, i){
     var t=getDepartureTime(r);
-    return '<div style="display:flex;gap:10px;align-items:baseline;padding:7px 0;'+(i<rows.length-1?'border-bottom:1px solid '+bd+';':'')+'">'
+    var marks=crLtMarks(r, dark);
+    return rushLbl(r, i)+'<div style="display:flex;gap:10px;align-items:baseline;padding:7px 0;'+rushBar(r)+(i<rows.length-1?'border-bottom:1px solid '+bd+';':'')+'">'
       +'<span style="font:700 13px \'JetBrains Mono\',monospace;min-width:72px;'+(t?'':'color:#FF8A80')+'">'+(t?crFmtTime12(t):'No time')+'</span>'
       +'<span style="flex:1;min-width:0"><span style="display:block;font:700 13px \'Sora\',sans-serif">'+escapeHTML(titleCaseName(r.name||''))+'</span>'
-      +'<span style="display:block;font:500 11px \'Inter\',sans-serif;color:'+mu+'">'+escapeHTML(['#'+(r.ticket||'—'), niceVehicleText([r.color, r.car].filter(Boolean).join(' ')), r.loc?titleCaseName(r.loc):''].filter(Boolean).join(' · '))+'</span></span>'
+      +'<span style="display:block;font:500 11px \'Inter\',sans-serif;color:'+mu+'">'+escapeHTML(['#'+(r.ticket||'—'), niceVehicleText([r.color, r.car].filter(Boolean).join(' ')), r.loc?titleCaseName(r.loc):''].filter(Boolean).join(' · '))+'</span>'
+      +(marks.length?'<span style="display:block;font:500 11px \'Inter\',sans-serif;margin-top:1px">'+marks.join(' · ')+'</span>':'')+'</span>'
       +'</div>';
   }).join('');
 }
@@ -14719,7 +14758,7 @@ function crShowReadyScreen(report){
   if(_crLtCount>0){
     ltRow.style.display='';
     document.getElementById('crLtReadyCount').textContent=String(_crLtCount);
-    document.getElementById('crReadySub').textContent='Closing Report + Leaving Tomorrow ready to share.';
+    document.getElementById('crReadySub').textContent='Closing Report ready — Leaving Tomorrow is inside the photo.';
   }else{
     ltRow.style.display='none';
     document.getElementById('crReadySub').textContent='Your closing report has been generated.';
@@ -14755,16 +14794,9 @@ async function crShareAll(){
     var crBlob=await crJpegBlob(_crCanvas);
     var crFname='AirValet-Closing-Report-'+_crBusinessDate+'.jpg';
     var crFile=new File([crBlob],crFname,{type:'image/jpeg'});
+    // One photo only (owner 2026-11-05): Leaving Tomorrow is listed inside the Closing image,
+    // with the same alerts the separate Leaving Tomorrow photo had (see crLtListHTML).
     var files=[crFile];
-    if(_crLtCount>0){
-      try{
-        if(!_crLtCanvas) _crLtCanvas=await captureLeavingTomorrowCanvas();
-        var ltBlob=await crJpegBlob(_crLtCanvas);
-        var ltFname='AirValet-Leaving-Tomorrow-'+_crBusinessDate+'.jpg';
-        var ltFile=new File([ltBlob],ltFname,{type:'image/jpeg'});
-        files.push(ltFile);
-      }catch(e){console.error('Leaving Tomorrow image failed, sharing Closing only',e);}
-    }
     if(navigator.share&&navigator.canShare&&navigator.canShare({files:files})){
       await navigator.share({files:files});
     }else{
