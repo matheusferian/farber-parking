@@ -59,6 +59,13 @@ body{min-height:100vh;padding:0 0 max(24px,env(safe-area-inset-bottom))}
 .amt{min-height:64px;border-radius:16px;background:#fff;border:2px solid #C9D4E6;color:var(--navy);font-size:22px;font-weight:850;cursor:pointer}
 .amt.on{border-color:var(--navy);background:var(--navy);color:#fff}
 .amt.other{grid-column:span 2;font-size:17px;letter-spacing:.1em}
+.otherBox{margin-top:12px}
+.otherBox label{display:block;font-size:13px;font-weight:900;letter-spacing:.14em;color:var(--navy)}
+.money{display:flex;align-items:center;margin-top:8px;border:2px solid var(--navy);border-radius:16px;background:#fff;padding:0 16px;min-height:64px}
+.money span{font-size:28px;font-weight:900;color:var(--navy);margin-right:6px}
+.money input{flex:1;min-width:0;border:0;outline:0;background:transparent;font-size:28px;font-weight:900;color:var(--navy);font-family:inherit}
+.otherErr{font-size:14px;color:var(--flag);font-weight:700;margin-top:6px;min-height:18px}
+a.btn.off{opacity:.45;pointer-events:none}
 .sheet{position:fixed;inset:0;background:rgba(6,11,43,.55);display:flex;align-items:flex-end;justify-content:center}
 .sheet .in{width:100%;max-width:440px;background:#fff;color:var(--ink);border-radius:26px 26px 0 0;padding:22px 18px max(22px,env(safe-area-inset-bottom));text-align:left}
 .sheet h3{margin:0;font-size:22px}.sheet p{color:var(--ink2);font-size:16px;line-height:1.45}
@@ -104,6 +111,11 @@ body{min-height:100vh;padding:0 0 max(24px,env(safe-area-inset-bottom))}
     <div id="tipBox" class="hidden">
       <div class="tipq">WOULD YOU LIKE TO LEAVE A TIP?</div>
       <div class="amts" id="amts"></div>
+      <div id="otherBox" class="otherBox hidden">
+        <label for="otherAmt">ENTER YOUR TIP</label>
+        <div class="money"><span>$</span><input id="otherAmt" type="text" inputmode="decimal" autocomplete="off" placeholder="0" maxlength="7" aria-label="Tip amount in dollars"></div>
+        <div id="otherErr" class="otherErr"></div>
+      </div>
       <a id="tipGo" class="btn btn-gold" target="_blank" rel="noopener noreferrer" href="#">LEAVE A TIP</a>
       <button id="noThanks" class="btn btn-ghost">NO THANKS</button>
       <div class="fine">Valet service was complimentary. Tips are always optional.</div>
@@ -161,14 +173,45 @@ function render(d){
   $('replyHint').classList.toggle('hidden', d.status !== 'PARKED');
   return true;
 }
+// OTHER (owner 2026-11-05): opens an amount field right here; the chosen amount goes to the
+// payment page (?amountCents=) so the guest never picks twice. $1 to $500 (Revenue limits).
+var TIP_MIN = 100, TIP_MAX = 50000;
+function otherCents(){
+  var v = $('otherAmt').value.replace(/[^0-9.]/g, '');
+  if (!/^\d{1,3}(\.\d{0,2})?$/.test(v)) return null;
+  return Math.round(parseFloat(v) * 100);
+}
+function fmt(c){ return '$' + (c % 100 ? (c / 100).toFixed(2) : String(c / 100)); }
+function renderGo(){
+  var c = pick, err = '';
+  if (pick === 0) {
+    c = otherCents();
+    if ($('otherAmt').value.trim() === '') c = null;
+    else if (c === null) err = 'Enter an amount like 15 or 12.50';
+    else if (c < TIP_MIN) { err = 'The minimum tip is $1'; c = null; }
+    else if (c > TIP_MAX) { err = 'Tips are limited to $500'; c = null; }
+  }
+  $('otherErr').textContent = err;
+  var ok = !!(tipBase && c);
+  $('tipGo').classList.toggle('off', !ok);
+  $('tipGo').href = ok ? tipBase + '&amountCents=' + c : '#';
+  $('tipGo').textContent = c ? 'LEAVE A ' + fmt(c) + ' TIP' : (pick === 0 ? 'ENTER AN AMOUNT' : 'LEAVE A TIP');
+}
 function renderTips(){
   var html = [500, 1000, 2000, 4000].map(function(c){ return '<button class="amt' + (pick === c ? ' on' : '') + '" data-c="' + c + '">$' + c / 100 + '</button>'; }).join('')
     + '<button class="amt other' + (pick === 0 ? ' on' : '') + '" data-c="0">OTHER</button>';
   $('amts').innerHTML = html;
-  if (tipBase) $('tipGo').href = tipBase + (pick ? '&amountCents=' + pick : '');
-  $('tipGo').textContent = pick ? 'LEAVE A $' + pick / 100 + ' TIP' : 'LEAVE A TIP';
+  $('otherBox').classList.toggle('hidden', pick !== 0);
+  renderGo();
 }
-$('amts').onclick = function(e){ var c = e.target.getAttribute('data-c'); if (c === null) return; pick = +c; renderTips(); };
+$('amts').onclick = function(e){
+  var c = e.target.getAttribute('data-c'); if (c === null) return;
+  pick = +c; renderTips();
+  if (pick === 0) $('otherAmt').focus();
+};
+$('otherAmt').oninput = renderGo;
+$('otherAmt').onkeydown = function(e){ if (e.key === 'Enter' && !$('tipGo').classList.contains('off')) $('tipGo').click(); };
+$('tipGo').onclick = function(e){ if ($('tipGo').classList.contains('off')) { e.preventDefault(); $('otherAmt').focus(); } };
 $('noThanks').onclick = function(){ ls(tipKey, '1'); $('tipBox').classList.add('hidden'); };
 async function load(){ try { return render(await call('view')); } catch (e) { $('loading').classList.remove('hidden'); $('loading').textContent = 'No connection. Pull down to refresh.'; return true; } }
 $('reqBtn').onclick = function(){ $('confirm').classList.remove('hidden'); };
