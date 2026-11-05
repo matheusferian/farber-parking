@@ -120,7 +120,8 @@ const c2 = await (await fetch(`${FN}/staff/checkin`, { method: 'POST', headers: 
   body: JSON.stringify({ clientKey: 'e2e-' + Date.now(), phone: '9545550192', vehicle: { color: 'Black', make: 'BMW', model: 'X5' }, location: 'FRONT', keyStoredAt: new Date().toISOString() }) })).json();
 const t2 = c2.ticket.id;
 const c = await tab();
-await c.nav(`${SITE}/events/${EV}/t#${await mint(t2)}`);
+const firstLink = await mint(t2);
+await c.nav(`${SITE}/events/${EV}/t#${firstLink}`);
 check('pass: shows the car + Safely Parked', await waitFor(async () => (await c.text()).includes('Black BMW X5') && (await c.text()).includes('Safely Parked')), await c.text());
 check('pass: never shows the hook number', !(await c.text()).match(/HOOK|\b42\b/i), await c.text());
 check('pass: official Watermakers logo loaded + THANK YOU VETERANS + VALET PARKING BY FARBER PARKING',
@@ -154,6 +155,8 @@ await rest(`event_valet_events?id=eq.${EV}`, { method: 'PATCH', body: JSON.strin
 const c3 = await tab();
 await c3.nav(`${SITE}/events/${EV}/t#${await mint(t2)}`);
 check('thank-you: tips switch OFF → no tip box', await waitFor(async () => (await c3.text()).includes('THANK YOU FOR JOINING US')) && await c3.ev(`document.getElementById('tipBox').classList.contains('hidden')`));
+await c3.nav(`${SITE}/events/${EV}/t#${firstLink}`);
+check('the ORIGINAL pass link still opens (thank-you view) after delivery + thank-you text', await waitFor(async () => (await c3.text()).includes('THANK YOU FOR JOINING US')), await c3.text());
 check('pass: no JS errors', c.errs.length === 0 && c3.errs.length === 0, [c.errs, c3.errs]);
 
 // ── admin ──

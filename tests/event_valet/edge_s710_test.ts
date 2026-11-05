@@ -31,6 +31,7 @@ const DEV = tok('edgedev'), LNK = tok('edgelnk'), REVK = tok('edgerev'), HWD = t
 
 async function wipe() {
   for (const t of ['event_valet_messages', 'event_valet_audit', 'event_valet_tips', 'event_valet_holds']) await rest(`${t}?event_id=eq.${EV}`, { method: 'DELETE' });
+  // event_valet_guest_tokens rows go with their tickets (on delete cascade)
   const acc: { id: string }[] = await rest(`event_valet_access?label=like.EDGE*&select=id`);
   for (const a of acc) {
     for (const t of ['event_valet_ops', 'event_valet_rate', 'event_valet_sessions']) await rest(`${t}?access_id=eq.${a.id}`, { method: 'DELETE' });
@@ -341,6 +342,48 @@ Deno.test('twilio-inbound: flag OFF keeps the AirValet inbox path; ON claims onl
   const forged = await handleInbound({ ...base, store: bad.store, preRoute: () => Promise.resolve(new Response('x')) },
     new Request('http://localhost/twilio-inbound', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded', 'x-twilio-signature': 'nope' }, body: inboundParams('+19545550107', 'READY') }));
   assertEquals(forged.status, 403);
+});
+
+Deno.test('pass links: welcome link and thank-you link both open the pass, before and after delivery', async () => {
+  await rest(`event_valet_events?id=eq.${EV}`, { method: 'PATCH', body: JSON.stringify({ sms_enabled: true, sms_test_only: false, thanks_enabled: true }) });
+  const c = await call('POST', 'checkin', DEV, SD, { clientKey: ck(), phone: '9545550131', vehicle: { make: 'Volvo' }, location: 'FRONT', keyStoredAt: keyAt });
+  const id = c.body.ticket.id;
+  const welcome = await mintGuest(id);                       // the link the customer got at check-in
+  const second = await mintGuest(id);                        // e.g. a resend before delivery
+  assertEquals((await guest(welcome)).status, 'PARKED');
+  assertEquals((await guest(second)).status, 'PARKED');
+  assertEquals((await guest(welcome, 'request')).status, 'REQUESTED');   // the OLD link can still request the car
+  const d = await call('POST', 'status', DEV, SD, { clientKey: ck(), ticketId: id, to: 'DELIVERED' });
+  assertEquals(d.body.sms, { thanks: 'SENT' });              // thank-you text minted another link
+  const g1 = await guest(welcome);
+  assertEquals(g1.state, 'ok'); assertEquals(g1.thank_you, true);
+  const g2 = await guest(second);
+  assertEquals(g2.thank_you, true);
+  const thanksLink = await mintGuest(id);                    // stands in for the link inside the thank-you text
+  assertEquals((await guest(thanksLink)).thank_you, true);
+  assertEquals((await guest(welcome)).thank_you, true);
+  const kept = await rest(`event_valet_guest_tokens?ticket_id=eq.${id}&select=token_hash`);
+  assertEquals(kept.length, 4);                              // welcome, resend, thanks (handler), current-before-last
+  // after the event closes, only the newest link still opens the pass (as before)
+  await rest(`event_valet_events?id=eq.${EV}`, { method: 'PATCH', body: JSON.stringify({ closed_at: new Date().toISOString() }) });
+  assertEquals((await guest(welcome)).state, 'invalid');
+  assertEquals((await guest(thanksLink)).state, 'ok');
+  await rest(`event_valet_events?id=eq.${EV}`, { method: 'PATCH', body: JSON.stringify({ closed_at: null }) });
+});
+
+Deno.test('Halloween: a new link still replaces the old one (unchanged)', async () => {
+  const hw = 'makers-halloween-2026';
+  const r = await fetch(`${SB}/rest/v1/event_valet_tickets`, { method: 'POST', headers: { ...sh, Prefer: 'return=representation' },
+    body: JSON.stringify({ event_id: hw, ticket_no: 9901, ticket_code: '9901', phone_e164: '+19545559901', vehicle: 'HW TEST' }) });
+  const t = (await r.json())[0];
+  try {
+    const a = await mintGuest(t.id), b = await mintGuest(t.id);
+    assertEquals((await guest(a)).state, 'invalid');
+    assertEquals((await guest(b)).state, 'ok');
+    assertEquals((await rest(`event_valet_guest_tokens?ticket_id=eq.${t.id}&select=token_hash`)).length, 0);
+  } finally {
+    await rest(`event_valet_tickets?id=eq.${t.id}`, { method: 'DELETE' });
+  }
 });
 
 Deno.test('teardown: Watermakers back to all switches OFF', async () => { await wipe(); });

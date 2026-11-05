@@ -53,8 +53,10 @@ do $$ begin
   insert into _r(name, ok) values ('trigger blocks foreign location on direct update', false);
 exception when others then insert into _r(name, ok, info) values ('trigger blocks foreign location on direct update', sqlerrm = 'INVALID_LOCATION', sqlerrm); end $$;
 insert into _r(name, ok, info) select 'W row: 50 slots, SMS off, test-only, tips off, pass link on, switches off',
-  slot_capacity = 50 and not sms_enabled and sms_test_only and not tip_enabled and include_ticket_link and not staff_access_enabled and not sms_replies_enabled and not thanks_enabled and revenue_slug = 'watermakers-2026-11-11', row_to_json(e)::text
+  slot_capacity = 50 and not sms_enabled and sms_test_only and not tip_enabled and include_ticket_link and not sms_replies_enabled and not thanks_enabled and revenue_slug = 'watermakers-2026-11-11', row_to_json(e)::text
   from public.event_valet_events e where id = 'watermakers-veterans-2026';
+insert into _r(name, ok, info) select 'staff access switch defaults to OFF (local mint script may turn it on)',
+  column_default = 'false', column_default from information_schema.columns where table_name = 'event_valet_events' and column_name = 'staff_access_enabled';
 select n, case when ok then 'PASS' else 'FAIL' end, name, case when ok then '' else coalesce(info,'') end from _r order by n;
 select count(*) filter (where ok) || '/' || count(*) || ' passed' from _r;
 rollback;

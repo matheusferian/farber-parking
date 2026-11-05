@@ -9,8 +9,8 @@ production Supabase, Twilio, Stripe or Vercel. API contract: `docs/WATERMAKERS_S
 docker ps | grep airvalet-sms-local          # db 55332, API gateway 55331
 ```
 Migrations used by this module (apply in order on a fresh stack; the current local DB already has them):
-`20261024_event_valet_*`, `20261111_event_valet_watermakers.sql`, `20261112_event_valet_watermakers_s710.sql`
-(rollback: `20261112_event_valet_watermakers_s710_rollback.sql`, tested — fingerprint identical).
+`20261024_event_valet_*`, `20261111_event_valet_watermakers.sql`, `20261112_event_valet_watermakers_s710.sql`, `20261113_event_valet_guest_tokens.sql`
+(rollbacks `…_rollback.sql`, tested — fingerprint / function definitions identical).
 
 ```sh
 docker exec -i supabase_db_airvalet-sms-local psql -U postgres -v ON_ERROR_STOP=1 < migrations/20261112_event_valet_watermakers_s710.sql
@@ -72,11 +72,11 @@ curl -s -XPOST $B/checkin -H "x-ev-key: $KEY" -H "x-ev-session: $S" -H 'content-
 |---|---|---|
 | S710 staff/admin SQL | `docker exec -i supabase_db_airvalet-sms-local psql -U postgres -v ON_ERROR_STOP=1 -v admin=7ee4a46f-f40e-454a-a68c-fda9deb7c662 -v ipad=b8d4fc9b-4dca-4cb0-92f9-5f1476281e98 -qtA < tests/event_valet/sql_tests_s710.sql` | 79/79 |
 | S710 concurrency | `sh tests/event_valet/race_s710.sh` | 37 parallel → 35 cars, 35 distinct hooks, pools respected, 2 phone refusals |
-| S710 edge | `EV_SERVICE_KEY_FILE=… EV_ANON_KEY_FILE=… EV_PW_FILE=… deno test -A --no-check tests/event_valet/edge_s710_test.ts` | 17/17 |
-| Watermakers SQL (updated to 50 hooks) | `… -v ipad=… < tests/event_valet/sql_tests_watermakers.sql` | 17/17 |
+| S710 edge (incl. old + new pass links before/after delivery, Halloween link replacement unchanged) | `EV_SERVICE_KEY_FILE=… EV_ANON_KEY_FILE=… EV_PW_FILE=… deno test -A --no-check tests/event_valet/edge_s710_test.ts` | 19/19 |
+| Watermakers SQL (updated to 50 hooks) | `… -v ipad=… < tests/event_valet/sql_tests_watermakers.sql` | 18/18 |
 | Halloween SQL (regression) | `… -v ipad=… -v tv=849c93a5-3c89-4255-b6a4-567d52b40a1f < tests/event_valet/sql_tests.sql` | 62/62 |
 | Halloween race (regression) | `sh tests/event_valet/race_test.sh b8d4fc9b-…` | 20/20 |
 | Halloween edge (regression) | `… deno test -A --no-check tests/event_valet/edge_test.ts` | 16/16 |
-| New pages E2E (staff.html, t.html pass + thank-you, admin.html; headless Chrome, devserver running) | `node tests/event_valet/e2e_s710_pages.mjs "$(cat pw.txt)" "$(cat anon.key)" "$(cat service.key)"` (`SHOTS=<dir>` saves screenshots) | 45/45 |
-| Legacy pages E2E (regression) | `node tests/event_valet/e2e_errors.mjs …` and `EV_EVENT=watermakers-veterans-2026 node tests/event_valet/e2e_errors.mjs …` | 64/64 + 64/64 |
+| New pages E2E (staff.html, t.html pass + thank-you, admin.html; headless Chrome, devserver running) | `node tests/event_valet/e2e_s710_pages.mjs "$(cat pw.txt)" "$(cat anon.key)" "$(cat service.key)"` (`SHOTS=<dir>` saves screenshots) | 46/46 |
+| Legacy pages E2E (regression; the Watermakers run leaves its rows — clean `event_valet_tickets` for that event before the SQL suites) | `node tests/event_valet/e2e_errors.mjs …` and `EV_EVENT=watermakers-veterans-2026 node tests/event_valet/e2e_errors.mjs …` | 64/64 + 64/64 |
 | AirValet shared SMS (regression, twilio-inbound) | `deno test -A --no-check supabase/functions/_shared/sms/sms.test.ts` | 75/75 |
