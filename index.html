@@ -5412,7 +5412,7 @@ async function vpPushPreview(on){
 
 // Day trip (owner 2026-11-06): back the same day it was checked in. Only these tickets
 // get the key choice; every other ticket stays as it was.
-function isDayTripRow(r){ return !!r && isToday(r.ret) && isToday(String(r.ts || '').split(',')[0]); }
+function isDayTripRow(r){ return !!r && sd(pd(r.ret), pd(String(r.ts || '').split(',')[0])); }
 async function vpKeyGuest(id, on){
   var r = paxById(id); if (!r) return;
   try {
@@ -7463,7 +7463,7 @@ function ci2RenderPick(box){
     + '</div>'
     + '<div class="ci2-cal"' + (_ci.calOpen[n] ? '' : ' hidden') + '>' + (_ci.calOpen[n] ? ci2CalHtml(n) : '') + '</div>'
     + (v === t0 ? '<p class="ci2-sub">Key</p><div class="ci2-rq" role="group" aria-label="Key"><button type="button" data-key="0" aria-pressed="' + !_ci.keyGuest + '">Team keeps key<small>We deliver the car</small></button><button type="button" data-key="1" aria-pressed="' + !!_ci.keyGuest + '">Passenger has key<small>Handed over now</small></button></div>' : '')
-    + '<p class="ci2-retnote' + (v ? ' set' : '') + '">' + (v === t0 ? 'Day trip — back today. The valet pass tells the guest which hangar to come back to.' : v ? 'Returns ' + ci2Nice(v, { weekday: 'long', month: 'long', day: 'numeric' }) : _ci.noDate ? 'Return not defined yet. Add it any time; the same pass updates.' : 'You can leave this empty.') + '</p>';
+    + '<p class="ci2-retnote' + (v ? ' set' : '') + '">' + (v === t0 ? 'Day trip, back today. The valet pass tells the passenger to come back to Hangar 19.' : v ? 'Returns ' + ci2Nice(v, { weekday: 'long', month: 'long', day: 'numeric' }) : _ci.noDate ? 'Return not defined yet. Add it any time; the same pass updates.' : 'You can leave this empty.') + '</p>';
   box.querySelectorAll('[data-d]').forEach(function(b){ b.addEventListener('click', function(){ ci2SetRet(b.dataset.d); }); });
   box.querySelectorAll('[data-cal]').forEach(function(b){ b.addEventListener('click', function(){ _ci.calOpen[n] = !_ci.calOpen[n]; ci2RenderPickers(); }); });
   box.querySelectorAll('[data-nodate]').forEach(function(b){ b.addEventListener('click', ci2SetNoDate); });

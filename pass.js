@@ -107,7 +107,7 @@
     if (cineTried || !CINEMATIC_ON || !window.MAVCinematic || !pass) return;
     cineTried = true;
     var kind = pass.status === 'DELIVERED' ? null
-      : (pass.status === 'READY' || pass.status === 'CUSTOMS_CONFIRMED' || isReturning(pass)) ? 'RETURN' : 'DEPARTURE';
+      : ((pass.status === 'READY' && !dayTripEarly(pass)) || pass.status === 'CUSTOMS_CONFIRMED' || isReturning(pass)) ? 'RETURN' : 'DEPARTURE';
     if (kind) window.MAVCinematic.start({ kind: kind, v: CINEMATIC_VERSION }, TOKEN, 'cine/');
   }
 
@@ -137,8 +137,10 @@
     if (hero.classList.contains('done') !== done) hero.classList.toggle('done', done);
   }
   // Progress line: Checked in → Parked → Ready → Delivered (Customs counts as Ready).
+  // Day trip at Hangar 19 is READY automatically from check-in (same day); only the team's Ready counts here.
+  function dayTripEarly(p) { return !!p.day_trip && p.status === 'READY' && !p.ready_by_staff && !p.key_with_guest; }
   function progress(p) {
-    var at = p.status === 'DELIVERED' ? 3 : (p.status === 'READY' || p.status === 'CUSTOMS_CONFIRMED') ? 2 : 1;
+    var at = p.status === 'DELIVERED' ? 3 : ((p.status === 'READY' && !dayTripEarly(p)) || p.status === 'CUSTOMS_CONFIRMED') ? 2 : 1;
     var names = ['Checked in', 'Parked', 'Ready', 'Delivered'];
     // Day trip, key handed to the guest at drop-off (owner 2026-11-06): no Ready / Delivered steps.
     if (p.day_trip && p.key_with_guest && p.status !== 'DELIVERED') { names = ['Checked in', 'Parked', 'Key handed over']; at = 3; }
@@ -215,6 +217,7 @@
   }
   function passCard(p) {
     var st = statusInfo(p), done = p.status === 'DELIVERED', day = !!p.day_trip && !done;
+    var dayToday = day && fmtDate(p.return_date) === fmtIsoDate(todayIso());
     var hangar = esc(p.day_trip_hangar || 'Hangar 19');
     var html = '<section class="bp tone-' + st.tone + (day ? ' is-day' : '') + '" aria-label="Your valet pass">';
     html += '<div class="bp-top">' +
@@ -226,7 +229,7 @@
         : '<p class="bp-line">Thank you for choosing us' + (p.first_name ? ', ' + esc(p.first_name) : '') + '. See you on your next trip.</p>') +
         '<p class="bp-sign">Your Makers Air Valet team</p>';
     } else if (day && p.status !== 'CUSTOMS_CONFIRMED') {
-      html += '<p class="bp-line">When you land today:</p>' +
+      html += '<p class="bp-line">' + (dayToday ? 'When you land today:' : 'When you land:') + '</p>' +
         '<ol class="bp-steps"><li>Clear U.S. Customs.</li><li>Remain with your pilots.</li><li>Return with them to Makers Air at ' + hangar + '.</li></ol>' +
         '<p class="bp-warn">Please do not exit through the U.S. Customs terminal. Transportation back to Makers Air is not available from that location.</p>';
     } else {
@@ -243,9 +246,9 @@
     html += '<div class="bp-grid">' +
       stubField('Pickup', place ? esc(place) : 'To be confirmed', !place,
         steps ? '<button class="link" type="button" id="howBtn" aria-expanded="false" aria-controls="howSteps">How to get there</button>' : '') +
-      stubField('Return', day ? 'Today' : (date ? esc(date) : 'Not set yet'), !day && !date,
+      stubField('Return', dayToday ? 'Today' : (date ? esc(date) : 'Not set yet'), !dayToday && !date,
         (date && time && !p.arrival_time ? '<p class="v2">' + esc(time) + '</p>' : '') +
-        (p.requests_enabled && !day ? '<button class="link" type="button" data-open="return">Change return</button>' : ''));
+        (p.requests_enabled ? '<button class="link" type="button" data-open="return">Change return</button>' : ''));
     var arr = fmtTime(p.arrival_time);
     if (p.return_flight || arr) html += stubField('Flight', p.return_flight ? esc(p.return_flight) : 'To be confirmed', !p.return_flight) + stubField('Arrives', arr ? esc(arr) : 'To be confirmed', !arr);
     if (day) html += stubField('Key', p.key_with_guest ? 'With you' : 'With our team');
@@ -299,7 +302,7 @@
   var tipBusy = false;
   async function startCheckout(cents, btn) {
     if (tipBusy || !pass) return;
-    var host = (btn && btn.closest('.grat, .sheet')) || document, err = host.querySelector('.grat-err');
+    var host = (btn && btn.closest('.grat, .tip, .sheet')) || document, err = host.querySelector('.grat-err');
     var label = btn ? btn.textContent : '';
     tipBusy = true; if (err) err.hidden = true;
     if (btn) { btn.disabled = true; btn.setAttribute('aria-busy', 'true'); btn.textContent = '\u2026'; }
@@ -348,6 +351,7 @@
         (done ? gratuityLinks(p, 'tip-btn') : '<button class="btn tip-btn" type="button" data-open="gratuity">Leave a gratuity</button>') +
         '<p class="tip-fine">Secure payment by Stripe.</p></section>';
     }
+    if (p.tip_thanks && hasGratuity(p)) html += '<div class="list"><button type="button" data-open="gratuity"><span>Gratuity</span><small>Optional</small></button></div>';
     if (p.chat_enabled) html += '<button class="btn primary" type="button" data-open="chat">Message our valet team</button>';
     var wash = { REQUEST: 'Request', CONTACT: 'Ask our team', REQUESTED: 'Requested', PRICE_PENDING: 'Price coming', SCHEDULED: 'Scheduled', DONE: 'Done' }[p.car_wash];
     if (!done && wash && p.requests_enabled !== false && !p.day_trip) html += '<div class="list"><button type="button" data-open="wash"><span>Car wash</span><small>' + wash + '</small></button></div>';

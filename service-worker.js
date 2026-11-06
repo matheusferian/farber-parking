@@ -91,7 +91,8 @@
 // v109: Dashboard card — Ready button next to the passenger name.
 // v110: Valet Pass v3 — one boarding pass with a perforated stub, plain copy, calm gratuity section (owner approved).
 // v111: Dashboard Ready button removed (owner: confusing; the pass marks Ready automatically at Hangar 19 on the return day).
-var CACHE_VERSION = 'v111';
+// v112: audit fixes — day trip after midnight, Change return, gratuity after cash tip, checkout error box, early Ready, staff copy.
+var CACHE_VERSION = 'v112';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 var SHELL_FILES = [
