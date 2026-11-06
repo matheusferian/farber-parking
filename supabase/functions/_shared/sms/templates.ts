@@ -279,7 +279,7 @@ export function estimateCostUsd(segments: number): number {
 // Owner's go-live welcome (single line breaks keep it at 160 chars = 1 segment).
 export function welcomeBody(link: string): string {
   // Owner 2026-11-06 (A2P opt-in confirmation): HELP + message & data rates added → 2 GSM-7 segments.
-  // Owner 2026-11-06 (option B final wording, PREPARED — not deployed): invites the guest to open and come back to the pass.
+  // Owner 2026-11-06: final check-in wording (applied) — invites the guest to open the pass; rates + HELP + STOP (A2P).
   return `Welcome to Makers Air Valet! Your car is checked in.\nTap to see your car's live status, your return details and a direct line to our team:\n${link}\nMsg & data rates may apply. Reply HELP for help, STOP to opt out.`;
 }
 // Same welcome, shared by staff from the device (WhatsApp / iMessage) for an
