@@ -83,11 +83,14 @@ Deno.serve(async (req) => {
   // Owner schedule: 3 PM Fort Lauderdale → check TOMORROW; 6 AM → re-check TODAY (owner 2026-11-06: the
   // Makers office is open by 6 AM, last changes are in). pg_cron (UTC) fires at 10/11 and 19/20 UTC; only
   // the run that is 6 AM or 3 PM in America/New_York (EDT or EST) works.
-  let target = etDay(1);
+  // Owner 2026-11-06: also 11 AM (today) and 7 PM (tomorrow) to catch changes sooner; those two only push
+  // when something changed (the daily summary stays at 6 AM / 3 PM).
+  let target = etDay(1), summaryRun = !isCron;
   if (isCron) {
     const h = +new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', hour12: false }).format(new Date());
-    if (h === 6) target = etDay(0);
-    else if (h !== 15) return json(200, { ok: true, skipped: 'not 6 AM or 3 PM in Fort Lauderdale' });
+    if (h === 6 || h === 11) target = etDay(0);
+    else if (h !== 15 && h !== 19) return json(200, { ok: true, skipped: 'not 6 AM, 11 AM, 3 PM or 7 PM in Fort Lauderdale' });
+    summaryRun = h === 6 || h === 15;
   } else {
     let body: Record<string, unknown> = {};
     try { body = await req.json(); } catch { body = {}; }
@@ -148,7 +151,7 @@ Deno.serve(async (req) => {
     created_by: userId, service_date: date, pages: result.inbound.length, manifest_rows: m.manifest_rows, matched: m.matches.length,
     surprises, missing: m.missing.length, result: saved, usage: { mode: 'makers_sync', ok: true, cron: isCron, secs: Math.round((Date.now() - t0) / 1000) },
   });
-  if (isCron) {
+  if (isCron && summaryRun) {
     await notifyCategory(deps, 'DAILY', { title: `Makers · ${date === today ? 'today' : 'tomorrow'} ${dayLabel(date)}`, body: summaryText(result), url: '/?mf=1', tag: `makers-sync-${date}` });
   }
   // Return Date Follow-Up guests the robot found (owner 2026-11-06): on a flight that day, or a return booked in Makers.
