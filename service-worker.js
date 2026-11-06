@@ -88,7 +88,8 @@
 // v106: staff wording — KEY WITH PASSENGER (not guest).
 // v107: classic check-in form disabled — new check-in only on every device.
 // v108: Day trip pass — staff Ready no longer says A/C running / luggage.
-var CACHE_VERSION = 'v108';
+// v109: Dashboard card — Ready button next to the passenger name.
+var CACHE_VERSION = 'v109';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 var SHELL_FILES = [
