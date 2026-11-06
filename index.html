@@ -4441,10 +4441,10 @@ function shareChooser(options){
 }
 // The server makes a NEW valet pass link (the previous one stops working) for
 // an international ticket enrolled at check-in. Never throws.
-async function passShareLink(passengerId){
+async function passShareLink(passengerId, fallback){
   try {
     var key = smsDeviceKey(false), headers = sbHeaders(); if (key) headers['x-airvalet-device'] = key;
-    var r = await smsApi('/functions/v1/pass-share', { method: 'POST', headers: headers, body: JSON.stringify({ passenger_id: passengerId }) });
+    var r = await smsApi('/functions/v1/pass-share', { method: 'POST', headers: headers, body: JSON.stringify({ passenger_id: passengerId, fallback: !!fallback }) });
     return r && r.ok ? { ok: true, url: r.url, body: r.body, phone: r.phone } : { ok: false, code: (r && r.error && r.error.code) || 'ERROR' };
   } catch(e) { return { ok: false, code: e.status === 404 ? 'UNAVAILABLE' : (e.status === 401 || e.status === 403) ? 'UNAUTHENTICATED' : 'NETWORK' }; }
 }
@@ -4488,11 +4488,17 @@ function openSmsFallback(options, code){
   document.getElementById('smsFallbackOv').classList.add('on');
 }
 function closeSmsFallback(){ document.getElementById('smsFallbackOv').classList.remove('on'); _smsFallbackPending = null; }
-function openSmsFallbackInMessages(){
+async function openSmsFallbackInMessages(){
   var o = _smsFallbackPending; if (!o) return;
   document.getElementById('smsFallbackBtn').disabled = true; // one composer per tap
   closeSmsFallback();
   if (document.getElementById('reviewSmsOv').classList.contains('on')) closeReviewSms();
+  // Audit 2026-11-06: the welcome for an enrolled ticket goes with the valet pass link, never the old text.
+  if (o.passengerId != null && _smsEnrolled[o.passengerId] && /^WELCOME/.test(String(o.templateKey || '')) ) {
+    var s = await passShareLink(o.passengerId, true);
+    if (s.ok) o = Object.assign({}, o, { body: s.body, templateKey: 'WELCOME', messageType: 'CHECK_IN' });
+    else if (s.code !== 'NO_PASS_LINK') { showMsg(passShareErrorText(s.code), true); return; }
+  }
   sendNativeSms(o);
 }
 
@@ -7409,9 +7415,21 @@ function ci2PollSms(now){
   }, now ? 600 : 3000);
 }
 function ci2PollAgain(){ if (_ci && ++_ci.pollN < 40) ci2PollSms(); }
-function ci2NativeWelcome(){
+async function ci2NativeWelcome(){
   var r = data.find(function(x){ return x.id === _ci.id; }) || { ticket: _ci.ticket, ret: '', return_operator: _ci.other ? 'OTHER' : _ci.op };
   var name = ci2El('ci2Name').value.trim().toUpperCase(), phone = ci2El('ci2Phone').value.trim();
+  // Audit 2026-11-06: an enrolled ticket gets the valet pass text with a fresh link, never the old long welcome.
+  if (_ci.id && _smsEnrolled[_ci.id] && isServerSms()) {
+    var id = _ci.id, s = await passShareLink(id, true);
+    if (!_ci || _ci.id !== id) return;
+    if (s.ok) {
+      sendNativeSms({ passengerId: id, passengerName: name, phone: phone, ticket: _ci.ticket, templateKey: 'WELCOME', messageType: 'CHECK_IN',
+        body: s.body, metadata: { trigger: 'New check-in v2 — Send from iPhone (valet pass link)' } });
+      ci2Sms('notsent', 'Opened in iPhone Messages with the valet pass link — not tracked here');
+      return;
+    }
+    if (s.code !== 'NO_PASS_LINK') { ci2Sms('notsent', passShareErrorText(s.code), 'Send from iPhone'); return; }
+  }
   sendNativeSms({ passengerId: _ci.id, passengerName: name, phone: phone, ticket: _ci.ticket, templateKey: 'WELCOME',
     messageType: welcomeSmsMessageType(r), body: buildWelcomeSms(r), metadata: { trigger: 'New check-in v2 — Send from iPhone' } });
   ci2Sms('notsent', 'Opened in iPhone Messages — not tracked here');

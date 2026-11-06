@@ -11,7 +11,9 @@
 // shared — header x-airvalet-device, the same check as send-sms).
 // A new link at most every 2 minutes and 5 per guest per day: a double tap
 // or two staff never kill a link that was just sent.
-// US/Canada numbers are refused (they get the pass by the normal welcome SMS).
+// US/Canada numbers are refused (they get the pass by the normal welcome SMS),
+// except { fallback: true }: the AirValet welcome SMS did not go out and staff
+// send the pass from the device instead (audit 2026-11-06: never the old text).
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { readSmsConfig } from '../_shared/sms/config.ts';
@@ -65,7 +67,8 @@ Deno.serve(async (req) => {
   if (p.status === 'DELIVERED' || p.status === 'ARCHIVED') return json(200, { ok: false, error: { code: 'CLOSED_TICKET' } });
   const phone = normalizePhoneE164(p.phone);
   if (!phone.valid) return json(200, { ok: false, error: { code: 'INVALID_PHONE' } });
-  if (isTwilioDomestic(phone.e164)) return json(200, { ok: false, error: { code: 'DOMESTIC_USE_SMS' } });
+  const fallback = payload.fallback === true;
+  if (isTwilioDomestic(phone.e164) && !fallback) return json(200, { ok: false, error: { code: 'DOMESTIC_USE_SMS' } });
 
   const devHash = await deviceKeyHash(req.headers.get('x-airvalet-device'));
   if (!devHash) return json(200, { ok: false, error: { code: 'DEVICE_NOT_AUTHORIZED' } });
@@ -77,7 +80,8 @@ Deno.serve(async (req) => {
     .eq('passenger_id', passengerId).gte('created_at', new Date(Date.now() - 24 * 3600 * 1000).toISOString())
     .order('created_at', { ascending: false });
   if (lErr) return json(500, { ok: false, error: { code: 'LOOKUP_FAILED' } });
-  if (recent && recent.length && Date.now() - new Date(recent[0].created_at).getTime() < 2 * 60 * 1000) {
+  // A fallback right after a failed welcome SMS may follow that SMS's (unsent) link: no 2-minute wait then.
+  if (!fallback && recent && recent.length && Date.now() - new Date(recent[0].created_at).getTime() < 2 * 60 * 1000) {
     return json(200, { ok: false, error: { code: 'TOO_SOON' } });
   }
   if (recent && recent.length >= 5) return json(200, { ok: false, error: { code: 'DAILY_LIMIT' } });
@@ -91,7 +95,9 @@ Deno.serve(async (req) => {
   const ts = new Date().toLocaleString('en-US', { timeZone: 'America/New_York' });
   await admin.from('activity_log').insert({
     ts, action: 'EDITED', passenger: p.name || '', ticket: p.ticket || '', location: p.loc || '',
-    detail: 'Valet pass link created to share by WhatsApp / iMessage (international number, no SMS) · device ' + dev.id,
+    detail: (fallback && isTwilioDomestic(phone.e164)
+      ? 'Valet pass link created to send from iPhone (AirValet SMS not sent)'
+      : 'Valet pass link created to share by WhatsApp / iMessage (international number, no SMS)') + ' · device ' + dev.id,
     passenger_id: p.id, changed_by: userData.user.email || null,
   });
   return json(200, { ok: true, url, body: shareWelcomeBody(url), phone: phone.e164 });
