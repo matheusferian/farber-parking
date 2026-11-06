@@ -72,7 +72,18 @@ export async function handle(req: Request, fetchImpl: typeof fetch = fetch, now 
       summary.terminated++;
       console.log(`sso-revalidate: terminated ${s.supabase_session_id} (${d.reason})`);
     } else if (d.action === 'keep') {
-      await admin.from('user_profiles').update({ role: d.role, updated_at: new Date(now).toISOString() }).eq('id', s.user_id).neq('role', d.role);
+      // Audit 2026-11-06 (#13): re-check the profile like sso-exchange does at sign-in. A profile an admin
+      // deactivated, protected or turned into a device login (IPAD_OPS / TV_ONLY …) ends the SSO session
+      // instead of being promoted back to ADMIN / MANAGER.
+      const { data: prof } = await admin.from('user_profiles').select('role, is_active, is_protected').eq('id', s.user_id).maybeSingle();
+      if (!prof || !prof.is_active || prof.is_protected || !['ADMIN', 'MANAGER'].includes(String(prof.role))) {
+        await admin.rpc('sso_terminate_session', { p_session: s.supabase_session_id, p_reason: 'profile_changed' });
+        summary.terminated++;
+        console.log(`sso-revalidate: terminated ${s.supabase_session_id} (profile_changed)`);
+        continue;
+      }
+      await admin.from('user_profiles').update({ role: d.role, updated_at: new Date(now).toISOString() })
+        .eq('id', s.user_id).neq('role', d.role).in('role', ['ADMIN', 'MANAGER']);
       await admin.from('sso_sessions').update({ last_validated_at: new Date(now).toISOString() }).eq('id', s.id);
       summary.kept++;
     } else {

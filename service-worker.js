@@ -96,7 +96,8 @@
 // v114: corrected phone → consent on the new number + welcome with a new pass link (audit A2).
 // v115: audit A6 (Closing before 4 AM = previous day), A7 (undo delivery offers to remove the cash tip), A8 (TV overdue list + key badge).
 // v116: audit #9 (offline upload watchdog), #10 (edited return request = new key), #12 (pass resets after Back from Stripe).
-var CACHE_VERSION = 'v116';
+// v117: audit #16 — integrity check on the html2canvas / jsPDF CDN scripts.
+var CACHE_VERSION = 'v117';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 var SHELL_FILES = [

@@ -3,6 +3,15 @@
 -- export them first (select id, ticket, pickup_auth_*, released_* from passengers
 -- where pickup_auth_name is not null or released_to_name is not null).
 begin;
+-- Audit 2026-11-06 (#15): refuses while any pickup authorization / release record exists (they would be lost).
+do $$
+declare v_n bigint;
+begin
+  select count(*) into v_n from public.passengers where pickup_auth_name is not null or released_to_name is not null;
+  if v_n > 0 then
+    raise exception 'refused: % passengers have pickup authorization or release records that this rollback deletes. Export them first, then clear them on purpose.', v_n;
+  end if;
+end $$;
 drop trigger if exists airvalet_pickup_stamp on public.passengers;
 drop function if exists public.airvalet_pickup_stamp();
 drop trigger if exists airvalet_pickup_release_guard on public.passengers;

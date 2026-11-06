@@ -198,7 +198,8 @@ export function makeHandler(env: Env, fetchImpl: typeof fetch = fetch) {
   // ── CORS ──
   function cors(req: Request): Record<string, string> {
     const o = req.headers.get('origin') ?? '';
-    const ok = ORIGINS.includes(o) || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(o);
+    // Audit 2026-11-06 (#18): local origins only when EVENT_VALET_DEV_ORIGINS=1 (local tests), never in production.
+    const ok = ORIGINS.includes(o) || (Deno.env.get('EVENT_VALET_DEV_ORIGINS') === '1' && /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(o));
     return ok ? {
       'Access-Control-Allow-Origin': o, Vary: 'Origin',
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',

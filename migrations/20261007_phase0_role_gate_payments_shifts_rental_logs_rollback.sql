@@ -3,6 +3,16 @@
 
 begin;
 
+-- Audit 2026-11-06 (#15): this rollback REOPENS rental_logs to anyone with the public anon key and payments /
+-- shifts to any signed-in user. It refuses to run unless you set, in the same session, on purpose:
+--   set airvalet.allow_open_policies = 'yes';
+do $$
+begin
+  if coalesce(current_setting('airvalet.allow_open_policies', true), '') <> 'yes' then
+    raise exception 'refused: this rollback reopens rental_logs to the public and payments/shifts to every login. Set airvalet.allow_open_policies = ''yes'' only if you really mean it.';
+  end if;
+end $$;
+
 drop policy if exists "rental_logs_ops_roles_all" on public.rental_logs;
 create policy "allow_all" on public.rental_logs
   for all to public using (true) with check (true);
