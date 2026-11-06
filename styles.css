@@ -3101,3 +3101,31 @@ img.mk-asc{height:calc(var(--r)*.24);border:0;padding:0;}
 #tvMode .tv4-multi .tv4-car,#tvMode .tv4-multi .tv4-has-ph{grid-template-columns:6em minmax(0,1fr);}
 #tvMode .tv4-ck,#tvMode .tv4-ck.tv4-has-ph{grid-template-columns:5.6em minmax(0,1fr);}
 #tvMode .tv-clock small{align-self:flex-end;}
+
+/* In-the-air card, simplified (owner 2026-11-06): no island code, logo once, ETA first, other arrivals on one line. */
+.tv4-air-h{align-items:center;}
+.tv4-air-h .tv4-air-logo{height:17px;width:auto;margin-left:auto;opacity:.9;}
+.tv4-fc-top b{font-size:26px;}
+.tv4-fc-meta{font-size:16px;align-items:baseline;}
+.tv4-eta{font:600 20px 'Barlow Condensed',sans-serif;letter-spacing:.02em;color:#F3F1EA;}
+.tv4-eta b{font-size:26px;color:#C9A84C;}
+.tv4-dst small{font-size:18px;color:#F3F1EA;}
+.tv4-orow{display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid rgba(255,255,255,.08);min-width:0;}
+.tv4-oth-h + .tv4-orow{border-top:0;}
+.tv4-orow > b{font:600 22px 'Barlow Condensed',sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;}
+.tv4-om{font:500 15px Inter,sans-serif;color:#8C9BBB;white-space:nowrap;}
+.tv4-om b{color:#F3F1EA;font-weight:600;}
+.tv4-om .tv4-eta{font:inherit;color:inherit;} .tv4-om .tv4-eta b{font-size:inherit;color:#F3F1EA;}
+.tv4-orow .tv4-fst{margin-left:auto;}
+.tv4-fc-top .tv4-mini,.tv4-orow .tv4-mini{font-size:22px;padding:2px 10px;}
+.tv4-fc-top .tv4-bagtag{height:34px;min-width:76px;padding:0 12px 0 22px;font-size:24px;}
+.tv4-fc-top .tv4-bagtag::before{left:9px;width:7px;height:7px;margin-top:-3.5px;}
+.tv4-fc-top .tv4-nocars{font-size:17px;padding:2px 9px;}
+.tv4-fc .tv4-dst img{height:20px;}
+/* TV alert card (owner 2026-11-06: the RV landed alert was white on white under the navy theme). White card,
+   dark navy text, darker kind colors so the headline reads from across the office. */
+#tvMode .tv4-alert{background:#FFFFFF;color:#0B1A33;}
+#tvMode .tv4-alert .tv4-al-w{color:#0B1A33;}
+#tvMode .tv4-alert .tv4-al-t{color:#1C2B45;}
+#tvMode .tv4-alert .tv4-al-w span,#tvMode .tv4-alert .tv4-al-s{color:#4A5B78;}
+#tvMode .tv4-al-land .tv4-al-k,#tvMode .tv4-al-land .tv4-al-bar{color:#137A52;}
