@@ -17173,7 +17173,8 @@ function mfRenderResult(){
     ((r.not_found || []).length ? '<section class="mf-sec"><h3>🔍 Not found in Makers <span>' + r.not_found.length + '</span></h3><p class="mf-note">The robot could not find these names in Makers. Look them up by hand.</p><ul class="mf-fl">' +
       r.not_found.map(function(x){ return '<li><b>' + escapeHTML(x.system_name) + '</b> <span>' + escapeHTML(x.ticket) + ' · our return ' + escapeHTML(mfRetTxt(x.ours)) + '</span></li>'; }).join('') + '</ul></section>' : '') +
     ((r.outbound || []).length ? '<section class="mf-sec"><h3>🛫 Departures from FXE <span>' + pax(r.outbound) + ' pax</span></h3><ul class="mf-fl">' + flights(r.outbound) + '</ul>' +
-      '<button type="button" class="mf-btn" onclick="mfCopyDepartures(this)">Copy departures for WhatsApp</button></section>' : '') +
+      '<button type="button" class="mf-btn mf-go" onclick="mfShareDepartures(this)">📷 Share departures (picture)</button>' +
+      '<button type="button" class="mf-link" onclick="mfCopyDepartures(this)">Copy as text instead</button></section>' : '') +
     ((r.inbound || []).length ? '<section class="mf-sec"><h3>🛬 Arrivals at FXE <span>' + pax(r.inbound) + ' pax</span></h3><ul class="mf-fl">' + flights(r.inbound) + '</ul></section>' : '') +
     sec('Already delivered', 'mf-s-del', del, '') +
     (r.robot
@@ -17235,6 +17236,81 @@ async function mfVerdict(i, verdict){
   mfRenderResult();
 }
 
+// Departures picture for the WhatsApp group (owner 2026-11-06): one clean image, shared with the
+// iPhone Share sheet (WhatsApp → group). Drawn on a canvas: no library, works offline.
+// Makers bag-tag colours (owner's photos of the tags, 2026-11-06): background, text.
+var MF_TAGS = { ASD: ['#9DCB0A', '#FFFFFF'], COX: ['#F37114', '#FFFFFF'], GHC: ['#FFFFFF', '#111111'], NMC: ['#FFFFFF', '#111111'],
+  GHB: ['#78C28E', '#111111'], CCZ: ['#3FC4CC', '#FFFFFF'], ATC: ['#7CC3DF', '#FFFFFF'], SAQ: ['#E53A42', '#FFFFFF'],
+  RSD: ['#ABABAB', '#FFFFFF'], TBI: ['#9A3D9F', '#FFFFFF'], ELH: ['#F48777', '#FFFFFF'], SML: ['#5E98D6', '#FFFFFF'],
+  LGI: ['#5E98D6', '#FFFFFF'], TYM: ['#F3CB03', '#111111'] };
+var MF_TAG_CODE = { SML: 'MYLS', LGI: 'MYLS' };   // Long Island tags read MYLS
+var MF_AIRPORTS = { ASD: 'Fresh Creek', COX: 'Congo Town', GHC: 'Great Harbor Cay', GHB: "Governor's Harbour", ATC: "Arthur's Town",
+  SAQ: 'San Andros', TYM: 'Staniel Cay', ELH: 'North Eleuthera', TBI: 'Cat Island', RSD: 'Rock Sound', CCZ: 'Chub Cay',
+  SML: 'Long Island', MHH: 'Marsh Harbour', NAS: 'Nassau', GGT: 'Exuma', TCB: 'Treasure Cay', LGI: "Deadman's Cay", BIM: 'Bimini', ZSA: 'San Salvador' };
+function mfRound(g, x, y, w, h, r){ g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); }
+async function mfDeparturesCanvas(r){
+  try { if (document.fonts && document.fonts.load) await Promise.all([document.fonts.load('700 40px Sora'), document.fonts.load('600 30px Sora'), document.fonts.load('500 28px Inter')]); } catch(e) {}
+  var list = (r.outbound || []).slice().sort(function(a, b){ return a.time.localeCompare(b.time); });
+  var W = 1080, P = 64, HEAD = 250, ROW = 118, FOOT = 190, H = HEAD + Math.max(1, list.length) * ROW + FOOT;
+  var c = document.createElement('canvas'); c.width = W; c.height = H;
+  var g = c.getContext('2d'), NAVY = '#061433', GOLD = '#C9A84C', INK = '#0B1A33', MU = '#5A6B8C', LINE = '#E3E7EE';
+  var total = list.reduce(function(a, f){ return a + f.pax; }, 0);
+  g.fillStyle = '#FFFFFF'; g.fillRect(0, 0, W, H);
+  g.fillStyle = NAVY; g.fillRect(0, 0, W, HEAD);
+  g.fillStyle = GOLD; g.font = '600 30px Sora, sans-serif'; g.fillText('MAKERS AIR · FXE', P, 86);
+  g.fillStyle = '#FFFFFF'; g.font = '700 64px Sora, sans-serif'; g.fillText('Departures', P, 160);
+  g.fillStyle = '#C8D3E6'; g.font = '500 34px Inter, sans-serif';
+  var day = r.manifest_date ? new Date(r.manifest_date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }) : '';
+  g.fillText(day, P, 212);
+  list.forEach(function(f, i){
+    var y = HEAD + i * ROW;
+    if (i % 2) { g.fillStyle = '#F6F8FB'; g.fillRect(0, y, W, ROW); }
+    g.fillStyle = INK; g.font = '700 46px Sora, sans-serif'; g.fillText(vpTime(f.time), P, y + 72);
+    var dest = f.route.replace(/^FXE-/, ''), place = MF_AIRPORTS[dest] || dest, tag = MF_TAGS[dest] || ['#E3E7EE', '#111111'];
+    // The tag: a small coloured label like the bag tag (white tags get a thin outline).
+    var tx = 330, tw = 150, th = 74, ty = y + (ROW - th) / 2, code = MF_TAG_CODE[dest] || dest;
+    g.fillStyle = tag[0]; mfRound(g, tx, ty, tw, th, 12); g.fill();
+    if (tag[0] === '#FFFFFF') { g.strokeStyle = '#9AA3B2'; g.lineWidth = 2; mfRound(g, tx, ty, tw, th, 12); g.stroke(); }
+    g.fillStyle = tag[1]; g.font = '700 ' + (code.length > 3 ? 34 : 40) + 'px Sora, sans-serif'; g.textAlign = 'center'; g.fillText(code, tx + tw / 2, ty + 51); g.textAlign = 'left';
+    g.font = '600 32px Inter, sans-serif'; g.fillStyle = INK; g.fillText(place, 510, y + 56);
+    g.font = '500 25px Inter, sans-serif'; g.fillStyle = MU; g.fillText('Flight ' + f.flight + ' · ' + f.tail, 510, y + 92);
+    var pax = f.pax + (f.pax === 1 ? ' pax' : ' pax');
+    g.font = '700 44px Sora, sans-serif'; g.fillStyle = NAVY; g.textAlign = 'right'; g.fillText(pax, W - P, y + 72); g.textAlign = 'left';
+    g.fillStyle = LINE; g.fillRect(P, y + ROW - 1, W - 2 * P, 1);
+  });
+  var fy = HEAD + Math.max(1, list.length) * ROW;
+  if (!list.length) { g.fillStyle = MU; g.font = '500 34px Inter, sans-serif'; g.fillText('No departures with passengers.', P, fy - 46); }
+  g.fillStyle = NAVY; g.fillRect(0, fy, W, FOOT);
+  g.fillStyle = '#FFFFFF'; g.font = '700 46px Sora, sans-serif'; g.fillText(total + ' passengers', P, fy + 82);
+  g.fillStyle = '#C8D3E6'; g.font = '500 30px Inter, sans-serif'; g.fillText(list.length + ' flights', P, fy + 130);
+  g.textAlign = 'right'; g.fillStyle = GOLD; g.font = '600 26px Inter, sans-serif';
+  g.fillText('Makers Air Valet · Farber Parking', W - P, fy + 82);
+  g.fillStyle = '#8FA0BF'; g.font = '500 24px Inter, sans-serif';
+  if (r.at) g.fillText('Makers list ' + new Date(r.at).toLocaleString('en-US', { weekday: 'short', hour: 'numeric', minute: '2-digit' }), W - P, fy + 126);
+  g.textAlign = 'left';
+  return c;
+}
+async function mfShareDepartures(btn){
+  var r = _mf.res; if (!r) return;
+  var old = btn.textContent; btn.textContent = 'Preparing the picture…';
+  try {
+    var c = await mfDeparturesCanvas(r);
+    var blob = await new Promise(function(ok){ c.toBlob(ok, 'image/png'); });
+    var name = 'departures-' + (r.manifest_date || 'makers') + '.png';
+    var file = new File([blob], name, { type: 'image/png' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({ files: [file] });
+      btn.textContent = old;
+    } else {
+      // No Share sheet (desktop): save the picture instead.
+      var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click();
+      setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+      btn.textContent = 'Picture saved ✓';
+    }
+  } catch(e) {
+    btn.textContent = (e && e.name === 'AbortError') ? old : 'Could not share — try again';
+  }
+}
 // Push "Makers · tomorrow" opens /?mf=1: show the Makers list once the app is signed in.
 (function(){
   if (!/[?&]mf=1\b/.test(location.search)) return;
