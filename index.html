@@ -4466,10 +4466,10 @@ function shareChooser(options){
 }
 // The server makes a NEW valet pass link (the previous one stops working) for
 // an international ticket enrolled at check-in. Never throws.
-async function passShareLink(passengerId, fallback){
+async function passShareLink(passengerId, fallback, delivered){
   try {
     var key = smsDeviceKey(false), headers = sbHeaders(); if (key) headers['x-airvalet-device'] = key;
-    var r = await smsApi('/functions/v1/pass-share', { method: 'POST', headers: headers, body: JSON.stringify({ passenger_id: passengerId, fallback: !!fallback }) });
+    var r = await smsApi('/functions/v1/pass-share', { method: 'POST', headers: headers, body: JSON.stringify({ passenger_id: passengerId, fallback: !!fallback, delivered: !!delivered }) });
     return r && r.ok ? { ok: true, url: r.url, body: r.body, phone: r.phone } : { ok: false, code: (r && r.error && r.error.code) || 'ERROR' };
   } catch(e) { return { ok: false, code: e.status === 404 ? 'UNAVAILABLE' : (e.status === 401 || e.status === 403) ? 'UNAUTHENTICATED' : 'NETWORK' }; }
 }
@@ -7128,7 +7128,29 @@ function ci2Close(){
   document.removeEventListener('click', ci2ReprintOutside, true); document.removeEventListener('keydown', ci2ReprintEsc, true);
   _ci = null;
 }
+// Makers departures (owner 2026-11-06): names of today's and tomorrow's passengers leaving FXE, read by the
+// Makers robot (3 PM / 7 PM / 11 PM for tomorrow, 6 AM / 11 AM / 4:30 PM for today) and kept one day only.
+// Typing the first letter of the first or last name suggests them. Name only — no phone, no booking data.
+var _mkNames = { at: 0, list: [], busy: false };
+function mkNamesLoad(force){
+  if (_mkNames.busy || (!force && Date.now() - _mkNames.at < 10 * 60000) || isTvMode()) return;
+  _mkNames.busy = true;
+  vpRpc('airvalet_makers_names_get', {}).then(function(l){ _mkNames.list = Array.isArray(l) ? l : []; _mkNames.at = Date.now(); })
+    .catch(function(){}).finally(function(){ _mkNames.busy = false; });
+}
+function mkNamesMatch(q){
+  if (!q) return [];
+  var seen = {}, out = [];
+  _mkNames.list.forEach(function(n){
+    var nm = String(n.name || '').toUpperCase();
+    if (!nm || seen[nm]) return;
+    var hit = nm.indexOf(q) === 0 || nm.split(' ').some(function(w){ return w.indexOf(q) === 0; }) || (q.length >= 3 && nm.indexOf(q) >= 0);
+    if (hit) { seen[nm] = true; out.push(n); }
+  });
+  return out;
+}
 function ci2Open(){
+  mkNamesLoad(false);
   if (_ci && _ci.timer) clearInterval(_ci.timer);
   if (_ci && _ci.pollTimer) clearTimeout(_ci.pollTimer);
   _ci = { op:'MAKERS', consent:null, timer:null, busy:false, created:false, id:null, ticket:'', offline:false,
@@ -7304,20 +7326,34 @@ function ci2SetOp(op){
 }
 // Returning guests: same suggestions as the classic form (latest visit per name).
 function ci2Suggest(q){
-  var drop = ci2El('ci2Ac'); q = q.trim().toUpperCase();
-  if (q.length < 2 || _ci.created) { drop.hidden = true; return; }
+  var drop = ci2El('ci2Ac'); q = q.trim().toUpperCase().replace(/\s+/g, ' ');
+  if (!q || _ci.created) { drop.hidden = true; return; }
+  mkNamesLoad(false);
   var seen = {}, matches = [];
-  data.slice().sort(function(a, b){ return b.id - a.id; }).forEach(function(r){
+  if (q.length >= 2) data.slice().sort(function(a, b){ return b.id - a.id; }).forEach(function(r){
     var n = String(r.name || '').toUpperCase();
     if (!n || seen[n] || r.isOfflinePending) return;
     if (n.indexOf(q) >= 0) { seen[n] = true; matches.push(r); }
   });
-  if (!matches.length) { drop.hidden = true; return; }
-  drop.innerHTML = matches.slice(0, 5).map(function(r, i){
+  // Makers passengers flying out today / tomorrow first (a returning guest with the same name shows once, as returning).
+  var mk = mkNamesMatch(q).filter(function(n){ return !seen[String(n.name).toUpperCase()]; }).slice(0, 5);
+  if (!matches.length && !mk.length) { drop.hidden = true; return; }
+  drop.innerHTML = mk.map(function(n, i){
+    var dest = (typeof MF_AIRPORTS !== 'undefined' && MF_AIRPORTS[n.dest]) || n.dest || '';
+    return '<button type="button" class="ci2-ac-i ci2-ac-mk" data-m="' + i + '"><b>' + escapeHTML(n.name) + '</b><span>✈ Makers ' + (n.d ? 'tomorrow' : 'today') + ' · ' + escapeHTML(tv412 ? tv412(n.time) : n.time) + (dest ? ' → ' + escapeHTML(dest) : '') + '</span></button>';
+  }).join('') + matches.slice(0, mk.length ? 3 : 5).map(function(r, i){
     var last4 = ci2Digits(r.phone).slice(-4);
     return '<button type="button" class="ci2-ac-i" data-i="' + i + '"><b>' + escapeHTML(r.name) + '</b><span>' + (last4 ? '•••-' + escapeHTML(last4) : 'No phone') + (r.car ? ' · ' + escapeHTML(formatVehicleLine(r)) : '') + '</span></button>';
   }).join('');
-  drop.querySelectorAll('.ci2-ac-i').forEach(function(b){
+  drop.querySelectorAll('.ci2-ac-mk').forEach(function(b){
+    b.addEventListener('mousedown', function(e){ e.preventDefault(); });
+    b.addEventListener('click', function(){
+      var n = mk[parseInt(b.dataset.m, 10)];
+      ci2El('ci2Name').value = String(n.name).toUpperCase();
+      drop.hidden = true; ci2MirrorChecks();
+    });
+  });
+  drop.querySelectorAll('.ci2-ac-i[data-i]').forEach(function(b){
     b.addEventListener('mousedown', function(e){ e.preventDefault(); }); // keep focus so the list does not close first
     b.addEventListener('click', function(){
       var r = matches[parseInt(b.dataset.i, 10)];
@@ -9399,11 +9435,26 @@ async function deliverWithTip(id, deliveryType, tipReceived, inPerson){
     if(isCustoms){
       openCustomsCommModal(r.id,'delivered');
       customsPhotoPrompt(r);   // owner 2026-11-06: a photo of the car at Customs on the passenger's pass
+    } else if (guestPhoneIntl(r.phone) && isServerSms() && _smsEnrolled[r.id]) {
+      deliveredShareIntl(r, tipReceived);
     } else {
       openTipSms(r.id, tipReceived);
     }
   }
   return deliveryOk;
+}
+// International number with a valet pass (owner 2026-11-06, Elaine Enstone +44): the same delivered text the
+// US guests get by AirValet SMS (thank-you note + Gratuity on the pass), sent from this device by
+// WhatsApp / iMessage. Never the old text — only if the link cannot be made (then the old one, as before).
+async function deliveredShareIntl(r, tipReceived){
+  var s = await passShareLink(r.id, false, true);
+  if (s.ok) {
+    shareChooser({ passengerId: r.id, passengerName: r.name, phone: r.phone, ticket: r.ticket, templateKey: 'VEHICLE_DELIVERED',
+      messageType: 'VEHICLE_DELIVERED', body: s.body, metadata: { trigger: 'Delivered text (international, pass link)' } });
+    return;
+  }
+  if (s.code !== 'NO_PASS_LINK') showMsg(passShareErrorText(s.code) + ' — opening the old delivered text.', true);
+  openTipSms(r.id, tipReceived);
 }
 
 // Customs delivery → offer a photo of the car at Customs for the valet pass (camera or photo library).

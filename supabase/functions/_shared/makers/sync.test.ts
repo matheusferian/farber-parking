@@ -95,3 +95,16 @@ Deno.test('Return Date Follow-Up guest (NO DATE) flying out of FXE that day is r
   const r = await runSync(suite as any, { date: '2026-11-07', today: '2026-11-06', pool: pool as any, feedback: [] });
   assertEquals(r.followup_seen.map((f) => `${f.system_name} ${f.direction} ${f.flight} ${f.route} ${f.time}`), ['LUCY FRITTS out 881 FXE-ASD 06:45']);
 });
+
+Deno.test('check-in name list: everyone leaving FXE, first + last, once per flight, with time and destination', async () => {
+  const suite = {
+    schedule: async () => [{ date: '11/07/2026', dep: '08:00', arr: '09:00', flight: '2404', from: 'FXE', to: 'COX', tail: 'N208JH' }],
+    passengers: async (_d: string, dir: { to?: string; from?: string }) => dir.from === 'FXE'
+      ? [{ date: '11/7/2026', flight: '2404', from: 'FXE', to: 'COX', last: 'Augusto', first: 'Pedro', retDate: '' },
+         { date: '11/7/2026', flight: '2404', from: 'FXE', to: 'COX', last: 'AUGUSTO', first: 'PEDRO', retDate: '' },
+         { date: '11/7/2026', flight: '2404', from: 'FXE', to: 'COX', last: "O'Neil", first: 'Mary Ann', retDate: '' }] : [],
+    trips: async () => [],
+  };
+  const r = await runSync(suite, { date: '2026-11-07', today: '2026-11-06', pool: [], feedback: [] });
+  assertEquals(r.names, [{ name: 'PEDRO AUGUSTO', flight: '2404', time: '08:00', dest: 'COX' }, { name: "MARY ANN O'NEIL", flight: '2404', time: '08:00', dest: 'COX' }]);
+});

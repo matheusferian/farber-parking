@@ -86,7 +86,12 @@ Deno.serve(async (req) => {
   // Owner 2026-11-06: also 11 AM (today), 7 PM and 11 PM (tomorrow) to catch changes sooner; those only push
   // when something changed (the daily summary stays at 6 AM / 3 PM).
   let target = etDay(1), summaryRun = !isCron, noShowRun = false;
-  if (isCron) {
+  let cronBody: Record<string, unknown> = {};
+  if (isCron) { try { cronBody = await req.clone().json(); } catch { cronBody = {}; } }
+  if (isCron && (cronBody.day === 'today' || cronBody.day === 'tomorrow')) {
+    // An on-demand run with the robot secret (owner 2026-11-06: tomorrow's names now): that day, no summary push.
+    target = cronBody.day === 'today' ? etDay(0) : etDay(1);
+  } else if (isCron) {
     const h = +new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', hour12: false }).format(new Date());
     // 4:30 PM (cron 'makers-sync-1630'): today again, before the last flights leave the islands — no-show check.
     if (h === 6 || h === 11 || h === 16) { target = etDay(0); noShowRun = h === 16; }
@@ -169,6 +174,17 @@ Deno.serve(async (req) => {
     created_by: userId, service_date: date, pages: result.inbound.length, manifest_rows: m.manifest_rows, matched: m.matches.length,
     surprises, missing: m.missing.length, result: saved, usage: { mode: 'makers_sync', ok: true, cron: isCron, secs: Math.round((Date.now() - t0) / 1000) },
   });
+  // Check-in name suggestions (owner 2026-11-06): this day's FXE departures, name only, replaced on every
+  // reading; anything older than today is deleted. Never in the scan result or in this response.
+  let namesSaved = 0;
+  try {
+    await admin.from('airvalet_makers_names').delete().lt('service_date', today);
+    await admin.from('airvalet_makers_names').delete().eq('service_date', date);
+    if (result.names.length) {
+      const { error } = await admin.from('airvalet_makers_names').insert(result.names.map((n) => ({ service_date: date, name: n.name, flight: n.flight, dep_time: n.time, dest: n.dest })));
+      if (!error) namesSaved = result.names.length;
+    }
+  } catch { /* suggestions are a convenience: never fail the robot */ }
   if (isCron && summaryRun) {
     await notifyCategory(deps, 'DAILY', { title: `Makers · ${date === today ? 'today' : 'tomorrow'} ${dayLabel(date)}`, body: summaryText(result), url: '/?mf=1', tag: `makers-sync-${date}` });
   }
@@ -197,5 +213,5 @@ Deno.serve(async (req) => {
       body: changes.lines.slice(0, 4).join('\n') + (changes.lines.length > 4 ? `\n+${changes.lines.length - 4} more` : '') + '\nOpen Makers Flights to resend the updated picture.',
       url: '/?mf=1', tag: `makers-changes-${date}` });
   }
-  return json(200, { ok: true, created_at: new Date().toISOString(), ...saved });
+  return json(200, { ok: true, created_at: new Date().toISOString(), names_saved: namesSaved, ...saved });
 });

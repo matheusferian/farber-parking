@@ -19,7 +19,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 import { readSmsConfig } from '../_shared/sms/config.ts';
 import { deviceKeyHash } from '../_shared/sms/device.ts';
 import { isTwilioDomestic, normalizePhoneE164 } from '../_shared/sms/phone.ts';
-import { shareWelcomeBody } from '../_shared/sms/templates.ts';
+import { SENDER, shareWelcomeBody } from '../_shared/sms/templates.ts';
 
 const ALLOWED_ORIGINS = ['https://airvalet.farberos.com', 'https://matheusferian.github.io'];
 const OPS = ['ADMIN', 'MANAGER', 'IPAD_OPS', 'IPHONE_OPS'];
@@ -60,11 +60,16 @@ Deno.serve(async (req) => {
 
   const cfg = readSmsConfig((k) => Deno.env.get(k));
   const admin = createClient(SUPABASE_URL, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false } });
-  const { data: p, error: pErr } = await admin.from('passengers').select('id,name,phone,ticket,loc,status').eq('id', passengerId).maybeSingle();
+  const { data: p, error: pErr } = await admin.from('passengers').select('id,name,phone,ticket,loc,status,checkout_date').eq('id', passengerId).maybeSingle();
   if (pErr) return json(500, { ok: false, error: { code: 'LOOKUP_FAILED' } });
   if (!p) return json(200, { ok: false, error: { code: 'PASSENGER_NOT_FOUND' } });
-  // A new link would restart the delivered 7-day window (airvalet_pass_mint): not after delivery.
-  if (p.status === 'DELIVERED' || p.status === 'ARCHIVED') return json(200, { ok: false, error: { code: 'CLOSED_TICKET' } });
+  // { delivered: true } (owner 2026-11-06, Elaine Enstone +44): the delivered text with the pass link for a
+  // number Twilio does not text — the same link the VEHICLE_DELIVERED SMS mints (7 days from now), only
+  // within 24 h of the delivery. Otherwise a new link would restart the delivered window: not after delivery.
+  const delivered = payload.delivered === true;
+  const justDelivered = p.status === 'DELIVERED' && !!p.checkout_date && Date.now() - Date.parse(p.checkout_date) < 24 * 3600 * 1000;
+  if (delivered && !justDelivered) return json(200, { ok: false, error: { code: 'CLOSED_TICKET' } });
+  if (!delivered && (p.status === 'DELIVERED' || p.status === 'ARCHIVED')) return json(200, { ok: false, error: { code: 'CLOSED_TICKET' } });
   const phone = normalizePhoneE164(p.phone);
   if (!phone.valid) return json(200, { ok: false, error: { code: 'INVALID_PHONE' } });
   const fallback = payload.fallback === true;
@@ -95,10 +100,11 @@ Deno.serve(async (req) => {
   const ts = new Date().toLocaleString('en-US', { timeZone: 'America/New_York' });
   await admin.from('activity_log').insert({
     ts, action: 'EDITED', passenger: p.name || '', ticket: p.ticket || '', location: p.loc || '',
-    detail: (fallback && isTwilioDomestic(phone.e164)
+    detail: (delivered ? 'Delivered text with the valet pass link created to send from the device' : fallback && isTwilioDomestic(phone.e164)
       ? 'Valet pass link created to send from iPhone (AirValet SMS not sent)'
       : 'Valet pass link created to share by WhatsApp / iMessage (international number, no SMS)') + ' · device ' + dev.id,
     passenger_id: p.id, changed_by: userData.user.email || null,
   });
-  return json(200, { ok: true, url, body: shareWelcomeBody(url), phone: phone.e164 });
+  const body = delivered ? `${SENDER}: Your car has been delivered. Thank you for choosing us! Your valet team left you a note: ${url}` : shareWelcomeBody(url);
+  return json(200, { ok: true, url, body, phone: phone.e164 });
 });

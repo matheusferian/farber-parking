@@ -3139,3 +3139,4 @@ img.mk-asc{height:calc(var(--r)*.24);border:0;padding:0;}
 .mk-cols{column-gap:12px;font-size:clamp(9px,calc(var(--mk-row,56px)*.26),13px);letter-spacing:.1em;grid-template-columns:calc(var(--mk-row,56px)*2.7) calc(var(--mk-row,56px)*2.25) minmax(0,1fr) calc(var(--mk-row,56px)*.9);}
 .mk-cols.mk-cols-st{grid-template-columns:calc(var(--mk-row,56px)*2.7) calc(var(--mk-row,56px)*2.25) minmax(0,1fr) calc(var(--mk-row,56px)*.9) calc(var(--mk-row,56px)*1.95);}
 .mk-cols span{min-width:0;overflow:hidden;white-space:nowrap;text-overflow:clip;}
+.ci2-ac-mk span{color:#1E4FB0;font-weight:600;}

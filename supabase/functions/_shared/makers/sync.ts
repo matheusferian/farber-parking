@@ -34,6 +34,9 @@ export type SyncResult = {
   date: string; inbound: FlightSummary[]; outbound: FlightSummary[]; match: MatchResult;
   date_diffs: DateDiff[]; no_return: NoReturn[]; not_found_list: NotFound[]; checked: number; not_found: number; warnings: string[];
   followup_seen: FollowUpSeen[];
+  // Owner 2026-11-06: names (first + last only) of everyone leaving FXE that day, for the check-in name
+  // suggestions. NEVER stored in the scan result: makers-sync writes them to airvalet_makers_names (one day).
+  names: { name: string; flight: string; time: string; dest: string }[];
 };
 
 export const isoToMdy = (iso: string) => { const [y, m, d] = iso.split('-'); return `${+m}/${+d}/${y}`; };
@@ -119,5 +122,13 @@ export async function runSync(suite: SuiteLike, o: { date: string; today: string
     const leg = L.find((l) => l.flight === hit.flight && l.from === 'FXE');
     followup_seen.push({ passenger_id: c.id, ticket: c.ticket, system_name: c.name, direction: 'out', flight: hit.flight, route: leg ? `FXE-${leg.to}` : `FXE-${hit.to || ''}`, time: leg ? leg.dep : '' });
   }
-  return { date: o.date, inbound, outbound, match, date_diffs, no_return, not_found_list, checked, not_found, warnings, followup_seen };
+  const names: SyncResult['names'] = [], seenName = new Set<string>();
+  for (const r of outPax) {
+    const name = `${r.first} ${r.last}`.toUpperCase().replace(/[^A-Z' -]/g, ' ').replace(/\s+/g, ' ').trim();
+    const leg = L.find((l) => l.flight === r.flight && l.from === 'FXE');
+    if (name.length < 3 || !name.includes(' ') || !leg || seenName.has(name + '|' + r.flight)) continue;
+    seenName.add(name + '|' + r.flight);
+    names.push({ name, flight: r.flight, time: leg.dep, dest: leg.to });
+  }
+  return { date: o.date, inbound, outbound, match, date_diffs, no_return, not_found_list, checked, not_found, warnings, followup_seen, names };
 }
