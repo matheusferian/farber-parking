@@ -17277,7 +17277,7 @@ async function mfDeparturesCanvas(r){
   var list = (r.outbound || []).slice().sort(function(a, b){ return a.time.localeCompare(b.time); });
   var ascLogo = list.some(mfIsAscend) ? await mfAscendLogo() : null;
   var mavLogo = await mfImage('assets/makers-air-valet-lockup-white.png');
-  var W = 1080, P = 56, HEAD = 246, ROW = 116, ROW_ASC = 168, FOOT = 176;
+  var W = 1080, P = 56, HEAD = 206, ROW = 116, ROW_ASC = 168, FOOT = 176;
   var rowH = function(f){ return mfIsAscend(f) ? ROW_ASC : ROW; };
   var BODY = list.length ? list.reduce(function(a, f){ return a + rowH(f); }, 0) : ROW, H = HEAD + BODY + FOOT;
   var c = document.createElement('canvas'); c.width = W; c.height = H;
@@ -17288,11 +17288,12 @@ async function mfDeparturesCanvas(r){
   // Header
   g.fillStyle = NAVY; g.fillRect(0, 0, W, HEAD);
   // Makers Air Valet logo (white lockup) at the top, then the title and the day at FXE
-  if (mavLogo) { var lgh = 66, lgw = lgh * mavLogo.width / mavLogo.height; g.drawImage(mavLogo, P, 30, lgw, lgh); }
-  else { g.fillStyle = GOLD; g.font = '600 28px Sora, sans-serif'; g.fillText('Makers Air Valet', P, 78); }
-  g.fillStyle = '#FFFFFF'; g.font = '700 62px Sora, sans-serif'; g.fillText('Departures', P, 166);
+  // Title and day on the left, the Makers Air Valet logo on the right (owner)
+  g.fillStyle = '#FFFFFF'; g.font = '700 66px Sora, sans-serif'; g.fillText('Departures', P, 112);
   var day = r.manifest_date ? new Date(r.manifest_date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }) : '';
-  g.fillStyle = '#C8D3E6'; g.font = '500 30px Inter, sans-serif'; g.fillText(day + ' at FXE', P, 212);
+  g.fillStyle = '#C8D3E6'; g.font = '500 30px Inter, sans-serif'; g.fillText(day + ' at FXE', P, 164);
+  if (mavLogo) { var lgh = 92, lgw = lgh * mavLogo.width / mavLogo.height; g.drawImage(mavLogo, W - P - lgw, (HEAD - lgh) / 2, lgw, lgh); }
+  else { g.textAlign = 'right'; g.fillStyle = GOLD; g.font = '600 30px Sora, sans-serif'; g.fillText('Makers Air Valet', W - P, 112); g.textAlign = 'left'; }
   // Columns: time (colons aligned) | bag tag + tail | destination | passengers
   var COLON = 124, TAG_X = 274, TAG_W = 128, TAIL_W = 78, GAP = 8, TAG_H = 70, TEXT_X = TAG_X + TAG_W + GAP + TAIL_W + 28;
   var y = HEAD;
@@ -17345,7 +17346,7 @@ async function mfDeparturesCanvas(r){
   g.fillStyle = NAVY; g.fillRect(0, fy, W, FOOT);
   g.fillStyle = '#FFFFFF'; g.font = '700 46px Sora, sans-serif'; g.fillText(total + ' passengers', P, fy + 78);
   g.fillStyle = '#C8D3E6'; g.font = '500 28px Inter, sans-serif'; g.fillText('on ' + list.length + ' flight' + (list.length === 1 ? '' : 's'), P, fy + 122);
-  g.textAlign = 'right'; g.fillStyle = GOLD; g.font = '600 26px Inter, sans-serif'; g.fillText('Makers Air Valet', W - P, fy + 78);
+  g.textAlign = 'right';
   if (r.at) { g.fillStyle = '#8FA0BF'; g.font = '500 22px Inter, sans-serif'; g.fillText('Makers list read ' + new Date(r.at).toLocaleString('en-US', { weekday: 'short', hour: 'numeric', minute: '2-digit' }), W - P, fy + 120); }
   g.textAlign = 'left';
   return c;
