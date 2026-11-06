@@ -2596,3 +2596,51 @@ body.tv-stale .tv-stale-banner{display:block;}
 .dc-dt{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 2px;}
 .dc-dt-chip{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:999px;font-size:11px;font-weight:800;letter-spacing:.3px;background:rgba(168,137,58,.14);color:#7A5F17;border:1px solid rgba(168,137,58,.45);}
 .dc-dt-chip.key{background:#E3F3EC;color:#14704D;border-color:rgba(27,143,99,.4);}
+
+/* ── Makers manifest check (owner 2026-11-06): photos of the printed manifests → match with AirValet ── */
+.mf-open{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:44px;margin:6px 0 10px;border:1.5px dashed var(--pur);border-radius:12px;background:transparent;color:var(--pur);font:700 14px 'Sora',sans-serif;cursor:pointer}
+.mf-ov{position:fixed;inset:0;z-index:10050;background:rgba(10,15,30,.55);display:flex;align-items:flex-end;justify-content:center;padding:12px}
+.mf-box{background:#fff;color:var(--navy);border-radius:16px;width:100%;max-width:560px;max-height:92vh;overflow:auto;-webkit-overflow-scrolling:touch;padding:16px;font-size:14px}
+.mf-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
+.mf-head b{font:700 17px 'Sora',sans-serif}
+.mf-x{min-width:44px;min-height:44px;border:0;background:#F1F3F6;border-radius:10px;font-size:16px;color:var(--navy);cursor:pointer}
+.mf-p,.mf-note{margin:0 0 10px;color:#4A5468;line-height:1.45}
+.mf-pick{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
+.mf-btn{display:flex;align-items:center;justify-content:center;min-height:44px;padding:0 14px;border:1.5px solid var(--b);border-radius:10px;background:#fff;color:var(--navy);font:700 14px 'Sora',sans-serif;cursor:pointer;text-align:center;width:100%;margin-top:8px}
+.mf-pick .mf-btn{margin-top:0}
+.mf-btn.mf-pri{background:var(--navy);border-color:var(--navy);color:#fff}
+.mf-btn.mf-go{background:var(--ok);border-color:var(--ok);color:#fff}
+.mf-btn[disabled]{opacity:.45;cursor:default}
+.mf-btn.mf-sm{width:auto;min-height:40px;margin:0;font-size:13px}
+.mf-btn.mf-ghost{border-color:transparent;background:#F1F3F6;color:#4A5468}
+.mf-thumbs{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.mf-th{position:relative;margin:0;border-radius:8px;overflow:hidden;background:#F1F3F6;aspect-ratio:3/4}
+.mf-th img{width:100%;height:100%;object-fit:cover;display:block}
+.mf-th figcaption{position:absolute;left:4px;bottom:4px;background:rgba(10,15,30,.7);color:#fff;font:700 11px 'Sora',sans-serif;padding:2px 6px;border-radius:6px}
+.mf-th button{position:absolute;top:2px;right:2px;min-width:32px;min-height:32px;border:0;border-radius:8px;background:rgba(10,15,30,.7);color:#fff;cursor:pointer}
+.mf-wait{display:flex;flex-direction:column;align-items:center;gap:8px;padding:28px 8px;text-align:center;color:#4A5468}
+.mf-wait b{color:var(--navy);font-size:15px}
+.mf-spin{width:28px;height:28px;border:3px solid #E3E7EE;border-top-color:var(--navy);border-radius:50%;animation:mfspin 1s linear infinite}
+@keyframes mfspin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.mf-spin{animation-duration:3s}}
+.mf-err{background:#FDECEC;color:#8A1C1C;border-radius:10px;padding:12px;margin:0}
+.mf-sum{margin:0 0 8px;line-height:1.45}
+.mf-warns{margin:0 0 10px;padding:10px 10px 10px 28px;background:#FFF6E0;border-radius:10px;color:#6B4B00}
+.mf-sec{margin-top:14px}
+.mf-sec h3{display:flex;align-items:center;gap:8px;margin:0 0 6px;font:700 15px 'Sora',sans-serif}
+.mf-sec h3 span{background:#F1F3F6;border-radius:999px;padding:1px 9px;font-size:12px}
+.mf-card{border:1.5px solid var(--b);border-radius:12px;padding:10px 12px;margin-bottom:8px}
+.mf-s-sur .mf-card{border-color:#E8A93B;background:#FFFBF1}
+.mf-s-miss .mf-card{border-color:#D96A5B;background:#FFF5F3}
+.mf-s-del .mf-card{opacity:.7}
+.mf-name{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+.mf-name b{font-size:15px}
+.mf-name span{color:#4A5468;font:600 12px 'JetBrains Mono',monospace}
+.mf-chips{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0}
+.mf-chip{background:#F1F3F6;border-radius:6px;padding:2px 7px;font-size:12px;color:#33405A}
+.mf-chip.mf-dt{background:#E7F0FF;color:#1E4FB0}
+.mf-chip.mf-asc{background:#F2ECFF;color:#5B3BA8}
+.mf-line{font-size:13px;margin:4px 0;line-height:1.4}
+.mf-warn{color:#7A4A00}
+.mf-done{color:var(--ok);font-weight:700;font-size:13px;margin:4px 0}
+.mf-acts{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
