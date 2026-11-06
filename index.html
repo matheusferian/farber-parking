@@ -4788,6 +4788,39 @@ async function recordSmsConsent(passengerId){
   } catch(e) { showMsg('Saved. Could not turn on AirValet texts for this car — iPhone Messages will be used.', true); return false; }
 }
 
+// Audit 2026-11-06 (A2): the phone of an enrolled ticket was corrected → ask for consent on the new
+// number (server moves the enrollment), then offer the welcome with a new valet pass link.
+async function smsPhoneCorrected(r){
+  if (!r || !_smsEnrolled[r.id] || !isServerSms() || r.status === 'DELIVERED' || r.status === 'ARCHIVED') return;
+  if (!confirm('New phone for ' + r.name + ': ' + fmtP(r.phone) + '\n\nDid the passenger agree to receive texts about this car on this number?')) {
+    showMsg('No texts to the new number until the passenger agrees.', true); return;
+  }
+  var row = null;
+  try {
+    var rows = await smsApi('/rest/v1/rpc/airvalet_sms_record_consent', { method: 'POST', body: JSON.stringify({
+      p_passenger_id: r.id, p_disclosure_version: SMS_CONSENT_VERSION, p_device_key: smsDeviceKey(false), p_staff_name: smsStaffName() }) });
+    row = Array.isArray(rows) ? rows[0] : rows;
+  } catch(e) { showMsg('Could not save consent for the new number: ' + e.message, true); return; }
+  if (!row || row.reason !== 'CONSENT_UPDATED') { showMsg('Consent not changed (' + smsBlockText(row && row.reason) + ').', true); return; }
+  sbLog('EDITED', r.name || '', r.ticket || '', r.loc || '', 'Texting consent recorded for the corrected phone', { passenger_id: r.id });
+  if (row.opted_out) { showMsg('Consent saved, but this number replied STOP before — texts stay blocked until the passenger replies START.', true); return; }
+  if (guestPhoneIntl(r.phone)) { showMsg('Consent saved. International number: use “Send pass link” on the ticket (WhatsApp / iMessage).', false); return; }
+  if (!confirm('Consent saved. Send the welcome text with a new valet pass link to ' + fmtP(r.phone) + ' now?')) return;
+  // ADMIN / MANAGER: AirValet SMS resend (server rule). Other logins: iPhone Messages with a fresh pass link.
+  if (_currentUserRole === 'ADMIN' || _currentUserRole === 'MANAGER') {
+    var uid = (self.crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now()) + '-' + Math.random().toString(16).slice(2, 10);
+    var s = await sendServerSms(r.id, 'CHECK_IN', { eventRef: 'resend:' + uid });
+    if (s && s.ok) showMsg(s.duplicate ? 'Already sent to this number.' : '✓ Welcome text sent to the new number.', false);
+    else showMsg('Welcome not sent: ' + smsBlockText(s && s.error && s.error.code), true);
+    if (typeof loadInbox === 'function') loadInbox();
+    return;
+  }
+  var sh = await passShareLink(r.id, true);
+  if (!sh.ok) { showMsg(passShareErrorText(sh.code), true); return; }
+  sendNativeSms({ passengerId: r.id, passengerName: r.name, phone: r.phone, ticket: r.ticket, templateKey: 'WELCOME', messageType: 'CHECK_IN',
+    body: sh.body, metadata: { trigger: 'Phone corrected — Send from iPhone (valet pass link)' } });
+}
+
 // ── Inbox state ───────────────────────────────────────────────────────
 var _ibx = { convs: [], review: [], alerts: [], opened: {}, open: null, thread: [], compose: {}, sending: false, timer: null, loading: false, loadError: false };
 function smsStatusHtml(m){
@@ -9818,9 +9851,11 @@ async function saveEdits(rid){
       vlhInsert({passenger_id:r.id,ticket:r.ticket,passenger_name:r.name,from_location:prevLoc||'',to_location:upd.loc,action:'MOVE',note:'Location edited manually',created_by:_currentUserEmail});
     }
 
+    var _phoneFixed = upd.phone!==undefined && String(oldVals.phone||'').replace(/\D/g,'')!==String(upd.phone||'').replace(/\D/g,'');
     _editChanges={};
     var btn=document.getElementById('saveEditsBtn');
     if(btn) btn.classList.remove('visible');
+    if(_phoneFixed) setTimeout(function(){ smsPhoneCorrected(r); }, 400);
     if(logsFailed){
       showMsg('⚠️ Passenger updated, but one or more history entries could not be saved.',true);
     } else {
