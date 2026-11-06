@@ -16972,7 +16972,11 @@ function mfOpen(){
 function mfClose(){ if (_mf.busy) return; var ov = document.getElementById('mfOv'); if (ov) ov.remove(); }
 function mfRenderPick(){
   var b = document.getElementById('mfBody'); if (!b) return;
-  b.innerHTML = '<p class="mf-p">Take one photo of <b>each page</b> of the Makers Air manifests (one page = one flight). Flat, in good light, the whole page in the photo.</p>' +
+  b.innerHTML = '<button type="button" class="mf-btn mf-paste" onclick="mfPaste()">📋 Paste from Makers Suite</button>' +
+    '<p class="mf-p mf-or">Copied the flights with <b>AirValet ✈︎</b> in Makers Air Suite? Tap above. ' +
+    '<a href="/tools/makers.html" target="_blank" rel="noopener">How to set it up</a></p>' +
+    '<div id="mfPasteBox"></div>' +
+    '<p class="mf-p mf-sep">Or take one photo of <b>each page</b> of the printed manifests (one page = one flight). Flat, in good light, the whole page in the photo.</p>' +
     '<div class="mf-pick">' +
       '<label class="mf-btn mf-pri">📷 Take photo<input type="file" accept="image/*" capture="environment" hidden onchange="mfAdd(this)"></label>' +
       '<label class="mf-btn">🖼 Choose from Photos<input type="file" accept="image/*" multiple hidden onchange="mfAdd(this)"></label>' +
@@ -17010,18 +17014,21 @@ var MF_ERR = {
   DAILY_LIMIT: 'Too many checks today from this login.', NO_MANIFEST_READ: 'No Makers manifest found in these photos. Take them again, flat and in good light.',
   FORBIDDEN: 'This login cannot use the manifest check.', UNAUTHENTICATED: 'Session expired — sign in again.',
   TOO_MANY_IMAGES: '12 pages at most per check.', BAD_IMAGE: 'One photo could not be sent. Remove it and take it again.',
-  READ_FAILED: 'The pages could not be read. Try again in a minute.', NETWORK: 'No connection — try again.'
+  READ_FAILED: 'The pages could not be read. Try again in a minute.', NETWORK: 'No connection — try again.',
+  BAD_SUITE_DATA: 'The copied list is incomplete. Copy it again in Makers Air Suite.'
 };
-async function mfScan(){
-  if (_mf.busy || !_mf.photos.length) return;
+async function mfScan(suite){
+  if (_mf.busy || (!suite && !_mf.photos.length)) return;
   if (navigator.onLine === false) { showMsg('No connection — the manifest check needs internet.', true); return; }
   _mf.busy = true;
   var b = document.getElementById('mfBody');
-  if (b) b.innerHTML = '<div class="mf-wait" role="status"><span class="mf-spin" aria-hidden="true"></span><b>Reading ' + _mf.photos.length + ' page' + (_mf.photos.length > 1 ? 's' : '') + '…</b><span>Usually 20–60 seconds. Keep this screen open.</span></div>';
+  if (b) b.innerHTML = suite
+    ? '<div class="mf-wait" role="status"><span class="mf-spin" aria-hidden="true"></span><b>Checking ' + suite.flights.length + ' flights…</b><span>A few seconds.</span></div>'
+    : '<div class="mf-wait" role="status"><span class="mf-spin" aria-hidden="true"></span><b>Reading ' + _mf.photos.length + ' page' + (_mf.photos.length > 1 ? 's' : '') + '…</b><span>Usually 20–60 seconds. Keep this screen open.</span></div>';
   var res;
   try {
     var ctl = new AbortController(), t = setTimeout(function(){ ctl.abort(); }, 170000);
-    res = await smsApi('/functions/v1/manifest-scan', { method: 'POST', headers: sbHeaders(), body: JSON.stringify({ images: _mf.photos }), signal: ctl.signal });
+    res = await smsApi('/functions/v1/manifest-scan', { method: 'POST', headers: sbHeaders(), body: JSON.stringify(suite ? { suite: suite } : { images: _mf.photos }), signal: ctl.signal });
     clearTimeout(t);
   } catch(e) {
     res = { ok: false, error: { code: e.status === 401 ? 'UNAUTHENTICATED' : e.status === 403 ? 'FORBIDDEN' : e.status === 400 ? (e.message || 'BAD_IMAGE') : 'NETWORK' } };
@@ -17033,6 +17040,29 @@ async function mfScan(){
     return;
   }
   _mf.res = res; mfRenderResult();
+}
+// "Paste from Makers Suite": the AirValet ✈︎ bookmark copied the flights as text (exact names, no AI).
+// iPhone/iPad show a small "Paste" bubble the first time; if the clipboard cannot be read, staff
+// paste into a box instead (tap and hold → Paste).
+var MF_PREFIX = 'AIRVALET-MAKERS:';
+async function mfPaste(){
+  var txt = '';
+  try { if (navigator.clipboard && navigator.clipboard.readText) txt = await navigator.clipboard.readText(); } catch(e) { txt = ''; }
+  if (txt && txt.indexOf(MF_PREFIX) >= 0) { mfSuiteText(txt); return; }
+  var box = document.getElementById('mfPasteBox'); if (!box) return;
+  box.innerHTML = '<p class="mf-err" role="alert">' + (txt ? 'What you copied is not from AirValet ✈︎.' : 'Could not read what you copied.') +
+    ' In Safari: Makers Air Suite → tap <b>AirValet ✈︎</b> → <b>Copy for AirValet</b>. Or tap and hold the box below → Paste.</p>' +
+    '<textarea id="mfPasteTa" class="mf-ta" rows="3" placeholder="Tap and hold here → Paste" oninput="if(this.value.indexOf(MF_PREFIX)>=0) mfSuiteText(this.value)"></textarea>';
+}
+function mfSuiteText(txt){
+  var i = String(txt).indexOf(MF_PREFIX), data = null;
+  try { data = JSON.parse(String(txt).slice(i + MF_PREFIX.length).trim()); } catch(e) { data = null; }
+  if (!data || data.v !== 1 || !Array.isArray(data.flights) || !data.flights.length) {
+    var box = document.getElementById('mfPasteBox');
+    if (box) box.innerHTML = '<p class="mf-err" role="alert">The copied list is incomplete. Copy it again in Makers Air Suite.</p>';
+    return;
+  }
+  mfScan(data);
 }
 function mfDay(iso){ return vpIsoDate(iso) || iso || ''; }
 function mfRetTxt(ret){ return ret ? fmtD(ret) : 'no date'; }

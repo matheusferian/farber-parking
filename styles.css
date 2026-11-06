@@ -2644,3 +2644,8 @@ body.tv-stale .tv-stale-banner{display:block;}
 .mf-warn{color:#7A4A00}
 .mf-done{color:var(--ok);font-weight:700;font-size:13px;margin:4px 0}
 .mf-acts{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.mf-btn.mf-paste{background:var(--ok);border-color:var(--ok);color:#fff;min-height:56px;font-size:16px;margin-top:0}
+.mf-or{margin-top:6px;font-size:13px}
+.mf-or a{color:var(--pur);font-weight:700}
+.mf-sep{border-top:1px solid #E3E7EE;padding-top:10px;margin-top:4px}
+.mf-ta{width:100%;border:1.5px solid var(--b);border-radius:10px;padding:10px;font-size:16px;margin:6px 0 10px;font-family:inherit}
