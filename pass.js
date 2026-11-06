@@ -570,7 +570,11 @@
     if (form.busy) return;
     form.busy = true; form.err = null; drawSheet();
     try {
-      // Same client key on every retry of this sheet → never two requests.
+      // Same client key on every retry of the SAME request → never two requests. A changed request
+      // (the guest edited it after a lost answer) gets a new key, so staff see the new one (audit #10).
+      var sig = JSON.stringify(body);
+      if (form.ckBody != null && form.ckBody !== sig) form.ck = clientKey();
+      form.ckBody = sig;
       var r = await post(Object.assign({ t: TOKEN, action: 'request', ck: form.ck }, body));
       form.busy = false;
       var res = r.data && r.data.result;
@@ -597,6 +601,14 @@
     load();
   });
   document.addEventListener('visibilitychange', function () { if (!document.hidden && pass && sheetBg.hidden && !tipBusy) load(); });
+  // Audit 2026-11-06 (#12): back from Stripe with the browser's Back button, Safari restores this page from
+  // its cache with the tapped amount still busy. Reset and refresh so the pass keeps updating.
+  window.addEventListener('pageshow', function (e) {
+    if (!e.persisted) return;
+    tipBusy = false;
+    Array.prototype.forEach.call(document.querySelectorAll('button[data-tip]'), function (b) { b.disabled = false; });
+    if (pass) load();
+  });
   // Latest data on every open/return to the page, and every 30 s while open.
   setInterval(function () { if (!document.hidden && pass && sheetBg.hidden && !tipBusy) load(); }, 30000);
   // Back from Stripe Checkout (?gratuity=thanks|cancel, no token in that URL):

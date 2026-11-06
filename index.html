@@ -17287,11 +17287,20 @@ async function offlineSyncPending(manual){
   };
   // One upload at a time across tabs of this device. Automatic attempts skip
   // when another upload holds the lock; Sync now waits for it, then runs.
+  // Audit 2026-11-06 (#9): a half-open connection must not hold the upload forever. After 4 minutes the
+  // lock is released and the next attempt can start (check-ins are idempotent by client key).
+  var runGuarded = function(){
+    var timer = null;
+    var guard = new Promise(function(resolve){ timer = setTimeout(function(){
+      _offlineSync.running = false; updateOfflineModeBanner(); resolve({ skipped:'timeout' });
+    }, 240000); });
+    return Promise.race([run().finally(function(){ clearTimeout(timer); }), guard]);
+  };
   if(navigator.locks && navigator.locks.request){
-    if(manual) return navigator.locks.request('airvalet-offline-sync', function(){ return run(); });
-    return navigator.locks.request('airvalet-offline-sync', { ifAvailable:true }, function(lock){ return lock ? run() : { skipped:'other-tab' }; });
+    if(manual) return navigator.locks.request('airvalet-offline-sync', function(){ return runGuarded(); });
+    return navigator.locks.request('airvalet-offline-sync', { ifAvailable:true }, function(lock){ return lock ? runGuarded() : { skipped:'other-tab' }; });
   }
-  return run();
+  return runGuarded();
 }
 
 async function offlineSyncOrder(todo){
