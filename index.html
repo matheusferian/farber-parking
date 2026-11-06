@@ -5095,6 +5095,12 @@ function useQuickReply(passengerId, text){
 // Double-send protection: the button is disabled while a send is in flight
 // and every draft carries one compose id — a double tap or a retry after a
 // network error reuses it, so the server sends at most once per draft.
+// Owner 2026-11-06: a "Welcome back…" text sent from the Inbox counts as the Welcome Back.
+function markWelcomeBackFromInbox(passengerId, text){
+  var p = paxById(passengerId); if (!p || p.welcome_back_sent_at || !/^\s*welcome back/i.test(String(text || ''))) return;
+  var nowIso = new Date().toISOString(); p.welcome_back_sent_at = nowIso;
+  sbUpdate(passengerId, { welcome_back_sent_at: nowIso }).then(function(){ render(); }).catch(function(){ p.welcome_back_sent_at = null; });
+}
 async function sendInboxReply(passengerId){
   if (_ibx.sending) return;
   var ta = document.getElementById('ibxText'); if (!ta) return;
@@ -5115,7 +5121,7 @@ async function sendInboxReply(passengerId){
     var cr = null;
     try { cr = await vpRpc('airvalet_portal_staff_reply', { p_passenger_id: passengerId, p_body: text, p_compose_id: c.id, p_staff_name: smsStaffName() || null }); } catch(e) { cr = { result: 'NETWORK' }; }
     _ibx.sending = false;
-    if (cr && cr.result === 'OK') { _ibx.compose[passengerId] = { id: newComposeId(), text: '' }; }
+    if (cr && cr.result === 'OK') { _ibx.compose[passengerId] = { id: newComposeId(), text: '' }; markWelcomeBackFromInbox(passengerId, text); }
     else showMsg(cr && cr.result === 'NO_PASS_LINK' ? (guestPhoneIntl((paxById(passengerId) || {}).phone) ? 'No active valet pass link — open the ticket and tap Send pass link.' : 'This passenger has no active valet pass link — check "Also send as text message".') : 'Not sent — try again.', true);
     await loadInbox(); renderThread(passengerId, false);
     return;
@@ -5124,6 +5130,7 @@ async function sendInboxReply(passengerId){
   _ibx.sending = false;
   if (res && res.ok){
     _ibx.compose[passengerId] = { id: newComposeId(), text: '' };
+    markWelcomeBackFromInbox(passengerId, text);
     var p = paxById(passengerId) || {};
     sbLog('EDITED', p.name || '', p.ticket || '', p.loc || '', 'Text reply sent from the AirValet inbox', { passenger_id: passengerId, field_name: 'sms_reply', old_value: '', new_value: 'sent' });
     await loadInbox();
@@ -16581,11 +16588,14 @@ function tvDayTagBadge(day){ return '<span class="tv-badge tv-badge-daytag">'+(d
 function tvDayTripWbAlerts(){
   var now = new Date(), out = [];
   (data || []).forEach(function(r){
-    if (!r || r.status === 'DELIVERED' || r.status === 'ARCHIVED' || r.welcome_back_sent_at || !isToday(r.ret) || !isDayTripRow(r)) return;
+    if (!r || r.status === 'DELIVERED' || r.status === 'ARCHIVED' || r.welcome_back_sent_at || !isToday(r.ret)) return;
+    var day = isDayTripRow(r);
+    // Owner 2026-11-06: every Welcome Back still to send — Makers returns (Hangar 19) and every day trip.
+    if (!day && (returnOperator(r) !== 'MAKERS' || r.delivery_type === 'CUSTOMS')) return;
     var t = getDepartureTime(r); if (!t || !isValidDepTime(t)) return;
     var p = t.split(':'), eta = new Date(); eta.setHours(parseInt(p[0], 10), parseInt(p[1], 10), 0, 0);
     var mins = (eta - now) / 60000;
-    if (mins <= 60 && mins >= -120) out.push({ r: r, txt: '✈ Day trip lands ' + t + (r.key_with_guest ? ' (key with passenger)' : '') + ' — send Welcome Back', lvl: 'warning' });
+    if (mins <= (day ? 60 : 30) && mins >= -120) out.push({ r: r, txt: '✈ ' + (day ? 'Day trip lands ' : 'Lands ') + t + (r.key_with_guest ? ' (key with passenger)' : '') + ' — send Welcome Back', lvl: mins <= 10 ? 'critical' : 'warning' });
   });
   return out;
 }
