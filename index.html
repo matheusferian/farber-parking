@@ -16964,19 +16964,78 @@ function mfOpen(){
   var old = document.getElementById('mfOv'); if (old) old.remove();
   var ov = document.createElement('div'); ov.id = 'mfOv'; ov.className = 'mf-ov';
   ov.innerHTML = '<div class="mf-box" role="dialog" aria-modal="true" aria-labelledby="mfTitle">' +
-    '<div class="mf-head"><b id="mfTitle">Makers manifest check</b><button type="button" class="mf-x" aria-label="Close" onclick="mfClose()">✕</button></div>' +
+    '<div class="mf-head"><b id="mfTitle">Makers flights</b><button type="button" class="mf-x" aria-label="Close" onclick="mfClose()">✕</button></div>' +
     '<div id="mfBody"></div></div>';
   document.body.appendChild(ov);
-  mfRenderPick();
+  mfHome();
 }
 function mfClose(){ if (_mf.busy) return; var ov = document.getElementById('mfOv'); if (ov) ov.remove(); }
+// Makers robot (owner 2026-11-06): makers-sync reads Makers Air Suite at 3 PM (tomorrow) and 7 AM
+// (today). The screen opens on the latest result; "Update from Makers" reads it again now.
+async function mfHome(){
+  var b = document.getElementById('mfBody'); if (!b) return;
+  b.innerHTML = '<div class="mf-wait" role="status"><span class="mf-spin" aria-hidden="true"></span><b>Loading the Makers list…</b></div>';
+  var latest = null;
+  try { latest = await vpRpc('airvalet_manifest_latest', {}); } catch(e) { latest = null; }
+  if (latest && latest.ok && latest.result) { _mf.res = mfRobotRes(latest.result, latest.created_at); mfRenderResult(); return; }
+  b.innerHTML = (latest && latest.ok === false ? '<p class="mf-err" role="alert">The last Makers reading failed. Tap Update to try again.</p>' : '<p class="mf-p">No Makers list yet for tomorrow.</p>') +
+    '<button type="button" class="mf-btn mf-go" onclick="mfUpdate()">🔄 Update from Makers</button>' +
+    '<button type="button" class="mf-link" onclick="mfRenderPick()">No Makers access? Check with photos of the printed pages</button>';
+}
+function mfRobotRes(r, at){
+  return { robot: true, at: at || null, manifest_date: r.date, inbound: r.inbound || [], outbound: r.outbound || [],
+    pages: r.inbound || [], manifest_rows: (r.inbound || []).reduce(function(a, f){ return a + f.pax; }, 0),
+    matches: r.matches || [], missing: r.missing || [], date_diffs: r.date_diffs || [], no_return: r.no_return || [], not_found: r.not_found_list || [], warnings: [] };
+}
+var MF_SYNC_ERR = { NOT_CONFIGURED: 'The Makers robot is not set up yet. Ask the admin.', LOGIN_FAILED: 'Makers Air Suite did not accept the robot login. The password may have changed — tell Matheus.',
+  LAYOUT: 'Makers Air Suite changed its pages. Tell Matheus; check the list by hand meanwhile.', HTTP: 'Makers Air Suite is not answering. Try again in a few minutes.',
+  READ_FAILED: 'Could not read Makers Air Suite. Try again in a few minutes.', TOO_SOON: 'Just updated — wait a minute.', NETWORK: 'No connection — try again.',
+  FORBIDDEN: 'This login cannot use the Makers check.', UNAUTHENTICATED: 'Session expired — sign in again.' };
+async function mfUpdate(day){
+  if (_mf.busy) return;
+  if (navigator.onLine === false) { showMsg('No connection — the Makers check needs internet.', true); return; }
+  _mf.busy = true;
+  var b = document.getElementById('mfBody');
+  if (b) b.innerHTML = '<div class="mf-wait" role="status"><span class="mf-spin" aria-hidden="true"></span><b>Reading Makers Air Suite…</b><span>About 30–60 seconds. Keep this screen open.</span></div>';
+  var res;
+  try {
+    var ctl = new AbortController(), t = setTimeout(function(){ ctl.abort(); }, 170000);
+    res = await smsApi('/functions/v1/makers-sync', { method: 'POST', headers: sbHeaders(), body: JSON.stringify(day === 'today' ? { day: 'today' } : {}), signal: ctl.signal });
+    clearTimeout(t);
+  } catch(e) { res = { ok: false, error: { code: e.status === 401 ? 'UNAUTHENTICATED' : e.status === 403 ? 'FORBIDDEN' : 'NETWORK' } }; }
+  _mf.busy = false;
+  if (!res || !res.ok) {
+    var code = (res && res.error && res.error.code) || 'READ_FAILED';
+    if (b) b.innerHTML = '<p class="mf-err" role="alert">' + escapeHTML(MF_SYNC_ERR[code] || ('Update failed (' + code + ').')) + '</p><button type="button" class="mf-btn" onclick="mfHome()">Back</button>';
+    return;
+  }
+  _mf.res = mfRobotRes(res, res.created_at); mfRenderResult();
+}
+// Departures for the WhatsApp group: one line per flight, in time order.
+function mfDeparturesText(r){
+  var lines = (r.outbound || []).map(function(f){ return vpTime(f.time) + ' — ' + f.pax + ' pax (' + f.flight + ' ' + f.route.replace('FXE-', '→ ') + ')'; });
+  return 'Makers departures ' + mfDay(r.manifest_date) + '\n' + lines.join('\n') + '\nTotal: ' + (r.outbound || []).reduce(function(a, f){ return a + f.pax; }, 0) + ' passengers';
+}
+function mfCopyDepartures(btn){
+  var txt = mfDeparturesText(_mf.res), ok = false;
+  var done = function(){ btn.textContent = ok ? 'Copied ✓ — paste in WhatsApp' : 'Could not copy'; };
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(function(){ ok = true; done(); }, function(){ done(); });
+  else done();
+}
+async function mfDateDiff(i){
+  var d = _mf.res && _mf.res.date_diffs[i]; if (!d || d._done) return;
+  var r = paxById(d.passenger_id); if (!r) { showMsg('Ticket not loaded — refresh.', true); return; }
+  var nd = mfIsoToMdy(d.makers);
+  if (!nd || !confirm('Change ' + r.name + '’s return date?\n\n' + mfRetTxt(r.ret) + '  →  ' + fmtD(nd) + '\n\nMakers Air Suite has the return booked for that day.')) return;
+  loading(true);
+  try { var row = await changePassengerReturnDate(r.id, nd, 'Makers Air Suite: return booked for ' + nd, false); applyServerPassengerRow(r, row); d._done = true; render(); }
+  catch(e) { showMsg('Date not changed: ' + e.message, true); }
+  finally { loading(false); }
+  mfRenderResult();
+}
 function mfRenderPick(){
   var b = document.getElementById('mfBody'); if (!b) return;
-  b.innerHTML = '<button type="button" class="mf-btn mf-paste" onclick="mfPaste()">📋 Paste from Makers Suite</button>' +
-    '<p class="mf-p mf-or">Copied the flights with <b>AirValet ✈︎</b> in Makers Air Suite? Tap above. ' +
-    '<a href="/tools/makers.html" target="_blank" rel="noopener">How to set it up</a></p>' +
-    '<div id="mfPasteBox"></div>' +
-    '<p class="mf-p mf-sep">Or take one photo of <b>each page</b> of the printed manifests (one page = one flight). Flat, in good light, the whole page in the photo.</p>' +
+  b.innerHTML = '<p class="mf-p">Take one photo of <b>each page</b> of the printed manifests (one page = one flight). Flat, in good light, the whole page in the photo.</p>' +
     '<div class="mf-pick">' +
       '<label class="mf-btn mf-pri">📷 Take photo<input type="file" accept="image/*" capture="environment" hidden onchange="mfAdd(this)"></label>' +
       '<label class="mf-btn">🖼 Choose from Photos<input type="file" accept="image/*" multiple hidden onchange="mfAdd(this)"></label>' +
@@ -16986,7 +17045,8 @@ function mfRenderPick(){
         '<button type="button" aria-label="Remove page ' + (i + 1) + '" onclick="mfDel(' + i + ')">✕</button></figure>';
     }).join('') + '</div>' +
     '<button type="button" class="mf-btn mf-go" onclick="mfScan()"' + (_mf.photos.length ? '' : ' disabled') + '>' +
-      (_mf.photos.length ? 'Check ' + _mf.photos.length + ' page' + (_mf.photos.length > 1 ? 's' : '') + ' against AirValet' : 'Add the pages first') + '</button>';
+      (_mf.photos.length ? 'Check ' + _mf.photos.length + ' page' + (_mf.photos.length > 1 ? 's' : '') + ' against AirValet' : 'Add the pages first') + '</button>' +
+    '<button type="button" class="mf-link" onclick="mfHome()">Back to the Makers list</button>';
 }
 function mfDel(i){ _mf.photos.splice(i, 1); mfRenderPick(); }
 async function mfAdd(input){
@@ -17014,21 +17074,18 @@ var MF_ERR = {
   DAILY_LIMIT: 'Too many checks today from this login.', NO_MANIFEST_READ: 'No Makers manifest found in these photos. Take them again, flat and in good light.',
   FORBIDDEN: 'This login cannot use the manifest check.', UNAUTHENTICATED: 'Session expired — sign in again.',
   TOO_MANY_IMAGES: '12 pages at most per check.', BAD_IMAGE: 'One photo could not be sent. Remove it and take it again.',
-  READ_FAILED: 'The pages could not be read. Try again in a minute.', NETWORK: 'No connection — try again.',
-  BAD_SUITE_DATA: 'The copied list is incomplete. Copy it again in Makers Air Suite.'
+  READ_FAILED: 'The pages could not be read. Try again in a minute.', NETWORK: 'No connection — try again.'
 };
-async function mfScan(suite){
-  if (_mf.busy || (!suite && !_mf.photos.length)) return;
+async function mfScan(){
+  if (_mf.busy || !_mf.photos.length) return;
   if (navigator.onLine === false) { showMsg('No connection — the manifest check needs internet.', true); return; }
   _mf.busy = true;
   var b = document.getElementById('mfBody');
-  if (b) b.innerHTML = suite
-    ? '<div class="mf-wait" role="status"><span class="mf-spin" aria-hidden="true"></span><b>Checking ' + suite.flights.length + ' flights…</b><span>A few seconds.</span></div>'
-    : '<div class="mf-wait" role="status"><span class="mf-spin" aria-hidden="true"></span><b>Reading ' + _mf.photos.length + ' page' + (_mf.photos.length > 1 ? 's' : '') + '…</b><span>Usually 20–60 seconds. Keep this screen open.</span></div>';
+  if (b) b.innerHTML = '<div class="mf-wait" role="status"><span class="mf-spin" aria-hidden="true"></span><b>Reading ' + _mf.photos.length + ' page' + (_mf.photos.length > 1 ? 's' : '') + '…</b><span>Usually 20–60 seconds. Keep this screen open.</span></div>';
   var res;
   try {
     var ctl = new AbortController(), t = setTimeout(function(){ ctl.abort(); }, 170000);
-    res = await smsApi('/functions/v1/manifest-scan', { method: 'POST', headers: sbHeaders(), body: JSON.stringify(suite ? { suite: suite } : { images: _mf.photos }), signal: ctl.signal });
+    res = await smsApi('/functions/v1/manifest-scan', { method: 'POST', headers: sbHeaders(), body: JSON.stringify({ images: _mf.photos }), signal: ctl.signal });
     clearTimeout(t);
   } catch(e) {
     res = { ok: false, error: { code: e.status === 401 ? 'UNAUTHENTICATED' : e.status === 403 ? 'FORBIDDEN' : e.status === 400 ? (e.message || 'BAD_IMAGE') : 'NETWORK' } };
@@ -17040,29 +17097,6 @@ async function mfScan(suite){
     return;
   }
   _mf.res = res; mfRenderResult();
-}
-// "Paste from Makers Suite": the AirValet ✈︎ bookmark copied the flights as text (exact names, no AI).
-// iPhone/iPad show a small "Paste" bubble the first time; if the clipboard cannot be read, staff
-// paste into a box instead (tap and hold → Paste).
-var MF_PREFIX = 'AIRVALET-MAKERS:';
-async function mfPaste(){
-  var txt = '';
-  try { if (navigator.clipboard && navigator.clipboard.readText) txt = await navigator.clipboard.readText(); } catch(e) { txt = ''; }
-  if (txt && txt.indexOf(MF_PREFIX) >= 0) { mfSuiteText(txt); return; }
-  var box = document.getElementById('mfPasteBox'); if (!box) return;
-  box.innerHTML = '<p class="mf-err" role="alert">' + (txt ? 'What you copied is not from AirValet ✈︎.' : 'Could not read what you copied.') +
-    ' In Safari: Makers Air Suite → tap <b>AirValet ✈︎</b> → <b>Copy for AirValet</b>. Or tap and hold the box below → Paste.</p>' +
-    '<textarea id="mfPasteTa" class="mf-ta" rows="3" placeholder="Tap and hold here → Paste" oninput="if(this.value.indexOf(MF_PREFIX)>=0) mfSuiteText(this.value)"></textarea>';
-}
-function mfSuiteText(txt){
-  var i = String(txt).indexOf(MF_PREFIX), data = null;
-  try { data = JSON.parse(String(txt).slice(i + MF_PREFIX.length).trim()); } catch(e) { data = null; }
-  if (!data || data.v !== 1 || !Array.isArray(data.flights) || !data.flights.length) {
-    var box = document.getElementById('mfPasteBox');
-    if (box) box.innerHTML = '<p class="mf-err" role="alert">The copied list is incomplete. Copy it again in Makers Air Suite.</p>';
-    return;
-  }
-  mfScan(data);
 }
 function mfDay(iso){ return vpIsoDate(iso) || iso || ''; }
 function mfRetTxt(ret){ return ret ? fmtD(ret) : 'no date'; }
@@ -17111,19 +17145,40 @@ function mfRenderResult(){
   var sec = function(title, cls, list, note){
     return list.length ? '<section class="mf-sec ' + cls + '"><h3>' + title + ' <span>' + list.length + '</span></h3>' + (note ? '<p class="mf-note">' + note + '</p>' : '') + list.map(function(x){ return mfCard(x.m, x.i); }).join('') + '</section>' : '';
   };
-  var miss = (r.missing || []).filter(function(x){ return !x._gone; });
+  var diffIds = {}; (r.date_diffs || []).forEach(function(d){ diffIds[d.passenger_id] = d; });
+  var miss = (r.missing || []).filter(function(x){ return !x._gone && !diffIds[x.passenger_id]; });
+  var pax = function(l){ return (l || []).reduce(function(a, f){ return a + f.pax; }, 0); };
+  var when = r.at ? new Date(r.at).toLocaleString('en-US', { weekday: 'short', hour: 'numeric', minute: '2-digit' }) : '';
+  var diffs = (r.date_diffs || []).map(function(d, i){
+    return '<article class="mf-card mf-early"><div class="mf-name"><b>' + escapeHTML(d.system_name) + '</b><span>' + escapeHTML(d.ticket) + '</span></div>' +
+      '<div class="mf-line mf-warn">Our return: <b>' + escapeHTML(mfRetTxt(d.ours)) + '</b> · Makers: <b>' + escapeHTML(mfDay(d.makers)) + '</b></div>' +
+      (d._done ? '<div class="mf-done">✓ Return date changed</div>' : '<div class="mf-acts"><button type="button" class="mf-btn mf-sm mf-pri" onclick="mfDateDiff(' + i + ')">Change return to ' + escapeHTML(fmtD(mfIsoToMdy(d.makers))) + '</button></div>') + '</article>';
+  }).join('');
+  var noRet = (r.no_return || []).map(function(x){ return '<article class="mf-card"><div class="mf-name"><b>' + escapeHTML(x.system_name) + '</b><span>' + escapeHTML(x.ticket) + '</span></div><div class="mf-line">Our return: ' + escapeHTML(mfRetTxt(x.ours)) + ' · Makers: no return flight booked</div></article>'; }).join('');
+  var flights = function(list, what){ return (list || []).map(function(f){ return '<li><b>' + escapeHTML(vpTime(f.time)) + '</b> — ' + f.pax + ' pax <span>' + escapeHTML(f.flight + ' ' + f.route + ' · ' + f.tail) + '</span></li>'; }).join(''); };
   b.innerHTML =
-    '<p class="mf-sum">Manifest for <b>' + escapeHTML(mfDay(r.manifest_date)) + '</b> · ' + r.pages.length + ' flight' + (r.pages.length === 1 ? '' : 's') + ' · ' + r.manifest_rows + ' passengers · <b>' + (sur.length + ok.length + del.length) + ' of ours</b></p>' +
+    (r.robot
+      ? '<p class="mf-sum"><b>' + escapeHTML(mfDay(r.manifest_date)) + '</b>' + (when ? ' · updated ' + escapeHTML(when) : '') + '<br>🛬 In: ' + (r.inbound || []).length + ' flights (' + pax(r.inbound) + ' pax) · 🛫 Out: ' + (r.outbound || []).length + ' flights (' + pax(r.outbound) + ' pax) · <b>' + (sur.length + ok.length + del.length) + ' of ours</b></p>'
+      : '<p class="mf-sum">Manifest for <b>' + escapeHTML(mfDay(r.manifest_date)) + '</b> · ' + r.pages.length + ' flight' + (r.pages.length === 1 ? '' : 's') + ' · ' + r.manifest_rows + ' passengers · <b>' + (sur.length + ok.length + del.length) + ' of ours</b></p>') +
     (warn ? '<ul class="mf-warns" role="alert">' + warn + '</ul>' : '') +
-    sec('⚡ Coming back on a different day', 'mf-s-sur', sur, 'On the manifest, but our return date is different. Check and change the date.') +
-    (miss.length ? '<section class="mf-sec mf-s-miss"><h3>❓ Expected, not on any page <span>' + miss.length + '</span></h3><p class="mf-note">Our return date is the manifest day, but the name is on no page. A page may be missing, or the guest changed the flight.</p>' +
+    sec('⚡ Coming back on a different day', 'mf-s-sur', sur, 'On the Makers flight, but our return date is different. Check and change the date.') +
+    (diffs ? '<section class="mf-sec mf-s-sur"><h3>📅 Return date changed in Makers <span>' + (r.date_diffs || []).length + '</span></h3><p class="mf-note">Makers has another return day booked. Tail and arrival time are filled the day before.</p>' + diffs + '</section>' : '') +
+    (miss.length ? '<section class="mf-sec mf-s-miss"><h3>❓ Expected, not on any flight <span>' + miss.length + '</span></h3><p class="mf-note">Our return date is this day, but the name is on no Makers flight.</p>' +
       miss.map(function(x){ return '<article class="mf-card"><div class="mf-name"><b>' + escapeHTML(x.system_name) + '</b><span>' + escapeHTML(x.ticket) + '</span></div>' +
-        (x.operator === 'ASCEND' ? '<div class="mf-line">Ascend guest: the Ascend list may come separately.</div>' : '') + '</article>'; }).join('') + '</section>' : '') +
+        (x.operator === 'ASCEND' ? '<div class="mf-line">Ascend guest: not in the Makers list.</div>' : '') + '</article>'; }).join('') + '</section>' : '') +
     sec('🔎 Check: same last name', 'mf-s-chk', chk, 'Could be the guest or a family member.') +
-    sec('✅ On the manifest', 'mf-s-ok', ok, '') +
-    sec('Already delivered', 'mf-s-del', del, '') +
+    sec('✅ On the Makers flight', 'mf-s-ok', ok, '') +
     (fillable.length ? '<button type="button" class="mf-btn mf-go" onclick="mfFillAll()">Fill tail and time for ' + fillable.length + ' guest' + (fillable.length > 1 ? 's' : '') + '</button>' : '') +
-    '<button type="button" class="mf-btn" onclick="mfOpen()">New check</button>';
+    (noRet ? '<section class="mf-sec"><h3>No return booked in Makers <span>' + (r.no_return || []).length + '</span></h3>' + noRet + '</section>' : '') +
+    ((r.not_found || []).length ? '<section class="mf-sec"><h3>🔍 Not found in Makers <span>' + r.not_found.length + '</span></h3><p class="mf-note">The robot could not find these names in Makers. Look them up by hand.</p><ul class="mf-fl">' +
+      r.not_found.map(function(x){ return '<li><b>' + escapeHTML(x.system_name) + '</b> <span>' + escapeHTML(x.ticket) + ' · our return ' + escapeHTML(mfRetTxt(x.ours)) + '</span></li>'; }).join('') + '</ul></section>' : '') +
+    ((r.outbound || []).length ? '<section class="mf-sec"><h3>🛫 Departures from FXE <span>' + pax(r.outbound) + ' pax</span></h3><ul class="mf-fl">' + flights(r.outbound) + '</ul>' +
+      '<button type="button" class="mf-btn" onclick="mfCopyDepartures(this)">Copy departures for WhatsApp</button></section>' : '') +
+    ((r.inbound || []).length ? '<section class="mf-sec"><h3>🛬 Arrivals at FXE <span>' + pax(r.inbound) + ' pax</span></h3><ul class="mf-fl">' + flights(r.inbound) + '</ul></section>' : '') +
+    sec('Already delivered', 'mf-s-del', del, '') +
+    (r.robot
+      ? '<button type="button" class="mf-btn mf-go" onclick="mfUpdate()">🔄 Update from Makers</button><button type="button" class="mf-link" onclick="mfRenderPick()">No Makers access? Check with photos</button>'
+      : '<button type="button" class="mf-btn" onclick="mfHome()">Back</button>');
 }
 async function mfFill(i){
   var m = _mf.res && _mf.res.matches[i]; if (!m || m._fill) return;
@@ -17180,6 +17235,16 @@ async function mfVerdict(i, verdict){
   mfRenderResult();
 }
 
+// Push "Makers · tomorrow" opens /?mf=1: show the Makers list once the app is signed in.
+(function(){
+  if (!/[?&]mf=1\b/.test(location.search)) return;
+  var tries = 0, t = setInterval(function(){
+    tries++;
+    if (typeof _currentUserRole !== 'undefined' && _currentUserRole && _currentUserRole !== 'TV_ONLY') {
+      clearInterval(t); try { history.replaceState(null, '', location.pathname); } catch(e) {} mfOpen();
+    } else if (tries > 40) clearInterval(t);
+  }, 500);
+})();
 // Service worker registration + update lifecycle, connectivity
 // detection (device network vs. actual Supabase reachability), the
 // Debug-tab diagnostics panel, and (from Phase 2 on) the real
