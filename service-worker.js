@@ -89,7 +89,8 @@
 // v107: classic check-in form disabled — new check-in only on every device.
 // v108: Day trip pass — staff Ready no longer says A/C running / luggage.
 // v109: Dashboard card — Ready button next to the passenger name.
-var CACHE_VERSION = 'v109';
+// v110: Valet Pass v3 — one boarding pass with a perforated stub, plain copy, calm gratuity section (owner approved).
+var CACHE_VERSION = 'v110';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 var SHELL_FILES = [

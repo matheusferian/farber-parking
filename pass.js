@@ -19,7 +19,7 @@
   // Valet Terms (owner 2026-10-27, decision 10): no page exists until the attorney
   // approves the text. terms.html is the SMS terms — never link it as Valet Terms.
   var VALET_TERMS_URL = '';
-  var GRATUITY_COPY = 'Our valet service is complimentary. If you\u2019d like to say thank you, a gratuity is always optional.';
+  var GRATUITY_COPY = 'Valet service is complimentary. If you want to thank the team, you can leave a gratuity.';
 
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
@@ -63,7 +63,7 @@
     var vals = days.map(function (d) { return Array.isArray(h[d]) && h[d].length === 2 ? fmtTime(h[d][0]) + ' – ' + fmtTime(h[d][1]) : null; });
     if (vals.every(function (v) { return v === null; })) return '';
     // Times never break inside ("5:30 PM" stays on one line).
-    if (vals.every(function (v) { return v === vals[0]; })) return 'Open every day, ' + vals[0].replace(' – ', ' to ').replace(/ (AM|PM)/g, '\u00a0$1');
+    if (vals.every(function (v) { return v === vals[0]; })) return 'Valet hours: every day, ' + vals[0].replace(' – ', ' to ').replace(/ (AM|PM)/g, '\u00a0$1');
     var names = { mon: 'Mon', tue: 'Tue', wed: 'Wed', thu: 'Thu', fri: 'Fri', sat: 'Sat', sun: 'Sun' };
     return 'Valet hours: ' + days.map(function (d, i) { return names[d] + ' ' + (vals[i] || 'closed'); }).join(' · ');
   }
@@ -129,7 +129,7 @@
     if (!p) { h1.hidden = true; sub.hidden = true; return; }
     var done = p.status === 'DELIVERED';
     var t = done ? (p.first_name ? 'Thank you, ' + p.first_name + '.' : 'Thank you.') : (p.first_name ? 'Welcome, ' + p.first_name + '.' : 'Welcome.');
-    var st = done ? 'Safe travels, and see you on your next trip.' : 'Your Makers Air Valet pass';
+    var st = done ? 'Your car has been delivered.' : 'Your Makers Air Valet pass';
     if (h1.textContent !== t) h1.textContent = t;
     if (sub.textContent !== st) sub.textContent = st;
     h1.hidden = false; sub.hidden = false;
@@ -185,7 +185,7 @@
         line: p.pickup === 'HANGAR_19' ? 'Fly safe. We\u2019ll be waiting at Hangar\u00a019 and help with your luggage.' : 'Fly safe. We\u2019ll be waiting for you and help with your luggage.' };
     }
     if (p.day_trip) return { tone: 'parked', word: 'Day trip', line: dayTripLine(p, 'When you land today, ') };
-    return { tone: 'parked', word: 'Parked', line: 'Your car is safely parked.' };
+    return { tone: 'parked', word: 'Parked', line: 'Your car is parked with us.' };
   }
   function contactValet(p) { return (p.contacts && p.contacts.valet_phone) || VALET_PHONE_FALLBACK; }
   function isReturning(p) { return (p.status === 'PARKED' || !p.status) && !!(p.return_flight || p.arrival_time); }
@@ -208,45 +208,48 @@
     return p.ticket ? '<p class="pass-ticket">Ticket number for your reference: <strong>' + esc(p.ticket) + '</strong></p>' : '';
   }
 
+  // ── Valet pass v3 (mockup 2026-11-06): one boarding pass — status on top, a perforation,
+  // and the stub with Pickup / Return / Key / Ticket. Day trip = the three return steps.
+  function stubField(k, v, soft, extra) {
+    return '<div class="sf"><p class="k">' + k + '</p><p class="v' + (soft ? ' v-soft' : '') + '">' + v + '</p>' + (extra || '') + '</div>';
+  }
   function passCard(p) {
-    var st = statusInfo(p), done = p.status === 'DELIVERED';
-    var html = '<div class="pass tone-' + st.tone + '" role="region" aria-label="Your valet pass">' +
-      '<section class="card tcard">' +
-        '<div class="tc-top"><p class="lbl">Your valet pass</p><p class="pass-status"><i aria-hidden="true"></i>' + esc(st.word) + '</p></div>' +
-        '<p class="pass-car">' + (p.vehicle ? esc(niceVehicle(p.vehicle)) : 'Vehicle details will be updated soon.') + '</p>' +
-        '<p class="pass-line">' + st.line + '</p>' +
-        (p.day_trip && p.key_with_guest && !done ? '<p class="keychip"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="12" r="4.2"/><path d="M12 12h9M18 12v3.2M21 12v2.4"/></svg>You already have your key</p>' : '') +
-        (p.day_trip && !done && p.status !== 'CUSTOMS_CONFIRMED' ? '<p class="callout" role="note"><b>Please do not exit through the U.S. Customs terminal.</b> Transportation back to Makers Air is not available from that location.</p>' : '') +
-        progress(p) +
-      '</section>';
+    var st = statusInfo(p), done = p.status === 'DELIVERED', day = !!p.day_trip && !done;
+    var hangar = esc(p.day_trip_hangar || 'Hangar 19');
+    var html = '<section class="bp tone-' + st.tone + (day ? ' is-day' : '') + '" aria-label="Your valet pass">';
+    html += '<div class="bp-top">' +
+      '<p class="bp-status">' + esc(st.word) + '</p>' +
+      '<h2 class="bp-car">' + (p.vehicle ? esc(niceVehicle(p.vehicle)) : 'Vehicle details coming soon') + '</h2>';
     if (done) {
-      html += '<section class="card farewell"><div class="fw-plane" aria-hidden="true">' + planeSvg() + '</div>' +
-        '<p class="k">A note from your valet team</p>' +
-        // Smart Tips (owner 2026-10-27): a tip received in person → a personal
-        // thank-you instead of asking again. Never the amount.
-        (p.tip_thanks
-          ? '<p class="note-text">Thank you for your kindness' + (p.first_name ? ', ' + esc(p.first_name) : '') + '. Your generosity means a great deal to our team. It was a pleasure taking care of your car. Safe travels, and see you on your next trip!</p>' +
-            '<p class="note-sign">With gratitude, your Makers Air Valet team</p>'
-          : '<p class="note-text">Thank you for trusting us with your car' + (p.first_name ? ', ' + esc(p.first_name) : '') + '. It was a pleasure taking care of it. Safe travels, and see you on your next trip!</p>');
-      return html + ticketLine(p) + '</section></div>';
+      html += (p.tip_thanks
+        ? '<p class="bp-line">Thank you for the gratuity' + (p.first_name ? ', ' + esc(p.first_name) : '') + '. The team appreciates it. See you on your next trip.</p>'
+        : '<p class="bp-line">Thank you for choosing us' + (p.first_name ? ', ' + esc(p.first_name) : '') + '. See you on your next trip.</p>') +
+        '<p class="bp-sign">Your Makers Air Valet team</p>';
+    } else if (day && p.status !== 'CUSTOMS_CONFIRMED') {
+      html += '<p class="bp-line">When you land today:</p>' +
+        '<ol class="bp-steps"><li>Clear U.S. Customs.</li><li>Remain with your pilots.</li><li>Return with them to Makers Air at ' + hangar + '.</li></ol>' +
+        '<p class="bp-warn">Please do not exit through the U.S. Customs terminal. Transportation back to Makers Air is not available from that location.</p>';
+    } else {
+      html += '<p class="bp-line">' + st.line + '</p>';
     }
-    html += '<section class="card dcard">';
-    var date = fmtDate(p.return_date), time = fmtTime(p.return_time), place = pickupText(p);
-    var steps = p.pickup === 'HANGAR_19' && p.status === 'PARKED' && !p.day_trip;
-    html += '<div class="pass-grid">' +
-      '<div><p class="k">Pickup</p><p class="v' + (place ? '' : ' v-soft') + '">' + (place ? esc(place) : 'To be confirmed by our valet team.') + '</p>' +
-        (steps ? '<button class="link" type="button" id="howBtn" aria-expanded="false" aria-controls="howSteps">How to get there</button>' : '') + '</div>' +
-      '<div><p class="k">Return</p><p class="v' + (date ? '' : ' v-soft') + '">' + (date ? esc(date) : 'Not available yet.') + '</p>' +
+    html += progress(p) + '</div>';
+    html += '<div class="bp-perf" aria-hidden="true"></div><div class="bp-stub">';
+    if (done) {
+      html += '<div class="bp-grid">' + stubField('Ticket', esc(p.ticket || '')) + '</div>';
+      return html + '</div></section>';
+    }
+    var date = fmtDate(p.return_date), time = fmtTime(p.return_time), place = day ? hangar : pickupText(p);
+    var steps = p.pickup === 'HANGAR_19' && p.status === 'PARKED' && !day;
+    html += '<div class="bp-grid">' +
+      stubField('Pickup', place ? esc(place) : 'To be confirmed', !place,
+        steps ? '<button class="link" type="button" id="howBtn" aria-expanded="false" aria-controls="howSteps">How to get there</button>' : '') +
+      stubField('Return', day ? 'Today' : (date ? esc(date) : 'Not set yet'), !day && !date,
         (date && time && !p.arrival_time ? '<p class="v2">' + esc(time) + '</p>' : '') +
-        (p.requests_enabled ? '<button class="link" type="button" data-open="return">Change return</button>' : '') + '</div>' +
-      '</div>';
-    // Return flight + arrival time, once staff fill them on the car card.
+        (p.requests_enabled && !day ? '<button class="link" type="button" data-open="return">Change return</button>' : ''));
     var arr = fmtTime(p.arrival_time);
-    if (p.return_flight || arr) {
-      html += '<div class="pass-grid flight">' +
-        '<div><p class="k">Flight</p><p class="v">' + (p.return_flight ? esc(p.return_flight) : '<span class="v-soft">To be confirmed</span>') + '</p></div>' +
-        '<div><p class="k">Arrives</p><p class="v">' + (arr ? esc(arr) : '<span class="v-soft">To be confirmed</span>') + '</p></div></div>';
-    }
+    if (p.return_flight || arr) html += stubField('Flight', p.return_flight ? esc(p.return_flight) : 'To be confirmed', !p.return_flight) + stubField('Arrives', arr ? esc(arr) : 'To be confirmed', !arr);
+    if (day) html += stubField('Key', p.key_with_guest ? 'With you' : 'With our team');
+    html += stubField('Ticket', esc(p.ticket || '')) + '</div>';
     if (steps) {
       html += '<ol class="steps howto" id="howSteps" hidden>' +
         '<li>Land with Makers Air</li><li>Complete Customs</li><li>Go back to your pilots and aircraft</li><li><strong>Walk to Hangar 19</strong></li></ol>';
@@ -254,7 +257,7 @@
     var pend = p.pending_return;
     if (pend) html += '<p class="pending">Change requested: ' + esc(fmtIsoDate(pend.date) || '') + (pend.time ? ', ' + esc(fmtTime(pend.time)) : '') +
       (pend.carrier ? ' with ' + esc(pend.carrier) : '') + '. Waiting for our team to confirm.</p>';
-    return html + ticketLine(p) + '</section></div>';
+    return html + '</div></section>';
   }
   // The farewell card reuses the hero aircraft drawing (one source of truth).
   function planeSvg() { var s = hero.querySelector('.plane svg'); return s ? s.outerHTML : ''; }
@@ -339,30 +342,28 @@
     var html = '<main>';
     html += passCard(p);
     if (p.lockbox && !done && p.status !== 'CUSTOMS_CONFIRMED') html += '<button class="btn primary green" type="button" data-open="lockbox">View after-hours pickup instructions</button>';
-    if (done && hasGratuity(p) && !p.tip_thanks) html += gratuityCard(p);
+    // Gratuity (owner 2026-11-06): visible in every state, calm. Amounts only after delivery.
+    if (hasGratuity(p) && !p.tip_thanks) {
+      html += '<section class="tip" aria-label="Gratuity"><h2 class="tip-t">Gratuity <span>(optional)</span></h2><p class="tip-c">' + esc(GRATUITY_COPY) + '</p>' +
+        (done ? gratuityLinks(p, 'tip-btn') : '<button class="btn tip-btn" type="button" data-open="gratuity">Leave a gratuity</button>') +
+        '<p class="tip-fine">Secure payment by Stripe.</p></section>';
+    }
     if (p.chat_enabled) html += '<button class="btn primary" type="button" data-open="chat">Message our valet team</button>';
-    var rows = '';
     var wash = { REQUEST: 'Request', CONTACT: 'Ask our team', REQUESTED: 'Requested', PRICE_PENDING: 'Price coming', SCHEDULED: 'Scheduled', DONE: 'Done' }[p.car_wash];
-    if (!done && wash && p.requests_enabled !== false) rows += '<button type="button" data-open="wash"><span>Car wash</span><small>' + wash + '</small></button>';
-    // During the trip, or after a tip in person: a quiet row only (no highlight, no prompt).
-    if ((!done || p.tip_thanks) && hasGratuity(p)) rows += '<button type="button" data-open="gratuity"><span>Gratuity</span><small>Optional</small></button>';
-    if (rows) html += '<div class="list">' + rows + '</div>';
+    if (!done && wash && p.requests_enabled !== false && !p.day_trip) html += '<div class="list"><button type="button" data-open="wash"><span>Car wash</span><small>' + wash + '</small></button></div>';
     var c = p.contacts || {};
-    // Valet hours + the after-hours rule (owner 2026-10-25).
     var hrs = hoursText(p.valet_hours);
-    if (hrs && !done) html += '<section class="hours" aria-label="Valet hours"><p class="k">Valet hours</p><p class="hours-t">' + esc(hrs) + '</p>' +
-      '<p class="fine">Flying back with Makers Air? Don\u2019t worry, we\u2019ll be here to meet you.</p>' +
-      '<p class="fine">Arriving after hours without letting us know? We can\u2019t guarantee your car will be ready.</p></section>';
-    html += '<p class="contact-line">Questions? <a href="' + esc(tel(contactValet(p))) + '">Call ' + esc(contactValet(p)) + '</a></p>' +
-      (c.reservations_phone ? '<p class="fine">Flights: <a href="' + esc(tel(c.reservations_phone)) + '">Makers Air ' + esc(c.reservations_phone) + '</a></p>' : '');
-    // Operator credit (owner 2026-10-25): Farber Parking badge + office phone in the footer only.
+    html += '<section class="info">' +
+      (hrs && !done ? '<p class="info-h">' + esc(hrs) + '</p><p class="fine">Landing after hours? Text us before you land, or your car may not be ready.</p>' : '') +
+      '<p class="contact-line">Valet team: <a href="' + esc(tel(contactValet(p))) + '">' + esc(contactValet(p)) + '</a></p>' +
+      (c.reservations_phone ? '<p class="fine">Flights: <a href="' + esc(tel(c.reservations_phone)) + '">Makers Air ' + esc(c.reservations_phone) + '</a></p>' : '') + '</section>';
     html += '<footer>' +
       '<div class="operator"><img src="assets/farber-parking-badge.png" alt="Farber Parking" width="44" height="44">' +
       '<div><p>Operated by Farber Parking</p><p><a href="tel:+15617740494">(561) 774-0494</a></p></div></div>' +
       '<p>Makers Air Valet, Hangar 19, Fort Lauderdale</p>' +
-      '<p><button class="flink" type="button" data-open="info">Valet information</button> · ' +
-      (p.terms_published && VALET_TERMS_URL ? '<a href="' + esc(VALET_TERMS_URL) + '">Valet Terms</a> · ' : '') +
-      '<a href="sms.html">SMS program</a> · <a href="privacy.html">Privacy</a></p></footer></main>';
+      '<p class="foot-links"><button class="flink" type="button" data-open="info">Valet information</button>' +
+      (p.terms_published && VALET_TERMS_URL ? '<a href="' + esc(VALET_TERMS_URL) + '">Valet Terms</a>' : '') +
+      '<a href="sms.html">SMS program</a><a href="privacy.html">Privacy</a></p></footer></main>';
     app.innerHTML = html;
     if (RETURN) {   // once, on the first pass after coming back from Stripe
       var note = document.createElement('p'); note.className = RETURN === 'thanks' ? 'okbox return-note' : 'review return-note'; note.setAttribute('role', 'status');
