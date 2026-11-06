@@ -16581,7 +16581,7 @@ function tvDayTagBadge(day){ return '<span class="tv-badge tv-badge-daytag">'+(d
 function tvDayTripWbAlerts(){
   var now = new Date(), out = [];
   (data || []).forEach(function(r){
-    if (!r || r.status === 'DELIVERED' || r.status === 'ARCHIVED' || !isToday(r.ret) || !isDayTripRow(r)) return;
+    if (!r || r.status === 'DELIVERED' || r.status === 'ARCHIVED' || r.welcome_back_sent_at || !isToday(r.ret) || !isDayTripRow(r)) return;
     var t = getDepartureTime(r); if (!t || !isValidDepTime(t)) return;
     var p = t.split(':'), eta = new Date(); eta.setHours(parseInt(p[0], 10), parseInt(p[1], 10), 0, 0);
     var mins = (eta - now) / 60000;
