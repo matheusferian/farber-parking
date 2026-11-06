@@ -3105,6 +3105,8 @@ function renderDay() {
             '<div class="dc-c">'+escapeHTML(r.car)+' · '+escapeHTML(fmtP(r.phone))+'</div>'+
             // Day trip (owner 2026-11-06): say it on the card, and whether the guest already has the key.
             (isDayTripRow(r)&&r.status!=='DELIVERED'&&r.status!=='ARCHIVED'?'<div class="dc-dt"><span class="dc-dt-chip">✈ DAY TRIP</span>'+(r.key_with_guest?'<span class="dc-dt-chip key">🔑 KEY WITH PASSENGER</span>':'')+'</div>':'')+
+            // Owner 2026-11-06: the guest's plane on the iPhone/iPad too (LIVE · ETA, ON THE WAY, AT CUSTOMS…), blinking like the TV.
+            (cls==='ct'&&r.status!=='DELIVERED'&&r.status!=='ARCHIVED'?'<div class="dc-plane" data-pid="'+r.id+'">'+appPlanePill(r)+'</div>':'')+
             flightHtml+
           '</div>'+
           '<div class="dc-meta"><div class="dc-tk">'+escapeHTML(r.ticket)+'</div>'+
@@ -16188,6 +16190,24 @@ function tvWelcomeBackBadge(r){
 var TV_MAKERS_FETCH_MS = 300000;      // the robot reads Makers 2-4× a day; 5 min is plenty
 var TV_MAKERS_BOARDING_MIN = 30;      // BOARDING from 30 min before the scheduled time
 var TV_MAKERS_DEPARTED_MIN = 5;       // struck through 5 min after the scheduled time
+// App (iPhone/iPad dashboard): the same plane status as the TV, refreshed every minute without re-rendering
+// the cards (staff may be typing a flight/time on one).
+function appPlanePill(r){
+  try { if(!r || !_tv.makers) return ''; var p = tv4LegPill(r); return /SCHEDULED/.test(p.html) ? '' : p.html; } catch(e) { return ''; }
+}
+function updatePlanePills(){
+  Array.prototype.forEach.call(document.querySelectorAll('.dc-plane[data-pid]'), function(el){
+    var html = appPlanePill(paxById(Number(el.getAttribute('data-pid'))));
+    if(el.getAttribute('data-v') !== html){ el.innerHTML = html; el.setAttribute('data-v', html); }
+  });
+}
+async function appPlaneTick(){
+  if(document.body.classList.contains('tv-active')) return;
+  if(typeof _currentUserRole === 'undefined' || !_currentUserRole || _currentUserRole === 'TV_ONLY') return;
+  try { _tv.makersLastFetchAt = null; await fetchTvMakersBoard(); await fetchTvSpider(); } catch(e) {}
+  updatePlanePills();
+}
+setTimeout(appPlaneTick, 6000); setInterval(appPlaneTick, 60000);
 async function fetchTvMakersBoard(){
   _tv.makersLastFetchAt = Date.now();
   try{
@@ -16195,7 +16215,7 @@ async function fetchTvMakersBoard(){
     if(!res.ok) throw new Error('Makers board fetch failed: ' + res.status);
     var b = await res.json();
     _tv.makers = (b && typeof b === 'object') ? b : {};
-    try { tvMakersChangeAlerts(); } catch(e) { console.warn('Makers change alerts:', e); }
+    if(document.body.classList.contains('tv-active')){ try { tvMakersChangeAlerts(); } catch(e) { console.warn('Makers change alerts:', e); } }
     renderTvDashboard();
   } catch(e){
     console.warn('Makers board unavailable (keeping the last one):', e);

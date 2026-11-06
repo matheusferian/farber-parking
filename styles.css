@@ -3090,3 +3090,7 @@ img.mk-asc{height:calc(var(--r)*.24);border:0;padding:0;}
 #tvMode .tv5-tk-lbl{height:100%;display:flex;align-items:center;gap:10px;padding:0 20px;background:#C9A84C;color:#111;font:700 22px 'Barlow Condensed',sans-serif;letter-spacing:.1em;flex-shrink:0;}
 #tvMode .tv5-tk-lbl small{font:700 14px 'Barlow Condensed',sans-serif;letter-spacing:.1em;opacity:.7;}
 #tvMode .tv5-ticker .mk-tk-run{font-size:24px;}
+/* App dashboard: the guest's plane status (owner 2026-11-06) */
+.dc-plane{margin-top:6px;}
+.dc-plane:empty{display:none;}
+.dc-plane .tv4-pill{font-size:14px;}
