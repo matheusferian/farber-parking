@@ -17512,17 +17512,27 @@ function tvDayTripWbAlerts(){
     var t = getDepartureTime(r); if (!t || !isValidDepTime(t)) return;
     var p = t.split(':'), eta = new Date(); eta.setHours(parseInt(p[0], 10), parseInt(p[1], 10), 0, 0);
     var mins = (eta - now) / 60000;
-    if (mins <= (day ? 60 : 30) && mins >= -120) out.push({ r: r, txt: '✈ ' + (day ? 'Day trip lands ' : 'Lands ') + t + (r.key_with_guest ? ' (key with passenger)' : '') + ' — send Welcome Back', lvl: mins <= 10 ? 'critical' : 'warning' });
+    if (mins <= (day ? 60 : 30) && mins >= -120) out.push({ r: r, kind: 'wb', title: 'Send Welcome Back', sub: (day ? 'Day trip lands ' : 'Lands ') + t + (r.key_with_guest ? ' · key with passenger' : ''),
+      txt: '✈ ' + (day ? 'Day trip lands ' : 'Lands ') + t + (r.key_with_guest ? ' (key with passenger)' : '') + ' — send Welcome Back', lvl: mins <= 10 ? 'critical' : 'warning' });
   });
   return out;
+}
+var TV4_WO = { wb:['&#9992;','wo-wb'], notime:['&#9200;','wo-crit'], overdue:['&#9888;','wo-crit'], noloc:['&#128205;','wo-warn'], wash:['&#128703;','wo-wash'], price:['&#128172;','wo-price'] };
+function tv4WorkOrderHtml(a){
+  var k = TV4_WO[a.kind] || ['&#9888;','wo-warn'], r = a.r || {};
+  var car = [r.car, r.color, r.loc, r.ticket ? '#'+r.ticket : ''].filter(Boolean).map(function(x){ return escapeHTML(String(x)); }).join(' &middot; ');
+  return '<div class="tv-list-row tv4-wo '+k[1]+(a.lvl==='critical'?' tv-overdue':'')+'">'+
+    '<div class="tv4-wo-ic">'+k[0]+'</div>'+
+    '<div class="tv4-wo-main"><div class="tv4-wo-t">'+escapeHTML(a.title || a.txt || '')+(a.sub ? '<span>'+escapeHTML(a.sub)+'</span>' : '')+'</div>'+
+    '<div class="tv4-wo-who"><b>'+escapeHTML(tvShortName(r.name))+'</b>'+(car ? ' &middot; '+car : '')+'</div></div></div>';
 }
 function tvBuildOpsPages(vm){
   var alerts = []
     // Day trip (owner 2026-11-06): from 1 h before the arrival time until 2 h after → send the Welcome Back.
     .concat(tvDayTripWbAlerts())
-    .concat(vm.missingTimeTomorrow.map(function(r){ return {r:r, txt:'Leaving tomorrow — TIME NOT SET', lvl:'critical'}; }))
-    .concat(vm.leavingTodayOverdue.map(function(r){ return {r:r, txt:'Overdue — was expected '+fmtD(r.ret), lvl:'critical'}; }))
-    .concat(vm.missingLocationActive.map(function(r){ return {r:r, txt:'Missing location', lvl:'warning'}; }))
+    .concat(vm.missingTimeTomorrow.map(function(r){ return {r:r, kind:'notime', title:'Time not set', sub:'Leaving tomorrow — ask the flight time', txt:'Leaving tomorrow — TIME NOT SET', lvl:'critical'}; }))
+    .concat(vm.leavingTodayOverdue.map(function(r){ return {r:r, kind:'overdue', title:'Overdue', sub:'Was expected '+fmtD(r.ret), txt:'Overdue — was expected '+fmtD(r.ret), lvl:'critical'}; }))
+    .concat(vm.missingLocationActive.map(function(r){ return {r:r, kind:'noloc', title:'No location', sub:'Assign a hangar', txt:'Missing location', lvl:'warning'}; }))
     // Carwash — tied to r.ret (tvReturnDateLabel already renders NO
     // RETURN DATE / TODAY / TOMORROW / "AUG 27" consistently with every
     // other TV date badge); a standing reminder regardless of how far
@@ -17533,7 +17543,7 @@ function tvBuildOpsPages(vm){
       // Raw emoji, not an &#...; entity — alertsColHtml() runs a.txt
       // through escapeHTML(), which would turn an entity's "&" into
       // "&amp;" and print it as literal text instead of rendering it.
-      return {r:r, txt:'🚿 Car wash — '+when, lvl:'warning'};
+      return {r:r, kind:'wash', title:'Car wash', sub:'Wash before the return · '+when, txt:'🚿 Car wash — '+when, lvl:'warning'};
     }))
     // Send Price — tied to r.checkin_date (the passenger's departure/
     // travel-out day), not r.ret. vm.sendPricePending already requires
@@ -17545,7 +17555,7 @@ function tvBuildOpsPages(vm){
       var depDate = tvParseCheckinDate(r.checkin_date);
       var when = tvIsCheckedInToday(r.checkin_date) ? 'departing today'
         : (depDate ? 'departing '+depDate.toLocaleDateString('en-US',{month:'short',day:'numeric'}) : 'departing — date unknown');
-      return {r:r, txt:'💬 Car wash — Send Price — '+when, lvl:'warning'};
+      return {r:r, kind:'price', title:'Car wash · send price', sub:'Text the price · '+when, txt:'💬 Car wash — Send Price — '+when, lvl:'warning'};
     }));
   var seen={};
   alerts = alerts.filter(function(a){ if(seen[a.r.id]) return false; seen[a.r.id]=true; return true; });
@@ -17557,14 +17567,11 @@ function tvBuildOpsPages(vm){
     .concat(vm.atCustoms.map(function(item){ return {type:'atcustoms', r:item.r, day:item.day}; }))
     .concat(vm.deliveryAtCustomsPending.map(function(r){ return {type:'customsdest', r:r}; }));
 
+  // TV v4 (owner 2026-11-06): each alert reads like a work order — icon and colour by job, what to do,
+  // and which car (name, vehicle, hangar, ticket).
   function alertsColHtml(slice){
-    if(!alerts.length) return '<div class="tv-empty">No special-handling alerts right now.</div>';
-    return slice.map(function(a){
-      return '<div class="tv-list-row'+(a.lvl==='critical'?' tv-overdue':'')+'">'+
-        '<div class="tv-list-name">'+escapeHTML(tvShortName(a.r.name))+'</div>'+
-        '<div class="tv-list-meta"><span class="tv-badge tv-badge-'+a.lvl+'">'+escapeHTML(a.txt.toUpperCase())+'</span></div>'+
-      '</div>';
-    }).join('');
+    if(!alerts.length) return '<div class="tv-empty tv4-allclear">&#10003; No special handling right now.</div>';
+    return slice.map(tv4WorkOrderHtml).join('');
   }
   function ascendCustomsColHtml(slice){
     if(!ascendCustomsCombined.length) return '<div class="tv-empty">No Ascend vehicles in custody, none at Customs, none pending Customs delivery.</div>';
@@ -17634,7 +17641,7 @@ function tvBuildOpsPages(vm){
   var need2 = TV_OPS_COL_MIN.alerts + TV_OPS_COL_MIN.customs + TV_OPS_GROUPA_GAP + TV_OPS_WIDTH_BUFFER;
   var groupALayout = pageBodyBox.width >= need3 ? 'wide' : (pageBodyBox.width >= need2 ? 'medium' : 'narrow');
 
-  var alertsSampleRow = '<div class="tv-list-row tv-overdue"><div class="tv-list-name">CHRISTOPHER ALEXANDER MARTINEZ</div><div class="tv-list-meta"><span class="tv-badge tv-badge-critical">LEAVING TOMORROW &mdash; TIME NOT SET</span></div></div>';
+  var alertsSampleRow = tv4WorkOrderHtml({r:{name:'CHRISTOPHER ALEXANDER MARTINEZ',car:'Range Rover',color:'White',loc:'HANGAR 18',ticket:'0824-99'}, kind:'wb', title:'Send Welcome Back', sub:'Day trip lands 17:00 · key with passenger', lvl:'critical'});
   var acSampleRow = tvRow({name:'ALEXANDRIA MONTGOMERY-SMITH',car:'Range Rover',color:'White',loc:'HANGAR 18',ticket:'0824-99'},{completed:true, showLocationAlert:false, nameBadges:'<span class="tv-badge tv-badge-ascend">&#9992; ASCEND</span> <span class="tv-badge tv-badge-atcustoms">&#10003; AT CUSTOMS</span> <span class="tv-badge tv-badge-gratuity">GRATUITY DUE</span> <span class="tv-badge tv-badge-daytag">TODAY</span>'});
   var followUpSampleRow = tvRow({name:'JOHNATHAN PAUL WILLIAMS',car:'Range Rover',color:'White',loc:'HANGAR 18',ticket:'0824-99'},{nameBadges:tvChipHtml({level:'warning', text:'APPROX AUGUST 27 — CONFIRM'})});
 

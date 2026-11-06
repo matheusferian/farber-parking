@@ -2971,3 +2971,35 @@ img.mk-asc{height:calc(var(--r)*.24);border:0;padding:0;}
 .mk-col-today .mk-row,.mk-cols.mk-cols-st{grid-template-columns:calc(var(--r,var(--mk-row,56px))*3.0) calc(var(--r,var(--mk-row,56px))*2.0) minmax(0,1fr) calc(var(--r,var(--mk-row,56px))*.9) calc(var(--r,var(--mk-row,56px))*1.95);}
 .mk-time small{font-weight:700;color:#C8D3E6;}
 .tv4-fc-top .tv4-mkw,.tv4-oth .tv4-mkw{height:15px;width:auto;flex-shrink:0;}
+
+/* ══ TV v4 look on the Operations pages (owner 2026-11-06: "parece outro sistema") ══ */
+#tvMode .tv-page-title{font-family:'Barlow Condensed','Sora',sans-serif;font-weight:700;font-size:28px;letter-spacing:.02em;}
+#tvMode .tv-page-title .tv-count-pill{font-family:'Barlow Condensed',sans-serif;font-size:18px;}
+#tvMode .tv-subgroup-hdr{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:16px;letter-spacing:.12em;text-transform:uppercase;color:var(--tv-navy);border-bottom:2px solid #C9A84C;padding-bottom:4px;margin-bottom:6px;}
+#tvMode .tv-row,#tvMode .tv-list-row{background:#fff;border:0;border-radius:12px;box-shadow:0 1px 0 var(--tv-border),0 6px 18px -14px rgba(11,35,80,.5);border-left:5px solid #C9D4E6;}
+#tvMode .tv-row.tv-critical,#tvMode .tv-list-row.tv-overdue{border-left-color:var(--tv-critical);}
+#tvMode .tv-row-name,#tvMode .tv-list-name{font-family:'Barlow Condensed',sans-serif;letter-spacing:.02em;}
+#tvMode .tv-row-name{font-size:1.25em;}
+#tvMode .tv-empty{font-family:'Barlow Condensed',sans-serif;font-size:20px;letter-spacing:.04em;color:var(--tv-mu);}
+.tv4-allclear{color:var(--tv-ok)!important;}
+/* Garages: navy tiles like the departures board */
+#tvMode .tv-hangar-card{background:radial-gradient(240px 120px at 50% -20%,#16285A 0%,#061433 75%);border:0;border-radius:14px;box-shadow:inset 0 0 0 1px rgba(201,168,76,.25);}
+#tvMode .tv-hangar-num{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:52px;line-height:1;color:#FFFFFF;}
+#tvMode .tv-hangar-lbl{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:16px;letter-spacing:.12em;color:#C9A84C;margin-top:6px;}
+/* Work orders (Special Handling) */
+.tv4-wo{display:flex;align-items:center;justify-content:flex-start;gap:14px;padding:10px 14px;}
+.tv4-wo-ic{flex-shrink:0;width:44px;height:44px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:24px;color:#fff;background:#5C6E8C;}
+.tv4-wo-main{min-width:0;flex:1;}
+.tv4-wo-t{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:20px;letter-spacing:.04em;text-transform:uppercase;color:var(--tv-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.tv4-wo-t span{font-family:Inter,sans-serif;font-weight:600;font-size:13px;letter-spacing:0;text-transform:none;color:var(--tv-mu);margin-left:10px;}
+.tv4-wo-who{font:500 13px Inter,sans-serif;color:var(--tv-mu);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px;}
+.tv4-wo-who b{font-family:'Barlow Condensed',sans-serif;font-size:17px;color:var(--tv-text);letter-spacing:.02em;}
+#tvMode .tv4-wo.wo-wb{border-left-color:#1E4FB0;} .wo-wb .tv4-wo-ic{background:#1E4FB0;}
+#tvMode .tv4-wo.wo-crit{border-left-color:#C21818;} .wo-crit .tv4-wo-ic{background:#C21818;}
+#tvMode .tv4-wo.wo-warn{border-left-color:#B7791F;} .wo-warn .tv4-wo-ic{background:#B7791F;}
+#tvMode .tv4-wo.wo-wash{border-left-color:#0E8C9A;} .wo-wash .tv4-wo-ic{background:linear-gradient(160deg,#16B5C7,#0B6F7A);}
+#tvMode .tv4-wo.wo-price{border-left-color:#7A3FB0;} .wo-price .tv4-wo-ic{background:#7A3FB0;}
+#tvMode .tv4-wo.tv-overdue .tv4-wo-ic{animation:tv4Pulse 1.4s ease-in-out infinite;}
+@media (prefers-reduced-motion:reduce){#tvMode .tv4-wo.tv-overdue .tv4-wo-ic{animation:none;}}
+#tvMode .tv-page-title{font-size:26px!important;}
+#tvMode .tv-page-title .tv-page-continuation{font-family:'Barlow Condensed',sans-serif;font-size:15px;letter-spacing:.1em;}
