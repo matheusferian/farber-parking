@@ -2878,3 +2878,6 @@ img.mk-asc{height:calc(var(--r)*.24);border:0;padding:0;}
   #tvMode .tv4-alert{transition:none;}
 }
 .tv4-more{grid-column:1/-1;font:600 .7em Inter,sans-serif;color:var(--tv-mu);padding:.2em .4em;}
+/* narrow screens: wrap instead of cutting the island name or the status */
+.tv4-air-h{flex-wrap:wrap;} .tv4-air-h b{white-space:nowrap;}
+.tv4-fc-top{flex-wrap:wrap;row-gap:4px;} .tv4-fc-top b{min-width:0;}
