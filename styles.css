@@ -3094,3 +3094,10 @@ img.mk-asc{height:calc(var(--r)*.24);border:0;padding:0;}
 .dc-plane{margin-top:6px;}
 .dc-plane:empty{display:none;}
 .dc-plane .tv4-pill{font-size:14px;}
+/* AM/PM beside the time, bottom-aligned, everywhere (owner 2026-11-06) */
+#tvMode .tv4-tm{flex-direction:row;align-items:flex-end;gap:.15em;}
+#tvMode .tv4-tm small{margin:0 0 .12em .1em;font-size:.36em;}
+#tvMode .tv4-car,#tvMode .tv4-has-ph{grid-template-columns:6.6em minmax(0,1fr);}
+#tvMode .tv4-multi .tv4-car,#tvMode .tv4-multi .tv4-has-ph{grid-template-columns:6em minmax(0,1fr);}
+#tvMode .tv4-ck,#tvMode .tv4-ck.tv4-has-ph{grid-template-columns:5.6em minmax(0,1fr);}
+#tvMode .tv-clock small{align-self:flex-end;}

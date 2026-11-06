@@ -16833,7 +16833,8 @@ function tv4FromChip(o){
 function tv4Time(hhmm, sub){
   var t = tvMakersTime12(hhmm);
   if(!t.ap) return '<div class="tv4-tm">&mdash;</div>';
-  return '<div class="tv4-tm"><span class="tv5-fl">'+tvFlapHtml(t.t, 5)+'</span><small>'+t.ap+(sub ? ' &middot; '+escapeHTML(sub) : '')+'</small></div>';
+  // Owner 2026-11-06: AM/PM beside the time on every page (same pattern as the departures board).
+  return '<div class="tv4-tm"><span class="tv5-fl">'+tvFlapHtml(t.t, 5)+'</span><small>'+t.ap+'</small></div>';
 }
 function tv4Meta(r){
   var noLoc = !r.loc || !String(r.loc).trim();
