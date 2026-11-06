@@ -100,7 +100,8 @@
 // v118: audit #25 quiet hours, #27 clock-in guard, #28-#30 tips, #31 ticket after midnight, #32 closing save check, #33 print escape, #34/#35/#38 pass.
 // v119: pass — day trip back with Ascend / Customs: Customs wording, key with the passenger, no Hangar 19 steps.
 // v120: car photo on the valet pass (upload on the car card) + Ascend/Customs day trip pass.
-var CACHE_VERSION = 'v120';
+// v121: Customs delivery asks for a car photo for the pass; Inbox quick reply 'At Customs, key with you'.
+var CACHE_VERSION = 'v121';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 var SHELL_FILES = [

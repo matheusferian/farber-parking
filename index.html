@@ -5063,6 +5063,8 @@ function renderThread(passengerId, keepComposer){
       // Staff-chosen reply only (owner 2026-10-25): automatic texts never say where a key is.
       // Not for Ascend returns: an Ascend team member hands over the key.
       (returnOperator(p) === 'ASCEND' ? '' : '<span class="ibx-quick" onclick="useQuickReply(' + passengerId + ',\'Welcome back! Your key is on the driver\\x27s side tire. Have a safe drive!\')">&#128273; Key on tire</span>') +
+      // Owner 2026-11-06: the passenger already has the key and the car waits at Customs (e.g. a day trip with Ascend).
+      (p.key_with_guest ? '<span class="ibx-quick" onclick="useQuickReply(' + passengerId + ',\'Welcome back! Your car is waiting for you at U.S. Customs. You already have your key. Safe travels!\')">&#128706; At Customs, key with you</span>' : '') +
       '<span class="ibx-count" id="ibxCount"></span></div></div>';
   if (keepComposer && document.getElementById('ibxText') && !optedOut){
     var list = box.querySelector('.ibx-msgs'); if (list){ list.innerHTML = msgs || '<div class="ibx-empty">No texts yet.</div>'; }
@@ -9376,11 +9378,30 @@ async function deliverWithTip(id, deliveryType, tipReceived, inPerson){
     // the generic tip SMS on top of it (would duplicate the gratuity ask).
     if(isCustoms){
       openCustomsCommModal(r.id,'delivered');
+      customsPhotoPrompt(r);   // owner 2026-11-06: a photo of the car at Customs on the passenger's pass
     } else {
       openTipSms(r.id, tipReceived);
     }
   }
   return deliveryOk;
+}
+
+// Customs delivery → offer a photo of the car at Customs for the valet pass (camera or photo library).
+// Only for tickets that have a valet pass. Never blocks anything: Skip closes it.
+function customsPhotoPrompt(r){
+  if (!r || !isServerSms() || !passLinkTicket(r)) return;
+  var old = document.getElementById('cpPrompt'); if (old) old.remove();
+  var el = document.createElement('div'); el.id = 'cpPrompt';
+  el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', 'Photo for the valet pass');
+  el.style.cssText = 'position:fixed;left:12px;right:12px;bottom:calc(16px + env(safe-area-inset-bottom));z-index:9000;background:#fff;border:1px solid #CDD6E4;border-radius:14px;box-shadow:0 12px 30px -12px rgba(6,20,51,.45);padding:14px 16px;max-width:520px;margin:0 auto;font-family:Inter,sans-serif';
+  el.innerHTML = '<div style="font-weight:800;color:#0B1A33;font-size:15px">📷 Photo of the car at Customs?</div>' +
+    '<div style="color:#5A6B8C;font-size:13px;margin:4px 0 10px">' + escapeHTML(r.name || '') + ' sees it on the valet pass. Take a photo or pick one from the library.</div>' +
+    '<div style="display:flex;gap:8px"><label style="flex:1;display:flex;align-items:center;justify-content:center;min-height:44px;border-radius:10px;background:#061433;color:#fff;font-weight:800;cursor:pointer">Add photo' +
+    '<input type="file" accept="image/*" style="display:none"></label>' +
+    '<button type="button" style="min-height:44px;padding:0 16px;border-radius:10px;border:1.5px solid #CDD6E4;background:#fff;font-weight:700;color:#0B1A33">Skip</button></div>';
+  document.body.appendChild(el);
+  el.querySelector('button').onclick = function(){ el.remove(); };
+  el.querySelector('input').onchange = function(){ var inp = this; vpPhotoPick(r.id, inp).finally(function(){ el.remove(); }); };
 }
 
 // ── TIP STATUS SMS (Normal / Lockbox deliveries only) ───────────
