@@ -140,6 +140,8 @@
   function progress(p) {
     var at = p.status === 'DELIVERED' ? 3 : (p.status === 'READY' || p.status === 'CUSTOMS_CONFIRMED') ? 2 : 1;
     var names = ['Checked in', 'Parked', 'Ready', 'Delivered'];
+    // Day trip, key handed to the guest at drop-off (owner 2026-11-06): no Ready / Delivered steps.
+    if (p.day_trip && p.key_with_guest && p.status !== 'DELIVERED') { names = ['Checked in', 'Parked', 'Key handed over']; at = 3; }
     return '<ol class="tl tl-' + at + '" aria-label="Progress">' + names.map(function (n, i) {
       var c = i < at || (at === 3) ? 'done' : i === at ? 'now' : '';
       return '<li class="' + c + '"' + (i === at ? ' aria-current="step"' : '') + '><span class="dot" aria-hidden="true"></span>' + n + '</li>';

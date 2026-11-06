@@ -2974,7 +2974,7 @@ function renderTable() {
         (ro&&r.status!=='DELIVERED'?'<span class="tag t-late">LATE</span>':'')+
         (isApproxRecord(r)?'<span class="tag" style="background:rgba(201,168,76,0.15);color:var(--gold)">~APPROX</span>':'')+
         (isAscend(r)?'<span class="tag" style="background:rgba(99,179,237,0.15);color:#63b3ed">✈ ASCEND</span>':'')+
-        (r.key_with_guest&&r.status!=='DELIVERED'?'<span class="tag" style="background:rgba(201,168,76,0.15);color:var(--gold)" title="Day trip: the guest already has the key">🔑 KEY WITH GUEST</span>':'')+
+        (r.key_with_guest&&r.status!=='DELIVERED'&&isDayTripRow(r)?'<span class="tag" style="background:rgba(201,168,76,0.15);color:var(--gold)" title="Day trip: the guest already has the key">🔑 KEY WITH GUEST</span>':'')+
         (notReturning?OTHER_BOAT_DASH_ICON_HTML:'')+
         (r.isOfflinePending?'<span class="tag" style="background:rgba(232,160,48,.18);color:#e8a030;font-weight:800" title="Saved locally, not yet on the server">🟠 PENDING SYNC</span>':'');
     // Authorized pickup: a tag in the table row, its own line on the phone card.
@@ -5408,6 +5408,19 @@ async function vpPushPreview(on){
   } catch(e) {}
 }
 
+// Day trip (owner 2026-11-06): back the same day it was checked in. Only these tickets
+// get the key choice; every other ticket stays as it was.
+function isDayTripRow(r){ return !!r && isToday(r.ret) && isToday(String(r.ts || '').split(',')[0]); }
+async function vpKeyGuest(id, on){
+  var r = paxById(id); if (!r) return;
+  try {
+    await sbUpdate(id, { key_with_guest: !!on }, { filter: '&status=not.in.(DELIVERED,ARCHIVED)', zeroRowsMessage: 'Ticket closed — not changed' });
+    r.key_with_guest = !!on;
+    sbLog('EDITED', r.name || '', r.ticket || '', r.loc || '', 'Day trip key: ' + (on ? 'guest has key' : 'team keeps key'), { passenger_id: id });
+    showMsg(on ? 'Guest has the key. The valet pass shows it.' : 'Team has the key. The valet pass no longer says the guest has it.', false);
+    render(); vpLoadStaff(r);
+  } catch(e) { showMsg('Not saved: ' + e.message, true); }
+}
 // Passenger panel: staff-only Valet Pass state (Ready / Customs / Lockbox / return time).
 async function vpLoadStaff(r){
   var el = document.getElementById('vpStaffSec'); if (!el) return;
@@ -5420,6 +5433,9 @@ async function vpLoadStaff(r){
   };
   el.innerHTML = '<div class="htitle" style="margin-top:4px">Valet Pass (passenger page)</div><div class="vps">' +
     (guestPhoneIntl(r.phone) ? '<div class="vps-r"><span>🌍 International number — send the pass by WhatsApp / iMessage</span><button type="button" class="vps-tg" onclick="vpShareLink(' + r.id + ')">Send pass link</button></div><div id="vpShare" data-pid="' + r.id + '"></div>' : '') +
+    (isDayTripRow(r) ? '<div class="vps-r"><span>🔑 Day trip key</span><span style="display:flex;gap:6px">' +
+      '<button type="button" class="vps-tg' + (r.key_with_guest ? '' : ' on') + '" onclick="vpKeyGuest(' + r.id + ',false)">' + (r.key_with_guest ? '' : '✓ ') + 'Team has key</button>' +
+      '<button type="button" class="vps-tg' + (r.key_with_guest ? ' on' : '') + '" onclick="vpKeyGuest(' + r.id + ',true)">' + (r.key_with_guest ? '✓ ' : '') + 'Guest has key</button></span></div>' : '') +
     '<div class="vps-r"><span>Ready to Go</span>' + tg('ready', st.ready, st.ready ? 'Ready' : 'Mark Ready') + '</div>' +
     (customs ? '<div class="vps-r"><span>Customs on the passenger page</span>' + tg('customs_confirmed', st.customs_confirmed, st.customs_confirmed ? 'Confirmed' : 'Confirm Customs') + '</div>' : '') +
     '<div class="vps-r"><span>After-hours lockbox' + (st.lockbox_authorized ? ' · code shows from ' + escapeHTML(vpIsoDate(st.lockbox_reveal_on)) : '') + '</span>' +
@@ -6751,7 +6767,7 @@ async function saveEntry(sendSms, printMode, opts){
     delivery_at_customs: deliveryAtCustoms,
     return_operator: returnOp,
     carwash_status: carwashStatus,
-    key_with_guest: !!(document.getElementById('fKeyGuest') && document.getElementById('fKeyGuest').checked),
+    key_with_guest: !!(document.getElementById('fKeyGuest') && document.getElementById('fKeyGuest').checked) && isToday(finalDate),   // day trips only
     deldate: '',
     client_key: _checkinKey || newCheckinKey()
   };

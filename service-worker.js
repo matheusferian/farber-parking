@@ -81,7 +81,8 @@
 // v99: Day trip pass — after Customs, stay with your pilots and come back with them.
 // v100: Day trip pass uses the standard Welcome Back wording (no walk).
 // v101: Day trip pass shows the Welcome Back text once (one paragraph).
-var CACHE_VERSION = 'v101';
+// v102: Day trip only — 'Key handed over' step on the pass; key choice on the car card.
+var CACHE_VERSION = 'v102';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 var SHELL_FILES = [
