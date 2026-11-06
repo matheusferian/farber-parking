@@ -87,7 +87,8 @@
 // v105: Dashboard card — DAY TRIP + KEY WITH GUEST chips.
 // v106: staff wording — KEY WITH PASSENGER (not guest).
 // v107: classic check-in form disabled — new check-in only on every device.
-var CACHE_VERSION = 'v107';
+// v108: Day trip pass — staff Ready no longer says A/C running / luggage.
+var CACHE_VERSION = 'v108';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 var SHELL_FILES = [

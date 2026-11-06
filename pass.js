@@ -157,8 +157,10 @@
       '';
   }
   function statusInfo(p) {
-    if (p.status === 'READY' && p.day_trip && p.ready_by_staff === false && !p.lockbox) {
-      return { tone: 'ready', word: 'Day trip', line: dayTripLine(p, 'When you land today, ') };
+    // Day trip (owner 2026-11-06): never "A/C running / luggage" — no luggage, and the
+    // passenger may already have the key. Staff Ready still shows "Ready" when the team has the key.
+    if (p.status === 'READY' && p.day_trip && !p.lockbox) {
+      return { tone: 'ready', word: p.ready_by_staff && !p.key_with_guest ? 'Ready' : 'Day trip', line: dayTripLine(p, 'When you land today, ') };
     }
     if (p.status === 'READY') {
       return { tone: 'ready', word: 'Ready',
