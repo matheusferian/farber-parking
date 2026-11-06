@@ -16259,6 +16259,12 @@ function tvMakersFlights(day){
     .slice().sort(function(a, b){ return String(a.time).localeCompare(String(b.time)); });
 }
 // Departures changed since the robot's previous reading (board.changes, counts only).
+// Passengers in the day's first robot reading (the list that went to the group) for this flight.
+function tvMakersFirstPax(dayKey, f){
+  var day = tvMakersDay(dayKey), list = day && day.first_outbound; if(!list) return null;
+  for(var i = 0; i < list.length; i++){ if(String(list[i].flight) === String(f.flight) && list[i].route === f.route) return Number(list[i].pax); }
+  return 0;   // not in the first list = a new flight
+}
 function tvMakersChangeFor(dayKey, f){
   var day = tvMakersDay(dayKey), items = day && day.changes && day.changes.items;
   if(!items || !items.length) return null;
@@ -16351,7 +16357,9 @@ function tvMakersRowHtml(f, dayKey, nextKey, withStatus){
       (ascend ? '<img class="mk-asc" src="assets/ascend-logo.png" alt="Ascend">' : '')+
       (dayTrips ? '<span class="mk-dt">'+dayTrips+' DAY TRIP</span>' : '')+
       (chg ? '<span class="mk-updtag">UPDATED'+(chg.pax_from !== chg.pax_to && chg.status !== 'new' ? ' &middot; WAS '+chg.pax_from : '')+'</span>' : '')+'</span></div>'+
-    '<div class="mk-pax" data-flap="'+escapeHTML(key+'|p')+'" data-val="'+(Number(f.pax) || 0)+'">'+(Number(f.pax) || 0)+'<small>pax</small></div>'+
+    (function(){ var now = Number(f.pax) || 0, was = tvMakersFirstPax(dayKey, f);   // owner: "9 struck through, then 6"
+      return '<div class="mk-pax'+(was != null && was !== now ? ' mk-pax-chg' : '')+'" data-flap="'+escapeHTML(key+'|p')+'" data-val="'+now+'">'+
+        (was != null && was !== now && was > 0 ? '<s class="mk-was">'+was+'</s>' : '')+now+'<small>pax</small></div>'; })()+
     (st ? '<div class="mk-status" data-flap="'+escapeHTML(key+'|s')+'" data-val="'+escapeHTML(st.text)+'"><i class="mk-dot"></i><span class="mk-led">'+escapeHTML(st.text)+'</span></div>' : '')+
   '</div>';
 }
@@ -16385,11 +16393,14 @@ function tvMakersColumnHtml(label, dayKey, rowH, maxRows, withStatus){
     var room = maxRows - (hidden ? 1 : 0);
     if(shown.length > room){ later = shown.length - (room - 1); shown = shown.slice(0, room - 1); }
   }
+  // Day total going out (owner 2026-11-06), with the first reading's total struck through when it changed.
+  var firstTot = day.first_outbound ? day.first_outbound.reduce(function(a, x){ return a + (Number(x.pax) || 0); }, 0) : null;
+  var totalHtml = '<div class="mk-total"><span>TOTAL GOING OUT</span><b>'+(firstTot != null && firstTot !== pax && firstTot > 0 ? '<s class="mk-was">'+firstTot+'</s>' : '')+pax+'</b><small>passengers &middot; '+list.length+' flight'+(list.length === 1 ? '' : 's')+'</small></div>';
   var rows = (hidden ? '<div class="mk-row mk-folded"><span>&#10003; '+hidden+' DEPARTED EARLIER</span></div>' : '') +
     shown.map(function(f){ return tvMakersRowHtml(f, dayKey, nextKey, withStatus); }).join('') +
     (later ? '<div class="mk-row mk-folded"><span>+ '+later+' MORE LATER</span></div>' : '');
   return '<section class="mk-col'+(withStatus ? ' mk-col-today' : '')+'" style="--mk-row:'+rowH+'px">'+head(sub)+
-    '<div class="mk-rows">'+rows+'</div></section>';
+    '<div class="mk-rows">'+rows+'</div>'+totalHtml+'</section>';
 }
 function tvMakersTickerHtml(todayKey, tomorrowKey){
   var bits = [];
@@ -16415,7 +16426,7 @@ function tvBuildMakersPages(vm){
   // Owner 2026-11-06: every flight on screen — no page title (TODAY / TOMORROW and the FXE ticker say it),
   // rows shrink down to 24 px before anything folds into "+N more".
   var titleHtml = '';
-  var colHeadH = 90, tickerH = 64, pad = 16;
+  var colHeadH = 90 + 50, tickerH = 64, pad = 16;   // + the TOTAL GOING OUT line
   var availH = Math.max(160, box.height - colHeadH - tickerH - pad);
   var colW = (box.width - 22) / 2 - 32;
   var nT = tvMakersFlights(tvMakersDay(todayKey)).length, nM = tvMakersFlights(tvMakersDay(tomorrowKey)).length;

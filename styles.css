@@ -3003,3 +3003,11 @@ img.mk-asc{height:calc(var(--r)*.24);border:0;padding:0;}
 @media (prefers-reduced-motion:reduce){#tvMode .tv4-wo.tv-overdue .tv4-wo-ic{animation:none;}}
 #tvMode .tv-page-title{font-size:26px!important;}
 #tvMode .tv-page-title .tv-page-continuation{font-family:'Barlow Condensed',sans-serif;font-size:15px;letter-spacing:.1em;}
+/* Passenger count changed since the first list: old struck through, new beside it; day total */
+.mk-was{font-size:.78em;color:#FF8A80;text-decoration-thickness:2px;margin-right:6px;font-weight:600;}
+.mk-pax-chg{color:#FFD166;}
+.mk-total{margin-top:auto;display:flex;align-items:baseline;gap:12px;padding:10px 8px 2px;border-top:2px solid rgba(201,168,76,.5);flex-shrink:0;}
+.mk-total span{font:700 18px 'Barlow Condensed',sans-serif;letter-spacing:.14em;color:#C9A84C;}
+.mk-total b{font:700 34px 'Barlow Condensed',sans-serif;color:#fff;line-height:1;}
+.mk-total b .mk-was{font-size:22px;}
+.mk-total small{font:500 15px Inter,sans-serif;color:#8C9BBB;}
