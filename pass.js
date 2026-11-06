@@ -209,7 +209,10 @@
         '<p class="lbl">Your valet pass</p>' +
         '<p class="pass-car">' + (p.vehicle ? esc(niceVehicle(p.vehicle)) : 'Vehicle details will be updated soon.') + '</p>' +
         '<p class="pass-status"><i aria-hidden="true"></i>' + esc(st.word) + '</p>' +
-        '<p class="pass-line">' + st.line + '</p>' + progress(p) +
+        '<p class="pass-line">' + st.line + '</p>' +
+        // Day trip (owner 2026-11-06): from Customs there is no way to the hangar on foot.
+        (p.day_trip && p.status !== 'CUSTOMS_CONFIRMED' ? '<p class="pass-line pass-pilots"><strong>After Customs, please stay with your pilots and come back with them to ' + esc(p.day_trip_hangar || 'Hangar 19') + '.</strong> There is no way to get here from Customs on your own.</p>' : '') +
+        progress(p) +
       '</section>';
     if (done) {
       html += '<section class="card farewell"><div class="fw-plane" aria-hidden="true">' + planeSvg() + '</div>' +

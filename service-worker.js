@@ -78,7 +78,8 @@
 //      Closing gets the old photo's alerts (3+ cars same time, midday rush, no hangar, Customs, Ascend). index.html.
 // v97: Day trip option at check-in (classic + new) and Day trip / hangar line on the valet pass.
 // v98: Day trip key choice (team keeps key / guest has key) at check-in, list tag, pass line.
-var CACHE_VERSION = 'v98';
+// v99: Day trip pass — after Customs, stay with your pilots and come back with them.
+var CACHE_VERSION = 'v99';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 var SHELL_FILES = [
