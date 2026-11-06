@@ -17365,10 +17365,45 @@ async function mfDateDiff(i){
   var nd = mfIsoToMdy(d.makers);
   if (!nd || !confirm('Change ' + r.name + '’s return date?\n\n' + mfRetTxt(r.ret) + '  →  ' + fmtD(nd) + '\n\nMakers Air Suite has the return booked for that day.')) return;
   loading(true);
-  try { var row = await changePassengerReturnDate(r.id, nd, 'Makers Air Suite: return booked for ' + nd, false); applyServerPassengerRow(r, row); d._done = true; render(); }
+  try {
+    var row = await changePassengerReturnDate(r.id, nd, 'Makers Air Suite: return booked for ' + nd, false); applyServerPassengerRow(r, row); d._done = true; render();
+    await mfDateNote(i, true);
+  }
   catch(e) { showMsg('Date not changed: ' + e.message, true); }
   finally { loading(false); }
   mfRenderResult();
+}
+// After a return date follows Makers (owner 2026-11-06): the reason goes in the observation and the
+// key tag can be reprinted right there, with the new date.
+function mfDateNoteText(d){
+  var a = pd(d.ours), b = pd(mfIsoToMdy(d.makers)), t = getToday();
+  var md = function(x){ return x ? (x.getMonth() + 1) + '/' + x.getDate() : '?'; };
+  return 'RETURN MOVED ' + md(a) + ' → ' + md(b) + ' (MAKERS BOOKING, ' + md(t) + ')';
+}
+function mfDateNoted(r, d){ return !!(r && String(r.obs || '').indexOf(mfDateNoteText(d)) !== -1); }
+// The return date already matches Makers (changed here or by hand).
+function mfDateApplied(d){
+  var r = paxById(d.passenger_id), b = pd(mfIsoToMdy(d.makers)), a = r && pd(r.ret);
+  return !!(d._done || (a && b && a.getTime() === b.getTime()));
+}
+async function mfDateNote(i, quiet){
+  var d = _mf.res && _mf.res.date_diffs[i]; if (!d) return;
+  var r = paxById(d.passenger_id); if (!r) { showMsg('Ticket not loaded — refresh.', true); return; }
+  if (mfDateNoted(r, d)) return;
+  var note = mfDateNoteText(d), obs = String(r.obs || '').trim();
+  var newObs = (obs ? obs + ' | ' : '') + note;
+  try { await sbUpdate(r.id, { obs: newObs }); r.obs = newObs; render(); if (!quiet) showMsg('Note added.', false); }
+  catch(e) { showMsg('Note not saved: ' + e.message, true); }
+  mfRenderResult();
+}
+async function mfDateReprint(i, btn){
+  var d = _mf.res && _mf.res.date_diffs[i]; if (!d) return;
+  var r = paxById(d.passenger_id); if (!r) { showMsg('Ticket not loaded — refresh.', true); return; }
+  if (btn) { btn.disabled = true; btn.textContent = 'Printing…'; }
+  var ok = false;
+  try { ok = await printKeyTicket(r); } catch(e) { ok = false; }
+  if (btn) { btn.disabled = false; btn.textContent = ok ? '✓ Key tag printed' : '🖨 Reprint key tag'; }
+  if (!ok) showMsg('Key tag did not print. Check the printer and try again.', true);
 }
 function mfRenderPick(){
   var b = document.getElementById('mfBody'); if (!b) return;
@@ -17489,7 +17524,11 @@ function mfRenderResult(){
   var diffs = (r.date_diffs || []).map(function(d, i){
     return '<article class="mf-card mf-early"><div class="mf-name"><b>' + escapeHTML(d.system_name) + '</b><span>' + escapeHTML(d.ticket) + '</span></div>' +
       '<div class="mf-line mf-warn">Our return: <b>' + escapeHTML(mfRetTxt(d.ours)) + '</b> · Makers: <b>' + escapeHTML(mfDay(d.makers)) + '</b></div>' +
-      (d._done ? '<div class="mf-done">✓ Return date changed</div>' : '<div class="mf-acts"><button type="button" class="mf-btn mf-sm mf-pri" onclick="mfDateDiff(' + i + ')">Change return to ' + escapeHTML(fmtD(mfIsoToMdy(d.makers))) + '</button></div>') + '</article>';
+      (mfDateApplied(d)
+        ? '<div class="mf-done">✓ Return date changed' + (mfDateNoted(paxById(d.passenger_id), d) ? ' · note added' : '') + '</div>' +
+          '<div class="mf-acts"><button type="button" class="mf-btn mf-sm mf-pri" onclick="mfDateReprint(' + i + ', this)">🖨 Reprint key tag</button>' +
+          (mfDateNoted(paxById(d.passenger_id), d) ? '' : '<button type="button" class="mf-btn mf-sm" onclick="mfDateNote(' + i + ')">Add note</button>') + '</div>'
+        : '<div class="mf-acts"><button type="button" class="mf-btn mf-sm mf-pri" onclick="mfDateDiff(' + i + ')">Change return to ' + escapeHTML(fmtD(mfIsoToMdy(d.makers))) + '</button></div>') + '</article>';
   }).join('');
   var noRet = (r.no_return || []).map(function(x){ return '<article class="mf-card"><div class="mf-name"><b>' + escapeHTML(x.system_name) + '</b><span>' + escapeHTML(x.ticket) + '</span></div><div class="mf-line">Our return: ' + escapeHTML(mfRetTxt(x.ours)) + ' · Makers: no return flight booked</div></article>'; }).join('');
   var flights = function(list, what){ return (list || []).map(function(f){ return '<li><b>' + escapeHTML(vpTime(f.time)) + '</b> — ' + f.pax + ' pax <span>' + escapeHTML(f.flight + ' ' + f.route + ' · ' + f.tail) + '</span>' + (mfIsAscend(f) ? '<span class="mf-chip mf-asc">Ascend</span>' : '') +
