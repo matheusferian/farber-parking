@@ -314,3 +314,8 @@ main{gap:.9rem}
 .tip .grat-chips .chip{border-radius:.5rem}
 .btn.primary{border-radius:.6rem}
 .list{border-radius:.6rem;box-shadow:none}
+
+/* Car photo on the pass (2026-11-06) */
+.bp-photo{margin:0;border-bottom:1px solid #CDD6E4;background:#0B1A33}
+.bp-photo img{display:block;width:100%;height:auto;aspect-ratio:1200/672;object-fit:cover}
+.bp-photo figcaption{padding:.45rem 1.25rem;font-size:.8rem;color:#C9D3E6;background:#0B1A33}

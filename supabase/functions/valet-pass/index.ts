@@ -153,6 +153,15 @@ Deno.serve(async (req) => {
     return reply(200, { state: 'ok', result: data.result });
   }
 
+  // Car photo on the pass (2026-11-06): same token check as the pass; a JPEG as base64, or null.
+  if (body.action === 'photo') {
+    const { data, error } = await admin.rpc('airvalet_portal_photo', { p_token: token, p_client: client });
+    if (error || !data) return reply(503, { state: 'error' });
+    if (data.state === 'limited') return reply(429, { state: 'limited' });
+    if (data.state !== 'ok') return reply(200, { state: 'expired' });
+    return reply(200, { state: 'ok', image: typeof data.image === 'string' ? data.image : null });
+  }
+
   if (body.action === 'gratuity_click') {
     const { data, error } = await admin.rpc('airvalet_portal_gratuity_click', { p_token: token, p_client: client });
     if (error || !data) return reply(503, { state: 'error' });

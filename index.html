@@ -5476,6 +5476,7 @@ async function vpLoadStaff(r){
   if (!isServerSms() || !passLinkTicket(r) || r.status === 'ARCHIVED' || r.status === 'DELIVERED' || r.isOfflinePending) { el.innerHTML = ''; return; }
   var st;
   try { st = await vpRpc('airvalet_pass_state_get', { p_passenger_id: r.id }); } catch(e) { el.innerHTML = ''; return; }
+  var hasPhoto = false; try { hasPhoto = !!(await vpRpc('airvalet_pass_photo_exists', { p_passenger_id: r.id })); } catch(e) {}
   var customs = pickupLocation(r) === 'CUSTOMS';
   var tg = function(field, on, label){
     return '<button type="button" class="vps-tg' + (on ? ' on' : '') + '" onclick="vpSetState(' + r.id + ',\'' + field + '\',' + (on ? 'false' : 'true') + ')">' + (on ? '✓ ' : '') + label + '</button>';
@@ -5485,6 +5486,11 @@ async function vpLoadStaff(r){
     (isDayTripRow(r) ? '<div class="vps-r"><span>🔑 Day trip key</span><span style="display:flex;gap:6px">' +
       '<button type="button" class="vps-tg' + (r.key_with_guest ? '' : ' on') + '" onclick="vpKeyGuest(' + r.id + ',false)">' + (r.key_with_guest ? '' : '✓ ') + 'Team has key</button>' +
       '<button type="button" class="vps-tg' + (r.key_with_guest ? ' on' : '') + '" onclick="vpKeyGuest(' + r.id + ',true)">' + (r.key_with_guest ? '✓ ' : '') + 'Passenger has key</button></span></div>' : '') +
+    // Car photo on the passenger's valet pass (owner 2026-11-06). Private: only the pass link shows it.
+    '<div class="vps-r"><span>📷 Car photo on the pass' + (hasPhoto ? ' · added' : '') + '</span><span style="display:flex;gap:6px">' +
+      '<label class="vps-tg" style="display:inline-flex;align-items:center;cursor:pointer">' + (hasPhoto ? 'Replace' : 'Add photo') +
+      '<input type="file" accept="image/*" style="display:none" onchange="vpPhotoPick(' + r.id + ',this)"></label>' +
+      (hasPhoto ? '<button type="button" class="vps-tg" onclick="vpPhotoClear(' + r.id + ')">Remove</button>' : '') + '</span></div>' +
     '<div class="vps-r"><span>Ready to Go</span>' + tg('ready', st.ready, st.ready ? 'Ready' : 'Mark Ready') + '</div>' +
     (customs ? '<div class="vps-r"><span>Customs on the passenger page</span>' + tg('customs_confirmed', st.customs_confirmed, st.customs_confirmed ? 'Confirmed' : 'Confirm Customs') + '</div>' : '') +
     '<div class="vps-r"><span>After-hours lockbox' + (st.lockbox_authorized ? ' · code shows from ' + escapeHTML(vpIsoDate(st.lockbox_reveal_on)) : '') + '</span>' +
@@ -5497,6 +5503,32 @@ async function vpSetState(pid, field, on){
   try { await vpRpc('airvalet_pass_state_set', { p_passenger_id: pid, p_field: field, p_value: { on: !!on } }); }
   catch(e) { showMsg('Could not save: ' + e.message, true); }
   var r = paxById(pid); if (r) vpLoadStaff(r);
+}
+// Car photo for the valet pass: resized on this device (max 1200 px, JPEG, no location data) and saved.
+async function vpPhotoPick(pid, input){
+  var f = input && input.files && input.files[0]; if (!f) return;
+  var r = paxById(pid); if (!r) return;
+  showMsg('Preparing the photo…', false);
+  try {
+    var url = URL.createObjectURL(f), img = new Image();
+    await new Promise(function(ok, bad){ img.onload = ok; img.onerror = bad; img.src = url; });
+    var s = Math.min(1, 1200 / Math.max(img.naturalWidth, img.naturalHeight));
+    var c = document.createElement('canvas'); c.width = Math.round(img.naturalWidth * s); c.height = Math.round(img.naturalHeight * s);
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(url);
+    var q = 0.8, b64 = c.toDataURL('image/jpeg', q).split(',')[1];
+    while (b64.length > 650000 && q > 0.4) { q -= 0.1; b64 = c.toDataURL('image/jpeg', q).split(',')[1]; }
+    var out = await vpRpc('airvalet_pass_photo_set', { p_passenger_id: pid, p_image_b64: b64 });
+    if (!out || out.result !== 'OK') { showMsg('Photo not saved (' + ((out && out.result) || 'error') + ').', true); return; }
+    sbLog('EDITED', r.name || '', r.ticket || '', r.loc || '', 'Car photo added to the valet pass', { passenger_id: pid });
+    showMsg('✓ Photo added. The passenger sees it on the valet pass.', false);
+  } catch(e) { showMsg('Photo not saved: ' + (e && e.message || 'could not read the image'), true); }
+  input.value = ''; vpLoadStaff(r);
+}
+async function vpPhotoClear(pid){
+  var r = paxById(pid); if (!r || !confirm('Remove the car photo from ' + r.name + '’s valet pass?')) return;
+  try { await vpRpc('airvalet_pass_photo_clear', { p_passenger_id: pid }); sbLog('EDITED', r.name || '', r.ticket || '', r.loc || '', 'Car photo removed from the valet pass', { passenger_id: pid }); showMsg('Photo removed.', false); }
+  catch(e) { showMsg('Could not remove: ' + e.message, true); }
+  vpLoadStaff(r);
 }
 async function vpLockbox(pid, on){
   var r = paxById(pid); if (!r) return;

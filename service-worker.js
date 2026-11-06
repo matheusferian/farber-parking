@@ -98,7 +98,9 @@
 // v116: audit #9 (offline upload watchdog), #10 (edited return request = new key), #12 (pass resets after Back from Stripe).
 // v117: audit #16 — integrity check on the html2canvas / jsPDF CDN scripts.
 // v118: audit #25 quiet hours, #27 clock-in guard, #28-#30 tips, #31 ticket after midnight, #32 closing save check, #33 print escape, #34/#35/#38 pass.
-var CACHE_VERSION = 'v118';
+// v119: pass — day trip back with Ascend / Customs: Customs wording, key with the passenger, no Hangar 19 steps.
+// v120: car photo on the valet pass (upload on the car card) + Ascend/Customs day trip pass.
+var CACHE_VERSION = 'v120';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 var SHELL_FILES = [

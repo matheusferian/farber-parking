@@ -85,6 +85,7 @@
       if (sig === lastSig && app.querySelector('main')) { var st0 = document.getElementById('stale'); if (st0) st0.remove(); return; }
       lastSig = sig;
       render();
+      loadPhoto();
       startIntro();
       return;
     }
@@ -100,6 +101,21 @@
     renderMessage('Something went wrong', 'Please try again in a moment.', true);
   }
   var lastOk = null, lastSig = null;
+  // Car photo (2026-11-06): fetched once per page through valet-pass (token-checked), shown from a blob URL.
+  var photoUrl = null, photoTried = false;
+  async function loadPhoto() {
+    if (photoTried || !pass || !pass.has_photo) return;
+    photoTried = true;
+    try {
+      var r = await post({ t: TOKEN, action: 'photo' });
+      var b64 = r && r.data && r.data.state === 'ok' ? r.data.image : null;
+      if (!b64) return;
+      var bin = atob(b64), arr = new Uint8Array(bin.length);
+      for (var i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+      photoUrl = URL.createObjectURL(new Blob([arr], { type: 'image/jpeg' }));
+      render();
+    } catch (e) { /* the pass works without the photo */ }
+  }
   function showStale(what) {
     var el = document.getElementById('stale');
     if (!el) { el = document.createElement('p'); el.id = 'stale'; el.className = 'stale'; el.setAttribute('role', 'status'); var host = app.querySelector('main') || app; host.insertBefore(el, host.firstChild); }
@@ -179,7 +195,8 @@
     }
     if (p.status === 'CUSTOMS_CONFIRMED') {
       return { tone: 'customs', word: 'At Customs',
-        line: p.pickup === 'CUSTOMS_ASCEND'
+        line: (p.day_trip && p.key_with_guest) ? 'Your car is waiting for you at U.S. Customs. You already have your key.'
+          : p.pickup === 'CUSTOMS_ASCEND'
           ? 'An Ascend team member will hand you your key.'
           : 'As arranged, your car will be at Customs. When you arrive, reply to our text or call ' + esc(contactValet(p)) + ' for your key.' };
     }
@@ -204,7 +221,7 @@
   }
   function pickupText(p) {
     if (p.status === 'CUSTOMS_CONFIRMED') return 'Customs';
-    if (p.day_trip) return p.day_trip_hangar || 'Hangar 19';
+    if (p.day_trip && p.pickup === 'HANGAR_19') return p.day_trip_hangar || 'Hangar 19';
     if (p.pickup === 'HANGAR_19') return 'Hangar 19';
     if (p.pickup === 'CUSTOMS_EXCEPTION' || p.pickup === 'CUSTOMS_ASCEND') return 'Customs';
     return '';
@@ -223,8 +240,12 @@
   function passCard(p) {
     var st = statusInfo(p), done = p.status === 'DELIVERED', day = !!p.day_trip && !done && !p.lockbox;   // audit #38: lockbox wins
     var dayToday = day && fmtDate(p.return_date) === fmtIsoDate(todayIso());
+    // 2026-11-06: a day trip back with Ascend / through Customs (rare) never gets the Hangar 19 steps.
+    var dayH19 = day && p.pickup === 'HANGAR_19';
+    var dayCustoms = day && !dayH19;
     var hangar = esc(p.day_trip_hangar || 'Hangar 19');
     var html = '<section class="bp tone-' + st.tone + (day ? ' is-day' : '') + '" aria-label="Your valet pass">';
+    if (p.has_photo && photoUrl && !done) html += '<figure class="bp-photo"><img src="' + photoUrl + '" alt="Your ' + (p.vehicle ? esc(niceVehicle(p.vehicle)) : 'car') + ', parked by our valet team" width="1200" height="672"><figcaption>Your car today, photographed by our valet team.</figcaption></figure>';
     html += '<div class="bp-top">' +
       '<p class="bp-status">' + esc(st.word) + '</p>' +
       '<h2 class="bp-car">' + (p.vehicle ? esc(niceVehicle(p.vehicle)) : 'Vehicle details coming soon') + '</h2>';
@@ -233,7 +254,11 @@
         ? '<p class="bp-line">Thank you for the gratuity' + (p.first_name ? ', ' + esc(p.first_name) : '') + '. The team appreciates it. See you on your next trip.</p>'
         : '<p class="bp-line">Thank you for choosing us' + (p.first_name ? ', ' + esc(p.first_name) : '') + '. See you on your next trip.</p>') +
         '<p class="bp-sign">Your Makers Air Valet team</p>';
-    } else if (day && p.status !== 'CUSTOMS_CONFIRMED') {
+    } else if (dayCustoms && p.status !== 'CUSTOMS_CONFIRMED') {
+      html += '<p class="bp-line">' + (p.pickup === 'CUSTOMS_ASCEND' || p.pickup === 'CUSTOMS_EXCEPTION'
+        ? 'When you land' + (dayToday ? ' today' : '') + ', your car will be waiting for you at U.S. Customs.' + (p.key_with_guest ? ' You already have your key.' : '')
+        : st.line) + '</p>';
+    } else if (dayH19 && p.status !== 'CUSTOMS_CONFIRMED') {
       html += '<p class="bp-line">' + (dayToday ? 'When you land today:' : 'When you land:') + '</p>' +
         '<ol class="bp-steps"><li>Clear U.S. Customs.</li><li>Remain with your pilots.</li><li>Return with them to Makers Air at ' + hangar + '.</li></ol>' +
         '<p class="bp-warn">Please do not exit through the U.S. Customs terminal. Transportation back to Makers Air is not available from that location.</p>';
@@ -246,7 +271,7 @@
       html += '<div class="bp-grid">' + stubField('Ticket', esc(p.ticket || '')) + '</div>';
       return html + '</div></section>';
     }
-    var date = fmtDate(p.return_date), time = fmtTime(p.return_time), place = day ? hangar : pickupText(p);
+    var date = fmtDate(p.return_date), time = fmtTime(p.return_time), place = dayH19 ? hangar : pickupText(p);
     var steps = p.pickup === 'HANGAR_19' && p.status === 'PARKED' && !day;
     html += '<div class="bp-grid">' +
       stubField('Pickup', place ? esc(place) : 'To be confirmed', !place,
