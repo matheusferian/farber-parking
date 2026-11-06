@@ -92,6 +92,7 @@
   <div class="tab" data-t="all" onclick="resetAllPassengersDefaults()"><i class="fa-solid fa-users"></i><span>All Passengers</span><span class="tbadge" id="ball">0</span></div>
   <div class="tab" data-t="guests" onclick="guestsOpenTab()"><i class="fa-solid fa-address-book"></i><span>Passengers</span></div>
   <div class="tab on" data-t="day"><i class="fa-solid fa-gauge-high"></i><span>Dashboard</span><span class="tbadge red" id="bday">!</span></div>
+  <div class="tab" data-t="makers" data-action="1" onclick="mfOpen()"><i class="fa-solid fa-plane-arrival"></i><span>Makers Flights</span></div>
   <div class="tab" data-t="tasks"><i class="fa-solid fa-square-check"></i><span>Tasks</span><span class="tbadge red" id="btasks">0</span></div>
   <div class="tab" data-t="messages" onclick="renderMessagesWorkspace();loadReturnReviews();if(isServerSms())loadInbox()"><i class="fa-solid fa-message"></i><span>Messages</span><span id="rrTabBadge" class="rr-tab-badge" style="display:none">0</span></div>
   <div class="tab" data-t="tvmode" onclick="window.open(location.pathname+'?mode=tv','_blank')"><i class="fa-solid fa-tv"></i><span>TV Mode</span></div>
@@ -203,7 +204,6 @@
     <div class="dcards" id="dToday"></div>
     <div class="dtitle" style="color:var(--pur)" id="titleTomorrow">&#128198; Leaving Tomorrow <span class="tbadge" style="background:var(--pur);color:#fff">0</span></div>
     <div class="dsub">Return Date = tomorrow</div>
-    <button type="button" class="mf-open" onclick="mfOpen()">&#128203; Check Makers manifest</button>
     <div class="dcards" id="dTomorrow"></div>
     <div class="dtitle" style="color:#e86030" id="titleSunday">&#128197; Returning Sunday <span class="tbadge" style="background:#e86030;color:#fff">0</span></div>
     <div class="dsub" id="subSunday">Return Date = next Sunday</div>
@@ -3467,6 +3467,8 @@ function toggleSidebarDrawer(){
 // ── TABS & FILTERS ─────────────────────────────────────────────
 document.querySelectorAll('.tab').forEach(function(t){
   t.addEventListener('click',function(){
+    // A menu item that opens a window (Makers Flights) instead of a page: just close the menu.
+    if(t.hasAttribute('data-action')){ closeSidebarDrawer(); return; }
     document.querySelectorAll('.tab').forEach(function(x){x.classList.remove('on');});
     document.querySelectorAll('.pane').forEach(function(x){x.classList.remove('on');});
     t.classList.add('on');
@@ -10628,13 +10630,13 @@ async function fetchCurrentUserProfile(){
 // bootstrapAfterAuth() already routes it straight into TV Mode before
 // this function is ever called for that role.
 var TAB_VISIBILITY_BY_ROLE = {
-  ADMIN:      ['all','guests','day','tasks','messages','tvmode','closingreport','report','logs','debug','useraccess'],
-  IPAD_OPS:   ['all','guests','day','tasks','messages','tvmode','closingreport','report','logs','debug'],
+  ADMIN:      ['all','guests','day','makers','tasks','messages','tvmode','closingreport','report','logs','debug','useraccess'],
+  IPAD_OPS:   ['all','guests','day','makers','tasks','messages','tvmode','closingreport','report','logs','debug'],
   // closingreport: the daily closing is done on the operation phones (owner
   // 2026-10-25 emergency, hotfix main 14e191d); server RLS allows IPHONE_OPS
   // on daily_closing_reports. debug: owner 2026-10-26 (same Debug tab IPAD_OPS has).
-  IPHONE_OPS: ['all','guests','day','tasks','messages','tvmode','closingreport','debug'],
-  MANAGER:    ['all','guests','day','tasks','messages','tvmode','closingreport','report','logs'],
+  IPHONE_OPS: ['all','guests','day','makers','tasks','messages','tvmode','closingreport','debug'],
+  MANAGER:    ['all','guests','day','makers','tasks','messages','tvmode','closingreport','report','logs'],
   TV_ONLY:    []
 };
 function applyRoleNavVisibility(role){

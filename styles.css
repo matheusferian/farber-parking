@@ -2598,7 +2598,6 @@ body.tv-stale .tv-stale-banner{display:block;}
 .dc-dt-chip.key{background:#E3F3EC;color:#14704D;border-color:rgba(27,143,99,.4);}
 
 /* ── Makers manifest check (owner 2026-11-06): photos of the printed manifests → match with AirValet ── */
-.mf-open{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:44px;margin:6px 0 10px;border:1.5px dashed var(--pur);border-radius:12px;background:transparent;color:var(--pur);font:700 14px 'Sora',sans-serif;cursor:pointer}
 .mf-ov{position:fixed;inset:0;z-index:10050;background:rgba(10,15,30,.55);display:flex;align-items:flex-end;justify-content:center;padding:12px}
 .mf-box{background:#fff;color:var(--navy);border-radius:16px;width:100%;max-width:560px;max-height:92vh;overflow:auto;-webkit-overflow-scrolling:touch;padding:16px;font-size:14px}
 .mf-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
