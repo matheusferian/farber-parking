@@ -409,7 +409,7 @@ Deno.test('service: happy path → one provider call, queued, SID + staff name s
   assertEquals(r.ok, true); assertEquals(r.status, 'queued'); assert(r.sid?.startsWith('SMMOCK'));
   assertEquals(provider.calls.length, 1);
   assertEquals(provider.calls[0].to, '+13055550101');
-  assert(provider.calls[0].body.startsWith('Welcome to Makers Air Valet! Your car is checked in.\nTap to see your car's live status, your return details and a direct line to our team:\nhttps://airvalet.farberos.com/a#'));
+  assert(provider.calls[0].body.startsWith('Welcome to Makers Air Valet! Your car is checked in.\nTap to see your car\'s live status, your return details and a direct line to our team:\nhttps://airvalet.farberos.com/a#'));
   assertEquals(countSegments(provider.calls[0].body), 2); // owner 2026-11-06: rates + HELP + STOP → two GSM-7 segments
   const tok = store.passLinks.get(1001)!;
   assertEquals(tok.length, 17);

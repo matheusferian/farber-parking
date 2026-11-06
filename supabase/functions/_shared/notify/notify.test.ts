@@ -125,7 +125,7 @@ Deno.test('preview: exact check-in text (2026-11-06), dots for the token (same l
   const deps: SendDeps = { mode: 'live', store, provider, allowlist: [], passBaseUrl: 'https://airvalet.farberos.com/a#' };
   const p = await previewAirValetSms(deps, { passengerId: 1, type: 'CHECK_IN', actor: ops });
   assertEquals(p.ok, true);
-  assertEquals(p.body, 'Welcome to Makers Air Valet! Your car is checked in.\nTap to see your car's live status, your return details and a direct line to our team:\nhttps://airvalet.farberos.com/a#' + '•'.repeat(17) + '\nMsg & data rates may apply. Reply HELP for help, STOP to opt out.');
+  assertEquals(p.body, 'Welcome to Makers Air Valet! Your car is checked in.\nTap to see your car\'s live status, your return details and a direct line to our team:\nhttps://airvalet.farberos.com/a#' + '•'.repeat(17) + '\nMsg & data rates may apply. Reply HELP for help, STOP to opt out.');
   assertEquals(p.segments, 2); assertEquals(p.encoding, 'GSM-7'); assertEquals(p.chars, 254);
   assertEquals(p.estimated_cost_usd, 0.0226);
   assertEquals(p.to, '+13055550142');
