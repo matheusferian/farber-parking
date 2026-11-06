@@ -9445,8 +9445,30 @@ async function undoDeliverToday(id){
     sbLog('UNDO DELIVER',r.name,r.ticket,restoredLoc,'Restored to PENDING from dashboard'+(r.previous_delivery_location?' | Location restored to: '+restoredLoc:''),{passenger_id:r.id});
     vlhInsert({passenger_id:r.id,ticket:r.ticket,passenger_name:r.name,from_location:'HANGAR 19',to_location:restoredLoc,action:'UNDO_DELIVERY',note:'Delivery undone, location restored',created_by:_currentUserEmail});
     showMsg('↩ Restored to pending: '+r.name,false);
+    setTimeout(function(){ undoDeliveryTips(r); }, 300);
   }catch(e){showMsg('Error: '+e.message,true);}
   finally{loading(false);}
+}
+// Audit 2026-11-06 (A7): a cash tip recorded at this delivery stays in the Closing Report after an undo.
+// Ask to remove it (audited correction with a reason), so the money is not counted on the wrong car.
+async function undoDeliveryTips(r){
+  var tips=[];
+  try{
+    var res=await fetch(SUPABASE_URL+'/rest/v1/airvalet_tip_records?passenger_id=eq.'+r.id+'&voided_at=is.null&stage=eq.CHECKOUT&select=id,amount_cents,method,business_date&order=id.asc',{headers:sbHeaders()});
+    if(res.ok) tips=await res.json();
+  }catch(e){ return; }
+  if(!tips.length) return;
+  var total=tips.reduce(function(s,t){ return s+(Number(t.amount_cents)||0); },0);
+  if(!confirm('This delivery had a cash tip of '+tipMoney(total)+' recorded on '+r.name+' ('+r.ticket+').\n\nRemove it? (Choose Cancel if the passenger really gave it.)')) {
+    showMsg('Tip kept on '+r.ticket+'.', false); return;
+  }
+  var bad=0, closed=false;
+  for(var i=0;i<tips.length;i++){
+    var out=await tipRpc('airvalet_tip_correct',{p_tip_id:tips[i].id,p_new_amount_cents:null,p_reason:'Delivery undone',p_client_key:tipNewKey()});
+    if(!out||out.result!=='OK'){ bad++; if(out&&out.result==='DAY_CLOSED') closed=true; }
+  }
+  if(bad) showMsg(closed?'That day is already closed — ask an ADMIN to remove the tip from the car card.':'Tip not removed — open the car card and correct it there.', true);
+  else showMsg('Tip removed from '+r.ticket+'.', false);
 }
 
 // ── EARLY RETURN ───────────────────────────────────────────────
@@ -14146,8 +14168,13 @@ var _crStripeTipsError=false;
 var _crValetsError=false;
 var _crLtIncomplete=false;
 
+// Operating day (audit 2026-11-06, A6): before 4 AM ET still counts as the previous day, so a Closing
+// done after midnight covers the day that was actually worked (valet hours 5:30 AM–5:30 PM).
 function crBusinessDateET(){
-  return new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+  var now = new Date();
+  var h = parseInt(new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',hour:'2-digit',hourCycle:'h23'}).format(now), 10);
+  if (h < 4) now = new Date(now.getTime() - 5 * 3600000);
+  return new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).format(now);
 }
 function crToDateET(str){
   if(!str) return null;
@@ -15634,7 +15661,13 @@ function buildTvViewModel(){
   }));
   var leavingTodayRemaining = leavingTodayAll.filter(function(r){ return r.status!=='DELIVERED'; });
   var leavingTodayDelivered = leavingTodayAll.filter(function(r){ return r.status==='DELIVERED'; });
-  var leavingTodayOverdue = leavingTodayRemaining.filter(function(r){ return isLate(r.ret); });
+  // Audit 2026-11-06 (A8): cars whose return date already passed (last 7 days) and are still with us.
+  // (Built from today's rows before, so it could never match.)
+  var _tvWeekAgo = new Date(getToday().getTime() - 7 * 86400000);
+  var leavingTodayOverdue = sortByDepartureTime(rows.filter(function(r){
+    var d = pd(r.ret);
+    return d && isLate(r.ret) && d >= _tvWeekAgo && r.status!=='DELIVERED' && r.status!=='ARCHIVED';
+  }));
 
   // Checked In Today — the passenger's actual check-in timestamp, not
   // Return Date. checkin_date is the primary source; tvIsCheckedInToday()

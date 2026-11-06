@@ -94,7 +94,8 @@
 // v112: audit fixes — day trip after midnight, Change return, gratuity after cash tip, checkout error box, early Ready, staff copy.
 // v113: Send from iPhone uses the valet pass text with a fresh link for enrolled tickets (audit A1).
 // v114: corrected phone → consent on the new number + welcome with a new pass link (audit A2).
-var CACHE_VERSION = 'v114';
+// v115: audit A6 (Closing before 4 AM = previous day), A7 (undo delivery offers to remove the cash tip), A8 (TV overdue list + key badge).
+var CACHE_VERSION = 'v115';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 var SHELL_FILES = [
