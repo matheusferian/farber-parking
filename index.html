@@ -16275,7 +16275,10 @@ function maybeFetchTvSpider(){
 function tvSpiderFix(reg){
   var sp = _tv.spider && _tv.spider[reg]; if(!sp) return null;
   var now = Date.now(), pol = Date.parse(sp.polled_at), at = Date.parse(sp.last_at);
-  if(!isFinite(pol) || !isFinite(at) || now - pol > 5 * 60000 || now - at > 20 * 60000) return null;
+  if(!isFinite(pol) || !isFinite(at) || now - pol > 5 * 60000) return null;
+  // Shut down at FXE sends no new points: it stays valid while parked (owner 2026-11-06: RV at Customs vanished).
+  var parked = sp.track_status === 'POWER_OFF' && Number(sp.dist_fxe_nm) <= 3;
+  if(now - at > (parked ? 3 * 3600000 : 20 * 60000)) return null;
   return sp;
 }
 function tvDayKeyOffset(n){
@@ -16606,9 +16609,11 @@ function tv4LegState(o){
   // HANGAR 19 (taxi), shut down again later = AT HANGAR 19. Without it: just LANDED.
   var spx = tvSpiderFix(o.registration), stage = null;
   if(spx && Number(spx.dist_fxe_nm) <= 3){
-    var lastAt = Date.parse(spx.last_at);
-    if(spx.track_status !== 'POWER_OFF' && (Number(spx.speed_kt) || 0) < 40) stage = lastAt > first + 60000 ? 'taxi' : 'customs';
-    else if(spx.track_status === 'POWER_OFF') stage = lastAt > first + 3 * 60000 ? 'h19' : 'customs';
+    // A track that started after the landing = the Customs → Hangar 19 hop (the island track ends at Customs).
+    // A short track (< 20 min) is the hop too, even when the TV first saw the aircraft already at Hangar 19.
+    var depAt = Date.parse(spx.departed_at), hop = isFinite(depAt) && (depAt > first - 60000 || Date.parse(spx.last_at) - depAt < 20 * 60000);
+    if(spx.track_status !== 'POWER_OFF' && (Number(spx.speed_kt) || 0) < 40) stage = hop ? 'taxi' : 'customs';
+    else if(spx.track_status === 'POWER_OFF') stage = hop ? 'h19' : 'customs';
   }
   return {k:'landed', at:first, mins: Math.max(0, Math.round((Date.now() - first) / 60000)), src: spx ? 'sat' : st.src, stage: stage, stageAt: spx ? Date.parse(spx.last_at) : null};
 }
