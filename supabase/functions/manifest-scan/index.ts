@@ -56,16 +56,6 @@ const PageSchema = z.object({
   passengers: z.array(PassengerSchema),
 });
 type Page = z.infer<typeof PageSchema>;
-const s60 = z.string().max(60);
-const SuiteSchema = z.object({
-  v: z.literal(1),
-  date: z.string().regex(/^\d{2}\/\d{2}\/\d{4}$/),
-  flights: z.array(z.object({
-    flight: z.string().max(20), route: z.string().max(20), tail: z.string().max(12), arrival: z.string().regex(/^\d{2}:\d{2}$/),
-    total: z.number().int().min(0).max(40).nullable(), client: z.string().max(80).optional(),
-    pax: z.array(z.tuple([s60, s60, s60, z.string().max(10)])).max(40),
-  })).min(1).max(40),
-});
 const str = { type: 'string' };
 const PAGE_JSON_SCHEMA = {
   type: 'object', additionalProperties: false,
@@ -129,18 +119,7 @@ Deno.serve(async (req) => {
   let payload: Record<string, unknown>;
   try { payload = await req.json(); } catch { return json(400, { ok: false, error: { code: 'BAD_JSON' } }); }
   const images = Array.isArray(payload.images) ? payload.images : [];
-  // Text mode (owner 2026-11-06): the "AirValet ✈︎" bookmark reads the flights straight from the
-  // Makers Air Suite schedule (exact names, no photos, no AI) and staff paste them here.
-  let suitePages: Page[] | null = null;
-  if (payload.suite != null) {
-    const parsed = SuiteSchema.safeParse(payload.suite);
-    if (!parsed.success) return json(400, { ok: false, error: { code: 'BAD_SUITE_DATA' } });
-    suitePages = parsed.data.flights.map((f) => ({
-      is_manifest: true, flight_number: f.flight, manifest_date: parsed.data.date, route: f.route, tail_number: f.tail,
-      arrival_time: f.arrival, total_pax: f.total ?? f.pax.length, ascend_mark: /ascend/i.test(f.client || ''), client_name: f.client || '',
-      passengers: f.pax.map(([last, first, middle, origin]) => ({ last, first, middle, pnr: '', first_origin: origin, uncertain: false })),
-    }));
-  } else {
+  {
     if (!images.length) return json(400, { ok: false, error: { code: 'NO_IMAGES' } });
     if (images.length > MAX_IMAGES) return json(400, { ok: false, error: { code: 'TOO_MANY_IMAGES', max: MAX_IMAGES } });
     if (!images.every((x) => typeof x === 'string' && x.startsWith('/9j/') && x.length <= MAX_B64)) {
@@ -157,7 +136,7 @@ Deno.serve(async (req) => {
   if (!OPS.includes(String(role))) return json(403, { ok: false, error: { code: 'FORBIDDEN' } });
 
   const apiKey = Deno.env.get('ANTHROPIC_API_KEY');
-  if (!apiKey && !suitePages) return json(200, { ok: false, error: { code: 'NOT_CONFIGURED' } });
+  if (!apiKey) return json(200, { ok: false, error: { code: 'NOT_CONFIGURED' } });
   const admin = createClient(SUPABASE_URL, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false } });
 
   const { count, error: cErr } = await admin.from('airvalet_manifest_scans').select('id', { count: 'exact', head: true })
@@ -168,10 +147,7 @@ Deno.serve(async (req) => {
   const usage: Usage = { input_tokens: 0, output_tokens: 0, calls: 0 };
   const warnings: { photo: number; code: string; detail?: string }[] = [];
   let pages: Page[];
-  if (suitePages) {
-    pages = suitePages;
-    pages.forEach((p, i) => { if (p.total_pax && p.passengers.length !== p.total_pax) warnings.push({ photo: i + 1, code: 'COUNT_MISMATCH', detail: `${p.flight_number}: ${p.passengers.length}/${p.total_pax}` }); });
-  } else {
+  {
   const client = new Anthropic({ apiKey, timeout: 120_000, maxRetries: 2 });
   const read = await mapLimit(images as string[], PARALLEL, async (b64, i) => {
     try {
@@ -229,7 +205,7 @@ Deno.serve(async (req) => {
   await admin.from('airvalet_manifest_scans').insert({
     created_by: userData.user.id, service_date: result.manifest_date, pages: pages.length, manifest_rows: result.manifest_rows,
     matched: result.matches.length, surprises, missing: result.missing.length,
-    result: { matches: result.matches, missing: result.missing, warnings }, usage: suitePages ? { mode: 'makers_suite' } : { model: MODEL, ...usage },
+    result: { matches: result.matches, missing: result.missing, warnings }, usage: { model: MODEL, ...usage },
   });
 
   return json(200, {

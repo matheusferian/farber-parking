@@ -143,3 +143,21 @@ export async function notifyReminders(deps: StaffDeps): Promise<{ kind: string; 
     return out;
   }
 }
+
+// One push to every phone whose reminder categories include `category` (Makers robot, 2026-11-06).
+// Same targets and bookkeeping as the reminders; never sends anything to passengers.
+export async function notifyCategory(deps: StaffDeps, category: string,
+  payload: { title: string; body: string; url: string; tag: string }): Promise<{ push: number }> {
+  const out = { push: 0 };
+  if (!deps.vapid) return out;
+  try {
+    const { data: targets } = await deps.db.rpc('airvalet_push_reminder_targets', {});
+    for (const t of (targets ?? []) as { id: string; endpoint: string; p256dh: string; auth: string; categories: string[] }[]) {
+      if (!(t.categories || []).includes(category)) continue;
+      const r = await pushOne(deps, t, payload);
+      await deps.db.rpc('airvalet_push_result', { p_id: t.id, p_ok: r.ok, p_gone: r.gone });
+      if (r.ok) out.push += 1;
+    }
+  } catch (e) { (deps.log ?? (() => {}))('staff.category.error', { error: (e as Error)?.name || 'Error' }); }
+  return out;
+}

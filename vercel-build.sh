@@ -27,10 +27,6 @@ cp events/watermakers-veterans-2026/index.html events/watermakers-veterans-2026/
    events/watermakers-veterans-2026/staff.html events/watermakers-veterans-2026/admin.html \
    events/watermakers-veterans-2026/farber-parking-logo.jpg events/watermakers-veterans-2026/watermakers-logo-reverse.png \
    events/watermakers-veterans-2026/sw.js events/watermakers-veterans-2026/manifest.webmanifest dist/events/watermakers-veterans-2026/
-# Makers Air Suite bookmark (owner 2026-11-06): install page + the one-line bookmark code it copies.
-# Static, not app-shell files: not in SHELL_FILES, never cached by the service worker.
-mkdir -p dist/tools
-cp tools/makers.html tools/makers-bookmarklet.txt dist/tools/
 # Makers Air Valet passenger page (/a#<token>, see vercel.json rewrite).
 # Static, not an app-shell file, not in SHELL_FILES.
 cp pass.html pass.js pass.css dist/
