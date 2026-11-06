@@ -85,11 +85,12 @@ Deno.serve(async (req) => {
   // the run that is 6 AM or 3 PM in America/New_York (EDT or EST) works.
   // Owner 2026-11-06: also 11 AM (today), 7 PM and 11 PM (tomorrow) to catch changes sooner; those only push
   // when something changed (the daily summary stays at 6 AM / 3 PM).
-  let target = etDay(1), summaryRun = !isCron;
+  let target = etDay(1), summaryRun = !isCron, noShowRun = false;
   if (isCron) {
     const h = +new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', hour12: false }).format(new Date());
-    if (h === 6 || h === 11) target = etDay(0);
-    else if (h !== 15 && h !== 19 && h !== 23) return json(200, { ok: true, skipped: 'not 6 AM, 11 AM, 3 PM, 7 PM or 11 PM in Fort Lauderdale' });
+    // 4:30 PM (cron 'makers-sync-1630'): today again, before the last flights leave the islands — no-show check.
+    if (h === 6 || h === 11 || h === 16) { target = etDay(0); noShowRun = h === 16; }
+    else if (h !== 15 && h !== 19 && h !== 23) return json(200, { ok: true, skipped: 'not 6 AM, 11 AM, 3 PM, 4:30 PM, 7 PM or 11 PM in Fort Lauderdale' });
     summaryRun = h === 6 || h === 15;
   } else {
     let body: Record<string, unknown> = {};
@@ -141,7 +142,24 @@ Deno.serve(async (req) => {
     const items = diffDepartures(prevOut, result.outbound as DepFlight[]);
     changes = { since: prevRow.created_at, items, lines: items.map(changeLine) };
   }
+  // No-show watch (owner 2026-11-06): only guests WITH a car here (status PENDING, return today, Makers return —
+  // Ascend / other boat are not in these lists). A guest who was on a flight in the previous reading and is on
+  // none now = possible no-show (cancelled or rebooked). At 4:30 PM: everyone still not on any flight today.
+  type NoShow = { passenger_id: number; ticket: string; system_name: string; was_flight?: string; was_time?: string };
+  let no_show: NoShow[] = [];
+  let still_off: NoShow[] = [];
+  if (date === today) {
+    const opOk = (o: unknown) => !['ASCEND', 'OTHER'].includes(String(o || 'MAKERS').toUpperCase());
+    const missing = (m.missing || []).filter((x) => opOk(x.operator));
+    const prevMatches = ((prevRow?.result?.matches || []) as { passenger_id: number; flight_number: string; arrival_time: string; kind: string }[])
+      .filter((x) => x.kind !== 'surname_only');
+    const prevBy = new Map(prevMatches.map((x) => [x.passenger_id, x]));
+    no_show = missing.filter((x) => prevBy.has(x.passenger_id))
+      .map((x) => ({ passenger_id: x.passenger_id, ticket: x.ticket, system_name: x.system_name, was_flight: prevBy.get(x.passenger_id)!.flight_number, was_time: prevBy.get(x.passenger_id)!.arrival_time }));
+    if (noShowRun) still_off = missing.filter((x) => !prevBy.has(x.passenger_id)).map((x) => ({ passenger_id: x.passenger_id, ticket: x.ticket, system_name: x.system_name }));
+  }
   const saved = {
+    no_show, still_off,
     changes,
     date: result.date, inbound: result.inbound, outbound: result.outbound, matches: m.matches, missing: m.missing,
     date_diffs: result.date_diffs, no_return: result.no_return, not_found_list: result.not_found_list, checked: result.checked, not_found: result.not_found, warnings: result.warnings,
@@ -153,6 +171,16 @@ Deno.serve(async (req) => {
   });
   if (isCron && summaryRun) {
     await notifyCategory(deps, 'DAILY', { title: `Makers · ${date === today ? 'today' : 'tomorrow'} ${dayLabel(date)}`, body: summaryText(result), url: '/?mf=1', tag: `makers-sync-${date}` });
+  }
+  if (no_show.length) {
+    await notifyCategory(deps, 'DAILY', { title: 'Possible no-show — car waiting',
+      body: no_show.map((x) => `${x.system_name} (#${x.ticket}) is no longer on flight ${x.was_flight}${x.was_time ? ' ' + x.was_time : ''}`).join('\n') + '\nCheck with Makers before waiting.',
+      url: '/?mf=1', tag: `makers-noshow-${date}` });
+  }
+  if (still_off.length) {
+    await notifyCategory(deps, 'DAILY', { title: `Not on any Makers flight today — ${still_off.length} car${still_off.length === 1 ? '' : 's'} waiting`,
+      body: still_off.slice(0, 5).map((x) => `${x.system_name} (#${x.ticket})`).join('\n') + (still_off.length > 5 ? `\n+${still_off.length - 5} more` : '') + '\nCheck before the last flights.',
+      url: '/?mf=1', tag: `makers-stilloff-${date}` });
   }
   // Return Date Follow-Up guests the robot found (owner 2026-11-06): on a flight that day, or a return booked in Makers.
   const fuLines = [
