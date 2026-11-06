@@ -147,7 +147,14 @@
   }
 
   // ── Valet pass (boarding-pass layout, 2026-10-25; Concept C cards 2026-10-27) ──
+  // Day trip (owner 2026-11-06): back the same day; tell the guest which hangar to come back to.
+  function dayTripLine(p, lead) {
+    return lead + (p.day_trip_hangar ? 'come back to ' + esc(p.day_trip_hangar) + ' \u2014 your car is parked there.' : 'come back to the hangar. We\u2019ll show it here as soon as your car is parked.');
+  }
   function statusInfo(p) {
+    if (p.status === 'READY' && p.day_trip && p.ready_by_staff === false && !p.lockbox) {
+      return { tone: 'ready', word: 'Day trip', line: dayTripLine(p, 'When you land today, ') };
+    }
     if (p.status === 'READY') {
       return { tone: 'ready', word: 'Ready',
         line: p.pickup === 'HANGAR_19'
@@ -165,10 +172,12 @@
     if (p.status === 'DELIVERED') return { tone: 'done', word: 'Delivered', line: 'Thank you for choosing Makers Air Valet.' };
     // Staff filled the return flight / arrival time: the guest is on the way back
     // (owner 2026-10-25). "Ready" is still set by staff only.
+    if (isReturning(p) && p.day_trip) return { tone: 'returning', word: 'Day trip', line: dayTripLine(p, 'Fly safe. When you land, ') };
     if (isReturning(p)) {
       return { tone: 'returning', word: 'Flying back',
         line: p.pickup === 'HANGAR_19' ? 'Fly safe. We\u2019ll be waiting at Hangar\u00a019 and help with your luggage.' : 'Fly safe. We\u2019ll be waiting for you and help with your luggage.' };
     }
+    if (p.day_trip) return { tone: 'parked', word: 'Day trip', line: dayTripLine(p, 'When you land today, ') };
     return { tone: 'parked', word: 'Parked', line: 'Your car is safely parked.' };
   }
   function contactValet(p) { return (p.contacts && p.contacts.valet_phone) || VALET_PHONE_FALLBACK; }
@@ -181,6 +190,7 @@
   }
   function pickupText(p) {
     if (p.status === 'CUSTOMS_CONFIRMED') return 'Customs';
+    if (p.day_trip) return p.day_trip_hangar || '';
     if (p.pickup === 'HANGAR_19') return 'Hangar 19';
     if (p.pickup === 'CUSTOMS_EXCEPTION' || p.pickup === 'CUSTOMS_ASCEND') return 'Customs';
     return '';
@@ -213,7 +223,7 @@
     }
     html += '<section class="card dcard">';
     var date = fmtDate(p.return_date), time = fmtTime(p.return_time), place = pickupText(p);
-    var steps = p.pickup === 'HANGAR_19' && p.status === 'PARKED';
+    var steps = p.pickup === 'HANGAR_19' && p.status === 'PARKED' && !p.day_trip;
     html += '<div class="pass-grid">' +
       '<div><p class="k">Pickup</p><p class="v' + (place ? '' : ' v-soft') + '">' + (place ? esc(place) : 'To be confirmed by our valet team.') + '</p>' +
         (steps ? '<button class="link" type="button" id="howBtn" aria-expanded="false" aria-controls="howSteps">How to get there</button>' : '') + '</div>' +

@@ -476,6 +476,7 @@
       <div class="fg"><label for="fTicket">Ticket # <span style="color:var(--red)">*</span></label><input type="text" id="fTicket" placeholder="" autocomplete="off" style="font-family:'JetBrains Mono',monospace"></div>
       <div class="fg"><label>Return Date <span style="color:var(--red)" id="retRequired">*</span></label>
         <input type="date" id="fReturn" style="width:100%;background:var(--s2);border:1px solid var(--b);border-radius:10px;padding:11px 14px;font-size:16px;color:var(--tx);outline:none;font-family:'Sora',sans-serif;box-sizing:border-box;">
+        <button type="button" onclick="var d=new Date(),e=document.getElementById('fReturn');e.value=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');e.dispatchEvent(new Event('change',{bubbles:true}));" style="margin-top:6px;width:100%;background:var(--s2);border:1px solid var(--b);border-radius:10px;padding:9px 12px;font-size:14px;font-weight:600;color:var(--tx);font-family:'Sora',sans-serif;cursor:pointer;">✈︎ Day trip (back today)</button>
       </div>
     </div>
     <div class="fr two">
@@ -7397,7 +7398,7 @@ function ci2Done(){
 
 // ── Ticket card ──
 function ci2RetSummary(){
-  var s = _ci.ret ? ci2Nice(_ci.ret) : (_ci.noDate ? 'No date' : 'Not set');
+  var s = _ci.ret ? (_ci.ret === ci2Iso(ci2AddDays(0)) ? 'Day trip · ' : '') + ci2Nice(_ci.ret) : (_ci.noDate ? 'No date' : 'Not set');
   var tm = ci2El('ci2Time') && ci2El('ci2Time').value;
   if (_ci.ret && tm) s += ' · ' + tm;
   if (_ci.other) s += ' · another airline';
@@ -7430,13 +7431,13 @@ function ci2RenderPickers(){
 function ci2RenderPick(box){
   var n = box.dataset.n, t0 = ci2Iso(ci2AddDays(0)), t1 = ci2Iso(ci2AddDays(1)), v = _ci.ret, manual = !!v && v !== t0 && v !== t1;
   box.innerHTML = '<div class="ci2-rq" role="group" aria-labelledby="ci2RetLbl">'
-    + '<button type="button" data-d="' + t0 + '" aria-pressed="' + (v === t0) + '">Today<small>' + ci2DayLbl(t0) + '</small></button>'
+    + '<button type="button" data-d="' + t0 + '" aria-pressed="' + (v === t0) + '">Day trip<small>Back today</small></button>'
     + '<button type="button" data-d="' + t1 + '" aria-pressed="' + (v === t1) + '">Tomorrow<small>' + ci2DayLbl(t1) + '</small></button>'
     + '<button type="button" data-cal="' + n + '" aria-pressed="' + manual + '" aria-expanded="' + !!_ci.calOpen[n] + '">' + (manual ? ci2Nice(v, { month: 'short', day: 'numeric' }) : 'Pick date') + '<small>' + (manual ? ci2Nice(v, { weekday: 'long' }) : 'Calendar') + '</small></button>'
     + '<button type="button" data-nodate="1" aria-pressed="' + _ci.noDate + '">No date<small>Not known yet</small></button>'
     + '</div>'
     + '<div class="ci2-cal"' + (_ci.calOpen[n] ? '' : ' hidden') + '>' + (_ci.calOpen[n] ? ci2CalHtml(n) : '') + '</div>'
-    + '<p class="ci2-retnote' + (v ? ' set' : '') + '">' + (v ? 'Returns ' + ci2Nice(v, { weekday: 'long', month: 'long', day: 'numeric' }) : _ci.noDate ? 'Return not defined yet. Add it any time; the same pass updates.' : 'You can leave this empty.') + '</p>';
+    + '<p class="ci2-retnote' + (v ? ' set' : '') + '">' + (v === t0 ? 'Day trip — back today. The valet pass tells the guest which hangar to come back to.' : v ? 'Returns ' + ci2Nice(v, { weekday: 'long', month: 'long', day: 'numeric' }) : _ci.noDate ? 'Return not defined yet. Add it any time; the same pass updates.' : 'You can leave this empty.') + '</p>';
   box.querySelectorAll('[data-d]').forEach(function(b){ b.addEventListener('click', function(){ ci2SetRet(b.dataset.d); }); });
   box.querySelectorAll('[data-cal]').forEach(function(b){ b.addEventListener('click', function(){ _ci.calOpen[n] = !_ci.calOpen[n]; ci2RenderPickers(); }); });
   box.querySelectorAll('[data-nodate]').forEach(function(b){ b.addEventListener('click', ci2SetNoDate); });

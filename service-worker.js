@@ -76,7 +76,8 @@
 //      (index.html). Same SHELL_FILES. No migration.
 // v96: Closing shares ONE photo (no separate Leaving Tomorrow photo); Leaving Tomorrow list in the
 //      Closing gets the old photo's alerts (3+ cars same time, midday rush, no hangar, Customs, Ascend). index.html.
-var CACHE_VERSION = 'v96';
+// v97: Day trip option at check-in (classic + new) and Day trip / hangar line on the valet pass.
+var CACHE_VERSION = 'v97';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 var SHELL_FILES = [
