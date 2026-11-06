@@ -2923,3 +2923,22 @@ img.mk-asc{height:calc(var(--r)*.24);border:0;padding:0;}
 .tv4-multi .tv4-has-ph .tv4-ph{grid-column:1;grid-row:2 / span 2;}
 .tv4-multi .tv4-has-ph .tv4-main{grid-column:2;grid-row:1 / span 2;}
 .tv4-multi .tv4-has-ph .tv4-pill{grid-column:2;grid-row:3;align-self:start;}
+/* TV v4 fixes from the owner's TV photos (2026-11-06) */
+.tv4-car,.tv4-has-ph,.tv4-multi .tv4-car,.tv4-multi .tv4-has-ph{grid-template-columns:4.3em minmax(0,1fr);}
+.tv4-multi .tv4-car,.tv4-multi .tv4-has-ph{grid-template-columns:3.9em minmax(0,1fr);}
+.tv4-has-ph .tv4-tm,.tv4-multi .tv4-has-ph .tv4-tm{grid-column:1;grid-row:1;align-self:end;}
+.tv4-has-ph .tv4-ph,.tv4-multi .tv4-has-ph .tv4-ph{grid-column:1;grid-row:2;align-self:start;margin-top:.4em;width:3.5em;height:3.5em;}
+.tv4-has-ph .tv4-main,.tv4-multi .tv4-has-ph .tv4-main{grid-column:2;grid-row:1 / span 2;}
+.tv4-nmrow{display:flex;align-items:center;gap:.6em;min-width:0;}
+.tv4-nmrow .tv4-nm{flex:1 1 auto;min-width:0;}
+.tv4-nmrow .tv4-pill{flex-shrink:0;font-size:.82em;}
+.tv4-multi .tv4-nmrow{flex-wrap:wrap;row-gap:.25em;}
+.tv4-multi .tv4-nmrow .tv4-nm{flex-basis:100%;}
+.tv4-multi .tv4-nmrow .tv4-pill{font-size:.78em;}
+.tv4-mt{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;}
+#tvMode .tv-kpi-inhead .tv-kpi-lbl{overflow:visible;text-overflow:clip;}
+#tvMode .tv-kpi-inhead .tv-kpi{max-width:none;}
+@media (max-width:1700px){
+  #tvMode .tv-kpi-inhead .tv-kpi-sub,#tvMode .tv-header .tv-brand-sub{display:none;}
+  #tvMode .tv-kpi-row.tv-kpi-inhead{gap:clamp(12px,1.6vw,30px);padding:0 14px;}
+}

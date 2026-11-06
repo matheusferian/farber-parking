@@ -8382,7 +8382,9 @@ async function tipsLoad(r){
 // not go out at delivery; a second text (resend) is ADMIN / MANAGER only, once.
 var TIPS_RESEND_REF='resend:delivered-manual';
 function tipsDeliveryMsgHtml(r, msgs, links){
-  if(!isServerSms()||r.delivery_type==='CUSTOMS') return '';
+  // Customs: the Customs modal sends Welcome Back → Gratuity. When the guest already took the car and no
+  // Welcome Back went out (owner 2026-11-06, W. Altier), the plain delivery message is offered here.
+  if(!isServerSms()||(r.delivery_type==='CUSTOMS'&&r.customs_welcome_sent===true)) return '';
   var row=function(text, btn){ return '<div class="vps-r stp-row"><div class="stp-l"><b>Delivery message</b><small>'+text+'</small></div>'+(btn||'')+'</div>'; };
   if(guestPhoneIntl(r.phone)) return row('International number — not texted by AirValet.');
   if(!_smsEnrolled[r.id]) return row('No Valet Pass for this ticket — nothing to send.');
@@ -16508,6 +16510,14 @@ function tv4LegState(o){
     var l = new Date(ac.landed_at).getTime();
     if(isFinite(l) && inWin(l) && now - l < 6 * 3600000) return {k:'landed', at:l, mins: Math.max(0, Math.round((now - l) / 60000))};
   }
+  // Last radar fix right on final at FXE (<= 3 nm, <= 600 ft) and then silence: the transponder went off
+  // on the ground (owner 2026-11-06: CH 15:45, 0.9 nm, 175 ft, then nothing). Display-only inference;
+  // the server's own rule (<= 150 ft) stays as it is.
+  if(ac && !ac.landed_at && ac.freshness !== 'LIVE' && typeof ac.distance_to_fxe_nm === 'number' && ac.distance_to_fxe_nm <= 3 &&
+     (ac.altitude_ft == null || ac.altitude_ft <= 600) && ac.last_position_at){
+    var lp = new Date(ac.last_position_at).getTime();
+    if(isFinite(lp) && inWin(lp) && now - lp < 6 * 3600000) return {k:'landed', at:lp, mins: Math.max(0, Math.round((now - lp) / 60000))};
+  }
   if(ac && ac.freshness === 'LIVE'){
     if(ac.physical_status === 'ON_GROUND_NEAR_FXE' && inWin(now)) return {k:'landed', at:now, mins:0};
     if(ac.physical_status === 'AIRBORNE' && ac.distance_trend === 'DECREASING' && typeof ac.distance_to_fxe_nm === 'number'){
@@ -16655,8 +16665,8 @@ function tv4LeavingCard(r){
   var timeHtml = t ? tv4Time(t, tail) : '<div class="tv4-tm tv4-tm-unset">'+(dayTrip ? 'DAY<br>TRIP' : 'TIME<br>NOT SET')+'</div>';
   var ph = tv4PhotoHtml(r);
   return '<div class="tv4-car'+(ph ? ' tv4-has-ph' : '')+(pill.edge ? ' tv4-e-'+pill.edge : '')+(late ? ' tv4-e-late' : '')+(returnOperator(r) === 'OTHER' ? ' tv-other-boat' : '')+'">'+timeHtml+
-    '<div class="tv4-main"><div class="tv4-nm">'+escapeHTML(tvShortName(r.name))+'</div>'+tv4Meta(r)+
-    (chips.length ? '<div class="tv4-chips">'+chips.join('')+'</div>' : '')+'</div>'+ph+pill.html+'</div>';
+    '<div class="tv4-main"><div class="tv4-nmrow"><div class="tv4-nm">'+escapeHTML(tvShortName(r.name))+'</div>'+pill.html+'</div>'+tv4Meta(r)+
+    (chips.length ? '<div class="tv4-chips">'+chips.join('')+'</div>' : '')+'</div>'+ph+'</div>';
 }
 function tv4CheckedCard(r){
   var d = r.checkin_date ? new Date(r.checkin_date) : null, hh = '';
@@ -16679,9 +16689,9 @@ function tv4TomorrowCard(r){
   var ph = tv4PhotoHtml(r);
   return '<div class="tv4-car'+(ph ? ' tv4-has-ph' : '')+(t ? '' : ' tv4-e-late')+(returnOperator(r) === 'OTHER' ? ' tv-other-boat' : '')+'">'+
     (t ? tv4Time(t, tail) : '<div class="tv4-tm tv4-tm-unset">TIME<br>NOT SET</div>')+
-    '<div class="tv4-main"><div class="tv4-nm">'+escapeHTML(tvShortName(r.name))+'</div>'+tv4Meta(r)+
+    '<div class="tv4-main"><div class="tv4-nmrow"><div class="tv4-nm">'+escapeHTML(tvShortName(r.name))+'</div>'+pill+'</div>'+tv4Meta(r)+
     (chips.length ? '<div class="tv4-chips">'+chips.join('')+'</div>' : '')+
-    (r.obs ? '<div class="tv4-obs">'+escapeHTML(r.obs)+'</div>' : '')+'</div>'+ph+pill+'</div>';
+    (r.obs ? '<div class="tv4-obs">'+escapeHTML(r.obs)+'</div>' : '')+'</div>'+ph+'</div>';
 }
 // Biggest text that fits w×h: 1 column while text stays >= minS, then 2, then 3 (status moves under
 // the name in 2-3 columns so names keep their width). Measured off-screen in #tvMeasureProbe.
@@ -16976,12 +16986,13 @@ function tvRenderKpis(vm){
     ? vm.customsDue.length+' Customs follow-up due'
     : (vm.followUp.length ? 'Needs date confirmation' : 'All confirmed');
   el.innerHTML =
-    kpi('Checked In Today', vm.checkedInToday.length, checkedInSub, 'ok') +
-    kpi('Leaving Today', vm.leavingTodayRemaining.length, 'Remaining · '+nextDepSub, vm.leavingTodayOverdue.length?'critical':'') +
-    kpi('Leaving Tomorrow', vm.leavingTomorrow.length, tomorrowSub, vm.missingTimeTomorrow.length?'warning':'') +
-    kpi('Missing Locations', vm.missingLocationActive.length, vm.missingLocationActive.length?'Needs hangar assignment':'All assigned', vm.missingLocationActive.length?'critical':'ok') +
-    kpi('Return Follow-Up', vm.followUp.length, followUpSub, vm.followUp.length?'warning':'ok') +
-    kpi('Total In Custody', vm.totalInCustody, 'Vehicles currently parked', '');
+    // TV v4: short labels so they fit the header bar on any TV (owner photos 2026-11-06).
+    kpi('Checked In', vm.checkedInToday.length, checkedInSub, 'ok') +
+    kpi('Leaving', vm.leavingTodayRemaining.length, nextDepSub, vm.leavingTodayOverdue.length?'critical':'') +
+    kpi('Tomorrow', vm.leavingTomorrow.length, tomorrowSub, vm.missingTimeTomorrow.length?'warning':'') +
+    kpi('No Location', vm.missingLocationActive.length, vm.missingLocationActive.length?'Needs a hangar':'All assigned', vm.missingLocationActive.length?'critical':'ok') +
+    kpi('Follow-Up', vm.followUp.length, followUpSub, vm.followUp.length?'warning':'ok') +
+    kpi('In Custody', vm.totalInCustody, 'Parked now', '');
 }
 
 // ── ADAPTIVE FIT ENGINE (2026-08-25) — MEASURE -> SHRINK -> RE-MEASURE
