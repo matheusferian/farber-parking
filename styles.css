@@ -2958,3 +2958,15 @@ img.mk-asc{height:calc(var(--r)*.24);border:0;padding:0;}
 .tv4-p-taxi{background:#FFF1D6;color:#9A5B00;} .tv4-p-taxi i{animation:tv4Blink .8s steps(1,end) infinite;}
 .tv4-taxi{color:#FFB224;} .tv4-taxi i{animation:tv4Blink .8s steps(1,end) infinite;}
 @media (prefers-reduced-motion:reduce){.tv4-p-taxi i,.tv4-taxi i{animation:none;}}
+/* Split-flap legibility (owner 2026-11-06: "6:45 quase não dá para ver"): bolder/bigger white digits,
+   a hairline hinge instead of a thick black bar across the middle of the digit, wider tiles. */
+.mk-fl{width:calc(var(--r)*.5);height:calc(var(--r)*.82);font:700 calc(var(--r)*.7) 'Barlow Condensed',sans-serif;color:#FFFFFF;}
+.mk-h i{height:calc(var(--r)*.82);line-height:calc(var(--r)*.82);}
+.mk-b i,.mk-fb i{top:calc(var(--r)*-.41);}
+.mk-t,.mk-ft{background:linear-gradient(#22304F,#1A2642);}
+.mk-b,.mk-fb{background:linear-gradient(#18233D,#121B31);}
+.mk-fl::after{height:1px;margin-top:0;background:rgba(0,0,0,.35);}
+.mk-fl-sep{font-size:calc(var(--r)*.6);font-weight:700;color:#FFFFFF;}
+.mk-row,.mk-cols{grid-template-columns:calc(var(--r,var(--mk-row,56px))*3.0) calc(var(--r,var(--mk-row,56px))*2.0) minmax(0,1fr) calc(var(--r,var(--mk-row,56px))*.9);}
+.mk-col-today .mk-row,.mk-cols.mk-cols-st{grid-template-columns:calc(var(--r,var(--mk-row,56px))*3.0) calc(var(--r,var(--mk-row,56px))*2.0) minmax(0,1fr) calc(var(--r,var(--mk-row,56px))*.9) calc(var(--r,var(--mk-row,56px))*1.95);}
+.mk-time small{font-weight:700;color:#C8D3E6;}
