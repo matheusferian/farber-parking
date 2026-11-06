@@ -5399,7 +5399,7 @@ var VP_REMINDERS = [
   ['CUSTOMS', 'Customs: Welcome Back 5 min after delivery, gratuity link 10 min after landing'],
   ['WELCOME_BACK', 'Hangar 19 Welcome Back: 30 min before landing'],
   ['POSITION', 'Car position: check-in without a hangar (move before landing, once the owner turns it on)'],
-  ['DAILY', 'Summaries: overdue returns at 8 AM, tomorrow without a time at 6 PM'],
+  ['DAILY', 'Planes + summaries: guest plane landing in ~5 min, at Customs, left Customs; overdue returns 8 AM, tomorrow without a time 6 PM'],
   ['NODATE_ADMIN', 'No return date: every day at 9 AM (admin)']
 ];
 function vpReminderBoxHtml(){
@@ -16982,7 +16982,8 @@ var TV4_AL = {
   msg:{cls:'tv4-al-msg', ic:'&#128172;', k:'NEW MESSAGE', s:'Answer on the iPad or a staff phone'},
   req:{cls:'tv4-al-req', ic:'&#128197;', k:'NEW REQUEST', s:'Approve or decline on the iPad'},
   land:{cls:'tv4-al-land', ic:'&#128748;', k:'LANDED AT FXE', s:'Their cars go to Hangar 19'},
-  chg:{cls:'tv4-al-chg', ic:'&#9888;&#65039;', k:'FLIGHT CHANGE', s:'Resend the updated departures picture'}};
+  chg:{cls:'tv4-al-chg', ic:'&#9888;&#65039;', k:'FLIGHT CHANGE', s:'Resend the updated departures picture'},
+  h19:{cls:'tv4-al-land', ic:'&#9992;&#65039;', k:'LEFT CUSTOMS \u2192 HANGAR 19', s:'Have their cars ready at Hangar 19'}};
 function tv4AlertPush(a){ _tv4Al.q.push(a); if(!_tv4Al.on) tv4AlertNext(); }
 function tv4AlertNext(){
   var el = document.getElementById('tvMsgToast'); if(!el) return;
@@ -17004,12 +17005,19 @@ function tv4CheckLandings(){
   legs.forEach(function(L){
     if(L.st.k !== 'landed' || !L.open) return;
     var key = L.reg + '|' + L.flight + '|' + tvDayKeyOffset(0);
+    var cars = L.guests.filter(function(r){ return r.status !== 'DELIVERED'; })
+      .map(function(r){ return tvShortName(r.name) + ' (' + [r.car, r.loc].filter(Boolean).join(', ') + ')'; }).join(' · ');
+    var who = L.tail + ' from ' + L.place + ' · Flight ' + L.flight;
+    // Powered on again after Customs (owner 2026-11-06): one more alert, coming to Hangar 19.
+    if(L.st.stage === 'taxi' || L.st.stage === 'h19'){
+      var kt = key + '|h19', seenT = _tv4Al.landSeen[kt];
+      _tv4Al.landSeen[kt] = true;
+      if(!seenT && !first && _tv4Al.landSeen[key] && L.st.stage === 'taxi') tv4AlertPush({type:'h19', who: who, text: cars});
+    }
     if(_tv4Al.landSeen[key]) return;
     _tv4Al.landSeen[key] = true;
     if(first) return;   // TV just opened: no flood of old landings
-    var cars = L.guests.filter(function(r){ return r.status !== 'DELIVERED'; })
-      .map(function(r){ return tvShortName(r.name) + ' (' + [r.car, r.loc].filter(Boolean).join(', ') + ')'; }).join(' · ');
-    tv4AlertPush({type:'land', who: L.tail + ' from ' + L.place + ' · Flight ' + L.flight, text: cars});
+    tv4AlertPush({type:'land', who: who, sub: L.st.stage === 'customs' ? 'At Customs' : '', text: cars});
   });
 }
 
