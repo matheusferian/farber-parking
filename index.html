@@ -16578,8 +16578,21 @@ var TV_FOLLOWUP_GAP = 20;
 
 function tvDayTagBadge(day){ return '<span class="tv-badge tv-badge-daytag">'+(day==='today'?'TODAY':'TOMORROW')+'</span>'; }
 
+function tvDayTripWbAlerts(){
+  var now = new Date(), out = [];
+  (data || []).forEach(function(r){
+    if (!r || r.status === 'DELIVERED' || r.status === 'ARCHIVED' || !isToday(r.ret) || !isDayTripRow(r)) return;
+    var t = getDepartureTime(r); if (!t || !isValidDepTime(t)) return;
+    var p = t.split(':'), eta = new Date(); eta.setHours(parseInt(p[0], 10), parseInt(p[1], 10), 0, 0);
+    var mins = (eta - now) / 60000;
+    if (mins <= 60 && mins >= -120) out.push({ r: r, txt: '✈ Day trip lands ' + t + (r.key_with_guest ? ' (key with passenger)' : '') + ' — send Welcome Back', lvl: 'warning' });
+  });
+  return out;
+}
 function tvBuildOpsPages(vm){
   var alerts = []
+    // Day trip (owner 2026-11-06): from 1 h before the arrival time until 2 h after → send the Welcome Back.
+    .concat(tvDayTripWbAlerts())
     .concat(vm.missingTimeTomorrow.map(function(r){ return {r:r, txt:'Leaving tomorrow — TIME NOT SET', lvl:'critical'}; }))
     .concat(vm.leavingTodayOverdue.map(function(r){ return {r:r, txt:'Overdue — was expected '+fmtD(r.ret), lvl:'critical'}; }))
     .concat(vm.missingLocationActive.map(function(r){ return {r:r, txt:'Missing location', lvl:'warning'}; }))

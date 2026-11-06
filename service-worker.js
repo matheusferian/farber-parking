@@ -101,7 +101,8 @@
 // v119: pass — day trip back with Ascend / Customs: Customs wording, key with the passenger, no Hangar 19 steps.
 // v120: car photo on the valet pass (upload on the car card) + Ascend/Customs day trip pass.
 // v121: Customs delivery asks for a car photo for the pass; Inbox quick reply 'At Customs, key with you'.
-var CACHE_VERSION = 'v121';
+// v122: TV alert for day trips 1 h before landing (send Welcome Back).
+var CACHE_VERSION = 'v122';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 var SHELL_FILES = [
