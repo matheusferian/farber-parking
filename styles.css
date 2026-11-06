@@ -2912,3 +2912,14 @@ img.mk-asc{height:calc(var(--r)*.24);border:0;padding:0;}
 .tv4-from .tv4-arrow{color:var(--tv-mu);font-weight:700;}
 .tv4-from .tv4-mklogo{height:.95em;width:auto;}
 .tv4-from .tv4-fno{color:var(--tv-mu);font-weight:600;margin-left:.15em;}
+/* Car photo goes under the time (left column) so the name keeps its width */
+.tv4-has-ph,.tv4-multi .tv4-has-ph{grid-template-columns:4.3em minmax(0,1fr) auto;}
+.tv4-has-ph .tv4-tm{grid-column:1;grid-row:1;}
+.tv4-has-ph .tv4-ph{grid-column:1;grid-row:2;margin-top:.4em;width:3.6em;height:3.6em;}
+.tv4-has-ph .tv4-main{grid-column:2;grid-row:1 / span 2;}
+.tv4-has-ph .tv4-pill{grid-column:3;grid-row:1 / span 2;align-self:center;}
+.tv4-multi .tv4-has-ph{grid-template-columns:3.9em minmax(0,1fr);}
+.tv4-multi .tv4-has-ph .tv4-tm{grid-row:1;}
+.tv4-multi .tv4-has-ph .tv4-ph{grid-column:1;grid-row:2 / span 2;}
+.tv4-multi .tv4-has-ph .tv4-main{grid-column:2;grid-row:1 / span 2;}
+.tv4-multi .tv4-has-ph .tv4-pill{grid-column:2;grid-row:3;align-self:start;}

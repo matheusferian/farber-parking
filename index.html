@@ -15319,11 +15319,11 @@ async function refreshTvData(){
   // here can never reject this function or affect passenger data.
   maybeFetchTvAircraftState();
   maybeFetchTvMakersBoard(); // fire-and-forget, own throttle; never blocks the passenger refresh
-  maybeFetchTvPhotos();      // same: car photos for today's/tomorrow's cards
   _tv.refreshInFlight = true;
   try{
     var rows = await sbGetTvModePassengers();
     data = rows.map(mapPassengerRow);
+    maybeFetchTvPhotos();      // car photos for today's/tomorrow's cards — needs the rows above; own throttle, never awaited
     _tv.lastSuccessAt = Date.now();
     _tv.reconnectAttempts = 0;
     document.body.classList.remove('tv-stale');
@@ -16192,7 +16192,7 @@ async function fetchTvPhotos(){
   try{
     var ids = (data || []).filter(function(r){ return r.status !== 'ARCHIVED' && r.status !== 'DELIVERED' && (isToday(r.ret) || isTmrw(r.ret)); })
       .map(function(r){ return Number(r.id); }).filter(function(x){ return x > 0; }).slice(0, 60);
-    if(!ids.length) return;
+    if(!ids.length){ _tv.photosLastFetchAt = null; return; }   // rows not loaded yet: try again on the next refresh
     var call = function(body){ return fetch(SUPABASE_URL + '/rest/v1/rpc/airvalet_tv_pass_photos', { method:'POST', headers: sbHeaders(), body: JSON.stringify(body) })
       .then(function(r){ if(!r.ok) throw new Error('photos ' + r.status); return r.json(); }); };
     var list = await call({ p_ids: ids, p_with_image: false });
@@ -16607,7 +16607,7 @@ function tv4LegPill(r){
     var st = tv4LegState(o);
     if(st.k === 'landed') return {edge:'landed', html:'<span class="tv4-pill tv4-p-landed">&#10003; LANDED '+st.mins+' MIN AGO</span>'};
     if(st.k === 'live') return {edge:'live', html:'<span class="tv4-pill tv4-p-live"><i></i>LIVE &middot; ETA '+(st.eta != null ? st.eta+' MIN' : 'SOON')+'</span>'};
-    if(st.k === 'way') return {edge:'way', html:'<span class="tv4-pill tv4-p-way"><i></i>ON THE WAY &middot; ETA '+st.eta+' MIN</span>'};
+    if(st.k === 'way') return {edge:'way', html:'<span class="tv4-pill tv4-p-way"><i></i>ON THE WAY &middot; '+(st.eta > 0 ? 'ETA '+st.eta+' MIN' : 'DUE NOW')+'</span>'};
     if(st.k === 'sched' && st.dep){ var code = String(o.route || '').split('-')[0];
       return {edge:'', html:'<span class="tv4-pill tv4-p-sched">LEAVES '+escapeHTML(((typeof MF_AIRPORTS !== 'undefined' && MF_AIRPORTS[code]) || code).toUpperCase())+' '+tv412(o.dep_time)+'</span>'}; }
   }
