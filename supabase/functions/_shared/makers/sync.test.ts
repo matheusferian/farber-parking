@@ -54,6 +54,7 @@ Deno.test('evening run: tomorrow match + Makers return dates + departures', asyn
     ],
   });
   assertEquals(r.inbound.map((f) => `${f.flight} ${f.route} ${f.time} ${f.pax}`), ['2407 COX-FXE 11:21 2', '954 ELH-FXE 17:41 1']);
+  assertEquals(r.inbound.map((f) => f.dep), ['09:30', '16:15']); // island departure, for ON THE WAY on the TV
   assertEquals(r.outbound.map((f) => `${f.flight} ${f.time} ${f.pax}`), ['123 06:45 3', '2404 08:00 2']);
   assertEquals(r.outbound[0].day_trips, 1);   // R1 comes back the same day
   const g = r.match.matches.find((m) => m.passenger_id === 1)!;

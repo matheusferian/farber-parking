@@ -14,9 +14,9 @@
 <link rel="manifest" href="manifest.webmanifest">
 <!-- Fonts/icons from CDNs never block opening the app (hangar Wi-Fi without
      internet took 75 s to show the login, audit A3-04): load them async. -->
-<link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" media="print" onload="this.media='all'">
-<noscript><link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet"><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"></noscript>
+<noscript><link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet"><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"></noscript>
 <!-- Vendored (Offline Mode Phase 1) — was cdn.jsdelivr.net/npm/@supabase/supabase-js@2,
      a FLOATING major-version tag. Frozen at the exact version it resolved to on
      2026-08-24: 2.112.4. Unmodified vendor copy — see PROJECT.md, Offline Mode,
@@ -1728,6 +1728,14 @@ https://buy.stripe.com/8x214mccK0uh9TjgIM6Vq00</div>
   </div>
 
   <div class="tv-msg-toast" id="tvMsgToast" style="display:none" role="status"></div>
+  <!-- TV v4: Makers Air Caravan livery (tail tiles, skin, belly) shared by every aircraft drawing -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+    <pattern id="tv4Tile" width="10" height="10" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="10" height="10" fill="#123A7A"/><rect x="2" y="2" width="6" height="6" fill="none" stroke="#5FB0E6" stroke-width="1.3"/><rect x="4.2" y="4.2" width="1.6" height="1.6" fill="#9FD3F5"/></pattern>
+    <linearGradient id="tv4Skin" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFFFFF"/><stop offset=".55" stop-color="#F1F4F9"/><stop offset="1" stop-color="#D9E0EA"/></linearGradient>
+    <linearGradient id="tv4Belly" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#16346E"/><stop offset="1" stop-color="#0A1E46"/></linearGradient>
+    <linearGradient id="tv4Wing" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFFFFF"/><stop offset="1" stop-color="#C9D2DF"/></linearGradient>
+    <clipPath id="tv4Fus"><path d="M38 80 C60 74 100 64 150 54 L300 52 C312 52 322 56 330 61 L346 66 C360 69 370 73 374 78 C370 83 360 87 346 90 L322 96 L150 98 C110 97 70 90 38 84 Z"/></clipPath>
+  </defs></svg>
   <div class="tv-stale-banner" id="tvStaleBanner">&#9888; STALE DATA — last update <span id="tvStaleElapsed">&mdash;</span> ago</div>
 
   <div class="tv-kpi-row" id="tvKpiRow"></div>
@@ -1738,6 +1746,7 @@ https://buy.stripe.com/8x214mccK0uh9TjgIM6Vq00</div>
        elements here; the first render creates whatever the current data
        actually needs, down to a single quiet-day page each. -->
   <div class="tv-pages" id="tvPages">
+    <div class="tv-dwell-bar" id="tvDwellBar"></div>
     <div class="tv-page-dots tv-hidden" id="tvPageDots"></div>
   </div>
 
@@ -5644,14 +5653,8 @@ async function tvAlertsRefresh(){
   _tvMsg.first = false;
 }
 function tvShowMsgToast(it){
-  var t = document.getElementById('tvMsgToast'); if (!t) return;
-  t.innerHTML = '<div class="tvm-k">' + (it.kind === 'REQUEST' ? 'NEW REQUEST' : 'NEW MESSAGE') + '</div>' +
-    '<div class="tvm-w">' + escapeHTML(it.who || 'Passenger') + (it.ticket ? ' · Ticket #' + escapeHTML(it.ticket) : '') + '</div>' +
-    '<div class="tvm-t">"' + escapeHTML(it.text || '') + '"</div>' +
-    '<div class="tvm-s">Answer on the iPad or a staff phone</div>';
-  t.style.display = '';
-  if (_tvMsg.toastTimer) clearTimeout(_tvMsg.toastTimer);
-  _tvMsg.toastTimer = setTimeout(function(){ t.style.display = 'none'; }, 20000);
+  // TV v4: same data (airvalet_tv_alerts), shown through the alert queue over any page.
+  tv4AlertPush({type: it.kind === 'REQUEST' ? 'req' : 'msg', who: it.who || 'Passenger', sub: it.ticket ? 'Ticket #' + it.ticket : '', text: it.text ? '\u201C' + it.text + '\u201D' : ''});
 }
 
 // ADMIN: Valet Pass settings; Super Admin: SMS alert copy.
@@ -16206,12 +16209,18 @@ function tvMakersTime12(hhmm){
   var h = +m[1];
   return {t: ((h + 11) % 12 + 1) + ':' + m[2], ap: h < 12 ? 'AM' : 'PM'};
 }
-// Split-flap tiles: one tile per character, right-aligned to 5 characters so the colons line up.
+// Split-flap tiles (TV v4): each tile has a top and a bottom half; a change flips the top half down
+// and the next character's bottom half into place, like a real airport board. Right-aligned to 5
+// characters so the colons line up.
+function tvFlapTile(c){
+  var v = c === ' ' ? '&nbsp;' : escapeHTML(c);
+  return '<span class="mk-fl'+(c === ' ' ? ' mk-fl-blank' : '')+'" data-ch="'+escapeHTML(c)+'">'+
+    '<span class="mk-h mk-t"><i>'+v+'</i></span><span class="mk-h mk-b"><i>'+v+'</i></span>'+
+    '<span class="mk-h mk-ft"><i></i></span><span class="mk-h mk-fb"><i></i></span></span>';
+}
 function tvFlapHtml(text, width){
   var s = String(text); while(s.length < width) s = ' ' + s;
-  return s.split('').map(function(c){
-    return '<span class="mk-fl'+(c === ' ' ? ' mk-fl-blank' : '')+'" data-ch="'+escapeHTML(c)+'">'+(c === ' ' ? '&nbsp;' : escapeHTML(c))+'</span>';
-  }).join('');
+  return s.split('').map(function(c){ return c === ':' ? '<span class="mk-fl-sep">:</span>' : tvFlapTile(c); }).join('');
 }
 function tvMakersStatus(f, dayKey, nextKey){
   var m = /^(\d{1,2}):(\d{2})/.exec(String(f.time || ''));
@@ -16219,12 +16228,13 @@ function tvMakersStatus(f, dayKey, nextKey){
   var now = new Date(), dep = new Date(now.getFullYear(), now.getMonth(), now.getDate(), +m[1], +m[2]);
   var mins = Math.round((dep - now) / 60000);
   if(mins < -TV_MAKERS_DEPARTED_MIN) return {code:'DEPARTED', text:'DEPARTED'};
+  if(mins <= 10) return {code:'FINAL', text:'FINAL CALL'};   // last 10 min: red, fast blink
   if(mins <= TV_MAKERS_BOARDING_MIN) return {code:'BOARDING', text:'BOARDING'};
   if(nextKey && nextKey === f.time + '|' + f.flight){
     var h = Math.floor(mins / 60), mm = mins % 60;
-    return {code:'NEXT', text:'IN ' + (h ? h + 'H ' : '') + mm + ' MIN'};
+    return {code:'NEXT', text: h ? 'NEXT · ' + h + 'H' + ('0' + mm).slice(-2) : 'NEXT · ' + mm + ' MIN'};
   }
-  return {code:'SCHEDULED', text:'SCHEDULED'};
+  return {code:'SCHEDULED', text:'ON TIME'};
 }
 function tvMakersRowHtml(f, dayKey, nextKey, withStatus){
   var dest = String(f.route || '').replace(/^FXE-/, '');
@@ -16241,18 +16251,19 @@ function tvMakersRowHtml(f, dayKey, nextKey, withStatus){
     '<div class="mk-tags"><span class="mk-tail" style="'+tvMakersTag(dest)+'">'+escapeHTML(tvMakersTailSuffix(f.tail))+'</span>'+
       '<span class="mk-bag" style="'+tvMakersTag(dest)+'">'+escapeHTML(code)+'</span></div>'+
     '<div class="mk-dest"><b>'+escapeHTML(place)+'</b>'+
-      (ascend ? '<span class="mk-asc">ASCEND</span>' : '')+
-      (dayTrips ? '<span class="mk-dt">'+dayTrips+' day trip</span>' : '')+
-      '<span class="mk-fn">Flight '+escapeHTML(String(f.flight || ''))+'</span></div>'+
+      '<span class="mk-fn">Flight '+escapeHTML(String(f.flight || ''))+
+      (ascend ? '<img class="mk-asc" src="assets/ascend-logo.png" alt="Ascend">' : '')+
+      (dayTrips ? '<span class="mk-dt">'+dayTrips+' DAY TRIP</span>' : '')+'</span></div>'+
     '<div class="mk-pax">'+(Number(f.pax) || 0)+'<small>pax</small></div>'+
-    (st ? '<div class="mk-status" data-flap="'+escapeHTML(key+'|s')+'" data-val="'+escapeHTML(st.text)+'"><span class="mk-led">'+escapeHTML(st.text)+'</span></div>' : '')+
+    (st ? '<div class="mk-status" data-flap="'+escapeHTML(key+'|s')+'" data-val="'+escapeHTML(st.text)+'"><i class="mk-dot"></i><span class="mk-led">'+escapeHTML(st.text)+'</span></div>' : '')+
   '</div>';
 }
 function tvMakersColumnHtml(label, dayKey, rowH, maxRows, withStatus){
   var day = tvMakersDay(dayKey);
   var d = new Date(dayKey + 'T12:00:00');
   var dayTxt = isNaN(d) ? dayKey : d.toLocaleDateString('en-US', {weekday:'short', month:'numeric', day:'numeric'});
-  var head = function(sub){ return '<div class="mk-col-head"><span class="mk-col-day">'+label+'</span><span class="mk-col-sub">'+sub+'</span></div>'; };
+  var head = function(sub){ return '<div class="mk-col-head"><span class="mk-col-day">'+label.toUpperCase()+'</span><span class="mk-col-sub">'+sub+'</span></div>'+
+    '<div class="mk-cols'+(withStatus ? ' mk-cols-st' : '')+'"><span>Time</span><span>Aircraft</span><span>Destination</span><span>Pax</span>'+(withStatus ? '<span>Status</span>' : '')+'</div>'; };
   if(!day) return '<section class="mk-col">'+head(escapeHTML(dayTxt))+'<div class="mk-empty">The Makers robot has not read '+label.toLowerCase()+' yet.</div></section>';
   var list = tvMakersFlights(day);
   var pax = list.reduce(function(a, f){ return a + (Number(f.pax) || 0); }, 0);
@@ -16277,60 +16288,97 @@ function tvMakersColumnHtml(label, dayKey, rowH, maxRows, withStatus){
     var room = maxRows - (hidden ? 1 : 0);
     if(shown.length > room){ later = shown.length - (room - 1); shown = shown.slice(0, room - 1); }
   }
-  var rows = (hidden ? '<div class="mk-row mk-folded"><span>&#10003; '+hidden+' departed earlier</span></div>' : '') +
+  var rows = (hidden ? '<div class="mk-row mk-folded"><span>&#10003; '+hidden+' DEPARTED EARLIER</span></div>' : '') +
     shown.map(function(f){ return tvMakersRowHtml(f, dayKey, nextKey, withStatus); }).join('') +
-    (later ? '<div class="mk-row mk-folded"><span>+ '+later+' more later</span></div>' : '');
+    (later ? '<div class="mk-row mk-folded"><span>+ '+later+' MORE LATER</span></div>' : '');
   return '<section class="mk-col'+(withStatus ? ' mk-col-today' : '')+'">'+head(sub)+
     '<div class="mk-rows" style="--mk-row:'+rowH+'px">'+rows+'</div></section>';
+}
+function tvMakersTickerHtml(todayKey, tomorrowKey){
+  var bits = [];
+  var t = tvMakersFlights(tvMakersDay(todayKey)), nx = null;
+  for(var i = 0; i < t.length; i++){ var c = tvMakersStatus(t[i], todayKey, null).code; if(c !== 'DEPARTED'){ nx = t[i]; break; } }
+  if(nx){ var tm = tvMakersTime12(nx.time), dst = String(nx.route || '').replace(/^FXE-/, '');
+    bits.push('Next departure <b>'+tm.t+' '+tm.ap+'</b> · '+escapeHTML((typeof MF_AIRPORTS !== 'undefined' && MF_AIRPORTS[dst]) || dst)+' · '+escapeHTML(tvMakersTailSuffix(nx.tail))); }
+  tv4InboundLegs().forEach(function(L){
+    if(L.st.k === 'live') bits.push(escapeHTML(L.tail)+' from '+escapeHTML(L.place)+' · <b>LIVE</b> · ETA '+(L.st.eta != null ? L.st.eta+' min' : 'soon'));
+    else if(L.st.k === 'way') bits.push(escapeHTML(L.tail)+' from '+escapeHTML(L.place)+' · <b>ON THE WAY</b> · lands '+L.arr12);
+    else if(L.st.k === 'landed') bits.push(escapeHTML(L.tail)+' from '+escapeHTML(L.place)+' · <b>LANDED</b>');
+  });
+  var m = tvMakersFlights(tvMakersDay(tomorrowKey));
+  if(m.length){ var f0 = tvMakersTime12(m[0].time); bits.push('Tomorrow '+m.length+' flights · first at <b>'+f0.t+' '+f0.ap+'</b>'); }
+  bits.push('Makers Air Valet · Fort Lauderdale Executive');
+  var run = bits.join('<em>&#10022;</em>');
+  return '<div class="mk-ticker"><span class="mk-tk-lbl">FXE</span><div class="mk-tk-win"><span class="mk-tk-run">'+run+'<em>&#10022;</em>'+run+'<em>&#10022;</em></span></div></div>';
 }
 function tvBuildMakersPages(vm){
   var todayKey = tvDayKeyOffset(0), tomorrowKey = tvDayKeyOffset(1);
   if(!tvMakersDay(todayKey) && !tvMakersDay(tomorrowKey)) return [];
   var box = tvRealPageBodyBox();
-  var titleHtml = '<div class="tv-page-title"><span>&#128747; Makers Departures</span><span class="tv-count-pill">FXE</span></div>';
-  var colHeadH = 46, pad = 28;
-  var availH = Math.max(200, box.height - tvMeasureElementOuterHeight(titleHtml) - colHeadH - pad);
-  var n = Math.max(tvMakersFlights(tvMakersDay(todayKey)).length, tvMakersFlights(tvMakersDay(tomorrowKey)).length, 1);
-  var rowH = Math.max(34, Math.min(72, Math.floor(availH / n)));
+  var titleHtml = '<div class="tv-page-title tv4-title"><span>Makers Departures</span><span class="tv-count-pill">FXE</span></div>';
+  var colHeadH = 92, tickerH = 64, pad = 20;
+  var availH = Math.max(200, box.height - tvMeasureElementOuterHeight(titleHtml) - colHeadH - tickerH - pad);
+  var colW = (box.width - 22) / 2 - 32;
+  var nT = tvMakersFlights(tvMakersDay(todayKey)).length, nM = tvMakersFlights(tvMakersDay(tomorrowKey)).length;
+  var n = Math.max(nT, nM, 1);
+  var rowH = Math.max(34, Math.min(84, Math.floor(colW / 11.8), Math.floor(availH / n)));
   var maxRows = Math.max(1, Math.floor(availH / rowH));
-  return [{kind:'makers', sub:0, of:1, fitTier:'normal', render:function(bodyEl){
-    bodyEl.className = 'tv-page-body tv-density-normal';
+  return [{kind:'makers', sub:0, of:1, fitTier:'v4', dwell: Math.min(30, 9 + 0.6 * (nT + nM)) * 1000, render:function(bodyEl){
+    bodyEl.className = 'tv-page-body tv-density-normal tv4-dep';
     bodyEl.style.flexDirection = ''; bodyEl.style.gap = '';
     bodyEl.innerHTML = titleHtml + '<div class="mk-board">'+
       tvMakersColumnHtml('Today', todayKey, rowH, maxRows, true)+
-      tvMakersColumnHtml('Tomorrow', tomorrowKey, rowH, maxRows, false)+'</div>';
+      tvMakersColumnHtml('Tomorrow', tomorrowKey, rowH, maxRows, false)+'</div>'+
+      tvMakersTickerHtml(todayKey, tomorrowKey);
     tvFlapChanged(bodyEl);
   }}];
 }
-// Split-flap motion. Each tile shuffles through a few characters and lands on its
-// own, left to right, like the real boards. tvFlapChanged: only values that changed
-// since the last render. tvFlapAll: the whole board, when the page comes up.
+// Split-flap motion. Each tile flips through a few characters and lands on its own, left to
+// right. tvFlapChanged: only values that changed since the last render (e.g. Makers swapped the
+// tail or moved the time). tvFlapAll: the whole board, each time the page comes up.
 function tvReducedMotion(){
   try{ return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; }catch(e){ return false; }
 }
-function tvFlapRun(el){
+function tvFlapHalf(el, c){ var i = el && el.querySelector('i'); if(i) i.innerHTML = (c === ' ' ? '&nbsp;' : escapeHTML(c)); }
+function tvFlapOnce(tile, from, to, ms, done){
+  var t = tile.querySelector('.mk-t'), b = tile.querySelector('.mk-b'), ft = tile.querySelector('.mk-ft'), fb = tile.querySelector('.mk-fb');
+  if(!ft || !fb || !ft.animate){ tvFlapHalf(t, to); tvFlapHalf(b, to); done(); return; }
+  tvFlapHalf(t, to); tvFlapHalf(b, from); tvFlapHalf(ft, from); tvFlapHalf(fb, to);
+  ft.style.visibility = 'visible';
+  var a = ft.animate([{transform:'rotateX(0deg)'},{transform:'rotateX(-90deg)'}], {duration:ms/2, easing:'ease-in'});
+  a.onfinish = function(){
+    ft.style.visibility = 'hidden'; fb.style.visibility = 'visible';
+    var a2 = fb.animate([{transform:'rotateX(90deg)'},{transform:'rotateX(0deg)'}], {duration:ms/2, easing:'ease-out'});
+    a2.onfinish = function(){ tvFlapHalf(b, to); fb.style.visibility = 'hidden'; done(); };
+  };
+}
+function tvFlapTileTo(tile, to, steps, delay){
   if(tvReducedMotion()) return;
-  var tiles = el.querySelectorAll('.mk-fl:not(.mk-fl-blank)');
-  var digits = '0123456789', letters = 'ABCDEFGHIJKLMNOPRSTUVWXYZ';
-  Array.prototype.forEach.call(tiles, function(t, i){
-    var fin = t.getAttribute('data-ch'), pool = /\d/.test(fin) ? digits : (/[A-Z]/.test(fin) ? letters : '');
-    if(!pool) return;
-    var steps = 3 + i * 2, k = 0;
-    var timer = setInterval(function(){
-      if(!t.isConnected){ clearInterval(timer); return; }
-      t.classList.remove('mk-flip'); void t.offsetWidth; t.classList.add('mk-flip');
-      if(++k >= steps){ clearInterval(timer); t.textContent = fin; return; }
-      t.textContent = pool.charAt(Math.floor(Math.random() * pool.length));
-    }, 70);
+  var pool = /\d/.test(to) ? '0123456789' : (/[A-Z]/.test(to) ? 'ABCDEFGHIJKLMNOPRSTUVWXYZ' : '');
+  if(!pool) return;
+  var seq = []; for(var i = 0; i < steps; i++) seq.push(pool.charAt(Math.floor(Math.random() * pool.length)));
+  seq.push(to);
+  var cur = to;
+  setTimeout(function run(){
+    if(!seq.length || !tile.isConnected) return;
+    var nx = seq.shift();
+    tvFlapOnce(tile, cur, nx, 120, function(){ cur = nx; run(); });
+  }, delay);
+}
+function tvFlapRun(el, rowIdx){
+  if(tvReducedMotion()) return;
+  var base = (rowIdx || 0) * 90;
+  Array.prototype.forEach.call(el.querySelectorAll('.mk-fl:not(.mk-fl-blank)'), function(t, i){
+    tvFlapTileTo(t, t.getAttribute('data-ch'), 2 + i, base + i * 45);
   });
   var led = el.querySelector('.mk-led');
   if(led){
     var fin2 = el.getAttribute('data-val') || '', k2 = 0;
     var t2 = setInterval(function(){
       if(!led.isConnected){ clearInterval(t2); return; }
-      if(++k2 >= 6){ clearInterval(t2); led.textContent = fin2; return; }
+      if(++k2 >= 7){ clearInterval(t2); led.textContent = fin2; return; }
       led.textContent = fin2.replace(/[A-Z0-9]/g, function(){ return 'ABCDEFGHJKLMNPRSTUVWXYZ'.charAt(Math.floor(Math.random() * 23)); });
-    }, 70);
+    }, 80);
   }
 }
 function tvFlapChanged(root){
@@ -16338,12 +16386,17 @@ function tvFlapChanged(root){
   Array.prototype.forEach.call(root.querySelectorAll('[data-flap]'), function(el){
     var k = el.getAttribute('data-flap'), v = el.getAttribute('data-val');
     next[k] = v;
-    if(prev[k] !== undefined && prev[k] !== v) tvFlapRun(el);
+    if(prev[k] !== undefined && prev[k] !== v){
+      tvFlapRun(el, 0);
+      var row = el.closest('.mk-row'); if(row){ row.classList.remove('mk-changed'); void row.offsetWidth; row.classList.add('mk-changed'); }
+    }
   });
   _tv.flapPrev = next;
 }
 function tvFlapAll(root){
-  Array.prototype.forEach.call(root.querySelectorAll('[data-flap]'), tvFlapRun);
+  Array.prototype.forEach.call(root.querySelectorAll('.mk-row'), function(row, ri){
+    Array.prototype.forEach.call(row.querySelectorAll('[data-flap]'), function(el){ tvFlapRun(el, ri); });
+  });
 }
 
 // "from <origin>" line on our guests' cards: the Makers flight they come back on
@@ -16370,6 +16423,306 @@ function tvFromLineHtml(o){
     (o.registration ? '<span class="tv-from-tail" style="'+tvMakersTag(code)+'">'+escapeHTML(tvMakersTailSuffix(o.registration))+'</span>' : '')+
     '<span class="tv-from-bag" style="'+tvMakersTag(code)+'">'+escapeHTML(tagCode)+'</span>'+
     '<b>from '+escapeHTML(place)+'</b><span>'+bits.join(' &middot; ')+'</span></div>';
+}
+
+// ══ TV v4 (owner 2026-11-06, approved mockup tv-flights/v4) ═════════════════════════════════════
+// - Today and Tomorrow always fit ONE screen: text shrinks and the list goes to 2-3 columns (never
+//   below ~80% text in 1 column before splitting, so names are not cut).
+// - Our guests' Makers flight: ON THE WAY from the island departure time (robot), LIVE once the radar
+//   (ADS-B, ~110 nm out) sees the aircraft, LANDED when it is down. "In the air · to FXE" panel.
+// - Each page stays on screen longer when it has more to read (pg.dwell).
+// - Alerts (messages, requests, landings) slide over any page by themselves. Nobody clicks this TV.
+var TV4_NM = { ASD:165, COX:205, GHC:120, GHB:215, ATC:250, SAQ:150, TYM:265, ELH:195, TBI:285, RSD:230, CCZ:130, SML:345, LGI:330, MHH:180, NAS:165, GGT:300, TCB:170, BIM:50, ZSA:340 };
+function tv4TodayMs(hhmm){
+  var m = /^(\d{1,2}):(\d{2})/.exec(String(hhmm || '')); if(!m) return null;
+  var n = new Date(); return new Date(n.getFullYear(), n.getMonth(), n.getDate(), +m[1], +m[2]).getTime();
+}
+function tv412(hhmm){ var t = tvMakersTime12(hhmm); return t.ap ? t.t + ' ' + t.ap : '—'; }
+// Where an inbound leg is now. Radar first (only when its ETA matches this leg: same -2 h/+6 h window
+// as tvComputeAircraftLegOwners, so the 11:00 RV never lights the 17:00 guest), then the schedule.
+function tv4LegState(o){
+  var now = Date.now(), arr = tv4TodayMs(o.arrival_time), dep = tv4TodayMs(o.dep_time);
+  var ac = _tv.aircraftState && _tv.aircraftState[o.registration];
+  var inWin = function(ms){ return !arr || ((ms - arr) > -TV_LEG_EARLY_MIN * 60000 && (ms - arr) < TV_LEG_LATE_MIN * 60000); };
+  if(ac && ac.landed_at){
+    var l = new Date(ac.landed_at).getTime();
+    if(isFinite(l) && inWin(l) && now - l < 6 * 3600000) return {k:'landed', at:l, mins: Math.max(0, Math.round((now - l) / 60000))};
+  }
+  if(ac && ac.freshness === 'LIVE'){
+    if(ac.physical_status === 'ON_GROUND_NEAR_FXE' && inWin(now)) return {k:'landed', at:now, mins:0};
+    if(ac.physical_status === 'AIRBORNE' && ac.distance_trend === 'DECREASING' && typeof ac.distance_to_fxe_nm === 'number'){
+      var sp = ac.ground_speed_kt, eta = (typeof sp === 'number' && sp > 0) ? Math.round(ac.distance_to_fxe_nm / sp * 60) : null;
+      if(inWin(now + (eta || 0) * 60000)){
+        var from = String(o.route || '').split('-')[0], tot = TV4_NM[from] || 200;
+        return {k:'live', eta:eta, nm:Math.round(ac.distance_to_fxe_nm), alt:ac.altitude_ft, kt:Math.round(sp || 0),
+          p: Math.max(.03, Math.min(.98, 1 - ac.distance_to_fxe_nm / tot))};
+      }
+    }
+  }
+  if(dep && arr && now >= dep && now < arr + 45 * 60000) return {k:'way', eta: Math.max(0, Math.round((arr - now) / 60000)), p: Math.max(.03, Math.min(.97, (now - dep) / Math.max(1, arr - dep)))};
+  if(dep && now < dep) return {k:'sched', dep:dep};
+  if(arr && now >= arr) return {k:'due'};
+  return {k:'sched'};
+}
+function tv4Origin(r, dayKey){ return tvMakersOriginFor(r, dayKey); }
+// Today's inbound legs that carry our guests (one per flight + aircraft), with their guests.
+function tv4InboundLegs(){
+  var day = tvMakersDay(tvDayKeyOffset(0)); if(!day) return [];
+  var byKey = {}, out = [];
+  (day.origins || []).forEach(function(o){
+    var k = o.flight + '|' + o.registration;
+    if(!byKey[k]){ var code = String(o.route || '').split('-')[0];
+      byKey[k] = {o:o, flight:o.flight, reg:o.registration, tail:tvMakersTailSuffix(o.registration), code:code,
+        place:(typeof MF_AIRPORTS !== 'undefined' && MF_AIRPORTS[code]) || code, ascend: o.ascend || /^99\d{2}$/.test(String(o.flight || '')),
+        arr12: tv412(o.arrival_time), dep12: tv412(o.dep_time), guests:[]};
+      out.push(byKey[k]); }
+    var r = paxById(Number(o.passenger_id)); if(r && byKey[k].guests.indexOf(r) < 0) byKey[k].guests.push(r);
+  });
+  out.forEach(function(L){ L.st = tv4LegState(L.o); L.open = L.guests.some(function(r){ return r.status !== 'DELIVERED' && r.status !== 'ARCHIVED'; }); });
+  return out.sort(function(a, b){ return String(a.o.arrival_time).localeCompare(String(b.o.arrival_time)); });
+}
+// Legs worth showing in the panel: in the air, landed in the last 45 min, or leaving the island within 2 h.
+function tv4PanelLegs(){
+  var now = Date.now();
+  return tv4InboundLegs().filter(function(L){
+    if(!L.open && L.st.k !== 'landed') return false;
+    if(L.st.k === 'live' || L.st.k === 'way') return true;
+    if(L.st.k === 'landed') return L.st.mins <= 45;
+    if(L.st.k === 'sched') return L.st.dep && L.st.dep - now <= 120 * 60000;
+    return false;
+  }).slice(0, 4);
+}
+
+// Makers Air Cessna 208B Grand Caravan, side view, nose to the right, drawn from photos of N208JH:
+// white top, navy belly + cargo pod, blue line along the windows, blue diamond-tile tail.
+function tv4CaravanSvg(reg){
+  var win = ''; for(var i = 0; i < 8; i++) win += '<rect x="'+(168 + i * 16.5)+'" y="'+(60 - i * 0.4)+'" width="10" height="8" rx="2.5" fill="#1A2436"/>';
+  return '<svg class="tv4-cv" viewBox="10 14 380 120" role="img" aria-label="Makers Air Grand Caravan '+escapeHTML(reg)+'">'+
+   '<path d="M38 80 L20 18 L48 18 L98 66 Z" fill="url(#tv4Tile)"/><path d="M20 18 L48 18 L50 22 L22 22 Z" fill="#0B2350"/>'+
+   '<path d="M18 74 L92 72 L94 77 L20 79 Z" fill="url(#tv4Wing)"/><path d="M18 77 L94 76 L94 77 L20 79 Z" fill="#0B2350"/>'+
+   '<path d="M38 80 C60 74 100 64 150 54 L300 52 C312 52 322 56 330 61 L346 66 C360 69 370 73 374 78 C370 83 360 87 346 90 L322 96 L150 98 C110 97 70 90 38 84 Z" fill="url(#tv4Skin)"/>'+
+   '<g clip-path="url(#tv4Fus)"><path d="M30 82 C120 88 250 88 390 79 L390 120 L30 120 Z" fill="url(#tv4Belly)"/>'+
+   '<path d="M44 81 C140 76 230 71 300 68 C330 67 355 70 376 77" fill="none" stroke="#4FA8E0" stroke-width="2.2"/></g>'+
+   win+'<path d="M303 54 L326 60.5 L326 68 L305 68 Z" fill="#1A2436"/><path d="M307 57 L322 61.5 L322 64 L308 63 Z" fill="#6F93C4" opacity=".7"/>'+
+   '<text x="84" y="80" font-family="Barlow Condensed,sans-serif" font-weight="700" font-size="13" fill="#123A7A">'+escapeHTML(reg)+'</text>'+
+   '<g transform="translate(150,73)"><path d="M0 4 L3 0 L6 4 L9 0 L12 4" fill="none" stroke="#123A7A" stroke-width="1.4"/><text x="15" y="5" font-family="Inter,sans-serif" font-weight="700" font-size="6.5" fill="#123A7A" letter-spacing="1.2">MAKERS AIR</text></g>'+
+   '<path d="M150 47 C200 44 260 44 304 46 C309 46.5 309 50.5 304 51 L152 53 C147 52 147 48 150 47 Z" fill="url(#tv4Wing)"/>'+
+   '<path d="M262 50 L230 93" stroke="#B9C3D2" stroke-width="3" stroke-linecap="round"/>'+
+   '<path d="M148 97 L318 95 L308 108 C260 110 200 110 160 109 Z" fill="url(#tv4Belly)"/>'+
+   '<path d="M240 102 L254 124" stroke="#4A5568" stroke-width="4" stroke-linecap="round"/><circle cx="256" cy="127" r="9" fill="#1B2230"/><circle cx="256" cy="127" r="3.2" fill="#8C96A6"/>'+
+   '<path d="M350 90 L352 120" stroke="#4A5568" stroke-width="3.2" stroke-linecap="round"/><circle cx="352" cy="124" r="7" fill="#1B2230"/><circle cx="352" cy="124" r="2.5" fill="#8C96A6"/>'+
+   '<ellipse class="tv4-prop" cx="379" cy="78" rx="3.5" ry="36" fill="#D5DDE8" opacity=".22"/>'+
+   '<path d="M372 73 C379 74 382 76 383 78 C382 80 379 82 372 83 Z" fill="#123A7A"/></svg>';
+}
+function tv4Chip(code, tail){ return '<span class="tv4-mini" style="'+tvMakersTag(code)+'">'+escapeHTML(tail)+'</span>'; }
+function tv4AirHtml(){
+  var legs = tv4PanelLegs(); if(!legs.length) return '';
+  var html = '<div class="tv4-air"><div class="tv4-air-h"><b>IN THE AIR &middot; TO FXE</b><span>radar where it reaches, Makers schedule before that</span></div>';
+  legs.forEach(function(L){
+    var st = L.st, stHtml, meta = [];
+    if(st.k === 'live'){ stHtml = '<span class="tv4-fst tv4-live"><i></i>LIVE</span>';
+      meta.push('<b>'+st.nm+' nm</b> out'); if(st.alt) meta.push('<b>'+Number(st.alt).toLocaleString('en-US')+' ft</b>'); if(st.kt) meta.push('<b>'+st.kt+' kt</b>');
+      meta.push('ETA <b>'+(st.eta != null ? st.eta+' min' : 'soon')+'</b>'); }
+    else if(st.k === 'way'){ stHtml = '<span class="tv4-fst tv4-way"><i></i>ON THE WAY</span>';
+      meta.push('left '+escapeHTML(L.place)+' <b>'+L.dep12+'</b>'); meta.push('lands <b>'+L.arr12+'</b> (schedule)'); }
+    else if(st.k === 'landed'){ stHtml = '<span class="tv4-fst tv4-landed"><i></i>LANDED</span>'; meta.push('<b>'+st.mins+' min</b> ago'); }
+    else { stHtml = '<span class="tv4-fst">SCHEDULED</span>'; meta.push('leaves '+escapeHTML(L.place)+' <b>'+L.dep12+'</b>'); meta.push('lands <b>'+L.arr12+'</b>'); }
+    var p = st.k === 'landed' ? 1 : (st.p || 0);
+    var who = L.guests.map(function(r){ return escapeHTML(tvShortName(r.name)); }).join(', ');
+    html += '<div class="tv4-fc'+(st.k === 'live' || st.k === 'way' ? ' tv4-moving' : '')+'" style="--p:'+p.toFixed(3)+'">'+tv4CaravanSvg(L.reg)+
+      '<div class="tv4-fc-top">'+tv4Chip(L.code, L.tail)+tv4Chip(L.code, (typeof MF_TAG_CODE !== 'undefined' && MF_TAG_CODE[L.code]) || L.code)+
+        '<b>'+escapeHTML(L.place)+' &rarr; FXE</b>'+(L.ascend ? '<img src="assets/ascend-logo.png" alt="Ascend">' : '')+stHtml+'</div>'+
+      '<div class="tv4-route"><span class="tv4-ap">'+escapeHTML(L.code)+'</span><span class="tv4-track"><span class="tv4-done"></span><span class="tv4-pl">&#9992;</span></span><span class="tv4-ap tv4-ap-d">FXE</span></div>'+
+      '<div class="tv4-fc-meta">'+meta.map(function(m){ return '<span>'+m+'</span>'; }).join('')+(who ? '<span class="tv4-who">&#128663; '+who+'</span>' : '')+'</div></div>';
+  });
+  return html + '</div>';
+}
+// Pill on each Leaving Today card: where the guest's aircraft is.
+function tv4LegPill(r){
+  var o = tv4Origin(r, tvDayKeyOffset(0));
+  if(o){
+    var st = tv4LegState(o);
+    if(st.k === 'landed') return {edge:'landed', html:'<span class="tv4-pill tv4-p-landed">&#10003; LANDED '+st.mins+' MIN AGO</span>'};
+    if(st.k === 'live') return {edge:'live', html:'<span class="tv4-pill tv4-p-live"><i></i>LIVE &middot; ETA '+(st.eta != null ? st.eta+' MIN' : 'SOON')+'</span>'};
+    if(st.k === 'way') return {edge:'way', html:'<span class="tv4-pill tv4-p-way"><i></i>ON THE WAY &middot; ETA '+st.eta+' MIN</span>'};
+    if(st.k === 'sched' && st.dep){ var code = String(o.route || '').split('-')[0];
+      return {edge:'', html:'<span class="tv4-pill tv4-p-sched">LEAVES '+escapeHTML(((typeof MF_AIRPORTS !== 'undefined' && MF_AIRPORTS[code]) || code).toUpperCase())+' '+tv412(o.dep_time)+'</span>'}; }
+  }
+  var t = tvAircraftTrackingStatus(r);   // guests the robot did not match: radar on their return_flight
+  if(t && t.status === 'LANDED'){ var ago = Math.max(0, Math.round((Date.now() - new Date(t.landedAt).getTime()) / 60000));
+    return {edge:'landed', html:'<span class="tv4-pill tv4-p-landed">&#10003; LANDED '+ago+' MIN AGO</span>'}; }
+  if(t && t.status !== 'OUTBOUND') return {edge:'live', html:'<span class="tv4-pill tv4-p-live"><i></i>LIVE &middot; ETA '+(t.minutes != null ? t.minutes+' MIN' : 'SOON')+'</span>'};
+  return {edge:'', html:'<span class="tv4-pill tv4-p-sched">SCHEDULED</span>'};
+}
+function tv4FromChip(o){
+  if(!o) return '';
+  var code = String(o.route || '').split('-')[0], tag = (typeof MF_TAG_CODE !== 'undefined' && MF_TAG_CODE[code]) || code;
+  var place = (typeof MF_AIRPORTS !== 'undefined' && MF_AIRPORTS[code]) || code;
+  return '<span class="tv4-from">'+(o.registration ? tv4Chip(code, tvMakersTailSuffix(o.registration)) : '')+tv4Chip(code, tag)+
+    'from '+escapeHTML(place)+(o.flight ? ' &middot; '+escapeHTML(String(o.flight)) : '')+'</span>';
+}
+function tv4Time(hhmm, sub){
+  var t = tvMakersTime12(hhmm);
+  return '<div class="tv4-tm">'+(t.ap ? t.t : '&mdash;')+'<small>'+(t.ap || '')+(sub ? ' &middot; '+escapeHTML(sub) : '')+'</small></div>';
+}
+function tv4Meta(r){
+  var noLoc = !r.loc || !String(r.loc).trim();
+  var parts = [];
+  if(r.car) parts.push('<b>'+escapeHTML(r.car)+'</b>');
+  if(r.color) parts.push(escapeHTML(r.color));
+  parts.push(noLoc ? '<span class="tv-badge tv-badge-nolocation">NO LOCATION</span>' : escapeHTML(r.loc));
+  parts.push('#'+escapeHTML(r.ticket || ''));
+  return '<div class="tv4-mt">'+parts.join(' &middot; ')+'</div>';
+}
+function tv4LeavingCard(r){
+  var t = getDepartureTime(r), dayTrip = isDayTripRow(r), o = tv4Origin(r, tvDayKeyOffset(0));
+  var chips = [];
+  if(o) chips.push(tv4FromChip(o));
+  if(returnOperator(r) === 'OTHER') chips.push(OTHER_BOAT_TV_BADGE_HTML);
+  if(tvNeedsH19Move(r)) chips.push(tvMoveH19Badge('today', r));
+  var wcb = tvWelcomeBackBadge(r); if(wcb) chips.push(wcb);
+  var del = tvDelayedBadge(r); if(del) chips.push(del);
+  if(dayTrip) chips.push('<span class="tv-badge tv-badge-daytrip">DAY TRIP</span>');
+  if(dayTrip && r.key_with_guest) chips.push('<span class="tv-badge tv-badge-key">&#128273; KEY WITH PASSENGER</span>');
+  var pill = tv4LegPill(r);
+  var late = isLate(r.ret) || tvWelcomeBackState(r) === 'overdue' || !!del;
+  var tail = String((r.return_flight || '').trim().split(/\s+/)[0] || '').toUpperCase();
+  var timeHtml = t ? tv4Time(t, tail) : '<div class="tv4-tm tv4-tm-unset">'+(dayTrip ? 'DAY<br>TRIP' : 'TIME<br>NOT SET')+'</div>';
+  return '<div class="tv4-car'+(pill.edge ? ' tv4-e-'+pill.edge : '')+(late ? ' tv4-e-late' : '')+(returnOperator(r) === 'OTHER' ? ' tv-other-boat' : '')+'">'+timeHtml+
+    '<div class="tv4-main"><div class="tv4-nm">'+escapeHTML(tvShortName(r.name))+'</div>'+tv4Meta(r)+
+    (chips.length ? '<div class="tv4-chips">'+chips.join('')+'</div>' : '')+'</div>'+pill.html+'</div>';
+}
+function tv4CheckedCard(r){
+  var d = r.checkin_date ? new Date(r.checkin_date) : null, hh = '';
+  if(d && !isNaN(d.getTime())) hh = ('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);
+  var chips = [];
+  if(r.status === 'DELIVERED') chips.push('<span class="tv-badge tv-badge-delivered">&#10003; DELIVERED</span>');
+  if(returnOperator(r) === 'OTHER') chips.push(OTHER_BOAT_TV_BADGE_HTML);
+  return '<div class="tv4-car tv4-ck">'+(hh ? tv4Time(hh) : '<div class="tv4-tm">&mdash;</div>')+
+    '<div class="tv4-main"><div class="tv4-nm">'+escapeHTML(tvShortName(r.name))+'</div>'+tv4Meta(r)+
+    (chips.length ? '<div class="tv4-chips">'+chips.join('')+'</div>' : '')+'</div></div>';
+}
+function tv4TomorrowCard(r){
+  var t = getDepartureTime(r), o = tv4Origin(r, tvDayKeyOffset(1));
+  var chips = [];
+  if(o) chips.push(tv4FromChip(o));
+  var b = tvBadges(r); if(b) chips.push(b);
+  if(tvNeedsH19Move(r)) chips.push(tvMoveH19Badge('tomorrow', r));
+  var tail = String((r.return_flight || '').trim().split(/\s+/)[0] || '').toUpperCase();
+  var pill = o && o.arrival_time ? '<span class="tv4-pill tv4-p-sched">LANDS '+tv412(o.arrival_time)+'</span>' : '';
+  return '<div class="tv4-car'+(t ? '' : ' tv4-e-late')+(returnOperator(r) === 'OTHER' ? ' tv-other-boat' : '')+'">'+
+    (t ? tv4Time(t, tail) : '<div class="tv4-tm tv4-tm-unset">TIME<br>NOT SET</div>')+
+    '<div class="tv4-main"><div class="tv4-nm">'+escapeHTML(tvShortName(r.name))+'</div>'+tv4Meta(r)+
+    (chips.length ? '<div class="tv4-chips">'+chips.join('')+'</div>' : '')+
+    (r.obs ? '<div class="tv4-obs">'+escapeHTML(r.obs)+'</div>' : '')+'</div>'+pill+'</div>';
+}
+// Biggest text that fits w×h: 1 column while text stays >= minS, then 2, then 3 (status moves under
+// the name in 2-3 columns so names keep their width). Measured off-screen in #tvMeasureProbe.
+function tv4Fit(html, w, h, minS){
+  var probe = document.getElementById('tvMeasureProbe');
+  if(!probe || w <= 0 || h <= 0) return {cols:1, s:1};
+  probe.innerHTML = '<div class="tv4-fitbox" style="width:'+Math.floor(w)+'px"><div class="tv4-fit-in">'+html+'</div></div>';
+  var inner = probe.firstChild.firstChild;
+  function maxS(cols){
+    inner.style.setProperty('--cols', cols); inner.classList.toggle('tv4-multi', cols > 1);
+    var lo = .3, hi = 1.25;
+    for(var i = 0; i < 14; i++){ var mid = (lo + hi) / 2; inner.style.setProperty('--s', mid);
+      if(inner.scrollHeight <= h && inner.scrollWidth <= w + 1) lo = mid; else hi = mid; }
+    return lo;
+  }
+  var opts = [1, 2, 3].map(function(c){ return {cols:c, s:maxS(c)}; });
+  var best = null; for(var i = 0; i < opts.length; i++){ if(opts[i].s >= minS){ best = opts[i]; break; } }
+  if(!best) best = opts.reduce(function(a, b){ return b.s > a.s ? b : a; });
+  probe.innerHTML = '';
+  return best;
+}
+function tv4FitWrap(html, fit, empty){
+  if(!html) return '<div class="tv-empty">'+empty+'</div>';
+  return '<div class="tv4-fit-in'+(fit.cols > 1 ? ' tv4-multi' : '')+'" style="--cols:'+fit.cols+';--s:'+fit.s.toFixed(3)+'">'+html+'</div>';
+}
+function tvBuildTodayPages(vm){
+  var box = tvRealPageBodyBox(), gap = 22;
+  var leftW = Math.floor((box.width - gap) * 0.6), rightW = Math.floor(box.width - gap - leftW);
+  var delivered = vm.leavingTodayDelivered.length ? '<span class="tv4-deliv">&#10003; '+vm.leavingTodayDelivered.length+' delivered today</span>' : '';
+  var titleL = '<div class="tv-page-title tv4-title">Leaving Today <span class="tv-count-pill">'+vm.leavingTodayRemaining.length+'</span>'+delivered+'</div>';
+  var titleR = '<div class="tv-page-title tv4-title">Checked In Today <span class="tv-count-pill">'+vm.checkedInToday.length+'</span></div>';
+  var tH = tvMeasureElementOuterHeight(titleL);
+  var lHtml = vm.leavingTodayRemaining.map(tv4LeavingCard).join('');
+  var lFit = lHtml ? tv4Fit(lHtml, leftW, box.height - tH - 4, .8) : {cols:1, s:1};
+  var air = tv4AirHtml(), airH = 0;
+  if(air){ var probe = document.getElementById('tvMeasureProbe');
+    if(probe){ probe.innerHTML = '<div style="width:'+rightW+'px">'+air+'</div>'; airH = probe.firstChild.getBoundingClientRect().height + 16; probe.innerHTML = ''; } }
+  var cHtml = vm.checkedInToday.map(tv4CheckedCard).join('');
+  var cH = Math.max(80, box.height - airH - tvMeasureElementOuterHeight(titleR) - 4);
+  var cFit = cHtml ? tv4Fit(cHtml, rightW, cH, .55) : {cols:1, s:1};
+  // Check-ins are the least urgent list: never below ~50% text. Show the most recent ones that fit
+  // and fold the rest into one line.
+  var cList = vm.checkedInToday, cMore = 0;
+  while(cHtml && cFit.s < .5 && cList.length > 4){
+    cList = cList.slice(0, cList.length - 2); cMore = vm.checkedInToday.length - cList.length;
+    cHtml = cList.map(tv4CheckedCard).join('') + '<div class="tv4-more">+ '+cMore+' earlier check-ins</div>';
+    cFit = tv4Fit(cHtml, rightW, cH, .55);
+  }
+  var legs = air ? tv4PanelLegs().length : 0;
+  return [{kind:'today', sub:0, of:1, fitTier:'v4 '+lFit.cols+'c '+Math.round(lFit.s * 100)+'% / '+cFit.cols+'c '+Math.round(cFit.s * 100)+'%',
+    dwell: Math.min(45, 12 + 0.7 * vm.leavingTodayRemaining.length + 0.25 * vm.checkedInToday.length + 3 * legs) * 1000,
+    render:function(bodyEl){
+      bodyEl.className = 'tv-page-body tv-density-normal tv4-today';
+      bodyEl.style.flexDirection = 'row'; bodyEl.style.gap = gap+'px';
+      bodyEl.innerHTML =
+        '<div class="tv4-col" style="flex:0 0 '+leftW+'px">'+titleL+'<div class="tv4-fitbox">'+tv4FitWrap(lHtml, lFit, 'All vehicles delivered.')+'</div></div>'+
+        '<div class="tv4-col" style="flex:0 0 '+rightW+'px">'+air+titleR+'<div class="tv4-fitbox">'+tv4FitWrap(cHtml, cFit, 'No check-ins yet today.')+'</div></div>';
+    }}];
+}
+function tvBuildTomorrowPages(vm){
+  var box = tvRealPageBodyBox();
+  var title = '<div class="tv-page-title tv4-title"><span>&#128198; Leaving Tomorrow</span><span class="tv-count-pill">'+vm.leavingTomorrow.length+'</span>'+
+    '<span class="tv-prep-badge"><span class="tv-dot"></span>PREP FOR TOMORROW</span></div>';
+  var html = vm.leavingTomorrow.map(tv4TomorrowCard).join('');
+  var fit = html ? tv4Fit(html, box.width, box.height - tvMeasureElementOuterHeight(title) - 4, .75) : {cols:1, s:1};
+  return [{kind:'tomorrow', sub:0, of:1, fitTier:'v4 '+fit.cols+'c '+Math.round(fit.s * 100)+'%',
+    dwell: Math.min(40, 10 + 0.6 * vm.leavingTomorrow.length) * 1000,
+    render:function(bodyEl){
+      bodyEl.className = 'tv-page-body tv-density-normal tv4-tomorrow';
+      bodyEl.style.flexDirection = ''; bodyEl.style.gap = '';
+      bodyEl.innerHTML = title + '<div class="tv4-fitbox">'+tv4FitWrap(html, fit, 'No vehicles scheduled to leave tomorrow.')+'</div>';
+    }}];
+}
+
+// ── Alerts over any page (messages, requests, landings). One at a time, 20 s each, queued. ──
+var _tv4Al = { q:[], on:false, landSeen:null };
+var TV4_AL = {
+  msg:{cls:'tv4-al-msg', ic:'&#128172;', k:'NEW MESSAGE', s:'Answer on the iPad or a staff phone'},
+  req:{cls:'tv4-al-req', ic:'&#128197;', k:'NEW REQUEST', s:'Approve or decline on the iPad'},
+  land:{cls:'tv4-al-land', ic:'&#128748;', k:'LANDED AT FXE', s:'Their cars go to Hangar 19'}};
+function tv4AlertPush(a){ _tv4Al.q.push(a); if(!_tv4Al.on) tv4AlertNext(); }
+function tv4AlertNext(){
+  var el = document.getElementById('tvMsgToast'); if(!el) return;
+  var a = _tv4Al.q.shift();
+  if(!a){ _tv4Al.on = false; el.classList.remove('tv4-show'); return; }
+  _tv4Al.on = true;
+  var A = TV4_AL[a.type] || TV4_AL.msg;
+  el.className = 'tv-msg-toast tv4-alert '+A.cls; el.style.display = '';
+  el.innerHTML = '<div class="tv4-al-ic">'+A.ic+'</div><div class="tv4-al-bd"><div class="tv4-al-k"><i></i>'+A.k+'</div>'+
+    '<div class="tv4-al-w">'+escapeHTML(a.who || '')+(a.sub ? '<span>'+escapeHTML(a.sub)+'</span>' : '')+'</div>'+
+    (a.text ? '<div class="tv4-al-t">'+escapeHTML(a.text)+'</div>' : '')+'<div class="tv4-al-s">'+A.s+'</div><div class="tv4-al-bar"></div></div>';
+  requestAnimationFrame(function(){ el.classList.add('tv4-show'); });
+  setTimeout(function(){ el.classList.remove('tv4-show'); setTimeout(tv4AlertNext, 600); }, 20000);
+}
+// A guest's Makers flight just landed (first time we see it): one alert with who and which cars.
+function tv4CheckLandings(){
+  var legs = tv4InboundLegs(), first = _tv4Al.landSeen === null;
+  if(first) _tv4Al.landSeen = {};
+  legs.forEach(function(L){
+    if(L.st.k !== 'landed' || !L.open) return;
+    var key = L.reg + '|' + L.flight + '|' + tvDayKeyOffset(0);
+    if(_tv4Al.landSeen[key]) return;
+    _tv4Al.landSeen[key] = true;
+    if(first) return;   // TV just opened: no flood of old landings
+    var cars = L.guests.filter(function(r){ return r.status !== 'DELIVERED'; })
+      .map(function(r){ return tvShortName(r.name) + ' (' + [r.car, r.loc].filter(Boolean).join(', ') + ')'; }).join(' · ');
+    tv4AlertPush({type:'land', who: L.tail + ' from ' + L.place + ' · Flight ' + L.flight, text: cars});
+  });
 }
 
 // ── MAIN RENDER ──────────────────────────────────────────────────────
@@ -16410,6 +16763,8 @@ function tvDoRender(){
   tvRenderKpis(vm);
   var pages = [].concat(tvBuildTodayPages(vm), tvBuildMakersPages(vm), tvBuildTomorrowPages(vm), tvBuildOpsPages(vm));
   tvReconcilePageDom(pages);
+  _tv.pageDwells = pages.map(function(pg){ return pg.dwell || 0; });   // TV v4: more to read = longer on screen
+  try { tv4CheckLandings(); } catch(e) { console.warn('TV landing alerts:', e); }
   if(_tv.currentPage >= _tv.pageCount) _tv.currentPage = 0;
   // Newly created .tv-page elements start with no active class (see
   // tvReconcilePageDom) — reassert which one is visible every render,
@@ -16671,7 +17026,8 @@ function tvTodayRowHtml(r, kind){
 // Today lets Checked In Today stay at a larger, easier-to-read tier).
 // 1..N sub-pages only when the densest tier still can't fit one side's
 // full population. ──
-function tvBuildTodayPages(vm){
+// Previous Today layout (paginated density tiers), kept for rollback; TV v4 uses tvBuildTodayPages below.
+function tvBuildTodayPagesV3(vm){
   var pageBodyBox = tvRealPageBodyBox();
   var colWidth = (pageBodyBox.width - 22) / 2; // 22px gap between the two .tv-today-col
 
@@ -16745,7 +17101,8 @@ function tvBuildTodayPages(vm){
 // rather than assumed — narrower minmax at the two new dense tiers lets
 // more columns fit per row instead of wasting width, which is what was
 // actually making a handful of cards taller than necessary before. ──
-function tvBuildTomorrowPages(vm){
+// Previous Tomorrow layout (paginated card grid), kept for rollback; TV v4 uses tvBuildTomorrowPages below.
+function tvBuildTomorrowPagesV3(vm){
   var pageBodyBox = tvRealPageBodyBox();
   function titleHtmlFor(pageCount, p){
     return '<div class="tv-page-title">'+
@@ -16877,7 +17234,7 @@ function tvMeasureColumnCapacity(colWidthPx, listAvailableHeightPx, sampleRowHtm
 // its known inset only on the very first render, before any page body
 // has ever existed — never the primary path.
 function tvRealPageBodyBox(){
-  var existing = document.querySelector('.tv-page-body');
+  var existing = document.querySelector('.tv-page.tv-page-active .tv-page-body') || document.querySelector('.tv-page-body');
   if(existing){
     var r = existing.getBoundingClientRect();
     if(r.width>0 && r.height>0) return {width:r.width, height:r.height};
@@ -17200,7 +17557,9 @@ function rotateTvPages(){
   // dwell) — matches the original single-page intent, just applied by
   // page *kind* instead of assuming Today is always index 0.
   var kind = (_tv.pageKinds && _tv.pageKinds[_tv.currentPage]) || 'today';
-  var dwell = kind==='today' ? TV_ROTATE_PAGE1_MS : TV_ROTATE_MS;
+  var dwell = (_tv.pageDwells && _tv.pageDwells[_tv.currentPage]) || (kind==='today' ? TV_ROTATE_PAGE1_MS : TV_ROTATE_MS);
+  var dbar = document.getElementById('tvDwellBar');   // thin gold bar: how long this page stays
+  if(dbar){ dbar.style.animation = 'none'; void dbar.offsetWidth; dbar.style.animation = _tv.rotationPaused ? 'none' : 'tvDwell '+dwell+'ms linear forwards'; }
   _tv.rotationTimer = setTimeout(function(){
     if(!_tv.rotationPaused) _tv.currentPage = (_tv.currentPage+1) % _tv.pageCount;
     rotateTvPages();

@@ -17,7 +17,9 @@ export type SuiteLike = {
   trips(last: string, first?: string): Promise<Trip[]>;
 };
 export type HeldCar = Candidate & { checkin?: string | null };   // check-in day, YYYY-MM-DD
-export type FlightSummary = { flight: string; route: string; tail: string; time: string; pax: number; ascend: boolean; day_trips?: number };
+// time = FXE arrival (inbound) or FXE departure (outbound); dep = departure from the island (inbound only),
+// used by the TV to show ON THE WAY before the aircraft is in radar range (owner 2026-11-06).
+export type FlightSummary = { flight: string; route: string; tail: string; time: string; pax: number; ascend: boolean; day_trips?: number; dep?: string };
 // Ascend (Makers' charter brand) flights are numbered 99xx in Makers Air Suite (9948/9949 on 2026-11-06/07).
 // Owner to confirm the rule; the Suite reports carry no client name to tell otherwise.
 export const isAscendFlight = (flight: string) => /^99\d{2}$/.test(String(flight || '').trim());
@@ -55,7 +57,7 @@ export async function runSync(suite: SuiteLike, o: { date: string; today: string
   const L = await legs(o.date), inPax = await arrivals(o.date), outPax = await suite.passengers(isoToMdy(o.date), { from: 'FXE' });
   // The report can list the same person twice (both legs of one booking): count each name once.
   const count = (rows: PaxRow[], f: string) => new Set(rows.filter((r) => r.flight === f).map((r) => `${r.last}|${r.first}`)).size;
-  const inbound: FlightSummary[] = L.filter((l) => l.to === 'FXE').map((l) => ({ flight: l.flight, route: `${l.from}-FXE`, tail: l.tail, time: l.arr, pax: count(inPax, l.flight), ascend: isAscendFlight(l.flight) }))
+  const inbound: FlightSummary[] = L.filter((l) => l.to === 'FXE').map((l) => ({ flight: l.flight, route: `${l.from}-FXE`, tail: l.tail, time: l.arr, dep: l.dep, pax: count(inPax, l.flight), ascend: isAscendFlight(l.flight) }))
     .filter((f) => f.pax > 0).sort((a, b) => a.time.localeCompare(b.time));
   // Departures: one line per flight (owner: destination only, no stops). Each passenger is counted once;
   // a return booked the same day is a day trip.
