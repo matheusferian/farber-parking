@@ -15812,10 +15812,10 @@ function tvRow(r, opts){
   if (combine) {
     var timeLabel = opts.time!=null ? opts.time : '';
     var combinedText = timeLabel ? (flight+' '+timeLabel) : flight;
-    timeHtml = '<div class="tv-row-time tv-row-time-flight'+(opts.timeUnset?' tv-time-unset':'')+'">&#9992; '+escapeHTML(combinedText)+'</div>';
+    timeHtml = '<div class="tv-row-time tv-row-time-flight'+(opts.timeUnset?' tv-time-unset':'')+(opts.dayTrip?' tv-time-daytrip':'')+'">&#9992; '+escapeHTML(combinedText)+'</div>';
   } else {
     timeHtml = opts.time!=null
-      ? '<div class="tv-row-time'+(opts.timeUnset?' tv-time-unset':'')+'">'+escapeHTML(opts.time)+'</div>'
+      ? '<div class="tv-row-time'+(opts.timeUnset?' tv-time-unset':'')+(opts.dayTrip?' tv-time-daytrip':'')+'">'+escapeHTML(opts.time)+'</div>'
       : '';
   }
   var showLocAlert = opts.showLocationAlert!==false;
@@ -16138,8 +16138,12 @@ function tvTodayRowHtml(r, kind){
     if(delayedBadge) badgeParts.push(delayedBadge);
     var aircraftBadge = tvAircraftTrackingBadge(r);
     if(aircraftBadge) badgeParts.push(aircraftBadge);
+    // Day trip (owner 2026-11-06): no "TIME NOT SET" — it comes back today; key with the guest shown too.
+    var dayTrip = isDayTripRow(r);
+    if(dayTrip && t) badgeParts.push('<span class="tv-badge tv-badge-daytrip">DAY TRIP</span>');
+    if(dayTrip && r.key_with_guest) badgeParts.push('<span class="tv-badge tv-badge-key">&#128273; KEY WITH GUEST</span>');
     return tvRow(r,{
-      time: t?t:'TIME NOT SET', timeUnset:!t,
+      time: t?t:(dayTrip?'DAY TRIP':'TIME NOT SET'), timeUnset:!t && !dayTrip, dayTrip: !t && dayTrip,
       critical: isLate(r.ret) || wcbState==='overdue',
       statusBadges: badgeParts.join(' '),
       flight: (r.return_flight||'').trim(),

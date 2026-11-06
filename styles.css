@@ -2586,3 +2586,8 @@ body.tv-stale .tv-stale-banner{display:block;}
 .dtp-box b{font:800 18px 'Sora',sans-serif;color:var(--navy)}
 .dtp-box small{margin-left:auto;font:500 12px 'Inter',sans-serif;color:var(--mu)}
 .dtp-grid.is-hidden ~ .dtp-box b{color:var(--mu);letter-spacing:1px}
+
+/* TV Mode — Day trip (owner 2026-11-06): DAY TRIP instead of TIME NOT SET; key with the guest */
+.tv-row-time.tv-time-daytrip{color:#7A5F17;font-size:10.5px;letter-spacing:.3px;font-weight:800;width:76px;}
+.tv-badge-daytrip{background:rgba(168,137,58,.14);color:#7A5F17;border:1px solid rgba(168,137,58,.45);}
+.tv-badge-key{background:var(--tv-ok-bg);color:#14704D;border:1px solid rgba(27,143,99,.4);}

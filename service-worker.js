@@ -83,7 +83,8 @@
 // v101: Day trip pass shows the Welcome Back text once (one paragraph).
 // v102: Day trip only — 'Key handed over' step on the pass; key choice on the car card.
 // v103: Valet Pass v2 look (one logo, left-aligned ticket card, day trip Customs callout + key chip).
-var CACHE_VERSION = 'v103';
+// v104: TV Mode — Day trip shows DAY TRIP (not TIME NOT SET) + KEY WITH GUEST badge.
+var CACHE_VERSION = 'v104';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 var SHELL_FILES = [
