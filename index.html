@@ -15079,7 +15079,11 @@ var _tv = {
   // never blanks the last good snapshot and never touches passenger data.
   aircraftState:{},
   aircraftLastFetchAt:null,
-  aircraftFetchInFlight:false
+  aircraftFetchInFlight:false,
+  aircraftLegOwners:null,   // {reg:{passengerId:true}} — which guests own the aircraft's current leg (tvComputeAircraftLegOwners)
+  legLanded:null,           // {key, map:{passengerId:landed_at}} — today's landings already seen per guest
+  makers:null,              // airvalet_makers_board() — Makers departures today/tomorrow + origins of our guests
+  makersLastFetchAt:null
 };
 var TV_RESIZE_DEBOUNCE_MS = 350;
 
@@ -15308,6 +15312,7 @@ async function refreshTvData(){
   // maybeFetchTvAircraftState(), and its own try/catch means a failure
   // here can never reject this function or affect passenger data.
   maybeFetchTvAircraftState();
+  maybeFetchTvMakersBoard(); // fire-and-forget, own throttle; never blocks the passenger refresh
   _tv.refreshInFlight = true;
   try{
     var rows = await sbGetTvModePassengers();
@@ -15475,13 +15480,104 @@ function tvAircraftRegistrationForRow(r){
 // computed for the airborne branch, and only when ground_speed_kt is a
 // finite positive number — otherwise null, so the caller renders the tier
 // alone with no fabricated number.
+// ── ONE AIRCRAFT, SEVERAL LEGS A DAY (owner 2026-11-06) ────────────────
+// The same tail often flies FXE→Bahamas→FXE twice a day (e.g. RV lands at
+// 11:00 with one of our guests, goes back out and lands again at 17:00 with
+// another). The live aircraft state belongs to ONE leg only, so it is given
+// to the guest(s) whose expected time (r.ret + departure_time, the FXE
+// arrival) is closest to the leg the aircraft is flying now:
+//   reference = landed_at (landed) | now + radial ETA (inbound) | now (other)
+// A guest may own the leg only if the reference falls between 2 h before
+// and 6 h after their expected time (early / delayed aircraft). Guests on
+// the same leg (expected times within 45 min) all share it. Delivered
+// guests compete too, so a guest already picked up at 11:00 still "holds"
+// the 11:00 leg and the 17:00 guest stays quiet until his aircraft comes.
+// Guests with no time set only get the aircraft when no guest of that tail
+// has a time (cannot tell legs apart). Once a guest's leg landed, the
+// landing is remembered for the day, so DELAYED stays cleared later on.
+var TV_LEG_EARLY_MIN = 120, TV_LEG_LATE_MIN = 360, TV_LEG_SAME_MIN = 45;
+function tvTodayKeyLocal(){
+  var d = new Date();
+  return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);
+}
+function tvAircraftLegReferenceMs(ac){
+  var now = Date.now();
+  if(ac.landed_at){
+    var l = new Date(ac.landed_at).getTime();
+    if(isFinite(l)) return l;
+  }
+  if(ac.freshness === 'LIVE' && ac.physical_status === 'AIRBORNE' && ac.distance_trend === 'DECREASING'){
+    var d = ac.distance_to_fxe_nm, sp = ac.ground_speed_kt;
+    if(typeof d === 'number' && isFinite(d) && typeof sp === 'number' && isFinite(sp) && sp > 0){
+      return now + (d / sp) * 3600000;
+    }
+  }
+  return now;
+}
+// Recomputed on every render from that render's rows (tvDoRender).
+function tvComputeAircraftLegOwners(rows){
+  var byReg = {};
+  (rows || []).forEach(function(r){
+    var reg = tvAircraftRegistrationForRow(r);
+    if(reg) (byReg[reg] = byReg[reg] || []).push(r);
+  });
+  var owners = {};
+  Object.keys(byReg).forEach(function(reg){
+    var list = byReg[reg], own = {};
+    owners[reg] = own;
+    var ac = _tv.aircraftState[reg];
+    var timed = list.map(function(r){ var e = tvExpectedReturnDateTime(r); return e ? {r:r, e:e.getTime()} : null; })
+                    .filter(Boolean);
+    if(!timed.length){ list.forEach(function(r){ own[r.id] = true; }); return; }
+    if(!ac) return;
+    var ref = tvAircraftLegReferenceMs(ac), best = null;
+    timed.forEach(function(x){
+      var diffMin = (ref - x.e) / 60000;
+      if(diffMin < -TV_LEG_EARLY_MIN || diffMin > TV_LEG_LATE_MIN) return;
+      if(!best || Math.abs(diffMin) < best.abs) best = {abs: Math.abs(diffMin), e: x.e};
+    });
+    if(!best) return;
+    timed.forEach(function(x){ if(Math.abs(x.e - best.e) <= TV_LEG_SAME_MIN * 60000) own[x.r.id] = true; });
+  });
+  _tv.aircraftLegOwners = owners;
+}
+function tvLegLandedStore(){
+  var key = 'tvLegLanded:' + tvTodayKeyLocal();
+  if(!_tv.legLanded || _tv.legLanded.key !== key){
+    var map = {};
+    try{ map = JSON.parse(localStorage.getItem(key) || '{}') || {}; }catch(e){ map = {}; }
+    _tv.legLanded = {key:key, map:map};
+  }
+  return _tv.legLanded;
+}
+function tvRememberLegLanding(r, landedAt){
+  var st = tvLegLandedStore();
+  if(st.map[r.id] === landedAt) return;
+  st.map[r.id] = landedAt;
+  try{ localStorage.setItem(st.key, JSON.stringify(st.map)); }catch(e){}
+}
+
+// Wrapper: a guest whose leg already landed today keeps LANDED after the aircraft
+// leaves again (landed_at is cleared then), so DELAYED never comes back for him.
 function tvAircraftTrackingStatus(r){
+  var t = tvAircraftTrackingStatusLive(r);
+  if(t || !r || !tvAircraftRegistrationForRow(r)) return t;
+  var seen = tvLegLandedStore().map[r.id];
+  return seen ? {status:'LANDED', landedAt: seen} : null;
+}
+function tvAircraftTrackingStatusLive(r){
   var reg = tvAircraftRegistrationForRow(r);
   if(!reg) return null; // unmapped/free-text return_flight -> no badge
   var ac = _tv.aircraftState[reg];
   if(!ac) return null; // missing aircraft row -> no badge, nothing implied
 
+  // Another leg of the same aircraft (see tvComputeAircraftLegOwners): no live
+  // badge; only this guest's own landing earlier today, if we saw it.
+  var legOwners = _tv.aircraftLegOwners && _tv.aircraftLegOwners[reg];
+  if(legOwners && !legOwners[r.id]) return null; // the wrapper adds this guest's own earlier landing
+
   if(ac.landed_at){
+    tvRememberLegLanding(r, ac.landed_at);
     return {status:'LANDED', landedAt: ac.landed_at}; // NOT gated on freshness — see comment above
   }
 
@@ -15968,6 +16064,7 @@ function tvCard(r){
     '<div class="tv-card-row"><div class="tv-card-name">'+escapeHTML(tvShortName(r.name))+'</div>'+timeHtml+'</div>'+
     '<div class="tv-card-meta">'+metaParts.join(' &middot; ')+'</div>'+
     tvFlightLine(r)+
+    tvFromLineHtml(tvMakersOriginFor(r, tvDayKeyOffset(1)))+
     (allBadges ? '<div class="tv-card-badges">'+allBadges+'</div>' : '')+
     (r.obs ? '<div class="tv-card-notes">'+escapeHTML(r.obs)+'</div>' : '')+
   '</div>';
@@ -16021,6 +16118,7 @@ function tvRow(r, opts){
       '<div class="tv-row-meta">'+metaParts.join(' &middot; ')+'</div>'+
       flightHtml+
       statusBadgesHtml+
+      (opts.fromHtml||'')+
     '</div>'+
   '</div>';
 }
@@ -16049,6 +16147,231 @@ function tvWelcomeBackBadge(r){
   return '';
 }
 
+// ── MAKERS DEPARTURES BOARD (owner 2026-11-06) ─────────────────────────
+// One extra TV page: Makers Air departures from FXE, today and tomorrow side
+// by side, read from airvalet_makers_board() (latest robot reading per day —
+// flights, tails, pax counts and, for OUR guests only, the arriving flight).
+// Airport look on purpose (owner: "piscando igual aeroporto"): split-flap
+// time tiles that flip when the page comes up or a value changes, BOARDING
+// blinking from 30 min before departure, departed flights struck through.
+// Departure status is read from the schedule (Makers does not tell us when a
+// plane actually leaves). Flights with 0 passengers never show (freight,
+// pilot training). No data for a day → that column says so; no data at all →
+// no page. Reduced motion → no flips, no blink.
+var TV_MAKERS_FETCH_MS = 300000;      // the robot reads Makers 2-4× a day; 5 min is plenty
+var TV_MAKERS_BOARDING_MIN = 30;      // BOARDING from 30 min before the scheduled time
+var TV_MAKERS_DEPARTED_MIN = 5;       // struck through 5 min after the scheduled time
+async function fetchTvMakersBoard(){
+  _tv.makersLastFetchAt = Date.now();
+  try{
+    var res = await fetch(SUPABASE_URL + '/rest/v1/rpc/airvalet_makers_board', { method:'POST', headers: sbHeaders(), body:'{}' });
+    if(!res.ok) throw new Error('Makers board fetch failed: ' + res.status);
+    var b = await res.json();
+    _tv.makers = (b && typeof b === 'object') ? b : {};
+    renderTvDashboard();
+  } catch(e){
+    console.warn('Makers board unavailable (keeping the last one):', e);
+  }
+}
+function maybeFetchTvMakersBoard(){
+  if(_tv.makersLastFetchAt !== null && (Date.now() - _tv.makersLastFetchAt) < TV_MAKERS_FETCH_MS) return;
+  fetchTvMakersBoard();
+}
+function tvDayKeyOffset(n){
+  var d = new Date(); d.setDate(d.getDate() + n);
+  return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);
+}
+// By date, not by the RPC's today/tomorrow label, so a TV left on past midnight never shows yesterday as today.
+function tvMakersDay(dayKey){
+  var b = _tv.makers || {};
+  if(b.today && b.today.date === dayKey) return b.today;
+  if(b.tomorrow && b.tomorrow.date === dayKey) return b.tomorrow;
+  return null;
+}
+function tvMakersFlights(day){
+  return (typeof mfPaxFlights === 'function' ? mfPaxFlights(day && day.outbound) : [])
+    .slice().sort(function(a, b){ return String(a.time).localeCompare(String(b.time)); });
+}
+function tvMakersTag(code){
+  var t = (typeof MF_TAGS !== 'undefined' && MF_TAGS[code]) || ['#DCE3EE', '#111111'];
+  return 'background:'+t[0]+';color:'+t[1];
+}
+function tvMakersTailSuffix(tail){
+  var s = String(tail || '').toUpperCase();
+  return s.replace(/^N\d*/, '') || s.slice(-2);
+}
+function tvMakersTime12(hhmm){
+  var m = /^(\d{1,2}):(\d{2})/.exec(String(hhmm || ''));
+  if(!m) return {t:'--:--', ap:''};
+  var h = +m[1];
+  return {t: ((h + 11) % 12 + 1) + ':' + m[2], ap: h < 12 ? 'AM' : 'PM'};
+}
+// Split-flap tiles: one tile per character, right-aligned to 5 characters so the colons line up.
+function tvFlapHtml(text, width){
+  var s = String(text); while(s.length < width) s = ' ' + s;
+  return s.split('').map(function(c){
+    return '<span class="mk-fl'+(c === ' ' ? ' mk-fl-blank' : '')+'" data-ch="'+escapeHTML(c)+'">'+(c === ' ' ? '&nbsp;' : escapeHTML(c))+'</span>';
+  }).join('');
+}
+function tvMakersStatus(f, dayKey, nextKey){
+  var m = /^(\d{1,2}):(\d{2})/.exec(String(f.time || ''));
+  if(!m || dayKey !== tvDayKeyOffset(0)) return {code:'SCHEDULED', text:'SCHEDULED'};
+  var now = new Date(), dep = new Date(now.getFullYear(), now.getMonth(), now.getDate(), +m[1], +m[2]);
+  var mins = Math.round((dep - now) / 60000);
+  if(mins < -TV_MAKERS_DEPARTED_MIN) return {code:'DEPARTED', text:'DEPARTED'};
+  if(mins <= TV_MAKERS_BOARDING_MIN) return {code:'BOARDING', text:'BOARDING'};
+  if(nextKey && nextKey === f.time + '|' + f.flight){
+    var h = Math.floor(mins / 60), mm = mins % 60;
+    return {code:'NEXT', text:'IN ' + (h ? h + 'H ' : '') + mm + ' MIN'};
+  }
+  return {code:'SCHEDULED', text:'SCHEDULED'};
+}
+function tvMakersRowHtml(f, dayKey, nextKey, withStatus){
+  var dest = String(f.route || '').replace(/^FXE-/, '');
+  var code = (typeof MF_TAG_CODE !== 'undefined' && MF_TAG_CODE[dest]) || dest;
+  var place = (typeof MF_AIRPORTS !== 'undefined' && MF_AIRPORTS[dest]) || dest;
+  var tm = tvMakersTime12(f.time);
+  var ascend = typeof mfIsAscend === 'function' && mfIsAscend(f);
+  var dayTrips = typeof mfDayTrips === 'function' ? mfDayTrips(f) : 0;
+  var st = withStatus ? tvMakersStatus(f, dayKey, nextKey) : null;
+  var cls = 'mk-row' + (st ? ' mk-' + st.code.toLowerCase() : '');
+  var key = dayKey + '|' + f.time + '|' + f.flight;
+  return '<div class="'+cls+'" data-mk-key="'+escapeHTML(key)+'">'+
+    '<div class="mk-time" data-flap="'+escapeHTML(key+'|t')+'" data-val="'+escapeHTML(tm.t)+'">'+tvFlapHtml(tm.t, 5)+'<small>'+tm.ap+'</small></div>'+
+    '<div class="mk-tags"><span class="mk-tail" style="'+tvMakersTag(dest)+'">'+escapeHTML(tvMakersTailSuffix(f.tail))+'</span>'+
+      '<span class="mk-bag" style="'+tvMakersTag(dest)+'">'+escapeHTML(code)+'</span></div>'+
+    '<div class="mk-dest"><b>'+escapeHTML(place)+'</b>'+
+      (ascend ? '<span class="mk-asc">ASCEND</span>' : '')+
+      (dayTrips ? '<span class="mk-dt">'+dayTrips+' day trip</span>' : '')+
+      '<span class="mk-fn">Flight '+escapeHTML(String(f.flight || ''))+'</span></div>'+
+    '<div class="mk-pax">'+(Number(f.pax) || 0)+'<small>pax</small></div>'+
+    (st ? '<div class="mk-status" data-flap="'+escapeHTML(key+'|s')+'" data-val="'+escapeHTML(st.text)+'"><span class="mk-led">'+escapeHTML(st.text)+'</span></div>' : '')+
+  '</div>';
+}
+function tvMakersColumnHtml(label, dayKey, rowH, maxRows, withStatus){
+  var day = tvMakersDay(dayKey);
+  var d = new Date(dayKey + 'T12:00:00');
+  var dayTxt = isNaN(d) ? dayKey : d.toLocaleDateString('en-US', {weekday:'short', month:'numeric', day:'numeric'});
+  var head = function(sub){ return '<div class="mk-col-head"><span class="mk-col-day">'+label+'</span><span class="mk-col-sub">'+sub+'</span></div>'; };
+  if(!day) return '<section class="mk-col">'+head(escapeHTML(dayTxt))+'<div class="mk-empty">The Makers robot has not read '+label.toLowerCase()+' yet.</div></section>';
+  var list = tvMakersFlights(day);
+  var pax = list.reduce(function(a, f){ return a + (Number(f.pax) || 0); }, 0);
+  var at = day.at ? new Date(day.at) : null;
+  var upd = at && !isNaN(at) ? ' &middot; updated '+escapeHTML(at.toLocaleString('en-US', {weekday:'short', hour:'numeric', minute:'2-digit'})) : '';
+  var sub = escapeHTML(dayTxt)+' &middot; '+list.length+' flight'+(list.length === 1 ? '' : 's')+' &middot; '+pax+' pax'+upd;
+  if(!list.length) return '<section class="mk-col">'+head(sub)+'<div class="mk-empty">No Makers passenger flights.</div></section>';
+  var nextKey = null;
+  if(withStatus){
+    for(var i = 0; i < list.length; i++){
+      var s0 = tvMakersStatus(list[i], dayKey, null);
+      if(s0.code === 'SCHEDULED'){ nextKey = list[i].time + '|' + list[i].flight; break; }
+    }
+  }
+  // Too many rows for the screen: the earliest departed flights fold into one line.
+  // Still too many: the last ones fold into "+N more later" (never cut silently).
+  var hidden = 0, later = 0, shown = list;
+  if(list.length > maxRows){
+    var departed = withStatus ? list.filter(function(f){ return tvMakersStatus(f, dayKey, null).code === 'DEPARTED'; }).length : 0;
+    hidden = Math.min(departed, list.length - maxRows + 1);
+    shown = list.slice(hidden);
+    var room = maxRows - (hidden ? 1 : 0);
+    if(shown.length > room){ later = shown.length - (room - 1); shown = shown.slice(0, room - 1); }
+  }
+  var rows = (hidden ? '<div class="mk-row mk-folded"><span>&#10003; '+hidden+' departed earlier</span></div>' : '') +
+    shown.map(function(f){ return tvMakersRowHtml(f, dayKey, nextKey, withStatus); }).join('') +
+    (later ? '<div class="mk-row mk-folded"><span>+ '+later+' more later</span></div>' : '');
+  return '<section class="mk-col'+(withStatus ? ' mk-col-today' : '')+'">'+head(sub)+
+    '<div class="mk-rows" style="--mk-row:'+rowH+'px">'+rows+'</div></section>';
+}
+function tvBuildMakersPages(vm){
+  var todayKey = tvDayKeyOffset(0), tomorrowKey = tvDayKeyOffset(1);
+  if(!tvMakersDay(todayKey) && !tvMakersDay(tomorrowKey)) return [];
+  var box = tvRealPageBodyBox();
+  var titleHtml = '<div class="tv-page-title"><span>&#128747; Makers Departures</span><span class="tv-count-pill">FXE</span></div>';
+  var colHeadH = 46, pad = 28;
+  var availH = Math.max(200, box.height - tvMeasureElementOuterHeight(titleHtml) - colHeadH - pad);
+  var n = Math.max(tvMakersFlights(tvMakersDay(todayKey)).length, tvMakersFlights(tvMakersDay(tomorrowKey)).length, 1);
+  var rowH = Math.max(34, Math.min(72, Math.floor(availH / n)));
+  var maxRows = Math.max(1, Math.floor(availH / rowH));
+  return [{kind:'makers', sub:0, of:1, fitTier:'normal', render:function(bodyEl){
+    bodyEl.className = 'tv-page-body tv-density-normal';
+    bodyEl.style.flexDirection = ''; bodyEl.style.gap = '';
+    bodyEl.innerHTML = titleHtml + '<div class="mk-board">'+
+      tvMakersColumnHtml('Today', todayKey, rowH, maxRows, true)+
+      tvMakersColumnHtml('Tomorrow', tomorrowKey, rowH, maxRows, false)+'</div>';
+    tvFlapChanged(bodyEl);
+  }}];
+}
+// Split-flap motion. Each tile shuffles through a few characters and lands on its
+// own, left to right, like the real boards. tvFlapChanged: only values that changed
+// since the last render. tvFlapAll: the whole board, when the page comes up.
+function tvReducedMotion(){
+  try{ return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; }catch(e){ return false; }
+}
+function tvFlapRun(el){
+  if(tvReducedMotion()) return;
+  var tiles = el.querySelectorAll('.mk-fl:not(.mk-fl-blank)');
+  var digits = '0123456789', letters = 'ABCDEFGHIJKLMNOPRSTUVWXYZ';
+  Array.prototype.forEach.call(tiles, function(t, i){
+    var fin = t.getAttribute('data-ch'), pool = /\d/.test(fin) ? digits : (/[A-Z]/.test(fin) ? letters : '');
+    if(!pool) return;
+    var steps = 3 + i * 2, k = 0;
+    var timer = setInterval(function(){
+      if(!t.isConnected){ clearInterval(timer); return; }
+      t.classList.remove('mk-flip'); void t.offsetWidth; t.classList.add('mk-flip');
+      if(++k >= steps){ clearInterval(timer); t.textContent = fin; return; }
+      t.textContent = pool.charAt(Math.floor(Math.random() * pool.length));
+    }, 70);
+  });
+  var led = el.querySelector('.mk-led');
+  if(led){
+    var fin2 = el.getAttribute('data-val') || '', k2 = 0;
+    var t2 = setInterval(function(){
+      if(!led.isConnected){ clearInterval(t2); return; }
+      if(++k2 >= 6){ clearInterval(t2); led.textContent = fin2; return; }
+      led.textContent = fin2.replace(/[A-Z0-9]/g, function(){ return 'ABCDEFGHJKLMNPRSTUVWXYZ'.charAt(Math.floor(Math.random() * 23)); });
+    }, 70);
+  }
+}
+function tvFlapChanged(root){
+  var prev = _tv.flapPrev || {}, next = {};
+  Array.prototype.forEach.call(root.querySelectorAll('[data-flap]'), function(el){
+    var k = el.getAttribute('data-flap'), v = el.getAttribute('data-val');
+    next[k] = v;
+    if(prev[k] !== undefined && prev[k] !== v) tvFlapRun(el);
+  });
+  _tv.flapPrev = next;
+}
+function tvFlapAll(root){
+  Array.prototype.forEach.call(root.querySelectorAll('[data-flap]'), tvFlapRun);
+}
+
+// "from <origin>" line on our guests' cards: the Makers flight they come back on
+// (tail + bag tag colour, flight number, FXE arrival time). Only for guests the
+// robot matched by name (never a same-surname-only guess).
+function tvMakersOriginFor(r, dayKey){
+  var day = tvMakersDay(dayKey);
+  if(!day || !r) return null;
+  var list = day.origins || [];
+  for(var i = 0; i < list.length; i++){ if(Number(list[i].passenger_id) === Number(r.id)) return list[i]; }
+  return null;
+}
+function tvFromLineHtml(o){
+  if(!o) return '';
+  var code = String(o.route || '').split('-')[0];
+  var tagCode = (typeof MF_TAG_CODE !== 'undefined' && MF_TAG_CODE[code]) || code;
+  var place = (typeof MF_AIRPORTS !== 'undefined' && MF_AIRPORTS[code]) || code;
+  var tm = tvMakersTime12(o.arrival_time);
+  var bits = [];
+  if(o.flight) bits.push('Flight '+escapeHTML(String(o.flight)));
+  if(o.ascend || /^99\d{2}$/.test(String(o.flight || ''))) bits.push('Ascend');
+  if(tm.ap) bits.push('lands '+tm.t+' '+tm.ap);
+  return '<div class="tv-from">'+
+    (o.registration ? '<span class="tv-from-tail" style="'+tvMakersTag(code)+'">'+escapeHTML(tvMakersTailSuffix(o.registration))+'</span>' : '')+
+    '<span class="tv-from-bag" style="'+tvMakersTag(code)+'">'+escapeHTML(tagCode)+'</span>'+
+    '<b>from '+escapeHTML(place)+'</b><span>'+bits.join(' &middot; ')+'</span></div>';
+}
+
 // ── MAIN RENDER ──────────────────────────────────────────────────────
 // Debounced via requestAnimationFrame coalescing: multiple refresh
 // sources (realtime debounce, poll, watchdog, clock rollover) can call
@@ -16071,6 +16394,7 @@ function renderTvDashboard(){
 function tvDoRender(){
   if(!document.body.classList.contains('tv-active')) return;
   var vm = buildTvViewModel();
+  tvComputeAircraftLegOwners(vm.leavingTodayRemaining.concat(vm.leavingTodayDelivered));
   // KPI row must be updated to this render's real content BEFORE
   // building Operations pages (2026-08-25) — tvBuildOpsPages() measures
   // the real available page-body height via tvRealPageBodyBox(), which
@@ -16084,7 +16408,7 @@ function tvDoRender(){
   // since local re-runs on an already-settled page rarely change KPI
   // height render-to-render the way a fresh real device does.
   tvRenderKpis(vm);
-  var pages = [].concat(tvBuildTodayPages(vm), tvBuildTomorrowPages(vm), tvBuildOpsPages(vm));
+  var pages = [].concat(tvBuildTodayPages(vm), tvBuildMakersPages(vm), tvBuildTomorrowPages(vm), tvBuildOpsPages(vm));
   tvReconcilePageDom(pages);
   if(_tv.currentPage >= _tv.pageCount) _tv.currentPage = 0;
   // Newly created .tv-page elements start with no active class (see
@@ -16329,7 +16653,8 @@ function tvTodayRowHtml(r, kind){
       // caller can pass `flight` for the old separate-line behavior
       // without silently inheriting this layout.
       combineFlightTime: true,
-      notReturning: notReturning
+      notReturning: notReturning,
+      fromHtml: tvFromLineHtml(tvMakersOriginFor(r, tvDayKeyOffset(0)))
     });
   }
   var d = r.checkin_date ? new Date(r.checkin_date) : null;
@@ -16886,6 +17211,12 @@ function tvShowPage(idx){
     var p = document.getElementById('tvPage'+i);
     if(p) p.classList.toggle('tv-page-active', i===idx);
   }
+  // Makers Departures: the whole board flips once each time the page comes up.
+  if(_tv.lastShownPage !== idx && _tv.pageKinds && _tv.pageKinds[idx] === 'makers'){
+    var mkBody = document.getElementById('tvPageBody'+idx);
+    if(mkBody) tvFlapAll(mkBody);
+  }
+  _tv.lastShownPage = idx;
   var dots = document.getElementById('tvPageDots');
   if(dots){
     dots.classList.remove('tv-hidden');
@@ -16984,9 +17315,13 @@ async function mfHome(){
     '<button type="button" class="mf-btn mf-go" onclick="mfUpdate()">🔄 Update from Makers</button>' +
     '<button type="button" class="mf-link" onclick="mfRenderPick()">No Makers access? Check with photos of the printed pages</button>';
 }
+// Owner 2026-11-06: flights with 0 passengers (freight, pilot training) never count — not in the lists,
+// the totals, the picture or the TV. The robot already drops them; this also cleans older readings.
+function mfPaxFlights(list){ return (list || []).filter(function(f){ return f && Number(f.pax) > 0; }); }
 function mfRobotRes(r, at){
-  return { robot: true, at: at || null, manifest_date: r.date, inbound: r.inbound || [], outbound: r.outbound || [],
-    pages: r.inbound || [], manifest_rows: (r.inbound || []).reduce(function(a, f){ return a + f.pax; }, 0),
+  var inbound = mfPaxFlights(r.inbound), outbound = mfPaxFlights(r.outbound);
+  return { robot: true, at: at || null, manifest_date: r.date, inbound: inbound, outbound: outbound,
+    pages: inbound, manifest_rows: inbound.reduce(function(a, f){ return a + f.pax; }, 0),
     matches: r.matches || [], missing: r.missing || [], date_diffs: r.date_diffs || [], no_return: r.no_return || [], not_found: r.not_found_list || [], warnings: [] };
 }
 var MF_SYNC_ERR = { NOT_CONFIGURED: 'The Makers robot is not set up yet. Ask the admin.', LOGIN_FAILED: 'Makers Air Suite did not accept the robot login. The password may have changed — tell Matheus.',

@@ -79,13 +79,14 @@ Deno.serve(async (req) => {
     if ((count || 0) > 0) return json(200, { ok: false, error: { code: 'TOO_SOON' } });
   }
 
-  // Owner schedule: 3 PM Fort Lauderdale → check TOMORROW; 7 AM → re-check TODAY. pg_cron (UTC) fires
-  // at 11/12 and 19/20 UTC; only the run that is 7 AM or 3 PM in America/New_York (EDT or EST) works.
+  // Owner schedule: 3 PM Fort Lauderdale → check TOMORROW; 6 AM → re-check TODAY (owner 2026-11-06: the
+  // Makers office is open by 6 AM, last changes are in). pg_cron (UTC) fires at 10/11 and 19/20 UTC; only
+  // the run that is 6 AM or 3 PM in America/New_York (EDT or EST) works.
   let target = etDay(1);
   if (isCron) {
     const h = +new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', hour12: false }).format(new Date());
-    if (h === 7) target = etDay(0);
-    else if (h !== 15) return json(200, { ok: true, skipped: 'not 7 AM or 3 PM in Fort Lauderdale' });
+    if (h === 6) target = etDay(0);
+    else if (h !== 15) return json(200, { ok: true, skipped: 'not 6 AM or 3 PM in Fort Lauderdale' });
   } else {
     let body: Record<string, unknown> = {};
     try { body = await req.json(); } catch { body = {}; }
