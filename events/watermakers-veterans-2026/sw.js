@@ -2,7 +2,7 @@
 // Scope: /events/watermakers-veterans-2026/ — separate from the main AirValet worker.
 // Network first (always the newest page); the cached copy is used only when
 // there is no connection, so the app still opens and can check in offline.
-var CACHE = 'ev-watermakers-2026-v1';
+var CACHE = 'ev-watermakers-2026-v2';
 var SHELL = ['/events/watermakers-veterans-2026/', '/vendor/supabase.js', '/events/watermakers-veterans-2026/manifest.webmanifest',
   '/icon-192.png', '/favicon-32x32.png', '/apple-touch-icon.png'];
 self.addEventListener('install', function(e){

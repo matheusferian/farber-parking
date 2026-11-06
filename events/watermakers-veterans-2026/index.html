@@ -418,7 +418,8 @@ function errText(e){
   var map = { INVALID_PHONE: 'Check the phone number (10 digits).', INVALID_VEHICLE: 'Enter the vehicle make.',
     NOT_AUTHORIZED: 'This login is not allowed to operate the valet.', EVENT_CLOSED: 'Event is closed.',
     SLOT_OCCUPIED: 'That key slot is in use by another car.', INVALID_SLOT: 'Key slot must be between 1 and the capacity.',
-    ALREADY_DELIVERED: 'Already delivered.', TICKET_NOT_FOUND: 'Ticket not found.' };
+    ALREADY_DELIVERED: 'Already delivered.', TICKET_NOT_FOUND: 'Ticket not found.',
+    HOOK_RESERVED: 'Hooks 1 to 40 are for the S710. Use a hook from 41 to 50.' };
   for (var k in map) if (m.indexOf(k) >= 0) return map[k];
   if (/Failed to fetch|NetworkError|Load failed/i.test(m)) return 'No connection. Try again.';
   return m;
