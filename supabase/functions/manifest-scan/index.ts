@@ -25,7 +25,7 @@ const MAX_IMAGES = 12, MAX_B64 = 2_000_000, SCANS_PER_USER_PER_DAY = 40, PARALLE
 function cors(origin: string | null): Record<string, string> {
   return {
     'Access-Control-Allow-Origin': origin && ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0],
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, prefer',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     Vary: 'Origin',
   };
