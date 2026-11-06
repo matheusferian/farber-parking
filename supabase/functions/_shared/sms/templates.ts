@@ -280,7 +280,7 @@ export function estimateCostUsd(segments: number): number {
 export function welcomeBody(link: string): string {
   // Owner 2026-11-06 (A2P opt-in confirmation): HELP + message & data rates added → 2 GSM-7 segments.
   // Owner 2026-11-06 (option B, PREPARED — not deployed): invites the guest to open and come back to the pass.
-  return `Welcome to Makers Air Valet! Your car is in good hands.\nFollow it live on your valet pass. It updates the moment your car is ready for you:\n${link}\nMsg & data rates may apply. Reply HELP for help, STOP to opt out.`;
+  return `Welcome to Makers Air Valet! Your car is checked in.\nFollow it live on your valet pass. It updates the moment your car is ready for you:\n${link}\nMsg & data rates may apply. Reply HELP for help, STOP to opt out.`;
 }
 // Same welcome, shared by staff from the device (WhatsApp / iMessage) for an
 // international number: no STOP line (it is not an AirValet SMS).
