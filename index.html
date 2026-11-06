@@ -955,7 +955,7 @@
        the home-screen app cannot open that link). Other devices unchanged. -->
   <div class="epson-card" style="margin-bottom:16px;">
     <div class="epson-card-title">📝 New Check-in (v2) on this device</div>
-    <div style="font-size:13px;margin:6px 0 12px;">Status: <b id="ci2DebugState">—</b>. Only this device changes.</div>
+    <div style="font-size:13px;margin:6px 0 12px;">Status: <b id="ci2DebugState">—</b>.</div>
     <button type="button" class="epson-btn epson-btn-navy" id="ci2DebugBtn" onclick="ci2DebugToggle()">Turn on</button>
   </div>
 
@@ -6963,12 +6963,13 @@ var CI2_ON_LS = 'airvalet_checkin_v2';
     if (m) { if (m[1] === 'v2') localStorage.setItem(CI2_ON_LS, '1'); else localStorage.removeItem(CI2_ON_LS); }
   } catch(e) {}
 })();
-function ci2Active(){ try { return localStorage.getItem(CI2_ON_LS) === '1'; } catch(e) { return false; } }
+// Owner 2026-11-06: the new check-in is the only form on every device (classic form disabled).
+function ci2Active(){ return true; }
 // Debug tab switch: same effect as ?checkin=v2 / ?checkin=classic, this device only.
 function ci2DebugRender(){
   var s = document.getElementById('ci2DebugState'), b = document.getElementById('ci2DebugBtn');
-  if (s) s.textContent = ci2Active() ? 'ON (new check-in)' : 'OFF (classic form)';
-  if (b) b.textContent = ci2Active() ? 'Turn off (use classic form)' : 'Turn on';
+  if (s) s.textContent = 'ON on every device (classic form disabled)';
+  if (b) b.hidden = true;
 }
 function ci2DebugToggle(){
   try { if (ci2Active()) localStorage.removeItem(CI2_ON_LS); else localStorage.setItem(CI2_ON_LS, '1'); } catch(e) {}
@@ -7075,7 +7076,7 @@ function ci2Html(){
   +   '<button type="button" class="ci2-go" id="ci2NoText" hidden>Check in without texts</button>'
   +   '<div class="ci2-cd" id="ci2Cd" role="status" aria-live="polite" hidden><div class="ci2-grow"><p id="ci2CdText"></p><div class="ci2-track"><i id="ci2CdBar"></i></div></div><button type="button" id="ci2Undo">Undo</button></div>'
   +   '<div class="ci2-saving" id="ci2Saving" role="status" hidden>Creating ticket…</div>'
-  +   '<div class="ci2-foot"><button type="button" class="ci2-link" onclick="tryCloseAdd()">Cancel</button><button type="button" class="ci2-link" onclick="ci2UseClassic(true)">Use the classic form</button></div>'
+  +   '<div class="ci2-foot"><button type="button" class="ci2-link" onclick="tryCloseAdd()">Cancel</button></div>'
   + '</div>'
   + '<div id="ci2Created" hidden><div class="ci2-tag">'
   +   '<p class="ci2-who" id="ci2Who"></p><p class="ci2-num" id="ci2Num"></p>'

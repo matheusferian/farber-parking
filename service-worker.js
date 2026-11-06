@@ -86,7 +86,8 @@
 // v104: TV Mode — Day trip shows DAY TRIP (not TIME NOT SET) + KEY WITH GUEST badge.
 // v105: Dashboard card — DAY TRIP + KEY WITH GUEST chips.
 // v106: staff wording — KEY WITH PASSENGER (not guest).
-var CACHE_VERSION = 'v106';
+// v107: classic check-in form disabled — new check-in only on every device.
+var CACHE_VERSION = 'v107';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 var SHELL_FILES = [
