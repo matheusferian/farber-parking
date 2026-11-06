@@ -16782,19 +16782,19 @@ function tv4TomorrowCard(r){
 }
 // Biggest text that fits w×h: 1 column while text stays >= minS, then 2, then 3 (status moves under
 // the name in 2-3 columns so names keep their width). Measured off-screen in #tvMeasureProbe.
-function tv4Fit(html, w, h, minS){
+function tv4Fit(html, w, h, minS, maxScale, minCols){
   var probe = document.getElementById('tvMeasureProbe');
   if(!probe || w <= 0 || h <= 0) return {cols:1, s:1};
   probe.innerHTML = '<div class="tv4-fitbox" style="width:'+Math.floor(w)+'px"><div class="tv4-fit-in">'+html+'</div></div>';
   var inner = probe.firstChild.firstChild;
   function maxS(cols){
     inner.style.setProperty('--cols', cols); inner.classList.toggle('tv4-multi', cols > 1);
-    var lo = .3, hi = 1.25;
+    var lo = .3, hi = maxScale || 1.0;   // owner 2026-11-06: never bigger than 100% (2 cars looked huge)
     for(var i = 0; i < 14; i++){ var mid = (lo + hi) / 2; inner.style.setProperty('--s', mid);
       if(inner.scrollHeight <= h && inner.scrollWidth <= w + 1) lo = mid; else hi = mid; }
     return lo;
   }
-  var opts = [1, 2, 3].map(function(c){ return {cols:c, s:maxS(c)}; });
+  var opts = [1, 2, 3].filter(function(c){ return c >= (minCols || 1); }).map(function(c){ return {cols:c, s:maxS(c)}; });
   var best = null; for(var i = 0; i < opts.length; i++){ if(opts[i].s >= minS){ best = opts[i]; break; } }
   if(!best) best = opts.reduce(function(a, b){ return b.s > a.s ? b : a; });
   probe.innerHTML = '';
@@ -16805,37 +16805,38 @@ function tv4FitWrap(html, fit, empty){
   return '<div class="tv4-fit-in'+(fit.cols > 1 ? ' tv4-multi' : '')+'" style="--cols:'+fit.cols+';--s:'+fit.s.toFixed(3)+'">'+html+'</div>';
 }
 function tvBuildTodayPages(vm){
+  // TV v4 (owner 2026-11-06): Leaving Today + the aircraft panel; Checked In Today has its own page.
   var box = tvRealPageBodyBox(), gap = 22;
-  var leftW = Math.floor((box.width - gap) * 0.6), rightW = Math.floor(box.width - gap - leftW);
+  var air = tv4AirHtml();
+  var leftW = air ? Math.floor((box.width - gap) * 0.62) : box.width, rightW = Math.floor(box.width - gap - leftW);
   var delivered = vm.leavingTodayDelivered.length ? '<span class="tv4-deliv">&#10003; '+vm.leavingTodayDelivered.length+' delivered today</span>' : '';
   var titleL = '<div class="tv-page-title tv4-title">Leaving Today <span class="tv-count-pill">'+vm.leavingTodayRemaining.length+'</span>'+delivered+'</div>';
-  var titleR = '<div class="tv-page-title tv4-title">Checked In Today <span class="tv-count-pill">'+vm.checkedInToday.length+'</span></div>';
   var tH = tvMeasureElementOuterHeight(titleL);
   var lHtml = vm.leavingTodayRemaining.map(tv4LeavingCard).join('');
   var lFit = lHtml ? tv4Fit(lHtml, leftW, box.height - tH - 4, .8) : {cols:1, s:1};
-  var air = tv4AirHtml(), airH = 0;
-  if(air){ var probe = document.getElementById('tvMeasureProbe');
-    if(probe){ probe.innerHTML = '<div style="width:'+rightW+'px">'+air+'</div>'; airH = probe.firstChild.getBoundingClientRect().height + 16; probe.innerHTML = ''; } }
-  var cHtml = vm.checkedInToday.map(tv4CheckedCard).join('');
-  var cH = Math.max(80, box.height - airH - tvMeasureElementOuterHeight(titleR) - 4);
-  var cFit = cHtml ? tv4Fit(cHtml, rightW, cH, .55) : {cols:1, s:1};
-  // Check-ins are the least urgent list: never below ~50% text. Show the most recent ones that fit
-  // and fold the rest into one line.
-  var cList = vm.checkedInToday, cMore = 0;
-  while(cHtml && cFit.s < .5 && cList.length > 4){
-    cList = cList.slice(0, cList.length - 2); cMore = vm.checkedInToday.length - cList.length;
-    cHtml = cList.map(tv4CheckedCard).join('') + '<div class="tv4-more">+ '+cMore+' earlier check-ins</div>';
-    cFit = tv4Fit(cHtml, rightW, cH, .55);
-  }
   var legs = air ? tv4PanelLegs().length + tv4OtherLegs().length * .5 : 0;
-  return [{kind:'today', sub:0, of:1, fitTier:'v4 '+lFit.cols+'c '+Math.round(lFit.s * 100)+'% / '+cFit.cols+'c '+Math.round(cFit.s * 100)+'%',
-    dwell: Math.min(45, 12 + 0.7 * vm.leavingTodayRemaining.length + 0.25 * vm.checkedInToday.length + 3 * legs) * 1000,
+  return [{kind:'today', sub:0, of:1, fitTier:'v4 '+lFit.cols+'c '+Math.round(lFit.s * 100)+'%',
+    dwell: Math.min(40, 10 + 0.8 * vm.leavingTodayRemaining.length + 3 * legs) * 1000,
     render:function(bodyEl){
       bodyEl.className = 'tv-page-body tv-density-normal tv4-today';
       bodyEl.style.flexDirection = 'row'; bodyEl.style.gap = gap+'px';
       bodyEl.innerHTML =
         '<div class="tv4-col" style="flex:0 0 '+leftW+'px">'+titleL+'<div class="tv4-fitbox">'+tv4FitWrap(lHtml, lFit, 'All vehicles delivered.')+'</div></div>'+
-        '<div class="tv4-col" style="flex:0 0 '+rightW+'px">'+air+titleR+'<div class="tv4-fitbox">'+tv4FitWrap(cHtml, cFit, 'No check-ins yet today.')+'</div></div>';
+        (air ? '<div class="tv4-col tv4-aircol" style="flex:0 0 '+rightW+'px">'+air+'</div>' : '');
+    }}];
+}
+function tvBuildCheckinPages(vm){
+  var box = tvRealPageBodyBox();
+  var title = '<div class="tv-page-title tv4-title">&#128663; Checked In Today <span class="tv-count-pill">'+vm.checkedInToday.length+'</span></div>';
+  var html = vm.checkedInToday.map(tv4CheckedCard).join('');
+  // Wide page: at least 2 columns once there are a few check-ins (one long thin column wastes the screen).
+  var fit = html ? tv4Fit(html, box.width, box.height - tvMeasureElementOuterHeight(title) - 4, .6, .9, vm.checkedInToday.length > 3 ? 2 : 1) : {cols:1, s:1};
+  return [{kind:'checkin', sub:0, of:1, fitTier:'v4 '+fit.cols+'c '+Math.round(fit.s * 100)+'%',
+    dwell: Math.min(25, 8 + 0.4 * vm.checkedInToday.length) * 1000,
+    render:function(bodyEl){
+      bodyEl.className = 'tv-page-body tv-density-normal tv4-checkin';
+      bodyEl.style.flexDirection = ''; bodyEl.style.gap = '';
+      bodyEl.innerHTML = title + '<div class="tv4-fitbox">'+tv4FitWrap(html, fit, 'No check-ins yet today.')+'</div>';
     }}];
 }
 function tvBuildTomorrowPages(vm){
@@ -16926,7 +16927,7 @@ function tvDoRender(){
   // since local re-runs on an already-settled page rarely change KPI
   // height render-to-render the way a fresh real device does.
   tvRenderKpis(vm);
-  var pages = [].concat(tvBuildTodayPages(vm), tvBuildMakersPages(vm), tvBuildTomorrowPages(vm), tvBuildOpsPages(vm));
+  var pages = [].concat(tvBuildTodayPages(vm), tvBuildMakersPages(vm), tvBuildTomorrowPages(vm), tvBuildCheckinPages(vm), tvBuildOpsPages(vm));
   tvReconcilePageDom(pages);
   _tv.pageDwells = pages.map(function(pg){ return pg.dwell || 0; });   // TV v4: more to read = longer on screen
   try { tv4CheckLandings(); } catch(e) { console.warn('TV landing alerts:', e); }

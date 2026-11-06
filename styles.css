@@ -2952,3 +2952,5 @@ img.mk-asc{height:calc(var(--r)*.24);border:0;padding:0;}
 .tv4-oth b{font:600 19px 'Barlow Condensed',sans-serif;color:#F3F1EA;white-space:nowrap;}
 .tv4-nocars{font:700 15px 'Barlow Condensed',sans-serif;letter-spacing:.06em;color:#0B1A33;background:#C9D4E6;border-radius:4px;padding:1px 7px;white-space:nowrap;}
 .tv4-oth .tv4-fst{font-size:16px;}
+.tv4-aircol{overflow:hidden;}
+.tv4-aircol .tv4-air{margin-bottom:0;max-height:100%;overflow:hidden;}
