@@ -3090,6 +3090,8 @@ function renderDay() {
           '<div class="dc-body">'+
             '<div class="dc-n">'+(r.status==='DELIVERED'&&showDeliver?'<span style="text-decoration:line-through;opacity:0.6">'+(isAscend(r)?'[A] ':'')+escapeHTML(r.name)+'</span>':(isAscend(r)?'[A] ':'')+escapeHTML(r.name))+(isApprox?' <span style="font-size:9px;background:rgba(201,168,76,0.2);color:var(--gold);border-radius:4px;padding:2px 5px;margin-left:4px">~APPROX</span>':'')+(isAscend(r)?'<span style="font-size:9px;background:rgba(99,179,237,0.18);color:#63b3ed;border-radius:4px;padding:2px 5px;margin-left:4px;font-family:\'JetBrains Mono\',monospace">✈ ASCEND</span>':'')+(r.not_returning_with_makers_air?' '+OTHER_BOAT_DASH_ICON_HTML:'')+(r.isOfflinePending?'<span style="font-size:9px;background:rgba(232,160,48,.22);color:#e8a030;border-radius:4px;padding:2px 5px;margin-left:4px;font-weight:800;font-family:\'JetBrains Mono\',monospace" title="Saved locally, not yet on the server">🟠 PENDING SYNC</span>':'')+(showCarwashBadge?carwashBadgeHtml(r):'')+'</div>'+
             '<div class="dc-c">'+escapeHTML(r.car)+' · '+escapeHTML(fmtP(r.phone))+'</div>'+
+            // Day trip (owner 2026-11-06): say it on the card, and whether the guest already has the key.
+            (isDayTripRow(r)&&r.status!=='DELIVERED'&&r.status!=='ARCHIVED'?'<div class="dc-dt"><span class="dc-dt-chip">✈ DAY TRIP</span>'+(r.key_with_guest?'<span class="dc-dt-chip key">🔑 KEY WITH GUEST</span>':'')+'</div>':'')+
             flightHtml+
           '</div>'+
           '<div class="dc-meta"><div class="dc-tk">'+escapeHTML(r.ticket)+'</div>'+
