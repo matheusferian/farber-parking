@@ -3011,3 +3011,5 @@ img.mk-asc{height:calc(var(--r)*.24);border:0;padding:0;}
 .mk-total b{font:700 34px 'Barlow Condensed',sans-serif;color:#fff;line-height:1;}
 .mk-total b .mk-was{font-size:22px;}
 .mk-total small{font:500 15px Inter,sans-serif;color:#8C9BBB;}
+.tv4-fc-other{opacity:.92;}
+.tv4-fc-other .tv4-cv{filter:saturate(.85);}

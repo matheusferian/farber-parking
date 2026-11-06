@@ -16715,15 +16715,25 @@ function tv4OtherLegs(){
     return false;
   }).sort(function(a, b){ return String(a.o.arrival_time).localeCompare(String(b.o.arrival_time)); }).slice(0, 4);
 }
+// Same card as our flights (Caravan, route line, Makers Air logo), with NO CARS · N PAX (owner 2026-11-06).
 function tv4OtherRow(L){
-  var st = L.st, s;
-  if(st.k === 'live') s = '<span class="tv4-fst tv4-live"><i></i>LIVE &middot; ETA '+(st.eta != null ? st.eta+' MIN' : 'SOON')+'</span>';
-  else if(st.k === 'way') s = '<span class="tv4-fst tv4-way"><i></i>ON THE WAY &middot; LANDS '+L.arr12+'</span>';
-  else if(st.k === 'landed') s = st.stage === 'taxi' ? '<span class="tv4-fst tv4-taxi"><i></i>COMING TO HANGAR 19</span>'
-    : '<span class="tv4-fst tv4-landed"><i></i>'+(st.stage === 'h19' ? 'AT HANGAR 19' : st.stage === 'customs' ? 'AT CUSTOMS' : 'LANDED '+st.mins+' MIN AGO')+'</span>';
-  else s = '<span class="tv4-fst">LEAVES '+L.dep12+'</span>';
-  return '<div class="tv4-oth">'+tv4Chip(L.code, L.tail)+tv4Chip(L.code, (typeof MF_TAG_CODE !== 'undefined' && MF_TAG_CODE[L.code]) || L.code)+
-    '<b>'+escapeHTML(L.place)+' &rarr;</b><img class="tv4-mkw" src="assets/makers-air-logo-white.png" alt="Makers Air (FXE)"><span class="tv4-nocars">NO CARS &middot; '+L.pax+' PAX</span>'+s+'</div>';
+  var st = L.st, s, meta = [];
+  if(st.k === 'live'){ s = '<span class="tv4-fst tv4-live"><i></i>LIVE'+(st.src === 'sat' ? ' &middot; SATELLITE' : '')+'</span>';
+    meta.push('<b>'+st.nm+' nm</b> out'); if(st.alt) meta.push('<b>'+Number(st.alt).toLocaleString('en-US')+' ft</b>'); if(st.kt) meta.push('<b>'+st.kt+' kt</b>');
+    meta.push('ETA <b>'+(st.eta != null ? st.eta+' min' : 'soon')+'</b>'); }
+  else if(st.k === 'way'){ s = '<span class="tv4-fst tv4-way"><i></i>ON THE WAY</span>'; meta.push('left '+escapeHTML(L.place)+' <b>'+L.dep12+'</b>'); meta.push('lands <b>'+L.arr12+'</b> (schedule)'); }
+  else if(st.k === 'landed'){ s = st.stage === 'taxi' ? '<span class="tv4-fst tv4-taxi"><i></i>COMING TO HANGAR 19</span>'
+      : '<span class="tv4-fst tv4-landed"><i></i>'+(st.stage === 'h19' ? 'AT HANGAR 19' : st.stage === 'customs' ? 'AT CUSTOMS' : 'LANDED')+'</span>';
+    meta.push('landed <b>'+st.mins+' min</b> ago'); }
+  else { s = '<span class="tv4-fst">SCHEDULED</span>'; meta.push('leaves '+escapeHTML(L.place)+' <b>'+L.dep12+'</b>'); meta.push('lands <b>'+L.arr12+'</b>'); }
+  var p = st.k === 'landed' ? 1 : (st.p || 0), tag = (typeof MF_TAG_CODE !== 'undefined' && MF_TAG_CODE[L.code]) || L.code;
+  return '<div class="tv4-fc tv4-fc-other'+(st.k === 'live' || st.k === 'way' ? ' tv4-moving' : '')+'" style="--p:'+p.toFixed(3)+'">'+tv4CaravanSvg(L.reg)+
+    '<div class="tv4-fc-top">'+tv4Chip(L.code, L.tail)+tv4Chip(L.code, tag)+'<b>'+escapeHTML(L.place)+' &rarr;</b><img class="tv4-mkw" src="assets/makers-air-logo-white.png" alt="Makers Air (FXE)">'+
+      '<span class="tv4-nocars">NO CARS &middot; '+L.pax+' PAX</span>'+s+'</div>'+
+    '<div class="tv4-route"><span class="tv4-bagtag" style="'+tvMakersTag(L.code)+'">'+escapeHTML(tag)+'</span>'+
+      '<span class="tv4-track"><span class="tv4-done"></span><span class="tv4-pl">&#9992;</span></span>'+
+      '<span class="tv4-dst"><img src="assets/makers-air-logo-white.png" alt="Makers Air"><small>FXE</small></span></div>'+
+    '<div class="tv4-fc-meta">'+meta.map(function(m){ return '<span>'+m+'</span>'; }).join('')+'</div></div>';
 }
 function tv4AirHtml(){
   var legs = tv4PanelLegs(), others = tv4OtherLegs(); if(!legs.length && !others.length) return '';
@@ -16752,7 +16762,7 @@ function tv4AirHtml(){
         '<span class="tv4-dst"><img src="assets/makers-air-logo-white.png" alt="Makers Air"><small>FXE</small></span></div>'+
       '<div class="tv4-fc-meta">'+meta.map(function(m){ return '<span>'+m+'</span>'; }).join('')+(who ? '<span class="tv4-who">&#128663; '+who+'</span>' : '')+'</div></div>';
   });
-  if(others.length) html += '<div class="tv4-oth-h">Other Makers arrivals</div>' + others.map(tv4OtherRow).join('');
+  if(others.length) html += '<div class="tv4-oth-h">Other Makers arrivals &middot; no cars of ours</div>' + others.map(tv4OtherRow).join('');
   return html + '</div>';
 }
 // Pill on each Leaving Today card: where the guest's aircraft is.
