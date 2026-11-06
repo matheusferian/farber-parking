@@ -101,15 +101,17 @@ Deno.serve(async (req) => {
   const t0 = Date.now();
 
   let result: SyncResult;
+  let noDateIds = new Set<number>();   // Return Date Follow-Up guests (status NO DATE)
   try {
     const suite = new MakersSuite();
     await suite.login(user, pass);
     const [{ data: cars, error: cErr }, { data: fb, error: fErr }] = await Promise.all([
-      admin.from('passengers').select('id,ticket,name,ret,status,deldate,return_flight,departure_time,return_operator,ts,archived_at').eq('status', 'PENDING').limit(2000),
+      admin.from('passengers').select('id,ticket,name,ret,status,deldate,return_flight,departure_time,return_operator,ts,archived_at').in('status', ['PENDING', 'NO DATE']).limit(2000),
       admin.from('airvalet_manifest_feedback').select('manifest_name,system_name,verdict').limit(5000),
     ]);
     if (cErr || fErr) return json(500, { ok: false, error: { code: 'LOOKUP_FAILED' } });
     const pool: HeldCar[] = (cars || []).filter((c) => !c.archived_at).map((c) => ({ ...c, checkin: parseDate(String(c.ts || '').split(',')[0]) }));
+    noDateIds = new Set(pool.filter((c) => c.status === 'NO DATE').map((c) => c.id));
     result = await runSync(suite, { date, today, pool, feedback: (fb || []) as Feedback[] });
   } catch (e) {
     const code = e instanceof MakersSuiteError ? e.code : 'READ_FAILED';
@@ -140,6 +142,7 @@ Deno.serve(async (req) => {
     changes,
     date: result.date, inbound: result.inbound, outbound: result.outbound, matches: m.matches, missing: m.missing,
     date_diffs: result.date_diffs, no_return: result.no_return, not_found_list: result.not_found_list, checked: result.checked, not_found: result.not_found, warnings: result.warnings,
+    followup_seen: result.followup_seen,
   };
   await admin.from('airvalet_manifest_scans').insert({
     created_by: userId, service_date: date, pages: result.inbound.length, manifest_rows: m.manifest_rows, matched: m.matches.length,
@@ -147,6 +150,15 @@ Deno.serve(async (req) => {
   });
   if (isCron) {
     await notifyCategory(deps, 'DAILY', { title: `Makers · ${date === today ? 'today' : 'tomorrow'} ${dayLabel(date)}`, body: summaryText(result), url: '/?mf=1', tag: `makers-sync-${date}` });
+  }
+  // Return Date Follow-Up guests the robot found (owner 2026-11-06): on a flight that day, or a return booked in Makers.
+  const fuLines = [
+    ...result.followup_seen.map((f) => `${f.system_name}: ${f.direction === 'out' ? 'flying out' : 'coming back'} ${f.route} flight ${f.flight}${f.time ? ' ' + f.time : ''}`),
+    ...result.date_diffs.filter((d) => noDateIds.has(d.passenger_id)).map((d) => `${d.system_name}: return booked ${d.makers} in Makers`),
+  ];
+  if (fuLines.length) {
+    await notifyCategory(deps, 'DAILY', { title: 'Follow-up guest found in Makers', body: fuLines.slice(0, 4).join('\n') + (fuLines.length > 4 ? `\n+${fuLines.length - 4} more` : ''),
+      url: '/?mf=1', tag: `makers-followup-${date}` });
   }
   // Any run (robot or Update button) that finds departures changed tells the phones/iPad: resend the picture.
   if (changes && changes.items.length) {

@@ -165,7 +165,8 @@ export function matchManifest(pages: ManifestPage[], candidates: Candidate[], fe
 
   type Row = { page: ManifestPage; p: ManifestPassenger };
   const rows: Row[] = pages.flatMap((page) => page.passengers.map((p) => ({ page, p })));
-  const pool = candidates.filter((c) => c.status === 'PENDING' || (c.status === 'DELIVERED' && manifestDate && parseDate(c.deldate) === manifestDate));
+  // NO DATE = Return Date Follow-Up (owner 2026-11-06: tell me if a follow-up guest shows up on a flight).
+  const pool = candidates.filter((c) => c.status === 'PENDING' || c.status === 'NO DATE' || (c.status === 'DELIVERED' && manifestDate && parseDate(c.deldate) === manifestDate));
 
   type Pair = { r: number; c: number; s: Score };
   const pairs: Pair[] = [];

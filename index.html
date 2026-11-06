@@ -17932,7 +17932,7 @@ function mfRobotRes(r, at){
   return { robot: true, at: at || null, manifest_date: r.date, inbound: inbound, outbound: outbound,
     pages: inbound, manifest_rows: inbound.reduce(function(a, f){ return a + f.pax; }, 0),
     matches: r.matches || [], missing: r.missing || [], date_diffs: r.date_diffs || [], no_return: r.no_return || [], not_found: r.not_found_list || [], warnings: [],
-    changes: r.changes || null };
+    changes: r.changes || null, followup_seen: r.followup_seen || [] };
 }
 var MF_SYNC_ERR = { NOT_CONFIGURED: 'The Makers robot is not set up yet. Ask the admin.', LOGIN_FAILED: 'Makers Air Suite did not accept the robot login. The password may have changed — tell Matheus.',
   LAYOUT: 'Makers Air Suite changed its pages. Tell Matheus; check the list by hand meanwhile.', HTTP: 'Makers Air Suite is not answering. Try again in a few minutes.',
@@ -18225,6 +18225,10 @@ function mfRenderResult(){
     (noRet ? '<section class="mf-sec"><h3>No return booked in Makers <span>' + (r.no_return || []).length + '</span></h3>' + noRet + '</section>' : '') +
     ((r.not_found || []).length ? '<section class="mf-sec"><h3>🔍 Not found in Makers <span>' + r.not_found.length + '</span></h3><p class="mf-note">The robot could not find these names in Makers. Look them up by hand.</p><ul class="mf-fl">' +
       r.not_found.map(function(x){ return '<li><b>' + escapeHTML(x.system_name) + '</b> <span>' + escapeHTML(x.ticket) + ' · our return ' + escapeHTML(mfRetTxt(x.ours)) + '</span></li>'; }).join('') + '</ul></section>' : '') +
+    ((r.followup_seen || []).length ? '<section class="mf-sec mf-s-sur"><h3>🔎 Follow-up guests on a Makers flight <span>' + r.followup_seen.length + '</span></h3>' +
+      '<p class="mf-note">These guests have no return date with us (Return Date Follow-Up). Check and set the date.</p>' +
+      r.followup_seen.map(function(f){ return '<article class="mf-card mf-early"><div class="mf-name"><b>' + escapeHTML(f.system_name) + '</b><span>' + escapeHTML(f.ticket) + '</span></div>' +
+        '<div class="mf-line mf-warn">' + (f.direction === 'out' ? '🛫 Flying out ' : '🛬 Coming back ') + escapeHTML(f.route) + ' · Flight ' + escapeHTML(String(f.flight)) + (f.time ? ' · ' + escapeHTML(vpTime(f.time)) : '') + '</div></article>'; }).join('') + '</section>' : '') +
     (function(){ var ch = mfDepChanges(r); if (!ch.items.length) return '';
       return '<section class="mf-sec mf-s-sur mf-chg"><h3>🔁 Departures changed <span>' + ch.items.length + '</span></h3><p class="mf-note">' + escapeHTML(ch.since) + '. Resend the updated picture to the group.</p>' +
         ch.items.map(function(c){ return '<article class="mf-card mf-early"><div class="mf-name"><b>' + escapeHTML(mfChangeHead(c)) + '</b><span>Flight ' + escapeHTML(String(c.flight)) + '</span></div>' +

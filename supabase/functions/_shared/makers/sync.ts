@@ -28,9 +28,12 @@ export const isAscendFlight = (flight: string) => /^99\d{2}$/.test(String(flight
 export type DateDiff = { passenger_id: number; ticket: string; system_name: string; ours: string | null; makers: string };
 export type NoReturn = { passenger_id: number; ticket: string; system_name: string; ours: string | null };
 export type NotFound = NoReturn;   // no Makers trip for this name around our check-in: staff look it up by hand
+// A Return Date Follow-Up guest (status NO DATE) on a Makers flight from FXE that day (owner 2026-11-06).
+export type FollowUpSeen = { passenger_id: number; ticket: string; system_name: string; direction: 'out' | 'in'; flight: string; route: string; time: string };
 export type SyncResult = {
   date: string; inbound: FlightSummary[]; outbound: FlightSummary[]; match: MatchResult;
   date_diffs: DateDiff[]; no_return: NoReturn[]; not_found_list: NotFound[]; checked: number; not_found: number; warnings: string[];
+  followup_seen: FollowUpSeen[];
 };
 
 export const isoToMdy = (iso: string) => { const [y, m, d] = iso.split('-'); return `${+m}/${+d}/${y}`; };
@@ -87,7 +90,7 @@ export async function runSync(suite: SuiteLike, o: { date: string; today: string
   // 2. Every Makers car we hold: Makers return date vs ours.
   const date_diffs: DateDiff[] = [], no_return: NoReturn[] = [], not_found_list: NotFound[] = [];
   let checked = 0, not_found = 0;
-  const held = o.pool.filter((c) => c.status === 'PENDING' && String(c.return_operator || 'MAKERS').toUpperCase() !== 'ASCEND' && !settled.has(c.id));
+  const held = o.pool.filter((c) => (c.status === 'PENDING' || c.status === 'NO DATE') && String(c.return_operator || 'MAKERS').toUpperCase() !== 'ASCEND' && !settled.has(c.id));
   for (const car of held.slice(0, o.maxLookups ?? 120)) {
     const toks = normTokens(car.name);
     if (toks.length < 2) continue;
@@ -103,5 +106,18 @@ export async function runSync(suite: SuiteLike, o: { date: string; today: string
   }
   if (held.length > (o.maxLookups ?? 120)) warnings.push(`only the first ${o.maxLookups ?? 120} cars were checked`);
   date_diffs.sort((a, b) => a.makers.localeCompare(b.makers));
-  return { date: o.date, inbound, outbound, match, date_diffs, no_return, not_found_list, checked, not_found, warnings };
+  // 3. Follow-up guests (NO DATE) on that day's flights: arriving (manifest match) or leaving FXE (departure list).
+  const followup_seen: FollowUpSeen[] = [];
+  const noDate = o.pool.filter((c) => c.status === 'NO DATE');
+  for (const m of match.matches) {
+    const c = noDate.find((x) => x.id === m.passenger_id);
+    if (c && m.kind !== 'surname_only') followup_seen.push({ passenger_id: c.id, ticket: c.ticket, system_name: c.name, direction: 'in', flight: m.flight_number, route: m.route, time: m.arrival_time });
+  }
+  for (const c of noDate) {
+    const hit = outPax.find((r) => { const s = scoreName(c.name, { last: r.last, first: r.first, middle: '', pnr: '', first_origin: '' }); return !!s && s.kind !== 'surname_only'; });
+    if (!hit) continue;
+    const leg = L.find((l) => l.flight === hit.flight && l.from === 'FXE');
+    followup_seen.push({ passenger_id: c.id, ticket: c.ticket, system_name: c.name, direction: 'out', flight: hit.flight, route: leg ? `FXE-${leg.to}` : `FXE-${hit.to || ''}`, time: leg ? leg.dep : '' });
+  }
+  return { date: o.date, inbound, outbound, match, date_diffs, no_return, not_found_list, checked, not_found, warnings, followup_seen };
 }

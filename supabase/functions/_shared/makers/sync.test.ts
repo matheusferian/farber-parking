@@ -82,3 +82,16 @@ Deno.test('pickTrip: the trip around our check-in, never a surname-only match', 
 Deno.test('Ascend flights are the 99xx numbers', () => {
   assertEquals([isAscendFlight('9948'), isAscendFlight('9949'), isAscendFlight('9218'), isAscendFlight('881'), isAscendFlight('99')], [true, true, false, false, false]);
 });
+
+Deno.test('Return Date Follow-Up guest (NO DATE) flying out of FXE that day is reported', async () => {
+  const suite = {
+    schedule: async () => [{ date: '11/07/2026', dep: '06:45', arr: '07:30', flight: '881', from: 'FXE', to: 'ASD', tail: 'N310CH' }],
+    passengers: async (_d: string, dir: { to?: string; from?: string }) => dir.from === 'FXE'
+      ? [{ date: '11/7/2026', flight: '881', from: 'FXE', to: 'ASD', last: 'FRITTS', first: 'LUCY', retDate: '' }] : [],
+    trips: async () => [],
+  };
+  const pool = [{ id: 900, ticket: '0812-15', name: 'LUCY FRITTS', ret: null, status: 'NO DATE', return_flight: null, departure_time: null, return_operator: 'MAKERS' }];
+  // deno-lint-ignore no-explicit-any
+  const r = await runSync(suite as any, { date: '2026-11-07', today: '2026-11-06', pool: pool as any, feedback: [] });
+  assertEquals(r.followup_seen.map((f) => `${f.system_name} ${f.direction} ${f.flight} ${f.route} ${f.time}`), ['LUCY FRITTS out 881 FXE-ASD 06:45']);
+});
