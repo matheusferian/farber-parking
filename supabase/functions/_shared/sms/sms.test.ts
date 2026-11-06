@@ -66,7 +66,7 @@ Deno.test('templates: REPLY, CHECK_IN (D1), VEHICLE_READY and VEHICLE_DELIVERED 
   assertEquals(Object.keys(TEMPLATES).sort(), ['AFTER_HOURS_CONFIRMED', 'CHECK_IN', 'CUSTOM_OPERATIONAL', 'REPLY', 'RETURN_CONFIRMATION', 'RETURN_UPDATED', 'VEHICLE_DELIVERED', 'VEHICLE_READY']);
   for (const t of Object.values(TEMPLATES)) {
     if (t.type === 'REPLY') { assertEquals(t.status, 'APPROVED'); assert(t.freeText); continue; }
-    if (t.type === 'CHECK_IN') { assertEquals(t.status, 'APPROVED'); assertEquals(t.version, 'checkin-2026-11-06-help'); continue; }
+    if (t.type === 'CHECK_IN') { assertEquals(t.status, 'APPROVED'); assertEquals(t.version, 'checkin-2026-11-06-live-b'); continue; }
     if (t.type === 'VEHICLE_READY') { assertEquals(t.status, 'APPROVED'); assertEquals(t.version, 'ready-2026-10-25b'); continue; }
     if (t.type === 'VEHICLE_DELIVERED') { assertEquals(t.status, 'APPROVED'); assertEquals(t.version, 'delivered-2026-10-25'); continue; }
     assertEquals(t.status, 'PENDING_APPROVAL');
@@ -90,7 +90,7 @@ Deno.test('identity: every templated SMS names Makers Air (CHECK_IN D1 = "welcom
 Deno.test('CHECK_IN (2026-11-06): exact owner wording, no passenger name, real link, rates + HELP + STOP, TWO GSM-7 segments', () => {
   for (const n of ['ANA SILVA', 'JOÃO 😀', 'Wolfeschlegelsteinhausen', null]) {
     const b = renderMessage(A.CHECK_IN, P({ name: n }), ENV).body;
-    assertEquals(b, `Welcome to Makers Air Valet!\nYour vehicle has been checked in.\nYour digital valet pass:\n${PASS}\nMsg & data rates may apply. Reply HELP for help, STOP to opt out.`);
+    assertEquals(b, `Welcome to Makers Air Valet! Your car is in good hands.\nFollow it live on your valet pass. It updates the moment your car is ready for you:\n${PASS}\nMsg & data rates may apply. Reply HELP for help, STOP to opt out.`);
     assertEquals(seg(b), 2);
     assert(Array.from(b).every((ch) => isGsm7(ch)));
   }
@@ -409,7 +409,7 @@ Deno.test('service: happy path → one provider call, queued, SID + staff name s
   assertEquals(r.ok, true); assertEquals(r.status, 'queued'); assert(r.sid?.startsWith('SMMOCK'));
   assertEquals(provider.calls.length, 1);
   assertEquals(provider.calls[0].to, '+13055550101');
-  assert(provider.calls[0].body.startsWith('Welcome to Makers Air Valet!\nYour vehicle has been checked in.\nYour digital valet pass:\nhttps://airvalet.farberos.com/a#'));
+  assert(provider.calls[0].body.startsWith('Welcome to Makers Air Valet! Your car is in good hands.\nFollow it live on your valet pass. It updates the moment your car is ready for you:\nhttps://airvalet.farberos.com/a#'));
   assertEquals(countSegments(provider.calls[0].body), 2); // owner 2026-11-06: rates + HELP + STOP → two GSM-7 segments
   const tok = store.passLinks.get(1001)!;
   assertEquals(tok.length, 17);
