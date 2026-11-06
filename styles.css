@@ -2909,3 +2909,6 @@ img.mk-asc{height:calc(var(--r)*.24);border:0;padding:0;}
 .tv4-dst img{height:15px;width:auto;}
 .tv4-dst small{font:700 15px 'Barlow Condensed',sans-serif;letter-spacing:.08em;color:#8C9BBB;}
 .tv4-route{height:30px;}
+.tv4-from .tv4-arrow{color:var(--tv-mu);font-weight:700;}
+.tv4-from .tv4-mklogo{height:.95em;width:auto;}
+.tv4-from .tv4-fno{color:var(--tv-mu);font-weight:600;margin-left:.15em;}

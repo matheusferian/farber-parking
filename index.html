@@ -16621,8 +16621,10 @@ function tv4FromChip(o){
   if(!o) return '';
   var code = String(o.route || '').split('-')[0], tag = (typeof MF_TAG_CODE !== 'undefined' && MF_TAG_CODE[code]) || code;
   var place = (typeof MF_AIRPORTS !== 'undefined' && MF_AIRPORTS[code]) || code;
+  // Owner 2026-11-06: "Congo Town → Makers Air" — the island, an arrow, the Makers Air logo (FXE).
   return '<span class="tv4-from">'+(o.registration ? tv4Chip(code, tvMakersTailSuffix(o.registration)) : '')+tv4Chip(code, tag)+
-    'from '+escapeHTML(place)+(o.flight ? ' &middot; '+escapeHTML(String(o.flight)) : '')+'</span>';
+    escapeHTML(place)+' <span class="tv4-arrow">&rarr;</span><img class="tv4-mklogo" src="assets/makers-air-logo-navy.png" alt="Makers Air">'+
+    (o.flight ? '<span class="tv4-fno">'+escapeHTML(String(o.flight))+'</span>' : '')+'</span>';
 }
 function tv4Time(hhmm, sub){
   var t = tvMakersTime12(hhmm);
