@@ -36,6 +36,8 @@ export interface SmsStore {
   // Mints a NEW passenger link (previous one revoked) and returns the
   // plaintext token once; null when the service is no longer open.
   mintPassLink(passengerId: number): Promise<string | null>;
+  // Audit 2026-11-06 (A3): a definitely-unsent text gives the passenger's previous link back.
+  restorePassLink?(passengerId: number, token: string): Promise<boolean>;
   // Flags sends left without a provider answer as UNCONFIRMED (alerts).
   reconcile?(): Promise<number>;
   // Preview only: what the claim would refuse (consent, opt-out, device,
@@ -202,8 +204,10 @@ export async function sendAirValetSms(deps: SendDeps, input: SendInput): Promise
     // Passenger link: mint only now (a duplicate / blocked request never
     // creates or rotates a link) and splice it into the provider body only.
     let providerBody = rendered.body;
+    let mintedToken: string | null = null;
     if (env.passUrl) {
       const token = await deps.store.mintPassLink(passenger.id);
+      mintedToken = token;
       if (!token || !PASS_TOKEN_RE.test(token) || rendered.body.split(env.passUrl).length !== 2) {
         await deps.store.markResult({ messageId: claimedId, status: 'failed', sid: null, messagingServiceSid: null, errorCode: 'PASS_LINK_UNAVAILABLE', errorMessage: 'passenger link not available', attempts: 0 });
         return fail('failed', 'PASS_LINK_UNAVAILABLE', 'passenger link not available', { messageId: claimedId });
@@ -241,6 +245,9 @@ export async function sendAirValetSms(deps: SendDeps, input: SendInput): Promise
     // rejected, or still throttled after the allowed retries → definitely not sent.
     await deps.store.markResult({ messageId: claimedId, status: 'failed', sid: null, messagingServiceSid: null, errorCode: outcome.errorCode, errorMessage: outcome.errorMessage, attempts });
     if (outcome.errorCode === '21610') await deps.store.markOptedOut(phone.e164, 'twilio_21610');
+    if (mintedToken && deps.store.restorePassLink) {
+      try { await deps.store.restorePassLink(passenger.id, mintedToken); } catch { log('sms.link_restore_failed', { messageId: claimedId }); }
+    }
     log('sms.failed', { messageId: claimedId, code: outcome.errorCode });
     return fail('failed', outcome.errorCode, outcome.errorMessage, { messageId: claimedId });
   } catch (e) {

@@ -56,6 +56,9 @@ export function supabaseSmsStore(db: Rpc): SmsStore & WebhookStore {
     mintPassLink(passengerId: number): Promise<string | null> {
       return call<string | null>(db, 'airvalet_pass_mint', { p_passenger_id: passengerId });
     },
+    restorePassLink(passengerId: number, token: string): Promise<boolean> {
+      return call<boolean>(db, 'airvalet_pass_restore_after_failed_send', { p_passenger_id: passengerId, p_token: token });
+    },
     applyStatus(sid, status, errorCode, errorMessage, messageId): Promise<string> {
       return call<string>(db, 'airvalet_sms_apply_status', {
         p_provider_message_sid: sid, p_status: status, p_error_code: errorCode, p_error_message: errorMessage,
