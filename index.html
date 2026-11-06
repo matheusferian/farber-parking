@@ -16744,7 +16744,7 @@ function tv4OtherLegs(){
       place:(typeof MF_AIRPORTS !== 'undefined' && MF_AIRPORTS[code]) || code, arr12:tv412(f.time), dep12:tv412(f.dep), st:tv4LegState(o)};
   }).filter(function(L){
     if(L.st.k === 'live' || L.st.k === 'way') return true;
-    if(L.st.k === 'landed') return L.st.mins <= 10;
+    if(L.st.k === 'landed') return L.st.mins <= 10 || L.st.stage === 'taxi';   // owner 2026-11-06 (WM): same as ours, back on while it taxis to Hangar 19
     if(L.st.k === 'sched') return L.st.dep && L.st.dep - now <= 60 * 60000;
     return false;
   }).sort(function(a, b){ return String(a.o.arrival_time).localeCompare(String(b.o.arrival_time)); }).slice(0, 4);
