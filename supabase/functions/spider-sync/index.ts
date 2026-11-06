@@ -24,6 +24,92 @@ const etNow = () => {
   return { min: (+p.hour % 24) * 60 + +p.minute, day: `${p.year}-${p.month}-${p.day}` };
 };
 
+// ── Plane pushes (owner 2026-11-06: "5 min before it lands, a push I can see on my watch; and when it
+// leaves Customs"). For today's Makers legs that carry a guest whose car we still hold: LANDING_SOON
+// (about 5 min out), LANDED (first stop at FXE = Customs), LEFT_CUSTOMS (tracker on again near FXE = taxi
+// to Hangar 19). One push per leg and event (airvalet_spider_events), to the DAILY phones.
+type Pos = { registration: string; last_at: string; departed_at: string | null; dist_fxe_nm: number; speed_kt: number | null; track_status: string | null; inbound: boolean; prev_dist_fxe_nm: number | null };
+function etMs(day: string, hhmm: string): number | null {
+  const m = /^(\d{1,2}):(\d{2})/.exec(hhmm || ''); if (!m) return null;
+  const guess = Date.parse(`${day}T${m[1].padStart(2, '0')}:${m[2]}:00Z`);
+  const p = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour12: false, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+    .formatToParts(new Date(guess)).map((x) => [x.type, x.value]));
+  const asEt = Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour % 24, +p.minute);
+  return guess - (asEt - guess);
+}
+const t12 = (hhmm: string) => { const m = /^(\d{1,2}):(\d{2})/.exec(hhmm || ''); if (!m) return hhmm; const h = +m[1]; return `${((h + 11) % 12) + 1}:${m[2]} ${h < 12 ? 'AM' : 'PM'}`; };
+const PLACE: Record<string, string> = { ASD: 'Fresh Creek', COX: 'Congo Town', GHC: 'Great Harbor Cay', GHB: "Governor's Harbour", ATC: "Arthur's Town", SAQ: 'San Andros',
+  TYM: 'Staniel Cay', ELH: 'North Eleuthera', TBI: 'Cat Island', RSD: 'Rock Sound', CCZ: 'Chub Cay', SML: 'Long Island', MHH: 'Marsh Harbour', NAS: 'Nassau', BIM: 'Bimini' };
+// deno-lint-ignore no-explicit-any
+async function planeEvents(admin: any, positions: Pos[], day: string): Promise<string[]> {
+  const { data: scan } = await admin.from('airvalet_manifest_scans').select('result').eq('service_date', day)
+    .eq('usage->>mode', 'makers_sync').eq('usage->>ok', 'true').order('created_at', { ascending: false }).limit(1).maybeSingle();
+  const res = scan?.result; if (!res) return [];
+  const matches = ((res.matches || []) as { passenger_id: number; flight_number: string; route: string; registration: string; arrival_time: string; kind: string }[])
+    .filter((x) => x.kind !== 'surname_only' && x.registration);
+  if (!matches.length) return [];
+  const inbound = (res.inbound || []) as { flight: string; tail: string; time: string; dep?: string }[];
+  const { data: cars } = await admin.from('passengers').select('id,name,car,loc,status').in('id', [...new Set(matches.map((x) => x.passenger_id))]);
+  const held = new Map(((cars || []) as { id: number; name: string; car: string; loc: string; status: string }[]).filter((c) => c.status === 'PENDING').map((c) => [c.id, c]));
+  const legs = new Map<string, { flight: string; reg: string; route: string; arr: string; guests: { name: string; car: string; loc: string }[] }>();
+  for (const x of matches) {
+    const c = held.get(x.passenger_id); if (!c) continue;
+    const k = `${x.flight_number}|${String(x.registration).toUpperCase()}`;
+    if (!legs.has(k)) legs.set(k, { flight: x.flight_number, reg: String(x.registration).toUpperCase(), route: x.route, arr: x.arrival_time, guests: [] });
+    legs.get(k)!.guests.push({ name: c.name, car: c.car, loc: c.loc });
+  }
+  const closest = (reg: string, flight: string, ref: number) => {
+    let best: { d: number; flight: string } | null = null;
+    for (const f of inbound) {
+      if (String(f.tail).toUpperCase() !== reg) continue;
+      const a = etMs(day, f.time); if (a == null) continue;
+      const d = Math.abs(a - ref); if (!best || d < best.d) best = { d, flight: String(f.flight) };
+    }
+    return !best || best.flight === String(flight);
+  };
+  const vapid = readVapid((k) => Deno.env.get(k));
+  const deps = { db: admin, vapid, log: () => {} };
+  const sent: string[] = [];
+  const once = async (legKey: string, event: string) => {
+    const { data, error } = await admin.from('airvalet_spider_events').upsert({ service_date: day, leg_key: legKey, event }, { onConflict: 'service_date,leg_key,event', ignoreDuplicates: true }).select('event');
+    return !error && Array.isArray(data) && data.length > 0;
+  };
+  const now = Date.now();
+  for (const [k, L] of legs) {
+    const sp = positions.find((p) => p.registration === L.reg); if (!sp) continue;
+    const arr = etMs(day, L.arr), last = Date.parse(sp.last_at), dist = Number(sp.dist_fxe_nm), kt = Number(sp.speed_kt) || 0;
+    if (!arr || now - last > 15 * 60000) continue;
+    const dep = etMs(day, (inbound.find((f) => String(f.flight) === String(L.flight)) || {}).dep || '');
+    const code = String(L.route || '').split('-')[0], from = PLACE[code] || code, tail = L.reg.replace(/^N\d*/, '');
+    const who = L.guests.map((g) => `${g.name} (${[g.car, g.loc].filter(Boolean).join(', ')})`).join(' · ');
+    const inWin = (ms: number) => ms - arr > -120 * 60000 && ms - arr < 360 * 60000;
+    const closing = sp.prev_dist_fxe_nm != null ? Number(sp.prev_dist_fxe_nm) > dist + 0.2 : sp.inbound;
+    if (kt >= 40 && dist > 1 && (sp.inbound || closing)) {
+      const eta = dist / kt * 60;
+      if (eta <= 6 && inWin(now + eta * 60000) && closest(L.reg, L.flight, now + eta * 60000) && await once(k, 'LANDING_SOON')) {
+        await notifyCategory(deps, 'DAILY', { title: `${tail} landing in ~${Math.max(1, Math.round(eta))} min`, body: `${from} → FXE · flight ${L.flight}\n${who}`, url: '/', tag: `plane-${k}-soon` });
+        sent.push(`${k}:LANDING_SOON`);
+      }
+    }
+    // Shut down at FXE (the Caravan powers off at Customs) — a slow taxi with the tracker on is not a landing push.
+    const stopped = dist <= 3 && sp.track_status === 'POWER_OFF' && (!dep || last >= dep - 10 * 60000);
+    if (stopped && inWin(last) && closest(L.reg, L.flight, last) && await once(k, 'LANDED')) {
+      await notifyCategory(deps, 'DAILY', { title: `${tail} landed · at Customs`, body: `${from} → FXE · flight ${L.flight}\n${who}`, url: '/', tag: `plane-${k}-landed` });
+      sent.push(`${k}:LANDED`);
+    }
+    if (dist <= 3 && sp.track_status !== 'POWER_OFF' && kt < 40) {
+      const { data: landed } = await admin.from('airvalet_spider_events').select('at').eq('service_date', day).eq('leg_key', k).eq('event', 'LANDED').maybeSingle();
+      // A NEW track (tracker switched on again) that started after the Customs shutdown = taxi to Hangar 19.
+      const onAgain = sp.departed_at ? Date.parse(sp.departed_at) > (landed ? Date.parse(landed.at) - 5 * 60000 : Infinity) : false;
+      if (landed && onAgain && last > Date.parse(landed.at) && await once(k, 'LEFT_CUSTOMS')) {
+        await notifyCategory(deps, 'DAILY', { title: `${tail} left Customs → Hangar 19`, body: `Flight ${L.flight} from ${from}\n${who}`, url: '/', tag: `plane-${k}-h19` });
+        sent.push(`${k}:LEFT_CUSTOMS`);
+      }
+    }
+  }
+  return sent;
+}
+
 Deno.serve(async (req) => {
   if (req.method !== 'POST') return json(405, { ok: false, error: { code: 'METHOD' } });
   const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
@@ -88,5 +174,7 @@ Deno.serve(async (req) => {
   });
   if (rows.length) { const { error } = await admin.from('airvalet_spider_state').upsert(rows); if (error) return json(500, { ok: false, error: { code: 'DB' } }); }
   await saveSession({ last_ok_at: new Date().toISOString(), last_error: null });
-  return json(200, { ok: true, aircraft: rows.map((r) => ({ reg: r.registration, status: r.track_status, nm: r.dist_fxe_nm, kt: r.speed_kt, inbound: r.inbound })) });
+  let events: string[] = [];
+  try { events = await planeEvents(admin, rows, now.day); } catch (e) { console.log(JSON.stringify({ event: 'spider.events_error', msg: String((e as Error)?.message || e) })); }
+  return json(200, { ok: true, events, aircraft: rows.map((r) => ({ reg: r.registration, status: r.track_status, nm: r.dist_fxe_nm, kt: r.speed_kt, inbound: r.inbound })) });
 });
