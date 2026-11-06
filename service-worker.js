@@ -90,7 +90,8 @@
 // v108: Day trip pass — staff Ready no longer says A/C running / luggage.
 // v109: Dashboard card — Ready button next to the passenger name.
 // v110: Valet Pass v3 — one boarding pass with a perforated stub, plain copy, calm gratuity section (owner approved).
-var CACHE_VERSION = 'v110';
+// v111: Dashboard Ready button removed (owner: confusing; the pass marks Ready automatically at Hangar 19 on the return day).
+var CACHE_VERSION = 'v111';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 var SHELL_FILES = [

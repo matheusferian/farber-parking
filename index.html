@@ -2732,7 +2732,6 @@ async function loadData() {
     // is on, and only for tickets enrolled at check-in; everything else (and
     // any error) stays on native iPhone SMS.
     resolveSmsProvider(); // device check → inbox / check-in consent only on an approved device
-    vpLoadReadyIds();     // dashboard Ready buttons (owner 2026-11-06); non-blocking
   } catch(e) {
     showMsg('Connection error: '+e.message, true);
     console.error(e);
@@ -3089,7 +3088,7 @@ function renderDay() {
       return '<div class="dcard '+cls+(isApprox?' approx-card':'')+(r.status==='DELIVERED'&&showDeliver?' delivered-today-card':'')+'" onclick="showDet('+r.id+')">'+
         '<div class="dc-top">'+
           '<div class="dc-body">'+
-            '<div class="dc-nrow"><div class="dc-n">'+(r.status==='DELIVERED'&&showDeliver?'<span style="text-decoration:line-through;opacity:0.6">'+(isAscend(r)?'[A] ':'')+escapeHTML(r.name)+'</span>':(isAscend(r)?'[A] ':'')+escapeHTML(r.name))+(isApprox?' <span style="font-size:9px;background:rgba(201,168,76,0.2);color:var(--gold);border-radius:4px;padding:2px 5px;margin-left:4px">~APPROX</span>':'')+(isAscend(r)?'<span style="font-size:9px;background:rgba(99,179,237,0.18);color:#63b3ed;border-radius:4px;padding:2px 5px;margin-left:4px;font-family:\'JetBrains Mono\',monospace">✈ ASCEND</span>':'')+(r.not_returning_with_makers_air?' '+OTHER_BOAT_DASH_ICON_HTML:'')+(r.isOfflinePending?'<span style="font-size:9px;background:rgba(232,160,48,.22);color:#e8a030;border-radius:4px;padding:2px 5px;margin-left:4px;font-weight:800;font-family:\'JetBrains Mono\',monospace" title="Saved locally, not yet on the server">🟠 PENDING SYNC</span>':'')+(showCarwashBadge?carwashBadgeHtml(r):'')+'</div>'+dashReadyBtn(r)+'</div>'+
+            '<div class="dc-n">'+(r.status==='DELIVERED'&&showDeliver?'<span style="text-decoration:line-through;opacity:0.6">'+(isAscend(r)?'[A] ':'')+escapeHTML(r.name)+'</span>':(isAscend(r)?'[A] ':'')+escapeHTML(r.name))+(isApprox?' <span style="font-size:9px;background:rgba(201,168,76,0.2);color:var(--gold);border-radius:4px;padding:2px 5px;margin-left:4px">~APPROX</span>':'')+(isAscend(r)?'<span style="font-size:9px;background:rgba(99,179,237,0.18);color:#63b3ed;border-radius:4px;padding:2px 5px;margin-left:4px;font-family:\'JetBrains Mono\',monospace">✈ ASCEND</span>':'')+(r.not_returning_with_makers_air?' '+OTHER_BOAT_DASH_ICON_HTML:'')+(r.isOfflinePending?'<span style="font-size:9px;background:rgba(232,160,48,.22);color:#e8a030;border-radius:4px;padding:2px 5px;margin-left:4px;font-weight:800;font-family:\'JetBrains Mono\',monospace" title="Saved locally, not yet on the server">🟠 PENDING SYNC</span>':'')+(showCarwashBadge?carwashBadgeHtml(r):'')+'</div>'+
             '<div class="dc-c">'+escapeHTML(r.car)+' · '+escapeHTML(fmtP(r.phone))+'</div>'+
             // Day trip (owner 2026-11-06): say it on the card, and whether the guest already has the key.
             (isDayTripRow(r)&&r.status!=='DELIVERED'&&r.status!=='ARCHIVED'?'<div class="dc-dt"><span class="dc-dt-chip">✈ DAY TRIP</span>'+(r.key_with_guest?'<span class="dc-dt-chip key">🔑 KEY WITH PASSENGER</span>':'')+'</div>':'')+
@@ -5123,29 +5122,6 @@ var _vp = { requests: [], channel: null, debounce: null, settings: null, bannerT
 var VP_REASON_LABELS = { NEW_DATE_TIME: 'New date or time', FLIGHT_CHANGED: 'Flight changed', OTHER_CARRIER: 'Another airline or company', AFTER_HOURS: 'Arriving after valet hours' };
 var SMS_COST_PER_SEGMENT_EST = 0.0113; // Twilio $0.0083 + carrier fee estimate (send-sms preview uses the same)
 function vpRpc(fn, args){ return smsApi('/rest/v1/rpc/' + fn, { method: 'POST', body: JSON.stringify(args || {}) }); }
-// Dashboard Ready button (owner 2026-11-06): same "Ready to Go" as the car card (valet pass only, no text sent).
-var _vpReady = {}, _vpReadyKnown = false;
-async function vpLoadReadyIds(){
-  try { var ids = await vpRpc('airvalet_pass_ready_ids', {}); var m = {}; (ids || []).forEach(function(i){ m[i] = true; }); _vpReady = m; _vpReadyKnown = true; render(); }
-  catch(e) { /* button hidden when unknown */ }
-}
-function dashReadyBtn(r){
-  if (!_vpReadyKnown || !isServerSms() || !passLinkTicket(r) || r.isOfflinePending || r.status === 'DELIVERED' || r.status === 'ARCHIVED') return '';
-  var on = !!_vpReady[r.id];
-  return '<button type="button" class="dc-ready' + (on ? ' on' : '') + '" aria-pressed="' + on + '" onclick="event.stopPropagation();dashReady(' + r.id + ',this)">' + (on ? '✓ Ready' : 'Ready') + '</button>';
-}
-async function dashReady(id, btn){
-  var r = paxById(id); if (!r) return;
-  var on = !_vpReady[id];
-  if (!on && !confirm('Remove Ready for ' + r.name + '?')) return;
-  if (btn) btn.disabled = true;
-  try {
-    await vpRpc('airvalet_pass_state_set', { p_passenger_id: id, p_field: 'ready', p_value: { on: on } });
-    if (on) _vpReady[id] = true; else delete _vpReady[id];
-    showMsg(on ? r.name + ' is Ready on the valet pass.' : 'Ready removed for ' + r.name + '.', false);
-  } catch(e) { showMsg('Could not save: ' + e.message, true); }
-  render();
-}
 function vpIsoDate(iso){
   var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || '')); if (!m) return '';
   return new Date(+m[1], +m[2] - 1, +m[3], 12).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
@@ -5471,8 +5447,7 @@ async function vpLoadStaff(r){
     '<div class="vps-s">Shown on the passenger\'s page only. Nothing is texted automatically.</div></div>';
 }
 async function vpSetState(pid, field, on){
-  try { await vpRpc('airvalet_pass_state_set', { p_passenger_id: pid, p_field: field, p_value: { on: !!on } });
-        if (field === 'ready') { if (on) _vpReady[pid] = true; else delete _vpReady[pid]; render(); } }
+  try { await vpRpc('airvalet_pass_state_set', { p_passenger_id: pid, p_field: field, p_value: { on: !!on } }); }
   catch(e) { showMsg('Could not save: ' + e.message, true); }
   var r = paxById(pid); if (r) vpLoadStaff(r);
 }
