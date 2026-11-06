@@ -149,8 +149,10 @@
   // ── Valet pass (boarding-pass layout, 2026-10-25; Concept C cards 2026-10-27) ──
   // Day trip (owner 2026-11-06): back the same day; tell the guest which hangar to come back to.
   function dayTripLine(p, lead) {
+    // Owner 2026-11-06: same wording as the team's standard Welcome Back message.
     var h = esc(p.day_trip_hangar || 'Hangar 19');
-    return lead + (p.key_with_guest ? 'walk to ' + h + ' \u2014 your car is parked there and you already have your key.' : 'come back to ' + h + ' \u2014 your car is parked there.');
+    return 'After clearing U.S. Customs, please remain with your pilots and return to Makers Air at ' + h + ', where your vehicle will be ready and waiting for you.' +
+      (p.key_with_guest ? ' You already have your key.' : '');
   }
   function statusInfo(p) {
     if (p.status === 'READY' && p.day_trip && p.ready_by_staff === false && !p.lockbox) {
@@ -211,7 +213,7 @@
         '<p class="pass-status"><i aria-hidden="true"></i>' + esc(st.word) + '</p>' +
         '<p class="pass-line">' + st.line + '</p>' +
         // Day trip (owner 2026-11-06): from Customs there is no way to the hangar on foot.
-        (p.day_trip && p.status !== 'CUSTOMS_CONFIRMED' ? '<p class="pass-line pass-pilots"><strong>After Customs, please stay with your pilots and come back with them to ' + esc(p.day_trip_hangar || 'Hangar 19') + '.</strong> There is no way to get here from Customs on your own.</p>' : '') +
+        (p.day_trip && p.status !== 'CUSTOMS_CONFIRMED' ? '<p class="pass-line pass-pilots"><strong>Please do not exit through the U.S. Customs terminal, as transportation back to Makers Air is not available from that location.</strong></p>' : '') +
         progress(p) +
       '</section>';
     if (done) {
