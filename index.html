@@ -15090,6 +15090,8 @@ var _tv = {
   legLanded:null,           // {key, map:{passengerId:landed_at}} — today's landings already seen per guest
   makers:null,              // airvalet_makers_board() — Makers departures today/tomorrow + origins of our guests
   photos:{},                // passenger_id -> {at, url} — valet pass car photo (e.g. at Customs), blob URL
+  spider:{},                // registration -> Spidertracks satellite position (airvalet_spider_board)
+  spiderLastFetchAt:null,
   photosLastFetchAt:null,
   makersLastFetchAt:null
 };
@@ -15321,6 +15323,7 @@ async function refreshTvData(){
   // here can never reject this function or affect passenger data.
   maybeFetchTvAircraftState();
   maybeFetchTvMakersBoard(); // fire-and-forget, own throttle; never blocks the passenger refresh
+  maybeFetchTvSpider();      // same: Spidertracks satellite positions (every ~60 s)
   _tv.refreshInFlight = true;
   try{
     var rows = await sbGetTvModePassengers();
@@ -16217,6 +16220,29 @@ function maybeFetchTvPhotos(){
   fetchTvPhotos();
 }
 function tv4PhotoHtml(r){ var p = _tv.photos && _tv.photos[r.id]; return p ? '<img class="tv4-ph" src="'+p.url+'" alt="Car photo">' : ''; }
+// Spidertracks (satellite) positions of the Makers fleet, written every minute by spider-sync.
+async function fetchTvSpider(){
+  _tv.spiderLastFetchAt = Date.now();
+  try{
+    var r = await fetch(SUPABASE_URL + '/rest/v1/rpc/airvalet_spider_board', { method:'POST', headers: sbHeaders(), body:'{}' });
+    if(!r.ok) throw new Error('spider ' + r.status);
+    var list = await r.json(), next = {};
+    (list || []).forEach(function(x){ if(x && x.registration) next[x.registration] = x; });
+    _tv.spider = next;
+    renderTvDashboard();
+  } catch(e){ console.warn('Spidertracks positions unavailable (keeping the last ones):', e); }
+}
+function maybeFetchTvSpider(){
+  if(_tv.spiderLastFetchAt !== null && (Date.now() - _tv.spiderLastFetchAt) < 55000) return;
+  fetchTvSpider();
+}
+// A usable satellite fix: the robot polled it in the last 5 min and the fix itself is < 20 min old.
+function tvSpiderFix(reg){
+  var sp = _tv.spider && _tv.spider[reg]; if(!sp) return null;
+  var now = Date.now(), pol = Date.parse(sp.polled_at), at = Date.parse(sp.last_at);
+  if(!isFinite(pol) || !isFinite(at) || now - pol > 5 * 60000 || now - at > 20 * 60000) return null;
+  return sp;
+}
 function tvDayKeyOffset(n){
   var d = new Date(); d.setDate(d.getDate() + n);
   return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);
@@ -16287,6 +16313,15 @@ function tvMakersStatus(f, dayKey, nextKey){
   if(!m || dayKey !== tvDayKeyOffset(0)) return {code:'SCHEDULED', text:'SCHEDULED'};
   var now = new Date(), dep = new Date(now.getFullYear(), now.getMonth(), now.getDate(), +m[1], +m[2]);
   var mins = Math.round((dep - now) / 60000);
+  // Spidertracks (owner 2026-11-06): the tracker powers on ~20 min before the flight. At FXE, powered on,
+  // not moving fast = CLOSING DOORS; in the air going away = DEPARTED (even before the scheduled time).
+  var sp = (typeof tvSpiderFix === 'function') ? tvSpiderFix(String(f.tail || '').toUpperCase()) : null;
+  if(sp && mins > -120 && mins < 60){
+    var spOn = sp.departed_at ? Date.parse(sp.departed_at) : NaN, dist = Number(sp.dist_fxe_nm), kt = Number(sp.speed_kt) || 0;
+    var thisLeg = isFinite(spOn) && spOn >= dep.getTime() - 60 * 60000;
+    if(thisLeg && kt >= 50 && dist > 1 && !sp.inbound) return {code:'DEPARTED', text:'DEPARTED'};
+    if(thisLeg && dist <= 2 && sp.track_status !== 'POWER_OFF' && kt < 50) return {code:'DOORS', text:'CLOSING DOORS'};
+  }
   if(mins < -TV_MAKERS_DEPARTED_MIN) return {code:'DEPARTED', text:'DEPARTED'};
   if(mins <= 10) return {code:'FINAL', text:'FINAL CALL'};   // last 10 min: red, fast blink
   if(mins <= TV_MAKERS_BOARDING_MIN) return {code:'BOARDING', text:'BOARDING'};
@@ -16506,6 +16541,23 @@ function tv4LegState(o){
   var now = Date.now(), arr = tv4TodayMs(o.arrival_time), dep = tv4TodayMs(o.dep_time);
   var ac = _tv.aircraftState && _tv.aircraftState[o.registration];
   var inWin = function(ms){ return !arr || ((ms - arr) > -TV_LEG_EARLY_MIN * 60000 && (ms - arr) < TV_LEG_LATE_MIN * 60000); };
+  // Spidertracks first (satellite, covers the Bahamas): powered off / stopped at FXE after this leg left
+  // the island = LANDED; flying toward FXE = LIVE with the real distance and ETA.
+  var sp = tvSpiderFix(o.registration);
+  if(sp){
+    var at = Date.parse(sp.last_at), afterDep = dep ? at >= dep - 10 * 60000 : (!arr || at >= arr - 90 * 60000);
+    var dist = Number(sp.dist_fxe_nm), kt = Number(sp.speed_kt) || 0;
+    if(dist <= 3 && (sp.track_status === 'POWER_OFF' || kt < 30) && afterDep && inWin(at))
+      return {k:'landed', at:at, mins: Math.max(0, Math.round((now - at) / 60000)), src:'sat'};
+    var closing = sp.prev_dist_fxe_nm != null ? Number(sp.prev_dist_fxe_nm) > dist + 0.2 : !!sp.inbound;
+    if(kt >= 40 && dist > 2 && (sp.inbound || closing)){
+      var eta2 = Math.round(dist / kt * 60);
+      if(inWin(now + eta2 * 60000)){
+        var from2 = String(o.route || '').split('-')[0], tot2 = TV4_NM[from2] || 200;
+        return {k:'live', eta:eta2, nm:Math.round(dist), alt:sp.alt_ft, kt:Math.round(kt), p: Math.max(.03, Math.min(.98, 1 - dist / tot2)), src:'sat'};
+      }
+    }
+  }
   if(ac && ac.landed_at){
     var l = new Date(ac.landed_at).getTime();
     if(isFinite(l) && inWin(l) && now - l < 6 * 3600000) return {k:'landed', at:l, mins: Math.max(0, Math.round((now - l) / 60000))};
@@ -16590,7 +16642,7 @@ function tv4AirHtml(){
   var html = '<div class="tv4-air"><div class="tv4-air-h"><b>IN THE AIR &middot; TO FXE</b><span>radar where it reaches, Makers schedule before that</span></div>';
   legs.forEach(function(L){
     var st = L.st, stHtml, meta = [];
-    if(st.k === 'live'){ stHtml = '<span class="tv4-fst tv4-live"><i></i>LIVE</span>';
+    if(st.k === 'live'){ stHtml = '<span class="tv4-fst tv4-live"><i></i>LIVE'+(st.src === 'sat' ? ' &middot; SATELLITE' : '')+'</span>';
       meta.push('<b>'+st.nm+' nm</b> out'); if(st.alt) meta.push('<b>'+Number(st.alt).toLocaleString('en-US')+' ft</b>'); if(st.kt) meta.push('<b>'+st.kt+' kt</b>');
       meta.push('ETA <b>'+(st.eta != null ? st.eta+' min' : 'soon')+'</b>'); }
     else if(st.k === 'way'){ stHtml = '<span class="tv4-fst tv4-way"><i></i>ON THE WAY</span>';

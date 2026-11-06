@@ -2942,3 +2942,7 @@ img.mk-asc{height:calc(var(--r)*.24);border:0;padding:0;}
   #tvMode .tv-kpi-inhead .tv-kpi-sub,#tvMode .tv-header .tv-brand-sub{display:none;}
   #tvMode .tv-kpi-row.tv-kpi-inhead{gap:clamp(12px,1.6vw,30px);padding:0 14px;}
 }
+/* CLOSING DOORS (Spidertracks: tracker on at FXE near departure) */
+.mk-doors{background:rgba(255,178,36,.12);box-shadow:inset 4px 0 0 #FFB224;}
+.mk-doors .mk-status{color:#FFB224;animation:tv4Blink .7s steps(1,end) infinite;}
+@media (prefers-reduced-motion:reduce){.mk-doors .mk-status{animation:none;}}
