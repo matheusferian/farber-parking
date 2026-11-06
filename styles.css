@@ -2881,3 +2881,14 @@ img.mk-asc{height:calc(var(--r)*.24);border:0;padding:0;}
 /* narrow screens: wrap instead of cutting the island name or the status */
 .tv4-air-h{flex-wrap:wrap;} .tv4-air-h b{white-space:nowrap;}
 .tv4-fc-top{flex-wrap:wrap;row-gap:4px;} .tv4-fc-top b{min-width:0;}
+
+/* TV v4: counters in the header bar (owner 2026-11-06) — number + label + one short line, white on blue */
+#tvMode .tv-kpi-row.tv-kpi-inhead{flex:1;min-width:0;display:flex;justify-content:center;gap:clamp(14px,1.8vw,38px);padding:0 24px;}
+#tvMode .tv-kpi-inhead .tv-kpi{background:none;border:0;border-radius:0;padding:0;gap:1px;min-width:0;max-width:200px;}
+#tvMode .tv-kpi-inhead .tv-kpi-num{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:clamp(30px,2.5vw,50px);color:#fff;}
+#tvMode .tv-kpi-inhead .tv-kpi-lbl{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:clamp(12px,.95vw,17px);letter-spacing:.06em;color:#fff;}
+#tvMode .tv-kpi-inhead .tv-kpi-sub{font-size:clamp(10px,.7vw,13px);color:rgba(255,255,255,.72);}
+#tvMode .tv-kpi-inhead .tv-lvl-critical .tv-kpi-num{color:#FF8A80;}
+#tvMode .tv-kpi-inhead .tv-lvl-warning .tv-kpi-num{color:#FFD166;}
+#tvMode .tv-kpi-inhead .tv-lvl-ok .tv-kpi-num{color:#7CF0B0;}
+#tvMode .tv-header .tv-brand,#tvMode .tv-header .tv-header-right{flex-shrink:0;}
