@@ -37,5 +37,5 @@ test("doLogout() — the Sign Out button — is device-local", () => {
 
 test("the service-worker cache version was bumped for this fix", () => {
   const sw = readFileSync(root + "service-worker.js", "utf8");
-  assert.match(sw, /var CACHE_VERSION = 'v(4[5-9]|[5-9]\d)';/);
+  assert.match(sw, /var CACHE_VERSION = 'v(4[5-9]|[5-9]\d|[1-9]\d{2})';/);
 });
