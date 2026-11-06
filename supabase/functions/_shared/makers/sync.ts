@@ -10,6 +10,7 @@
 
 import { Candidate, Feedback, ManifestPage, MatchResult, matchManifest, normTokens, parseDate, scoreName } from '../manifest/match.ts';
 import type { Leg, PaxRow, Trip } from './suite.ts';
+import { paxKey } from './changes.ts';
 
 export type SuiteLike = {
   schedule(mdy: string): Promise<Leg[]>;
@@ -19,7 +20,8 @@ export type SuiteLike = {
 export type HeldCar = Candidate & { checkin?: string | null };   // check-in day, YYYY-MM-DD
 // time = FXE arrival (inbound) or FXE departure (outbound); dep = departure from the island (inbound only),
 // used by the TV to show ON THE WAY before the aircraft is in radar range (owner 2026-11-06).
-export type FlightSummary = { flight: string; route: string; tail: string; time: string; pax: number; ascend: boolean; day_trips?: number; dep?: string };
+// ids (outbound only): anonymous passenger keys (changes.ts) to tell cancelled from moved between readings.
+export type FlightSummary = { flight: string; route: string; tail: string; time: string; pax: number; ascend: boolean; day_trips?: number; dep?: string; ids?: string[] };
 // Ascend (Makers' charter brand) flights are numbered 99xx in Makers Air Suite (9948/9949 on 2026-11-06/07).
 // Owner to confirm the rule; the Suite reports carry no client name to tell otherwise.
 export const isAscendFlight = (flight: string) => /^99\d{2}$/.test(String(flight || '').trim());
@@ -68,6 +70,11 @@ export async function runSync(suite: SuiteLike, o: { date: string; today: string
     return { flight: l.flight, route: `FXE-${l.to}`, tail: l.tail, time: l.dep, pax: people.size, ascend: isAscendFlight(l.flight),
       day_trips: [...people.values()].filter((r) => sameDay(r.retDate)).length };
   }).filter((f) => f.pax > 0).sort((a, b) => a.time.localeCompare(b.time));
+  for (const f of outbound) {
+    const keys = new Set<string>();
+    for (const r of outPax) if (r.flight === f.flight) keys.add(await paxKey(r.last, r.first));
+    f.ids = [...keys].sort();
+  }
   const pages: ManifestPage[] = inbound.map((f) => ({
     flight_number: f.flight, manifest_date: isoToMdy(o.date).split('/').map((x, i) => i < 2 ? x.padStart(2, '0') : x).join('/'),
     route: f.route, tail_number: f.tail, arrival_time: f.time, total_pax: f.pax, ascend_mark: f.ascend,

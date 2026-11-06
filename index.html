@@ -15087,6 +15087,8 @@ var _tv = {
   aircraftLegOwners:null,   // {reg:{passengerId:true}} — which guests own the aircraft's current leg (tvComputeAircraftLegOwners)
   legLanded:null,           // {key, map:{passengerId:landed_at}} — today's landings already seen per guest
   makers:null,              // airvalet_makers_board() — Makers departures today/tomorrow + origins of our guests
+  photos:{},                // passenger_id -> {at, url} — valet pass car photo (e.g. at Customs), blob URL
+  photosLastFetchAt:null,
   makersLastFetchAt:null
 };
 var TV_RESIZE_DEBOUNCE_MS = 350;
@@ -15317,6 +15319,7 @@ async function refreshTvData(){
   // here can never reject this function or affect passenger data.
   maybeFetchTvAircraftState();
   maybeFetchTvMakersBoard(); // fire-and-forget, own throttle; never blocks the passenger refresh
+  maybeFetchTvPhotos();      // same: car photos for today's/tomorrow's cards
   _tv.refreshInFlight = true;
   try{
     var rows = await sbGetTvModePassengers();
@@ -16172,6 +16175,7 @@ async function fetchTvMakersBoard(){
     if(!res.ok) throw new Error('Makers board fetch failed: ' + res.status);
     var b = await res.json();
     _tv.makers = (b && typeof b === 'object') ? b : {};
+    try { tvMakersChangeAlerts(); } catch(e) { console.warn('Makers change alerts:', e); }
     renderTvDashboard();
   } catch(e){
     console.warn('Makers board unavailable (keeping the last one):', e);
@@ -16181,6 +16185,36 @@ function maybeFetchTvMakersBoard(){
   if(_tv.makersLastFetchAt !== null && (Date.now() - _tv.makersLastFetchAt) < TV_MAKERS_FETCH_MS) return;
   fetchTvMakersBoard();
 }
+// Car photos (valet pass, e.g. the car left at Customs) as a small square on the guest's TV card.
+// A cheap list first; images only for photos the TV does not have yet. Kept as blob URLs.
+async function fetchTvPhotos(){
+  _tv.photosLastFetchAt = Date.now();
+  try{
+    var ids = (data || []).filter(function(r){ return r.status !== 'ARCHIVED' && r.status !== 'DELIVERED' && (isToday(r.ret) || isTmrw(r.ret)); })
+      .map(function(r){ return Number(r.id); }).filter(function(x){ return x > 0; }).slice(0, 60);
+    if(!ids.length) return;
+    var call = function(body){ return fetch(SUPABASE_URL + '/rest/v1/rpc/airvalet_tv_pass_photos', { method:'POST', headers: sbHeaders(), body: JSON.stringify(body) })
+      .then(function(r){ if(!r.ok) throw new Error('photos ' + r.status); return r.json(); }); };
+    var list = await call({ p_ids: ids, p_with_image: false });
+    var have = {}; (list || []).forEach(function(x){ have[x.passenger_id] = x.at; });
+    Object.keys(_tv.photos).forEach(function(id){ if(!have[id]){ try{ URL.revokeObjectURL(_tv.photos[id].url); }catch(e){} delete _tv.photos[id]; } });
+    var need = Object.keys(have).filter(function(id){ return !_tv.photos[id] || _tv.photos[id].at !== have[id]; }).map(Number);
+    if(need.length){
+      var imgs = await call({ p_ids: need, p_with_image: true });
+      (imgs || []).forEach(function(x){
+        var bin = atob(x.image_b64), u8 = new Uint8Array(bin.length); for(var i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+        var old = _tv.photos[x.passenger_id]; if(old){ try{ URL.revokeObjectURL(old.url); }catch(e){} }
+        _tv.photos[x.passenger_id] = { at: x.at, url: URL.createObjectURL(new Blob([u8], { type: x.mime || 'image/jpeg' })) };
+      });
+      renderTvDashboard();
+    }
+  } catch(e){ console.warn('TV photos unavailable (keeping the last ones):', e); }
+}
+function maybeFetchTvPhotos(){
+  if(_tv.photosLastFetchAt !== null && (Date.now() - _tv.photosLastFetchAt) < 120000) return;
+  fetchTvPhotos();
+}
+function tv4PhotoHtml(r){ var p = _tv.photos && _tv.photos[r.id]; return p ? '<img class="tv4-ph" src="'+p.url+'" alt="Car photo">' : ''; }
 function tvDayKeyOffset(n){
   var d = new Date(); d.setDate(d.getDate() + n);
   return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);
@@ -16195,6 +16229,29 @@ function tvMakersDay(dayKey){
 function tvMakersFlights(day){
   return (typeof mfPaxFlights === 'function' ? mfPaxFlights(day && day.outbound) : [])
     .slice().sort(function(a, b){ return String(a.time).localeCompare(String(b.time)); });
+}
+// Departures changed since the robot's previous reading (board.changes, counts only).
+function tvMakersChangeFor(dayKey, f){
+  var day = tvMakersDay(dayKey), items = day && day.changes && day.changes.items;
+  if(!items || !items.length) return null;
+  var dest = String(f.route || '').replace(/^FXE-/, '');
+  for(var i = 0; i < items.length; i++){ if(String(items[i].flight) === String(f.flight) && items[i].dest === dest) return items[i]; }
+  return null;
+}
+// One TV alert per new set of changes (skipped on the first load, so a reload never replays old news).
+function tvMakersChangeAlerts(){
+  if(typeof mfChangeBits !== 'function') return;
+  if(!_tv.mkChgSeen){ _tv.mkChgSeen = {}; var first = true; }
+  [tvDayKeyOffset(0), tvDayKeyOffset(1)].forEach(function(dk, idx){
+    var day = tvMakersDay(dk), c = day && day.changes;
+    if(!c || !c.items || !c.items.length) return;
+    var key = dk + '|' + c.since + '|' + day.at;
+    if(_tv.mkChgSeen[key]) return;
+    _tv.mkChgSeen[key] = true;
+    if(first) return;
+    tv4AlertPush({type:'chg', who: 'Departures ' + (idx ? 'tomorrow' : 'today') + ' changed',
+      text: c.items.slice(0, 3).map(function(x){ return mfChangeHead(x) + ': ' + mfChangeBits(x).join(' · '); }).join('  |  ') + (c.items.length > 3 ? '  |  +' + (c.items.length - 3) + ' more' : '')});
+  });
 }
 function tvMakersTag(code){
   var t = (typeof MF_TAGS !== 'undefined' && MF_TAGS[code]) || ['#DCE3EE', '#111111'];
@@ -16245,7 +16302,8 @@ function tvMakersRowHtml(f, dayKey, nextKey, withStatus){
   var ascend = typeof mfIsAscend === 'function' && mfIsAscend(f);
   var dayTrips = typeof mfDayTrips === 'function' ? mfDayTrips(f) : 0;
   var st = withStatus ? tvMakersStatus(f, dayKey, nextKey) : null;
-  var cls = 'mk-row' + (st ? ' mk-' + st.code.toLowerCase() : '');
+  var chg = tvMakersChangeFor(dayKey, f);
+  var cls = 'mk-row' + (st ? ' mk-' + st.code.toLowerCase() : '') + (chg ? ' mk-upd' : '');
   var key = dayKey + '|' + f.time + '|' + f.flight;
   return '<div class="'+cls+'" data-mk-key="'+escapeHTML(key)+'">'+
     '<div class="mk-time" data-flap="'+escapeHTML(key+'|t')+'" data-val="'+escapeHTML(tm.t)+'">'+tvFlapHtml(tm.t, 5)+'<small>'+tm.ap+'</small></div>'+
@@ -16254,8 +16312,9 @@ function tvMakersRowHtml(f, dayKey, nextKey, withStatus){
     '<div class="mk-dest"><b>'+escapeHTML(place)+'</b>'+
       '<span class="mk-fn">Flight '+escapeHTML(String(f.flight || ''))+
       (ascend ? '<img class="mk-asc" src="assets/ascend-logo.png" alt="Ascend">' : '')+
-      (dayTrips ? '<span class="mk-dt">'+dayTrips+' DAY TRIP</span>' : '')+'</span></div>'+
-    '<div class="mk-pax">'+(Number(f.pax) || 0)+'<small>pax</small></div>'+
+      (dayTrips ? '<span class="mk-dt">'+dayTrips+' DAY TRIP</span>' : '')+
+      (chg ? '<span class="mk-updtag">UPDATED'+(chg.pax_from !== chg.pax_to && chg.status !== 'new' ? ' &middot; WAS '+chg.pax_from : '')+'</span>' : '')+'</span></div>'+
+    '<div class="mk-pax" data-flap="'+escapeHTML(key+'|p')+'" data-val="'+(Number(f.pax) || 0)+'">'+(Number(f.pax) || 0)+'<small>pax</small></div>'+
     (st ? '<div class="mk-status" data-flap="'+escapeHTML(key+'|s')+'" data-val="'+escapeHTML(st.text)+'"><i class="mk-dot"></i><span class="mk-led">'+escapeHTML(st.text)+'</span></div>' : '')+
   '</div>';
 }
@@ -16533,7 +16592,10 @@ function tv4AirHtml(){
     html += '<div class="tv4-fc'+(st.k === 'live' || st.k === 'way' ? ' tv4-moving' : '')+'" style="--p:'+p.toFixed(3)+'">'+tv4CaravanSvg(L.reg)+
       '<div class="tv4-fc-top">'+tv4Chip(L.code, L.tail)+tv4Chip(L.code, (typeof MF_TAG_CODE !== 'undefined' && MF_TAG_CODE[L.code]) || L.code)+
         '<b>'+escapeHTML(L.place)+' &rarr; FXE</b>'+(L.ascend ? '<img src="assets/ascend-logo.png" alt="Ascend">' : '')+stHtml+'</div>'+
-      '<div class="tv4-route"><span class="tv4-ap">'+escapeHTML(L.code)+'</span><span class="tv4-track"><span class="tv4-done"></span><span class="tv4-pl">&#9992;</span></span><span class="tv4-ap tv4-ap-d">FXE</span></div>'+
+      // Owner 2026-11-06: island bag tag on the left, the Makers Air logo (original) at FXE on the right.
+      '<div class="tv4-route"><span class="tv4-bagtag" style="'+tvMakersTag(L.code)+'">'+escapeHTML((typeof MF_TAG_CODE !== 'undefined' && MF_TAG_CODE[L.code]) || L.code)+'</span>'+
+        '<span class="tv4-track"><span class="tv4-done"></span><span class="tv4-pl">&#9992;</span></span>'+
+        '<span class="tv4-dst"><img src="assets/makers-air-logo-white.png" alt="Makers Air"><small>FXE</small></span></div>'+
       '<div class="tv4-fc-meta">'+meta.map(function(m){ return '<span>'+m+'</span>'; }).join('')+(who ? '<span class="tv4-who">&#128663; '+who+'</span>' : '')+'</div></div>';
   });
   return html + '</div>';
@@ -16589,9 +16651,10 @@ function tv4LeavingCard(r){
   var late = isLate(r.ret) || tvWelcomeBackState(r) === 'overdue' || !!del;
   var tail = String((r.return_flight || '').trim().split(/\s+/)[0] || '').toUpperCase();
   var timeHtml = t ? tv4Time(t, tail) : '<div class="tv4-tm tv4-tm-unset">'+(dayTrip ? 'DAY<br>TRIP' : 'TIME<br>NOT SET')+'</div>';
-  return '<div class="tv4-car'+(pill.edge ? ' tv4-e-'+pill.edge : '')+(late ? ' tv4-e-late' : '')+(returnOperator(r) === 'OTHER' ? ' tv-other-boat' : '')+'">'+timeHtml+
+  var ph = tv4PhotoHtml(r);
+  return '<div class="tv4-car'+(ph ? ' tv4-has-ph' : '')+(pill.edge ? ' tv4-e-'+pill.edge : '')+(late ? ' tv4-e-late' : '')+(returnOperator(r) === 'OTHER' ? ' tv-other-boat' : '')+'">'+timeHtml+
     '<div class="tv4-main"><div class="tv4-nm">'+escapeHTML(tvShortName(r.name))+'</div>'+tv4Meta(r)+
-    (chips.length ? '<div class="tv4-chips">'+chips.join('')+'</div>' : '')+'</div>'+pill.html+'</div>';
+    (chips.length ? '<div class="tv4-chips">'+chips.join('')+'</div>' : '')+'</div>'+ph+pill.html+'</div>';
 }
 function tv4CheckedCard(r){
   var d = r.checkin_date ? new Date(r.checkin_date) : null, hh = '';
@@ -16611,11 +16674,12 @@ function tv4TomorrowCard(r){
   if(tvNeedsH19Move(r)) chips.push(tvMoveH19Badge('tomorrow', r));
   var tail = String((r.return_flight || '').trim().split(/\s+/)[0] || '').toUpperCase();
   var pill = o && o.arrival_time ? '<span class="tv4-pill tv4-p-sched">LANDS '+tv412(o.arrival_time)+'</span>' : '';
-  return '<div class="tv4-car'+(t ? '' : ' tv4-e-late')+(returnOperator(r) === 'OTHER' ? ' tv-other-boat' : '')+'">'+
+  var ph = tv4PhotoHtml(r);
+  return '<div class="tv4-car'+(ph ? ' tv4-has-ph' : '')+(t ? '' : ' tv4-e-late')+(returnOperator(r) === 'OTHER' ? ' tv-other-boat' : '')+'">'+
     (t ? tv4Time(t, tail) : '<div class="tv4-tm tv4-tm-unset">TIME<br>NOT SET</div>')+
     '<div class="tv4-main"><div class="tv4-nm">'+escapeHTML(tvShortName(r.name))+'</div>'+tv4Meta(r)+
     (chips.length ? '<div class="tv4-chips">'+chips.join('')+'</div>' : '')+
-    (r.obs ? '<div class="tv4-obs">'+escapeHTML(r.obs)+'</div>' : '')+'</div>'+pill+'</div>';
+    (r.obs ? '<div class="tv4-obs">'+escapeHTML(r.obs)+'</div>' : '')+'</div>'+ph+pill+'</div>';
 }
 // Biggest text that fits w×h: 1 column while text stays >= minS, then 2, then 3 (status moves under
 // the name in 2-3 columns so names keep their width). Measured off-screen in #tvMeasureProbe.
@@ -16695,7 +16759,8 @@ var _tv4Al = { q:[], on:false, landSeen:null };
 var TV4_AL = {
   msg:{cls:'tv4-al-msg', ic:'&#128172;', k:'NEW MESSAGE', s:'Answer on the iPad or a staff phone'},
   req:{cls:'tv4-al-req', ic:'&#128197;', k:'NEW REQUEST', s:'Approve or decline on the iPad'},
-  land:{cls:'tv4-al-land', ic:'&#128748;', k:'LANDED AT FXE', s:'Their cars go to Hangar 19'}};
+  land:{cls:'tv4-al-land', ic:'&#128748;', k:'LANDED AT FXE', s:'Their cars go to Hangar 19'},
+  chg:{cls:'tv4-al-chg', ic:'&#9888;&#65039;', k:'MAKERS CHANGE', s:'Resend the updated departures picture from Makers Flights'}};
 function tv4AlertPush(a){ _tv4Al.q.push(a); if(!_tv4Al.on) tv4AlertNext(); }
 function tv4AlertNext(){
   var el = document.getElementById('tvMsgToast'); if(!el) return;
@@ -17682,7 +17747,8 @@ function mfRobotRes(r, at){
   var inbound = mfPaxFlights(r.inbound), outbound = mfPaxFlights(r.outbound);
   return { robot: true, at: at || null, manifest_date: r.date, inbound: inbound, outbound: outbound,
     pages: inbound, manifest_rows: inbound.reduce(function(a, f){ return a + f.pax; }, 0),
-    matches: r.matches || [], missing: r.missing || [], date_diffs: r.date_diffs || [], no_return: r.no_return || [], not_found: r.not_found_list || [], warnings: [] };
+    matches: r.matches || [], missing: r.missing || [], date_diffs: r.date_diffs || [], no_return: r.no_return || [], not_found: r.not_found_list || [], warnings: [],
+    changes: r.changes || null };
 }
 var MF_SYNC_ERR = { NOT_CONFIGURED: 'The Makers robot is not set up yet. Ask the admin.', LOGIN_FAILED: 'Makers Air Suite did not accept the robot login. The password may have changed — tell Matheus.',
   LAYOUT: 'Makers Air Suite changed its pages. Tell Matheus; check the list by hand meanwhile.', HTTP: 'Makers Air Suite is not answering. Try again in a few minutes.',
@@ -17709,13 +17775,79 @@ async function mfUpdate(day){
   _mf.res = mfRobotRes(res, res.created_at); mfRenderResult();
 }
 // Departures for the WhatsApp group: one line per flight, in time order.
+// ── Departures changes (owner 2026-11-06): "6:45 had 9, now 6 — tell me, and the resent picture says
+// what changed". Same rules as supabase/functions/_shared/makers/changes.ts (tested there): anonymous
+// passenger keys tell "moved to another flight" from "cancelled or rebooked". Baseline = the picture this
+// device last shared for that day; else the robot's previous reading.
+function mfDepKey(f){ return f.flight + '|' + String(f.route || '').replace(/^FXE-/, ''); }
+function mfDepRef(f){ return { flight: f.flight, time: f.time, dest: String(f.route || '').replace(/^FXE-/, '') }; }
+function mfDiffDep(prev, next){
+  prev = prev || []; next = next || [];
+  var P = {}, N = {}, keys = [];
+  prev.forEach(function(f){ P[mfDepKey(f)] = f; if (keys.indexOf(mfDepKey(f)) < 0) keys.push(mfDepKey(f)); });
+  next.forEach(function(f){ N[mfDepKey(f)] = f; if (keys.indexOf(mfDepKey(f)) < 0) keys.push(mfDepKey(f)); });
+  var useIds = prev.every(function(f){ return Array.isArray(f.ids); }) && next.every(function(f){ return Array.isArray(f.ids); });
+  var at = function(list){ var m = {}; list.forEach(function(f){ (f.ids || []).forEach(function(id){ m[id] = f; }); }); return m; };
+  var prevAt = useIds ? at(prev) : {}, nextAt = useIds ? at(next) : {}, out = [];
+  keys.forEach(function(k){
+    var a = P[k], b = N[k], base = b || a;
+    var c = { flight: base.flight, time: base.time, dest: String(base.route || '').replace(/^FXE-/, ''), tail: base.tail, pax_from: a ? a.pax : 0, pax_to: b ? b.pax : 0,
+      cancelled: 0, added: 0, moved_out: [], moved_in: [] };
+    if (!a) c.status = 'new';
+    if (!b) c.status = 'gone';
+    if (a && b && a.tail !== b.tail) c.tail_from = a.tail;
+    if (a && b && a.time !== b.time) c.time_from = a.time;
+    if (useIds) {
+      var was = (a && a.ids) || [], now = (b && b.ids) || [], outTo = {}, inFrom = {};
+      was.forEach(function(id){ if (now.indexOf(id) >= 0) return; var o = nextAt[id];
+        if (o && mfDepKey(o) !== k) { (outTo[mfDepKey(o)] = outTo[mfDepKey(o)] || { n: 0, to: mfDepRef(o) }).n++; } else c.cancelled++; });
+      now.forEach(function(id){ if (was.indexOf(id) >= 0) return; var o = prevAt[id];
+        if (o && mfDepKey(o) !== k) { (inFrom[mfDepKey(o)] = inFrom[mfDepKey(o)] || { n: 0, from: mfDepRef(o) }).n++; } else c.added++; });
+      c.moved_out = Object.keys(outTo).map(function(x){ return outTo[x]; }); c.moved_in = Object.keys(inFrom).map(function(x){ return inFrom[x]; });
+    } else if (c.pax_to < c.pax_from) c.cancelled = c.pax_from - c.pax_to;
+    else if (c.pax_to > c.pax_from) c.added = c.pax_to - c.pax_from;
+    if (c.status || c.tail_from || c.time_from || c.cancelled || c.added || c.moved_out.length || c.moved_in.length) out.push(c);
+  });
+  return out.sort(function(x, y){ return x.time.localeCompare(y.time) || String(x.flight).localeCompare(String(y.flight)); });
+}
+function mfSfx(t){ var s = String(t || '').toUpperCase(); return s.replace(/^N\d*/, '') || s.slice(-2); }
+function mfChangeBits(c){
+  var pl = function(code){ return MF_AIRPORTS[code] || code; }, ppl = function(n){ return n + ' passenger' + (n === 1 ? '' : 's'); }, bits = [];
+  if (c.status === 'gone') return ['flight no longer listed (' + ppl(c.pax_from) + ')'];
+  if (c.status === 'new') bits.push('new flight · ' + ppl(c.pax_to));
+  if (c.time_from) bits.push('time ' + vpTime(c.time_from) + ' → ' + vpTime(c.time));
+  if (c.tail_from) bits.push('aircraft ' + mfSfx(c.tail_from) + ' → ' + mfSfx(c.tail));
+  if (c.cancelled) bits.push(c.cancelled + ' cancelled or rebooked');
+  c.moved_out.forEach(function(m){ bits.push(m.n + ' moved to ' + vpTime(m.to.time) + ' ' + pl(m.to.dest)); });
+  c.moved_in.forEach(function(m){ bits.push(m.n + ' moved from ' + vpTime(m.from.time) + ' ' + pl(m.from.dest)); });
+  if (c.added && c.status !== 'new') bits.push(c.added + ' added');
+  if (c.pax_from !== c.pax_to && c.status !== 'new') bits.push(c.pax_from + ' → ' + c.pax_to + ' pax');
+  return bits;
+}
+function mfChangeHead(c){ return vpTime(c.time) + ' ' + (MF_AIRPORTS[c.dest] || c.dest) + ' (' + mfSfx(c.tail) + ')'; }
+function mfSharedKey(r){ return 'mfShared:' + (r.manifest_date || ''); }
+function mfSharedGet(r){ try { return JSON.parse(localStorage.getItem(mfSharedKey(r)) || 'null'); } catch(e) { return null; } }
+function mfSharedSave(r){ try { localStorage.setItem(mfSharedKey(r), JSON.stringify({ at: new Date().toISOString(), outbound: r.outbound || [] })); } catch(e) {} }
+// What changed, and since when: the last picture shared from this device, else the robot's previous reading.
+function mfDepChanges(r){
+  var sh = mfSharedGet(r);
+  if (sh && Array.isArray(sh.outbound)) {
+    var items = mfDiffDep(sh.outbound, r.outbound || []);
+    return { items: items, since: 'since the picture shared ' + new Date(sh.at).toLocaleString('en-US', { weekday: 'short', hour: 'numeric', minute: '2-digit' }), shared: true };
+  }
+  if (r.changes && r.changes.items && r.changes.items.length)
+    return { items: r.changes.items, since: 'since the Makers list of ' + new Date(r.changes.since).toLocaleString('en-US', { weekday: 'short', hour: 'numeric', minute: '2-digit' }), shared: false };
+  return { items: [], since: '', shared: !!sh };
+}
 function mfDeparturesText(r){
   var lines = (r.outbound || []).map(function(f){ return vpTime(f.time) + ' — ' + f.pax + ' pax (' + f.flight + ' ' + f.route.replace('FXE-', '→ ') + ')'; });
-  return 'Makers departures ' + mfDay(r.manifest_date) + '\n' + lines.join('\n') + '\nTotal: ' + (r.outbound || []).reduce(function(a, f){ return a + f.pax; }, 0) + ' passengers';
+  var ch = mfDepChanges(r);
+  var upd = ch.items.length ? 'UPDATED — what changed:\n' + ch.items.map(function(c){ return '• ' + mfChangeHead(c) + ': ' + mfChangeBits(c).join(' · '); }).join('\n') + '\n\n' : '';
+  return upd + 'Makers departures ' + mfDay(r.manifest_date) + '\n' + lines.join('\n') + '\nTotal: ' + (r.outbound || []).reduce(function(a, f){ return a + f.pax; }, 0) + ' passengers';
 }
 function mfCopyDepartures(btn){
   var txt = mfDeparturesText(_mf.res), ok = false;
-  var done = function(){ btn.textContent = ok ? 'Copied ✓ — paste in WhatsApp' : 'Could not copy'; };
+  var done = function(){ btn.textContent = ok ? 'Copied ✓ — paste in WhatsApp' : 'Could not copy'; if (ok) { mfSharedSave(_mf.res); mfRenderResult(); } };
   if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(function(){ ok = true; done(); }, function(){ done(); });
   else done();
 }
@@ -17909,6 +18041,11 @@ function mfRenderResult(){
     (noRet ? '<section class="mf-sec"><h3>No return booked in Makers <span>' + (r.no_return || []).length + '</span></h3>' + noRet + '</section>' : '') +
     ((r.not_found || []).length ? '<section class="mf-sec"><h3>🔍 Not found in Makers <span>' + r.not_found.length + '</span></h3><p class="mf-note">The robot could not find these names in Makers. Look them up by hand.</p><ul class="mf-fl">' +
       r.not_found.map(function(x){ return '<li><b>' + escapeHTML(x.system_name) + '</b> <span>' + escapeHTML(x.ticket) + ' · our return ' + escapeHTML(mfRetTxt(x.ours)) + '</span></li>'; }).join('') + '</ul></section>' : '') +
+    (function(){ var ch = mfDepChanges(r); if (!ch.items.length) return '';
+      return '<section class="mf-sec mf-s-sur mf-chg"><h3>🔁 Departures changed <span>' + ch.items.length + '</span></h3><p class="mf-note">' + escapeHTML(ch.since) + '. Resend the updated picture to the group.</p>' +
+        ch.items.map(function(c){ return '<article class="mf-card mf-early"><div class="mf-name"><b>' + escapeHTML(mfChangeHead(c)) + '</b><span>Flight ' + escapeHTML(String(c.flight)) + '</span></div>' +
+          '<div class="mf-line mf-warn">' + escapeHTML(mfChangeBits(c).join(' · ')) + '</div></article>'; }).join('') +
+        '<button type="button" class="mf-btn mf-go" onclick="mfShareDepartures(this)">📷 Share UPDATED picture</button></section>'; })() +
     ((r.outbound || []).length ? '<section class="mf-sec"><h3>🛫 Departures from FXE <span>' + pax(r.outbound) + ' pax</span></h3><ul class="mf-fl">' + flights(r.outbound) + '</ul>' +
       '<button type="button" class="mf-btn mf-go" onclick="mfShareDepartures(this)">📷 Share departures (picture)</button>' +
       '<button type="button" class="mf-link" onclick="mfCopyDepartures(this)">Copy as text instead</button></section>' : '') +
@@ -18013,7 +18150,22 @@ async function mfDeparturesCanvas(r){
   var mavLogo = await mfImage('assets/makers-air-valet-lockup-white.png');
   var W = 1080, P = 56, HEAD = 206, ROW = 116, ROW_ASC = 168, FOOT = 176;
   var rowH = function(f){ return mfIsAscend(f) ? ROW_ASC : ROW; };
-  var BODY = list.length ? list.reduce(function(a, f){ return a + rowH(f); }, 0) : ROW, H = HEAD + BODY + FOOT;
+  var BODY = list.length ? list.reduce(function(a, f){ return a + rowH(f); }, 0) : ROW;
+  // Updated picture (owner 2026-11-06): "What changed" box between the flights and the footer.
+  var ch = mfDepChanges(r), chBy = {}, CHG = 0, chLines = [];
+  ch.items.forEach(function(x){ chBy[x.flight + '|' + x.dest] = x; });
+  if (ch.items.length) {
+    var mg = document.createElement('canvas').getContext('2d'), maxW = W - 2 * P - 48;
+    var wrap = function(text, font){ mg.font = font; var words = text.split(' '), out = [], cur = '';
+      words.forEach(function(w){ var t = cur ? cur + ' ' + w : w; if (mg.measureText(t).width > maxW && cur) { out.push(cur); cur = w; } else cur = t; }); if (cur) out.push(cur); return out; };
+    ch.items.forEach(function(x){
+      chLines.push({ t: mfChangeHead(x), font: '700 28px Inter, sans-serif', h: 40 });
+      wrap(mfChangeBits(x).join(' · '), '500 25px Inter, sans-serif').forEach(function(l){ chLines.push({ t: l, font: '500 25px Inter, sans-serif', h: 34 }); });
+      chLines.push({ t: '', h: 14 });
+    });
+    CHG = 40 + 58 + chLines.reduce(function(a, l){ return a + l.h; }, 0) + 20;
+  }
+  var H = HEAD + BODY + CHG + FOOT;
   var c = document.createElement('canvas'); c.width = W; c.height = H;
   var g = c.getContext('2d'), NAVY = '#061433', GOLD = '#C9A84C', INK = '#0B1A33', MU = '#5A6B8C', LINE = '#E3E7EE', TINT = '#F4F6FA';
   var total = list.reduce(function(a, f){ return a + f.pax; }, 0);
@@ -18024,6 +18176,10 @@ async function mfDeparturesCanvas(r){
   // Makers Air Valet logo (white lockup) at the top, then the title and the day at FXE
   // Title and day on the left, the Makers Air Valet logo on the right (owner)
   g.fillStyle = '#FFFFFF'; g.font = '700 66px Sora, sans-serif'; g.fillText('Departures', P, 112);
+  if (ch.items.length) {   // gold UPDATED tag next to the title
+    var tw = g.measureText('Departures').width; g.font = '700 26px Sora, sans-serif'; var uw = g.measureText('UPDATED').width + 32;
+    g.fillStyle = GOLD; mfRound(g, P + tw + 22, 70, uw, 46, 10); g.fill(); g.fillStyle = NAVY; g.fillText('UPDATED', P + tw + 38, 102);
+  }
   var day = r.manifest_date ? new Date(r.manifest_date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }) : '';
   g.fillStyle = '#C8D3E6'; g.font = '500 30px Inter, sans-serif'; g.fillText(day + ' at FXE', P, 164);
   if (mavLogo) { var lgh = 92, lgw = lgh * mavLogo.width / mavLogo.height; g.drawImage(mavLogo, W - P - lgw, (HEAD - lgh) / 2, lgw, lgh); }
@@ -18034,6 +18190,8 @@ async function mfDeparturesCanvas(r){
   list.forEach(function(f, i){
     var rh = rowH(f), asc = mfIsAscend(f), mid = y + rh / 2;
     if (i % 2) { g.fillStyle = TINT; g.fillRect(0, y, W, rh); }
+    var chg = chBy[f.flight + '|' + f.route.replace(/^FXE-/, '')];
+    if (chg) { g.fillStyle = '#FFF4DC'; g.fillRect(0, y, W, rh); g.fillStyle = '#E08A00'; g.fillRect(0, y, 12, rh); }
     // time: hour right-aligned on the colon, ":45" after it, AM/PM small
     var tm = vpTime(f.time).match(/^(\d+)(:\d\d) (AM|PM)$/) || ['', vpTime(f.time), '', ''];
     g.fillStyle = INK; g.font = '700 46px Sora, sans-serif';
@@ -18065,6 +18223,9 @@ async function mfDeparturesCanvas(r){
     var dts = mfDayTrips(f), pmid = dts ? mid - 10 : mid;
     g.textAlign = 'right'; g.fillStyle = MU; g.font = '600 22px Sora, sans-serif'; g.fillText('pax', W - P, pmid + 16);
     var pw = g.measureText('pax').width; g.fillStyle = NAVY; g.font = '700 50px Sora, sans-serif'; g.fillText(String(f.pax), W - P - pw - 10, pmid + 18);
+    if (chg && chg.pax_from !== chg.pax_to && chg.status !== 'new' && !dts) {   // "was 9" under the new count
+      g.font = '700 21px Sora, sans-serif'; g.fillStyle = '#B86E00'; g.fillText('was ' + chg.pax_from, W - P, mid + 50);
+    }
     if (dts) {   // passengers coming back the same day
       g.font = '700 19px Sora, sans-serif'; var dl = dts + ' day trip', dw = g.measureText(dl).width + 18;
       g.fillStyle = '#FFF1C7'; mfRound(g, W - P - dw, mid + 30, dw, 28, 14); g.fill();
@@ -18076,6 +18237,16 @@ async function mfDeparturesCanvas(r){
   });
   var fy = HEAD + BODY;
   if (!list.length) { g.fillStyle = MU; g.font = '500 32px Inter, sans-serif'; g.fillText('No departures with passengers.', P, fy - 44); }
+  if (CHG) {
+    var by = fy + 20, bh = CHG - 40;
+    g.fillStyle = '#FFF6E0'; mfRound(g, P, by, W - 2 * P, bh, 18); g.fill();
+    g.fillStyle = '#E08A00'; g.fillRect(P, by + 18, 8, bh - 36);
+    g.fillStyle = '#7A4A00'; g.font = '700 32px Sora, sans-serif'; g.fillText('What changed', P + 32, by + 50);
+    g.fillStyle = '#9A6A1A'; g.font = '500 22px Inter, sans-serif'; g.textAlign = 'right'; g.fillText(ch.since, W - P - 24, by + 48); g.textAlign = 'left';
+    var ly = by + 58 + 30;
+    chLines.forEach(function(l){ if (l.t) { g.fillStyle = l.font.indexOf('700') === 0 ? INK : '#5A4A2A'; g.font = l.font; g.fillText(l.t, P + 32, ly); } ly += l.h; });
+    fy += CHG;
+  }
   // Footer
   g.fillStyle = NAVY; g.fillRect(0, fy, W, FOOT);
   g.fillStyle = '#FFFFFF'; g.font = '700 46px Sora, sans-serif'; g.fillText(total + ' passengers', P, fy + 78);
@@ -18096,11 +18267,13 @@ async function mfShareDepartures(btn){
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
       await navigator.share({ files: [file] });
       btn.textContent = old;
+      mfSharedSave(r); mfRenderResult();   // next picture shows what changed since this one
     } else {
       // No Share sheet (desktop): save the picture instead.
       var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click();
       setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 1000);
       btn.textContent = 'Picture saved ✓';
+      mfSharedSave(r);
     }
   } catch(e) {
     btn.textContent = (e && e.name === 'AbortError') ? old : 'Could not share — try again';

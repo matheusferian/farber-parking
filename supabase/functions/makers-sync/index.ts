@@ -20,6 +20,7 @@ import { MakersSuite, MakersSuiteError } from '../_shared/makers/suite.ts';
 import { HeldCar, runSync, SyncResult } from '../_shared/makers/sync.ts';
 import { Feedback, parseDate } from '../_shared/manifest/match.ts';
 import { notifyCategory } from '../_shared/notify/staff.ts';
+import { changeLine, diffDepartures, type DepChange, type DepFlight } from '../_shared/makers/changes.ts';
 import { readVapid } from '../_shared/notify/runtime.ts';
 
 const ALLOWED_ORIGINS = ['https://airvalet.farberos.com', 'https://matheusferian.github.io'];
@@ -124,7 +125,19 @@ Deno.serve(async (req) => {
 
   const m = result.match;
   const surprises = m.matches.filter((x) => x.state === 'early' || x.state === 'late' || x.state === 'no_date').length + result.date_diffs.length;
+  // Departures changed since the previous good reading of the same day (owner 2026-11-06: cancellations,
+  // moves, tail/time swaps). The first reading of a day has nothing to compare with.
+  const { data: prevRow } = await admin.from('airvalet_manifest_scans').select('created_at,result')
+    .eq('service_date', date).eq('usage->>mode', 'makers_sync').eq('usage->>ok', 'true')
+    .order('created_at', { ascending: false }).limit(1).maybeSingle();
+  let changes: { since: string; items: DepChange[]; lines: string[] } | null = null;
+  const prevOut = prevRow?.result?.outbound as DepFlight[] | undefined;
+  if (prevRow && Array.isArray(prevOut)) {
+    const items = diffDepartures(prevOut, result.outbound as DepFlight[]);
+    changes = { since: prevRow.created_at, items, lines: items.map(changeLine) };
+  }
   const saved = {
+    changes,
     date: result.date, inbound: result.inbound, outbound: result.outbound, matches: m.matches, missing: m.missing,
     date_diffs: result.date_diffs, no_return: result.no_return, not_found_list: result.not_found_list, checked: result.checked, not_found: result.not_found, warnings: result.warnings,
   };
@@ -134,6 +147,12 @@ Deno.serve(async (req) => {
   });
   if (isCron) {
     await notifyCategory(deps, 'DAILY', { title: `Makers · ${date === today ? 'today' : 'tomorrow'} ${dayLabel(date)}`, body: summaryText(result), url: '/?mf=1', tag: `makers-sync-${date}` });
+  }
+  // Any run (robot or Update button) that finds departures changed tells the phones/iPad: resend the picture.
+  if (changes && changes.items.length) {
+    await notifyCategory(deps, 'DAILY', { title: `Makers changes · departures ${date === today ? 'today' : 'tomorrow'} ${dayLabel(date)}`,
+      body: changes.lines.slice(0, 4).join('\n') + (changes.lines.length > 4 ? `\n+${changes.lines.length - 4} more` : '') + '\nOpen Makers Flights to resend the updated picture.',
+      url: '/?mf=1', tag: `makers-changes-${date}` });
   }
   return json(200, { ok: true, created_at: new Date().toISOString(), ...saved });
 });

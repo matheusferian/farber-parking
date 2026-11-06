@@ -2892,3 +2892,20 @@ img.mk-asc{height:calc(var(--r)*.24);border:0;padding:0;}
 #tvMode .tv-kpi-inhead .tv-lvl-warning .tv-kpi-num{color:#FFD166;}
 #tvMode .tv-kpi-inhead .tv-lvl-ok .tv-kpi-num{color:#7CF0B0;}
 #tvMode .tv-header .tv-brand,#tvMode .tv-header .tv-header-right{flex-shrink:0;}
+/* Departures changed (robot): amber row edge + UPDATED tag; TV alert colour */
+.mk-upd{box-shadow:inset 4px 0 0 #FFB224;}
+.mk-updtag{font:700 calc(var(--r)*.2) 'Barlow Condensed',sans-serif;letter-spacing:.08em;background:#FFB224;color:#3A2400;border-radius:4px;padding:1px 7px;}
+.tv4-al-chg .tv4-al-ic{background:#D9480F;} .tv4-al-chg .tv4-al-k,.tv4-al-chg .tv4-al-bar{color:#D9480F;}
+/* Car photo (valet pass, e.g. at Customs): small square on the card */
+.tv4-has-ph{grid-template-columns:4.3em minmax(0,1fr) auto auto;}
+.tv4-ph{width:3.4em;height:3.4em;object-fit:cover;border-radius:.4em;box-shadow:0 0 0 2px #fff,0 0 0 3px var(--tv-border);}
+.tv4-multi .tv4-has-ph{grid-template-columns:3.9em minmax(0,1fr) auto;}
+.tv4-multi .tv4-has-ph .tv4-ph{grid-column:3;grid-row:1 / span 2;align-self:center;}
+/* Route line: island bag tag → aircraft → Makers Air (FXE) */
+.tv4-bagtag{position:relative;flex-shrink:0;height:24px;min-width:52px;padding:0 8px 0 15px;display:inline-flex;align-items:center;justify-content:center;
+  font:700 17px 'Barlow Condensed',sans-serif;letter-spacing:.04em;border-radius:0 4px 4px 0;clip-path:polygon(7px 0,100% 0,100% 100%,7px 100%,0 calc(100% - 7px),0 7px);}
+.tv4-bagtag::before{content:"";position:absolute;left:6px;top:50%;width:5px;height:5px;margin-top:-2.5px;border-radius:50%;background:#061433;}
+.tv4-dst{flex-shrink:0;display:inline-flex;align-items:center;gap:7px;}
+.tv4-dst img{height:15px;width:auto;}
+.tv4-dst small{font:700 15px 'Barlow Condensed',sans-serif;letter-spacing:.08em;color:#8C9BBB;}
+.tv4-route{height:30px;}
