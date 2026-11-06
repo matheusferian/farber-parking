@@ -47,17 +47,24 @@ async function planeEvents(admin: any, positions: Pos[], day: string): Promise<s
   const res = scan?.result; if (!res) return [];
   const matches = ((res.matches || []) as { passenger_id: number; flight_number: string; route: string; registration: string; arrival_time: string; kind: string }[])
     .filter((x) => x.kind !== 'surname_only' && x.registration);
-  if (!matches.length) return [];
-  const inbound = (res.inbound || []) as { flight: string; tail: string; time: string; dep?: string }[];
+  const inbound = (res.inbound || []) as { flight: string; tail: string; time: string; dep?: string; route?: string; pax?: number }[];
   const { data: cars } = await admin.from('passengers').select('id,name,car,loc,status').in('id', [...new Set(matches.map((x) => x.passenger_id))]);
   const held = new Map(((cars || []) as { id: number; name: string; car: string; loc: string; status: string }[]).filter((c) => c.status === 'PENDING').map((c) => [c.id, c]));
-  const legs = new Map<string, { flight: string; reg: string; route: string; arr: string; guests: { name: string; car: string; loc: string }[] }>();
+  const legs = new Map<string, { flight: string; reg: string; route: string; arr: string; pax: number; guests: { name: string; car: string; loc: string }[] }>();
   for (const x of matches) {
     const c = held.get(x.passenger_id); if (!c) continue;
     const k = `${x.flight_number}|${String(x.registration).toUpperCase()}`;
-    if (!legs.has(k)) legs.set(k, { flight: x.flight_number, reg: String(x.registration).toUpperCase(), route: x.route, arr: x.arrival_time, guests: [] });
+    if (!legs.has(k)) legs.set(k, { flight: x.flight_number, reg: String(x.registration).toUpperCase(), route: x.route, arr: x.arrival_time, pax: 0, guests: [] });
     legs.get(k)!.guests.push({ name: c.name, car: c.car, loc: c.loc });
   }
+  // Owner 2026-11-06 (WM): Makers flights with passengers but none of our cars get the same three pushes,
+  // marked "No cars · N pax".
+  for (const f of inbound) {
+    const reg = String(f.tail || '').toUpperCase(), k = `${f.flight}|${reg}`;
+    if (!reg || legs.has(k) || !(Number(f.pax) > 0)) continue;
+    legs.set(k, { flight: String(f.flight), reg, route: String(f.route || ''), arr: f.time, pax: Number(f.pax), guests: [] });
+  }
+  if (!legs.size) return [];
   const closest = (reg: string, flight: string, ref: number) => {
     let best: { d: number; flight: string } | null = null;
     for (const f of inbound) {
@@ -81,7 +88,7 @@ async function planeEvents(admin: any, positions: Pos[], day: string): Promise<s
     if (!arr || now - last > 15 * 60000) continue;
     const dep = etMs(day, (inbound.find((f) => String(f.flight) === String(L.flight)) || {}).dep || '');
     const code = String(L.route || '').split('-')[0], from = PLACE[code] || code, tail = L.reg.replace(/^N\d*/, '');
-    const who = L.guests.map((g) => `${g.name} (${[g.car, g.loc].filter(Boolean).join(', ')})`).join(' · ');
+    const who = L.guests.length ? L.guests.map((g) => `${g.name} (${[g.car, g.loc].filter(Boolean).join(', ')})`).join(' · ') : `No cars · ${L.pax} pax`;
     const inWin = (ms: number) => ms - arr > -120 * 60000 && ms - arr < 360 * 60000;
     const closing = sp.prev_dist_fxe_nm != null ? Number(sp.prev_dist_fxe_nm) > dist + 0.2 : sp.inbound;
     if (kt >= 40 && dist > 1 && (sp.inbound || closing)) {
@@ -92,7 +99,9 @@ async function planeEvents(admin: any, positions: Pos[], day: string): Promise<s
       }
     }
     // Shut down at FXE (the Caravan powers off at Customs) — a slow taxi with the tracker on is not a landing push.
-    const stopped = dist <= 3 && sp.track_status === 'POWER_OFF' && (!dep || last >= dep - 10 * 60000);
+    // The shutdown must end a real flight (track > 20 min): the short Customs → Hangar 19 hop is not a landing.
+    const flew = sp.departed_at ? last - Date.parse(sp.departed_at) > 20 * 60000 : true;
+    const stopped = dist <= 3 && sp.track_status === 'POWER_OFF' && flew && (!dep || last >= dep - 10 * 60000);
     if (stopped && inWin(last) && closest(L.reg, L.flight, last) && await once(k, 'LANDED')) {
       await notifyCategory(deps, 'DAILY', { title: `${tail} landed · at Customs`, body: `${from} → FXE · flight ${L.flight}\n${who}`, url: '/', tag: `plane-${k}-landed` });
       sent.push(`${k}:LANDED`);

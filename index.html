@@ -17008,6 +17008,20 @@ function tv4CheckLandings(){
     if(first) return;   // TV just opened: no flood of old landings
     tv4AlertPush({type:'land', who: who, sub: L.st.stage === 'customs' ? 'At Customs' : '', text: cars});
   });
+  // Owner 2026-11-06 (WM): Makers arrivals with no cars of ours get the same two alerts, "No cars · N pax".
+  tv4OtherLegs().forEach(function(L){
+    if(L.st.k !== 'landed') return;
+    var key = L.reg + '|' + L.flight + '|' + tvDayKeyOffset(0), who = L.tail + ' from ' + L.place + ' \u00b7 Flight ' + L.flight, txt = 'No cars \u00b7 ' + L.pax + ' pax';
+    if(L.st.stage === 'taxi' || L.st.stage === 'h19'){
+      var kt = key + '|h19', seenT = _tv4Al.landSeen[kt];
+      _tv4Al.landSeen[kt] = true;
+      if(!seenT && !first && _tv4Al.landSeen[key] && L.st.stage === 'taxi') tv4AlertPush({type:'h19', who: who, text: txt});
+    }
+    if(_tv4Al.landSeen[key]) return;
+    _tv4Al.landSeen[key] = true;
+    if(first) return;
+    tv4AlertPush({type:'land', who: who, sub: L.st.stage === 'customs' ? 'At Customs' : '', text: txt});
+  });
 }
 
 // ── MAIN RENDER ──────────────────────────────────────────────────────
