@@ -477,6 +477,7 @@
       <div class="fg"><label>Return Date <span style="color:var(--red)" id="retRequired">*</span></label>
         <input type="date" id="fReturn" style="width:100%;background:var(--s2);border:1px solid var(--b);border-radius:10px;padding:11px 14px;font-size:16px;color:var(--tx);outline:none;font-family:'Sora',sans-serif;box-sizing:border-box;">
         <button type="button" onclick="var d=new Date(),e=document.getElementById('fReturn');e.value=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');e.dispatchEvent(new Event('change',{bubbles:true}));" style="margin-top:6px;width:100%;background:var(--s2);border:1px solid var(--b);border-radius:10px;padding:9px 12px;font-size:14px;font-weight:600;color:var(--tx);font-family:'Sora',sans-serif;cursor:pointer;">✈︎ Day trip (back today)</button>
+        <label style="display:flex;align-items:center;gap:8px;margin-top:6px;font-size:14px;color:var(--tx);cursor:pointer;"><input type="checkbox" id="fKeyGuest" style="width:20px;height:20px;"> 🔑 Day trip: guest takes the key now</label>
       </div>
     </div>
     <div class="fr two">
@@ -2642,6 +2643,7 @@ function mapPassengerRow(r) {
     tip_received: r.tip_received===undefined ? null : r.tip_received,
     tip_in_person_cents: r.tip_in_person_cents||null,
     not_returning_with_makers_air: r.not_returning_with_makers_air||false,
+    key_with_guest: r.key_with_guest||false,
     archived_by: r.archived_by||'',
     archived_at: r.archived_at||'',
     previous_delivery_location: r.previous_delivery_location||'',
@@ -2972,6 +2974,7 @@ function renderTable() {
         (ro&&r.status!=='DELIVERED'?'<span class="tag t-late">LATE</span>':'')+
         (isApproxRecord(r)?'<span class="tag" style="background:rgba(201,168,76,0.15);color:var(--gold)">~APPROX</span>':'')+
         (isAscend(r)?'<span class="tag" style="background:rgba(99,179,237,0.15);color:#63b3ed">✈ ASCEND</span>':'')+
+        (r.key_with_guest&&r.status!=='DELIVERED'?'<span class="tag" style="background:rgba(201,168,76,0.15);color:var(--gold)" title="Day trip: the guest already has the key">🔑 KEY WITH GUEST</span>':'')+
         (notReturning?OTHER_BOAT_DASH_ICON_HTML:'')+
         (r.isOfflinePending?'<span class="tag" style="background:rgba(232,160,48,.18);color:#e8a030;font-weight:800" title="Saved locally, not yet on the server">🟠 PENDING SYNC</span>':'');
     // Authorized pickup: a tag in the table row, its own line on the phone card.
@@ -4122,6 +4125,7 @@ function openAdd(){
   document.getElementById('fPhone').value='';
   _autoTicket = getNextTicket();
   document.getElementById('fTicket').value = _autoTicket;
+  var fKg=document.getElementById('fKeyGuest'); if(fKg) fKg.checked=false;
   var fRet=document.getElementById('fReturn');
   if(fRet){
     fRet.value = '';
@@ -6747,6 +6751,7 @@ async function saveEntry(sendSms, printMode, opts){
     delivery_at_customs: deliveryAtCustoms,
     return_operator: returnOp,
     carwash_status: carwashStatus,
+    key_with_guest: !!(document.getElementById('fKeyGuest') && document.getElementById('fKeyGuest').checked),
     deldate: '',
     client_key: _checkinKey || newCheckinKey()
   };
@@ -7276,6 +7281,7 @@ async function ci2Create(withText){
   document.getElementById('fName').value = name;
   document.getElementById('fPhone').value = phone;
   document.getElementById('fReturn').value = _ci.ret;
+  var kg = document.getElementById('fKeyGuest'); if (kg) kg.checked = !!_ci.keyGuest && _ci.ret === ci2Iso(ci2AddDays(0));
   document.getElementById('fStatus').value = _ci.ret ? 'PENDING' : 'NO DATE';
   onStatusChange(_ci.ret ? 'PENDING' : 'NO DATE');
   var op = _ci.op === 'ASCEND' ? 'ASCEND' : 'MAKERS';
@@ -7398,7 +7404,7 @@ function ci2Done(){
 
 // ── Ticket card ──
 function ci2RetSummary(){
-  var s = _ci.ret ? (_ci.ret === ci2Iso(ci2AddDays(0)) ? 'Day trip · ' : '') + ci2Nice(_ci.ret) : (_ci.noDate ? 'No date' : 'Not set');
+  var s = _ci.ret ? (_ci.ret === ci2Iso(ci2AddDays(0)) ? 'Day trip · ' + (_ci.keyGuest ? '🔑 guest · ' : '') : '') + ci2Nice(_ci.ret) : (_ci.noDate ? 'No date' : 'Not set');
   var tm = ci2El('ci2Time') && ci2El('ci2Time').value;
   if (_ci.ret && tm) s += ' · ' + tm;
   if (_ci.other) s += ' · another airline';
@@ -7437,10 +7443,12 @@ function ci2RenderPick(box){
     + '<button type="button" data-nodate="1" aria-pressed="' + _ci.noDate + '">No date<small>Not known yet</small></button>'
     + '</div>'
     + '<div class="ci2-cal"' + (_ci.calOpen[n] ? '' : ' hidden') + '>' + (_ci.calOpen[n] ? ci2CalHtml(n) : '') + '</div>'
+    + (v === t0 ? '<p class="ci2-sub">Key</p><div class="ci2-rq" role="group" aria-label="Key"><button type="button" data-key="0" aria-pressed="' + !_ci.keyGuest + '">Team keeps key<small>We deliver the car</small></button><button type="button" data-key="1" aria-pressed="' + !!_ci.keyGuest + '">Guest has key<small>Handed over now</small></button></div>' : '')
     + '<p class="ci2-retnote' + (v ? ' set' : '') + '">' + (v === t0 ? 'Day trip — back today. The valet pass tells the guest which hangar to come back to.' : v ? 'Returns ' + ci2Nice(v, { weekday: 'long', month: 'long', day: 'numeric' }) : _ci.noDate ? 'Return not defined yet. Add it any time; the same pass updates.' : 'You can leave this empty.') + '</p>';
   box.querySelectorAll('[data-d]').forEach(function(b){ b.addEventListener('click', function(){ ci2SetRet(b.dataset.d); }); });
   box.querySelectorAll('[data-cal]').forEach(function(b){ b.addEventListener('click', function(){ _ci.calOpen[n] = !_ci.calOpen[n]; ci2RenderPickers(); }); });
   box.querySelectorAll('[data-nodate]').forEach(function(b){ b.addEventListener('click', ci2SetNoDate); });
+  box.querySelectorAll('[data-key]').forEach(function(b){ b.addEventListener('click', function(){ ci2SetKeyGuest(b.dataset.key === '1'); }); });
   box.querySelectorAll('[data-cd]').forEach(function(b){ b.addEventListener('click', function(){ ci2SetRet(b.dataset.cd); }); });
   box.querySelectorAll('[data-nav]').forEach(function(b){ b.addEventListener('click', function(){
     var base = _ci.calMonth[n] || (_ci.ret ? new Date(_ci.ret + 'T12:00:00') : ci2AddDays(0));
@@ -7473,6 +7481,15 @@ async function ci2SetRet(v){
   if (!_ci.created || (prev.ret === v && !prev.noDate)) return;
   if (await ci2SaveReturn(v)) ci2PassUpdated('Return date saved. Same valet pass updated, no new text.');
   else { _ci.ret = prev.ret; _ci.noDate = prev.noDate; ci2RenderPickers(); ci2RenderCard(); }
+}
+// Day trip key (owner 2026-11-06): team keeps it (several cars at once) or the guest takes it at drop-off.
+async function ci2SetKeyGuest(on){
+  var prev = !!_ci.keyGuest; _ci.keyGuest = !!on; ci2RenderPickers(); ci2RenderCard();
+  if (!_ci.created || prev === _ci.keyGuest) return;
+  if (ci2LocalOnly()) { ci2OfflinePatch({ key_with_guest: _ci.keyGuest }); return; }
+  if (await ci2Save({ key_with_guest: _ci.keyGuest }, 'ci2SRet', 'Day trip key: ' + (_ci.keyGuest ? 'guest has key' : 'team keeps key')))
+    ci2PassUpdated(_ci.keyGuest ? 'Guest has the key. Same valet pass, no new text.' : 'Team keeps the key. Same valet pass, no new text.');
+  else { _ci.keyGuest = prev; ci2RenderPickers(); ci2RenderCard(); }
 }
 async function ci2SetNoDate(){
   var prev = { ret: _ci.ret, noDate: _ci.noDate };

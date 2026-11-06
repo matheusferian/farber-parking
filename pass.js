@@ -149,7 +149,8 @@
   // ── Valet pass (boarding-pass layout, 2026-10-25; Concept C cards 2026-10-27) ──
   // Day trip (owner 2026-11-06): back the same day; tell the guest which hangar to come back to.
   function dayTripLine(p, lead) {
-    return lead + (p.day_trip_hangar ? 'come back to ' + esc(p.day_trip_hangar) + ' \u2014 your car is parked there.' : 'come back to the hangar. We\u2019ll show it here as soon as your car is parked.');
+    var h = esc(p.day_trip_hangar || 'Hangar 19');
+    return lead + (p.key_with_guest ? 'walk to ' + h + ' \u2014 your car is parked there and you already have your key.' : 'come back to ' + h + ' \u2014 your car is parked there.');
   }
   function statusInfo(p) {
     if (p.status === 'READY' && p.day_trip && p.ready_by_staff === false && !p.lockbox) {
@@ -190,7 +191,7 @@
   }
   function pickupText(p) {
     if (p.status === 'CUSTOMS_CONFIRMED') return 'Customs';
-    if (p.day_trip) return p.day_trip_hangar || '';
+    if (p.day_trip) return p.day_trip_hangar || 'Hangar 19';
     if (p.pickup === 'HANGAR_19') return 'Hangar 19';
     if (p.pickup === 'CUSTOMS_EXCEPTION' || p.pickup === 'CUSTOMS_ASCEND') return 'Customs';
     return '';
