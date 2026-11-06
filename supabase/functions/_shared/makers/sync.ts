@@ -17,7 +17,10 @@ export type SuiteLike = {
   trips(last: string, first?: string): Promise<Trip[]>;
 };
 export type HeldCar = Candidate & { checkin?: string | null };   // check-in day, YYYY-MM-DD
-export type FlightSummary = { flight: string; route: string; tail: string; time: string; pax: number };
+export type FlightSummary = { flight: string; route: string; tail: string; time: string; pax: number; ascend: boolean; day_trips?: number };
+// Ascend (Makers' charter brand) flights are numbered 99xx in Makers Air Suite (9948/9949 on 2026-11-06/07).
+// Owner to confirm the rule; the Suite reports carry no client name to tell otherwise.
+export const isAscendFlight = (flight: string) => /^99\d{2}$/.test(String(flight || '').trim());
 export type DateDiff = { passenger_id: number; ticket: string; system_name: string; ours: string | null; makers: string };
 export type NoReturn = { passenger_id: number; ticket: string; system_name: string; ours: string | null };
 export type NotFound = NoReturn;   // no Makers trip for this name around our check-in: staff look it up by hand
@@ -52,13 +55,20 @@ export async function runSync(suite: SuiteLike, o: { date: string; today: string
   const L = await legs(o.date), inPax = await arrivals(o.date), outPax = await suite.passengers(isoToMdy(o.date), { from: 'FXE' });
   // The report can list the same person twice (both legs of one booking): count each name once.
   const count = (rows: PaxRow[], f: string) => new Set(rows.filter((r) => r.flight === f).map((r) => `${r.last}|${r.first}`)).size;
-  const inbound: FlightSummary[] = L.filter((l) => l.to === 'FXE').map((l) => ({ flight: l.flight, route: `${l.from}-FXE`, tail: l.tail, time: l.arr, pax: count(inPax, l.flight) }))
+  const inbound: FlightSummary[] = L.filter((l) => l.to === 'FXE').map((l) => ({ flight: l.flight, route: `${l.from}-FXE`, tail: l.tail, time: l.arr, pax: count(inPax, l.flight), ascend: isAscendFlight(l.flight) }))
     .filter((f) => f.pax > 0).sort((a, b) => a.time.localeCompare(b.time));
-  const outbound: FlightSummary[] = L.filter((l) => l.from === 'FXE').map((l) => ({ flight: l.flight, route: `FXE-${l.to}`, tail: l.tail, time: l.dep, pax: count(outPax, l.flight) }))
-    .filter((f) => f.pax > 0).sort((a, b) => a.time.localeCompare(b.time));
+  // Departures: one line per flight (owner: destination only, no stops). Each passenger is counted once;
+  // a return booked the same day is a day trip.
+  const sameDay = (d: string) => { const m = d.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/); return !!m && `${m[3]}-${m[1].padStart(2, '0')}-${m[2].padStart(2, '0')}` === o.date; };
+  const outbound: FlightSummary[] = L.filter((l) => l.from === 'FXE').map((l) => {
+    const people = new Map<string, PaxRow>();
+    for (const r of outPax) if (r.flight === l.flight) people.set(`${r.last}|${r.first}`, r);
+    return { flight: l.flight, route: `FXE-${l.to}`, tail: l.tail, time: l.dep, pax: people.size, ascend: isAscendFlight(l.flight),
+      day_trips: [...people.values()].filter((r) => sameDay(r.retDate)).length };
+  }).filter((f) => f.pax > 0).sort((a, b) => a.time.localeCompare(b.time));
   const pages: ManifestPage[] = inbound.map((f) => ({
     flight_number: f.flight, manifest_date: isoToMdy(o.date).split('/').map((x, i) => i < 2 ? x.padStart(2, '0') : x).join('/'),
-    route: f.route, tail_number: f.tail, arrival_time: f.time, total_pax: f.pax, ascend_mark: false,
+    route: f.route, tail_number: f.tail, arrival_time: f.time, total_pax: f.pax, ascend_mark: f.ascend,
     passengers: inPax.filter((r, i, all) => r.flight === f.flight && all.findIndex((x) => x.flight === r.flight && x.last === r.last && x.first === r.first) === i)
       .map((r) => ({ last: r.last, first: r.first, middle: '', pnr: '', first_origin: r.from })),
   }));

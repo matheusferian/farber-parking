@@ -17157,7 +17157,8 @@ function mfRenderResult(){
       (d._done ? '<div class="mf-done">✓ Return date changed</div>' : '<div class="mf-acts"><button type="button" class="mf-btn mf-sm mf-pri" onclick="mfDateDiff(' + i + ')">Change return to ' + escapeHTML(fmtD(mfIsoToMdy(d.makers))) + '</button></div>') + '</article>';
   }).join('');
   var noRet = (r.no_return || []).map(function(x){ return '<article class="mf-card"><div class="mf-name"><b>' + escapeHTML(x.system_name) + '</b><span>' + escapeHTML(x.ticket) + '</span></div><div class="mf-line">Our return: ' + escapeHTML(mfRetTxt(x.ours)) + ' · Makers: no return flight booked</div></article>'; }).join('');
-  var flights = function(list, what){ return (list || []).map(function(f){ return '<li><b>' + escapeHTML(vpTime(f.time)) + '</b> — ' + f.pax + ' pax <span>' + escapeHTML(f.flight + ' ' + f.route + ' · ' + f.tail) + '</span></li>'; }).join(''); };
+  var flights = function(list, what){ return (list || []).map(function(f){ return '<li><b>' + escapeHTML(vpTime(f.time)) + '</b> — ' + f.pax + ' pax <span>' + escapeHTML(f.flight + ' ' + f.route + ' · ' + f.tail) + '</span>' + (mfIsAscend(f) ? '<span class="mf-chip mf-asc">Ascend</span>' : '') +
+      (mfDayTrips(f) ? '<span class="mf-chip mf-dt">' + mfDayTrips(f) + ' day trip</span>' : '') + '</li>'; }).join(''); };
   b.innerHTML =
     (r.robot
       ? '<p class="mf-sum"><b>' + escapeHTML(mfDay(r.manifest_date)) + '</b>' + (when ? ' · updated ' + escapeHTML(when) : '') + '<br>🛬 In: ' + (r.inbound || []).length + ' flights (' + pax(r.inbound) + ' pax) · 🛫 Out: ' + (r.outbound || []).length + ' flights (' + pax(r.outbound) + ' pax) · <b>' + (sur.length + ok.length + del.length) + ' of ours</b></p>'
@@ -17250,45 +17251,98 @@ var MF_AIRPORTS = { ASD: 'Fresh Creek', COX: 'Congo Town', GHC: 'Great Harbor Ca
   SAQ: 'San Andros', TYM: 'Staniel Cay', ELH: 'North Eleuthera', TBI: 'Cat Island', RSD: 'Rock Sound', CCZ: 'Chub Cay',
   SML: 'Long Island', MHH: 'Marsh Harbour', NAS: 'Nassau', GGT: 'Exuma', TCB: 'Treasure Cay', LGI: "Deadman's Cay", BIM: 'Bimini', ZSA: 'San Salvador' };
 function mfRound(g, x, y, w, h, r){ g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); }
+// Ascend (Makers' charter brand): 99xx flight numbers, marked with the Ascend logo (ascendmakersair.com).
+function mfIsAscend(f){ return f && (f.ascend === true || /^99\d{2}$/.test(String(f.flight || ''))); }
+// Owner: mark day trips only on the 6:45 AM flights and on Ascend flights.
+function mfDayTrips(f){ return f && f.day_trips > 0 && (f.time === '06:45' || mfIsAscend(f)) ? f.day_trips : 0; }
+var _mfAscendLogo = null;
+function mfAscendLogo(){
+  if (_mfAscendLogo) return _mfAscendLogo;
+  _mfAscendLogo = new Promise(function(ok){ var i = new Image(); i.onload = function(){ ok(i); }; i.onerror = function(){ ok(null); }; i.src = 'assets/ascend-logo.png'; });
+  return _mfAscendLogo;
+}
+// The bag tag as Makers prints it: a coloured block with the left corners cut and a punched hole.
+function mfBagTag(g, x, y, w, h, fill, outline){
+  var c = 14;
+  g.beginPath(); g.moveTo(x + c, y); g.lineTo(x + w - 8, y); g.arcTo(x + w, y, x + w, y + 8, 8); g.lineTo(x + w, y + h - 8); g.arcTo(x + w, y + h, x + w - 8, y + h, 8);
+  g.lineTo(x + c, y + h); g.lineTo(x, y + h - c); g.lineTo(x, y + c); g.closePath();
+  g.fillStyle = fill; g.fill();
+  if (outline) { g.strokeStyle = outline; g.lineWidth = 2; g.stroke(); }
+  g.beginPath(); g.arc(x + 12, y + h / 2, 4, 0, Math.PI * 2); g.fillStyle = '#FFFFFF'; g.fill();
+  if (outline) { g.strokeStyle = outline; g.lineWidth = 1.5; g.stroke(); }
+}
 async function mfDeparturesCanvas(r){
-  try { if (document.fonts && document.fonts.load) await Promise.all([document.fonts.load('700 40px Sora'), document.fonts.load('600 30px Sora'), document.fonts.load('500 28px Inter')]); } catch(e) {}
+  try { if (document.fonts && document.fonts.load) await Promise.all([document.fonts.load('700 46px Sora'), document.fonts.load('600 26px Sora'), document.fonts.load('600 32px Inter'), document.fonts.load('500 24px Inter')]); } catch(e) {}
   var list = (r.outbound || []).slice().sort(function(a, b){ return a.time.localeCompare(b.time); });
-  var W = 1080, P = 64, HEAD = 250, ROW = 118, FOOT = 190, H = HEAD + Math.max(1, list.length) * ROW + FOOT;
+  var ascLogo = list.some(mfIsAscend) ? await mfAscendLogo() : null;
+  var W = 1080, P = 56, HEAD = 232, ROW = 116, ROW_ASC = 168, FOOT = 176;
+  var rowH = function(f){ return mfIsAscend(f) ? ROW_ASC : ROW; };
+  var BODY = list.length ? list.reduce(function(a, f){ return a + rowH(f); }, 0) : ROW, H = HEAD + BODY + FOOT;
   var c = document.createElement('canvas'); c.width = W; c.height = H;
-  var g = c.getContext('2d'), NAVY = '#061433', GOLD = '#C9A84C', INK = '#0B1A33', MU = '#5A6B8C', LINE = '#E3E7EE';
+  var g = c.getContext('2d'), NAVY = '#061433', GOLD = '#C9A84C', INK = '#0B1A33', MU = '#5A6B8C', LINE = '#E3E7EE', TINT = '#F4F6FA';
   var total = list.reduce(function(a, f){ return a + f.pax; }, 0);
+  g.textBaseline = 'alphabetic';
   g.fillStyle = '#FFFFFF'; g.fillRect(0, 0, W, H);
+  // Header
   g.fillStyle = NAVY; g.fillRect(0, 0, W, HEAD);
-  g.fillStyle = GOLD; g.font = '600 30px Sora, sans-serif'; g.fillText('MAKERS AIR · FXE', P, 86);
-  g.fillStyle = '#FFFFFF'; g.font = '700 64px Sora, sans-serif'; g.fillText('Departures', P, 160);
-  g.fillStyle = '#C8D3E6'; g.font = '500 34px Inter, sans-serif';
+  g.fillStyle = GOLD; g.font = '600 28px Sora, sans-serif'; g.fillText('Makers Air at FXE', P, 78);
+  g.fillStyle = '#FFFFFF'; g.font = '700 66px Sora, sans-serif'; g.fillText('Departures', P, 150);
   var day = r.manifest_date ? new Date(r.manifest_date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }) : '';
-  g.fillText(day, P, 212);
+  g.fillStyle = '#C8D3E6'; g.font = '500 32px Inter, sans-serif'; g.fillText(day, P, 198);
+  // Columns: time (colons aligned) | bag tag + tail | destination | passengers
+  var COLON = 124, TAG_X = 274, TAG_W = 128, TAIL_W = 78, GAP = 8, TAG_H = 70, TEXT_X = TAG_X + TAG_W + GAP + TAIL_W + 28;
+  var y = HEAD;
   list.forEach(function(f, i){
-    var y = HEAD + i * ROW;
-    if (i % 2) { g.fillStyle = '#F6F8FB'; g.fillRect(0, y, W, ROW); }
-    g.fillStyle = INK; g.font = '700 46px Sora, sans-serif'; g.fillText(vpTime(f.time), P, y + 72);
-    var dest = f.route.replace(/^FXE-/, ''), place = MF_AIRPORTS[dest] || dest, tag = MF_TAGS[dest] || ['#E3E7EE', '#111111'];
-    // The tag: a small coloured label like the bag tag (white tags get a thin outline).
-    var tx = 330, tw = 150, th = 74, ty = y + (ROW - th) / 2, code = MF_TAG_CODE[dest] || dest;
-    g.fillStyle = tag[0]; mfRound(g, tx, ty, tw, th, 12); g.fill();
-    if (tag[0] === '#FFFFFF') { g.strokeStyle = '#9AA3B2'; g.lineWidth = 2; mfRound(g, tx, ty, tw, th, 12); g.stroke(); }
-    g.fillStyle = tag[1]; g.font = '700 ' + (code.length > 3 ? 34 : 40) + 'px Sora, sans-serif'; g.textAlign = 'center'; g.fillText(code, tx + tw / 2, ty + 51); g.textAlign = 'left';
-    g.font = '600 32px Inter, sans-serif'; g.fillStyle = INK; g.fillText(place, 510, y + 56);
-    g.font = '500 25px Inter, sans-serif'; g.fillStyle = MU; g.fillText('Flight ' + f.flight + ' · ' + f.tail, 510, y + 92);
-    var pax = f.pax + (f.pax === 1 ? ' pax' : ' pax');
-    g.font = '700 44px Sora, sans-serif'; g.fillStyle = NAVY; g.textAlign = 'right'; g.fillText(pax, W - P, y + 72); g.textAlign = 'left';
-    g.fillStyle = LINE; g.fillRect(P, y + ROW - 1, W - 2 * P, 1);
+    var rh = rowH(f), asc = mfIsAscend(f), mid = y + rh / 2;
+    if (i % 2) { g.fillStyle = TINT; g.fillRect(0, y, W, rh); }
+    // time: hour right-aligned on the colon, ":45" after it, AM/PM small
+    var tm = vpTime(f.time).match(/^(\d+)(:\d\d) (AM|PM)$/) || ['', vpTime(f.time), '', ''];
+    g.fillStyle = INK; g.font = '700 46px Sora, sans-serif';
+    g.textAlign = 'right'; g.fillText(tm[1], COLON, mid + 16); g.textAlign = 'left'; g.fillText(tm[2], COLON, mid + 16);
+    var mw = g.measureText(tm[2]).width; g.font = '600 22px Sora, sans-serif'; g.fillStyle = MU; g.fillText(tm[3], COLON + mw + 6, mid + 16);
+    // bag tag + tail suffix, same colour as the Makers tag
+    var dest = f.route.replace(/^FXE-/, ''), tag = MF_TAGS[dest] || ['#E3E7EE', '#111111'], code = MF_TAG_CODE[dest] || dest;
+    var outline = tag[0] === '#FFFFFF' ? '#8E98A9' : null, ty = mid - TAG_H / 2;
+    // tail suffix first (owner), then the bag tag of the destination, same colour
+    var tail = String(f.tail || '').replace(/^N\d*/, '') || String(f.tail || '').slice(-2), tx = TAG_X;
+    g.fillStyle = tag[0]; mfRound(g, tx, ty, TAIL_W, TAG_H, 8); g.fill();
+    if (outline) { g.strokeStyle = outline; g.lineWidth = 2; mfRound(g, tx, ty, TAIL_W, TAG_H, 8); g.stroke(); }
+    g.fillStyle = tag[1]; g.font = '700 ' + (tail.length > 2 ? 26 : 34) + 'px Sora, sans-serif'; g.textAlign = 'center'; g.fillText(tail, tx + TAIL_W / 2, mid + 12);
+    var bx = TAG_X + TAIL_W + GAP;
+    mfBagTag(g, bx, ty, TAG_W, TAG_H, tag[0], outline);
+    g.fillStyle = tag[1]; g.font = '700 ' + (code.length > 3 ? 30 : 36) + 'px Sora, sans-serif';
+    g.fillText(code, bx + 10 + (TAG_W - 10) / 2, mid + 13);
+    g.textAlign = 'left';
+    // destination, flight number, Ascend logo under them
+    var place = MF_AIRPORTS[dest] || dest, top = asc ? mid - 40 : mid - 4;
+    g.fillStyle = INK; g.font = '600 32px Inter, sans-serif'; g.fillText(place, TEXT_X, top);
+    g.fillStyle = MU; g.font = '500 24px Inter, sans-serif'; g.fillText('Flight ' + f.flight, TEXT_X, top + 34);
+    if (asc) {
+      g.fillStyle = NAVY; mfRound(g, TEXT_X, top + 48, 200, 44, 10); g.fill();
+      if (ascLogo) { var lh = 32, lw = lh * ascLogo.width / ascLogo.height; g.drawImage(ascLogo, TEXT_X + (200 - lw) / 2, top + 54, lw, lh); }
+      else { g.fillStyle = GOLD; g.font = '700 22px Sora, sans-serif'; g.fillText('ASCEND', TEXT_X + 52, top + 77); }
+    }
+    // passengers: big number, small "pax", right edge
+    var dts = mfDayTrips(f), pmid = dts ? mid - 10 : mid;
+    g.textAlign = 'right'; g.fillStyle = MU; g.font = '600 22px Sora, sans-serif'; g.fillText('pax', W - P, pmid + 16);
+    var pw = g.measureText('pax').width; g.fillStyle = NAVY; g.font = '700 50px Sora, sans-serif'; g.fillText(String(f.pax), W - P - pw - 10, pmid + 18);
+    if (dts) {   // passengers coming back the same day
+      g.font = '700 19px Sora, sans-serif'; var dl = dts + ' day trip', dw = g.measureText(dl).width + 18;
+      g.fillStyle = '#FFF1C7'; mfRound(g, W - P - dw, mid + 30, dw, 28, 14); g.fill();
+      g.fillStyle = '#7A5200'; g.textAlign = 'left'; g.fillText(dl, W - P - dw + 9, mid + 50); g.textAlign = 'right';
+    }
+    g.textAlign = 'left';
+    g.fillStyle = LINE; g.fillRect(P, y + rh - 1, W - 2 * P, 1);
+    y += rh;
   });
-  var fy = HEAD + Math.max(1, list.length) * ROW;
-  if (!list.length) { g.fillStyle = MU; g.font = '500 34px Inter, sans-serif'; g.fillText('No departures with passengers.', P, fy - 46); }
+  var fy = HEAD + BODY;
+  if (!list.length) { g.fillStyle = MU; g.font = '500 32px Inter, sans-serif'; g.fillText('No departures with passengers.', P, fy - 44); }
+  // Footer
   g.fillStyle = NAVY; g.fillRect(0, fy, W, FOOT);
-  g.fillStyle = '#FFFFFF'; g.font = '700 46px Sora, sans-serif'; g.fillText(total + ' passengers', P, fy + 82);
-  g.fillStyle = '#C8D3E6'; g.font = '500 30px Inter, sans-serif'; g.fillText(list.length + ' flights', P, fy + 130);
-  g.textAlign = 'right'; g.fillStyle = GOLD; g.font = '600 26px Inter, sans-serif';
-  g.fillText('Makers Air Valet · Farber Parking', W - P, fy + 82);
-  g.fillStyle = '#8FA0BF'; g.font = '500 24px Inter, sans-serif';
-  if (r.at) g.fillText('Makers list ' + new Date(r.at).toLocaleString('en-US', { weekday: 'short', hour: 'numeric', minute: '2-digit' }), W - P, fy + 126);
+  g.fillStyle = '#FFFFFF'; g.font = '700 46px Sora, sans-serif'; g.fillText(total + ' passengers', P, fy + 78);
+  g.fillStyle = '#C8D3E6'; g.font = '500 28px Inter, sans-serif'; g.fillText('on ' + list.length + ' flight' + (list.length === 1 ? '' : 's'), P, fy + 122);
+  g.textAlign = 'right'; g.fillStyle = GOLD; g.font = '600 26px Inter, sans-serif'; g.fillText('Makers Air Valet by Farber Parking', W - P, fy + 78);
+  if (r.at) { g.fillStyle = '#8FA0BF'; g.font = '500 22px Inter, sans-serif'; g.fillText('Makers list read ' + new Date(r.at).toLocaleString('en-US', { weekday: 'short', hour: 'numeric', minute: '2-digit' }), W - P, fy + 120); }
   g.textAlign = 'left';
   return c;
 }

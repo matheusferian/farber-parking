@@ -1,23 +1,28 @@
 // deno test supabase/functions/_shared/makers/  — synthetic names only.
 import { assertEquals } from 'jsr:@std/assert@1';
-import { HeldCar, pickTrip, runSync, SuiteLike } from './sync.ts';
+import { HeldCar, isAscendFlight, pickTrip, runSync, SuiteLike } from './sync.ts';
 import type { Leg, PaxRow, Trip } from './suite.ts';
 
 const LEGS: Leg[] = [
+  { date: '11/07/2026', dep: '06:45', arr: '07:40', flight: '123', from: 'FXE', to: 'RSD', tail: 'N146WM' },
+  { date: '11/07/2026', dep: '07:55', arr: '08:30', flight: '123', from: 'RSD', to: 'TYM', tail: 'N146WM' },
   { date: '11/07/2026', dep: '09:30', arr: '11:21', flight: '2407', from: 'COX', to: 'FXE', tail: 'N208JH' },
   { date: '11/07/2026', dep: '16:15', arr: '17:41', flight: '954', from: 'ELH', to: 'FXE', tail: 'N740RV' },
   { date: '11/07/2026', dep: '08:00', arr: '09:00', flight: '2404', from: 'FXE', to: 'COX', tail: 'N208JH' },
   { date: '11/07/2026', dep: '12:45', arr: '13:30', flight: '516', from: 'FXE', to: 'COX', tail: 'N146WM' },
 ];
 const IN: PaxRow[] = [
-  { date: '11/7/2026', flight: '2407', from: 'COX', to: 'FXE', last: 'GRASSETT', first: 'DAVID' },
-  { date: '11/7/2026', flight: '2407', from: 'COX', to: 'FXE', last: 'STRANGER', first: 'ANN' },
-  { date: '11/7/2026', flight: '954', from: 'ELH', to: 'FXE', last: 'DEEGAN', first: 'DOUG' },
+  { date: '11/7/2026', flight: '2407', from: 'COX', to: 'FXE', last: 'GRASSETT', first: 'DAVID', retDate: '' },
+  { date: '11/7/2026', flight: '2407', from: 'COX', to: 'FXE', last: 'STRANGER', first: 'ANN', retDate: '' },
+  { date: '11/7/2026', flight: '954', from: 'ELH', to: 'FXE', last: 'DEEGAN', first: 'DOUG', retDate: '' },
 ];
 const OUT: PaxRow[] = [
-  { date: '11/7/2026', flight: '2404', from: 'FXE', to: 'COX', last: 'A', first: 'B' },
-  { date: '11/7/2026', flight: '2404', from: 'FXE', to: 'COX', last: 'A', first: 'B' },   // same person twice (round trip)
-  { date: '11/7/2026', flight: '2404', from: 'FXE', to: 'COX', last: 'C', first: 'D' },
+  { date: '11/7/2026', flight: '123', from: 'FXE', to: 'RSD', last: 'R1', first: 'A', retDate: '11/7/2026' },
+  { date: '11/7/2026', flight: '123', from: 'FXE', to: 'TYM', last: 'T1', first: 'A', retDate: '11/9/2026' },
+  { date: '11/7/2026', flight: '123', from: 'FXE', to: 'TYM', last: 'T2', first: 'B', retDate: '' },
+  { date: '11/7/2026', flight: '2404', from: 'FXE', to: 'COX', last: 'A', first: 'B', retDate: '' },
+  { date: '11/7/2026', flight: '2404', from: 'FXE', to: 'COX', last: 'A', first: 'B', retDate: '' },   // same person twice (round trip)
+  { date: '11/7/2026', flight: '2404', from: 'FXE', to: 'COX', last: 'C', first: 'D', retDate: '' },
 ];
 const TRIPS: Record<string, Trip[]> = {
   DOCTOR: [{ last: 'DOCTOR', first: 'RANDALL', dep: '2026-11-01', depTime: '12:45', ret: '2026-11-13', retTime: '16:15' }],
@@ -49,7 +54,8 @@ Deno.test('evening run: tomorrow match + Makers return dates + departures', asyn
     ],
   });
   assertEquals(r.inbound.map((f) => `${f.flight} ${f.route} ${f.time} ${f.pax}`), ['2407 COX-FXE 11:21 2', '954 ELH-FXE 17:41 1']);
-  assertEquals(r.outbound.map((f) => `${f.flight} ${f.time} ${f.pax}`), ['2404 08:00 2']);
+  assertEquals(r.outbound.map((f) => `${f.flight} ${f.time} ${f.pax}`), ['123 06:45 3', '2404 08:00 2']);
+  assertEquals(r.outbound[0].day_trips, 1);   // R1 comes back the same day
   const g = r.match.matches.find((m) => m.passenger_id === 1)!;
   assertEquals([g.state, g.suggest_flight, g.suggest_time, g.suggest_name], ['ok', 'JH', '11:21', 'DAVID GRASSETT']);
   assertEquals(r.match.missing.map((m) => m.passenger_id).sort(), [2, 6]);
@@ -70,4 +76,8 @@ Deno.test('pickTrip: the trip around our check-in, never a surname-only match', 
   ];
   assertEquals(pickTrip(car(1, 'JON SMITH', null, { checkin: '2026-10-31' }), trips, '2026-11-06')?.ret, '2026-11-08');
   assertEquals(pickTrip(car(1, 'PAUL SMITH', null), trips, '2026-11-06'), null);
+});
+
+Deno.test('Ascend flights are the 99xx numbers', () => {
+  assertEquals([isAscendFlight('9948'), isAscendFlight('9949'), isAscendFlight('9218'), isAscendFlight('881'), isAscendFlight('99')], [true, true, false, false, false]);
 });

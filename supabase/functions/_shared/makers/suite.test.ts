@@ -24,8 +24,8 @@ Deno.test('Passenger Flight List → names only (no PNR, no return trip)', () =>
   const html = `<table><tr><td>1</td><td>11/7/2026</td><td>1534</td><td>MS1708</td><td>GHC</td><td>FXE</td><td>AMATO, ALFRED</td><td></td><td></td><td></td><td></td><td></td></tr>
     <tr><td>2</td><td>11/7/2026</td><td>9949</td><td>MS1460</td><td>COX</td><td>FXE</td><td>Schaad, Ian</td><td></td><td></td><td></td><td></td><td></td></tr></table>`;
   assertEquals(parsePassengers(html), [
-    { date: '11/7/2026', flight: '1534', from: 'GHC', to: 'FXE', last: 'AMATO', first: 'ALFRED' },
-    { date: '11/7/2026', flight: '9949', from: 'COX', to: 'FXE', last: 'SCHAAD', first: 'IAN' },
+    { date: '11/7/2026', flight: '1534', from: 'GHC', to: 'FXE', last: 'AMATO', first: 'ALFRED', retDate: '' },
+    { date: '11/7/2026', flight: '9949', from: 'COX', to: 'FXE', last: 'SCHAAD', first: 'IAN', retDate: '' },
   ]);
 });
 

@@ -8,7 +8,7 @@
 export const SUITE = 'https://makerssuite.com';
 
 export type Leg = { date: string; dep: string; arr: string; flight: string; from: string; to: string; tail: string };
-export type PaxRow = { date: string; flight: string; from: string; to: string; last: string; first: string };
+export type PaxRow = { date: string; flight: string; from: string; to: string; last: string; first: string; retDate: string };
 // View Reservation search result, reduced to what AirValet needs (no PNR, no date of birth).
 export type Trip = { last: string; first: string; dep: string; depTime: string; ret: string; retTime: string };
 
@@ -58,13 +58,14 @@ export function parseSchedule(html: string): Leg[] {
     .map((c) => ({ date: c[1], dep: to24(c[2]), arr: to24(c[3]), flight: c[5], from: c[6].toUpperCase(), to: c[7].toUpperCase(), tail: c[9].toUpperCase() }));
 }
 
-// Passenger Flight List grid: # | Date | Flight | PNR | From | TO | Pax Name ("LAST, FIRST") | Return … | Agent
-// Only date, flight, route and the name are kept (no PNR, no return trip, no agent).
+// Passenger Flight List grid: # | Date | Flight | PNR | From | TO | Pax Name ("LAST, FIRST") | Return Date | Return … | Agent
+// Only date, flight, route, name and the return DATE are kept (no PNR, no agent): the return date tells a day trip.
 export function parsePassengers(html: string): PaxRow[] {
   return rowsOf(html).filter((c) => c.length >= 7 && /^\d+$/.test(c[0]) && /^\d{1,2}\/\d{1,2}\/\d{4}$/.test(c[1]))
     .map((c) => {
       const [last, first] = c[6].split(',').map((s) => s.trim());
-      return { date: c[1], flight: c[2], from: c[4].toUpperCase(), to: c[5].toUpperCase(), last: (last || '').toUpperCase(), first: (first || '').toUpperCase() };
+      return { date: c[1], flight: c[2], from: c[4].toUpperCase(), to: c[5].toUpperCase(), last: (last || '').toUpperCase(), first: (first || '').toUpperCase(),
+        retDate: /^\d{1,2}\/\d{1,2}\/\d{4}$/.test(c[7] || '') ? c[7] : '' };
     }).filter((p) => p.last);
 }
 
