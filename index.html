@@ -16291,8 +16291,8 @@ function tvMakersColumnHtml(label, dayKey, rowH, maxRows, withStatus){
   var rows = (hidden ? '<div class="mk-row mk-folded"><span>&#10003; '+hidden+' DEPARTED EARLIER</span></div>' : '') +
     shown.map(function(f){ return tvMakersRowHtml(f, dayKey, nextKey, withStatus); }).join('') +
     (later ? '<div class="mk-row mk-folded"><span>+ '+later+' MORE LATER</span></div>' : '');
-  return '<section class="mk-col'+(withStatus ? ' mk-col-today' : '')+'">'+head(sub)+
-    '<div class="mk-rows" style="--mk-row:'+rowH+'px">'+rows+'</div></section>';
+  return '<section class="mk-col'+(withStatus ? ' mk-col-today' : '')+'" style="--mk-row:'+rowH+'px">'+head(sub)+
+    '<div class="mk-rows">'+rows+'</div></section>';
 }
 function tvMakersTickerHtml(todayKey, tomorrowKey){
   var bits = [];
