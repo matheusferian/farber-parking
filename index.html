@@ -16637,9 +16637,42 @@ function tv4CaravanSvg(reg){
    '<path d="M372 73 C379 74 382 76 383 78 C382 80 379 82 372 83 Z" fill="#123A7A"/></svg>';
 }
 function tv4Chip(code, tail){ return '<span class="tv4-mini" style="'+tvMakersTag(code)+'">'+escapeHTML(tail)+'</span>'; }
+// Passengers on board (robot count) for a flight coming to FXE today.
+function tv4InboundPax(flight, reg){
+  var day = tvMakersDay(tvDayKeyOffset(0)), list = (day && day.inbound) || [];
+  for(var i = 0; i < list.length; i++){ if(String(list[i].flight) === String(flight) && (!reg || String(list[i].tail).toUpperCase() === String(reg).toUpperCase())) return Number(list[i].pax) || 0; }
+  return null;
+}
+// Other Makers flights coming to FXE with passengers but none of our cars (owner 2026-11-06: "WM is coming
+// too — show it, no cars, N passengers"). Same window as ours: in the air, landed <= 30 min, leaving <= 1 h.
+function tv4OtherLegs(){
+  var day = tvMakersDay(tvDayKeyOffset(0)); if(!day || !day.inbound) return [];
+  var ours = {}; tv4InboundLegs().forEach(function(L){ ours[L.flight + '|' + String(L.reg).toUpperCase()] = true; });
+  var now = Date.now();
+  return day.inbound.filter(function(f){ return !ours[f.flight + '|' + String(f.tail).toUpperCase()] && Number(f.pax) > 0; }).map(function(f){
+    var code = String(f.route || '').split('-')[0];
+    var o = {flight:f.flight, route:f.route, registration:String(f.tail).toUpperCase(), arrival_time:f.time, dep_time:f.dep, ascend:f.ascend};
+    return {o:o, flight:f.flight, reg:o.registration, tail:tvMakersTailSuffix(f.tail), code:code, pax:Number(f.pax) || 0,
+      place:(typeof MF_AIRPORTS !== 'undefined' && MF_AIRPORTS[code]) || code, arr12:tv412(f.time), dep12:tv412(f.dep), st:tv4LegState(o)};
+  }).filter(function(L){
+    if(L.st.k === 'live' || L.st.k === 'way') return true;
+    if(L.st.k === 'landed') return L.st.mins <= 30;
+    if(L.st.k === 'sched') return L.st.dep && L.st.dep - now <= 60 * 60000;
+    return false;
+  }).sort(function(a, b){ return String(a.o.arrival_time).localeCompare(String(b.o.arrival_time)); }).slice(0, 4);
+}
+function tv4OtherRow(L){
+  var st = L.st, s;
+  if(st.k === 'live') s = '<span class="tv4-fst tv4-live"><i></i>LIVE &middot; ETA '+(st.eta != null ? st.eta+' MIN' : 'SOON')+'</span>';
+  else if(st.k === 'way') s = '<span class="tv4-fst tv4-way"><i></i>ON THE WAY &middot; LANDS '+L.arr12+'</span>';
+  else if(st.k === 'landed') s = '<span class="tv4-fst tv4-landed"><i></i>LANDED '+st.mins+' MIN AGO</span>';
+  else s = '<span class="tv4-fst">LEAVES '+L.dep12+'</span>';
+  return '<div class="tv4-oth">'+tv4Chip(L.code, L.tail)+tv4Chip(L.code, (typeof MF_TAG_CODE !== 'undefined' && MF_TAG_CODE[L.code]) || L.code)+
+    '<b>'+escapeHTML(L.place)+' &rarr; FXE</b><span class="tv4-nocars">NO CARS &middot; '+L.pax+' PAX</span>'+s+'</div>';
+}
 function tv4AirHtml(){
-  var legs = tv4PanelLegs(); if(!legs.length) return '';
-  var html = '<div class="tv4-air"><div class="tv4-air-h"><b>IN THE AIR &middot; TO FXE</b><span>radar where it reaches, Makers schedule before that</span></div>';
+  var legs = tv4PanelLegs(), others = tv4OtherLegs(); if(!legs.length && !others.length) return '';
+  var html = '<div class="tv4-air"><div class="tv4-air-h"><b>IN THE AIR &middot; TO FXE</b><span>satellite / radar, Makers schedule before that</span></div>';
   legs.forEach(function(L){
     var st = L.st, stHtml, meta = [];
     if(st.k === 'live'){ stHtml = '<span class="tv4-fst tv4-live"><i></i>LIVE'+(st.src === 'sat' ? ' &middot; SATELLITE' : '')+'</span>';
@@ -16651,6 +16684,7 @@ function tv4AirHtml(){
     else { stHtml = '<span class="tv4-fst">SCHEDULED</span>'; meta.push('leaves '+escapeHTML(L.place)+' <b>'+L.dep12+'</b>'); meta.push('lands <b>'+L.arr12+'</b>'); }
     var p = st.k === 'landed' ? 1 : (st.p || 0);
     var who = L.guests.map(function(r){ return escapeHTML(tvShortName(r.name)); }).join(', ');
+    var onb = tv4InboundPax(L.flight, L.reg); if(onb) meta.push('<b>'+onb+' pax</b> on board');
     html += '<div class="tv4-fc'+(st.k === 'live' || st.k === 'way' ? ' tv4-moving' : '')+'" style="--p:'+p.toFixed(3)+'">'+tv4CaravanSvg(L.reg)+
       '<div class="tv4-fc-top">'+tv4Chip(L.code, L.tail)+tv4Chip(L.code, (typeof MF_TAG_CODE !== 'undefined' && MF_TAG_CODE[L.code]) || L.code)+
         '<b>'+escapeHTML(L.place)+' &rarr; FXE</b>'+(L.ascend ? '<img src="assets/ascend-logo.png" alt="Ascend">' : '')+stHtml+'</div>'+
@@ -16660,6 +16694,7 @@ function tv4AirHtml(){
         '<span class="tv4-dst"><img src="assets/makers-air-logo-white.png" alt="Makers Air"><small>FXE</small></span></div>'+
       '<div class="tv4-fc-meta">'+meta.map(function(m){ return '<span>'+m+'</span>'; }).join('')+(who ? '<span class="tv4-who">&#128663; '+who+'</span>' : '')+'</div></div>';
   });
+  if(others.length) html += '<div class="tv4-oth-h">Other Makers arrivals</div>' + others.map(tv4OtherRow).join('');
   return html + '</div>';
 }
 // Pill on each Leaving Today card: where the guest's aircraft is.
@@ -16792,7 +16827,7 @@ function tvBuildTodayPages(vm){
     cHtml = cList.map(tv4CheckedCard).join('') + '<div class="tv4-more">+ '+cMore+' earlier check-ins</div>';
     cFit = tv4Fit(cHtml, rightW, cH, .55);
   }
-  var legs = air ? tv4PanelLegs().length : 0;
+  var legs = air ? tv4PanelLegs().length + tv4OtherLegs().length * .5 : 0;
   return [{kind:'today', sub:0, of:1, fitTier:'v4 '+lFit.cols+'c '+Math.round(lFit.s * 100)+'% / '+cFit.cols+'c '+Math.round(cFit.s * 100)+'%',
     dwell: Math.min(45, 12 + 0.7 * vm.leavingTodayRemaining.length + 0.25 * vm.checkedInToday.length + 3 * legs) * 1000,
     render:function(bodyEl){
