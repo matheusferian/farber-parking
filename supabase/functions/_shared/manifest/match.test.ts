@@ -94,3 +94,13 @@ Deno.test('unknown registration is kept whole', () => {
   assertEquals(flightValueFor('N999ZZ'), 'N999ZZ');
   assert(jaroWinkler('MATHEUS', 'MATEUS') > 0.9);
 });
+
+Deno.test('a typo on the manifest (digit) never becomes a name correction', () => {
+  const r = matchManifest([page('882', 'N310CH', '11:21', [P('BAKER', '7RACY', 'HILTON')])], [C(1, 'TRACY BAKER', '11/6/2026')], []);
+  assertEquals(r.matches[0].passenger_id, 1);
+  assertEquals(r.matches[0].suggest_name, null);
+});
+
+Deno.test('our first name equal to a manifest surname is not a match', () => {
+  assertEquals(matchManifest([page('413', 'N624JR', '14:15', [P('JORDAN', 'MITCHELL')])], [C(1, 'JORDAN PREUSZ', '11/8/2026')], []).matches.length, 0);
+});

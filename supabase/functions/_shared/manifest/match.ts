@@ -120,7 +120,10 @@ export function scoreName(sysName: string, p: ManifestPassenger): Score | null {
     return null;
   };
   const a = tryOrder(sys[0], sys.slice(1));
-  const b = tryOrder(sys[sys.length - 1], sys.slice(0, -1));   // typed "LAST FIRST"
+  let b = tryOrder(sys[sys.length - 1], sys.slice(0, -1));     // typed "LAST FIRST"
+  // Reversed order only when the first name also fits: our first name equal to a manifest surname
+  // ("JORDAN PREUSZ" vs "MITCHELL JORDAN") is a coincidence, not a match.
+  if (b && b.kind === 'surname_only') b = null;
   if (!a) return b;
   if (!b) return a;
   return b.score > a.score + 0.05 ? b : a;
@@ -197,7 +200,8 @@ export function matchManifest(pages: ManifestPage[], candidates: Candidate[], fe
       state, ret: cand.ret, manifest_date: md, operator: cand.return_operator || null,
       flight_number: page.flight_number, route: page.route, registration: reg, arrival_time: tv,
       day_trip: String(p.first_origin || '').toUpperCase() === 'FXE', ascend: !!page.ascend_mark,
-      suggest_name: joinNorm(mName) !== joinNorm(cand.name) && pr.s.kind !== 'surname_only' ? mName : null,
+      // The manifest spelling wins, except when it is itself a typo (a digit: "7RACY"): then ours stays.
+      suggest_name: joinNorm(mName) !== joinNorm(cand.name) && pr.s.kind !== 'surname_only' && !/[0-9]/.test(mName) ? mName : null,
       suggest_flight: fv && curFReg !== reg ? fv : null,
       suggest_time: tv && normTime(curT) !== tv ? tv : null,
       current_flight: curF, current_time: curT,
