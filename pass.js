@@ -142,7 +142,7 @@
     var names = ['Checked in', 'Parked', 'Ready', 'Delivered'];
     // Day trip, key handed to the guest at drop-off (owner 2026-11-06): no Ready / Delivered steps.
     if (p.day_trip && p.key_with_guest && p.status !== 'DELIVERED') { names = ['Checked in', 'Parked', 'Key handed over']; at = 3; }
-    return '<ol class="tl tl-' + at + '" aria-label="Progress">' + names.map(function (n, i) {
+    return '<ol class="tl tl-' + at + (names.length === 3 ? ' tl-n3' : '') + '" aria-label="Progress">' + names.map(function (n, i) {
       var c = i < at || (at === 3) ? 'done' : i === at ? 'now' : '';
       return '<li class="' + c + '"' + (i === at ? ' aria-current="step"' : '') + '><span class="dot" aria-hidden="true"></span>' + n + '</li>';
     }).join('') + '</ol>';
@@ -154,8 +154,7 @@
     // Owner 2026-11-06: same wording as the team's standard Welcome Back message.
     var h = esc(p.day_trip_hangar || 'Hangar 19');
     return 'After clearing U.S. Customs, please remain with your pilots and return to Makers Air at ' + h + ', where your vehicle will be ready and waiting for you.' +
-      (p.key_with_guest ? ' You already have your key.' : '') +
-      ' <strong>Please do not exit through the U.S. Customs terminal, as transportation back to Makers Air is not available from that location.</strong>';
+      '';
   }
   function statusInfo(p) {
     if (p.status === 'READY' && p.day_trip && p.ready_by_staff === false && !p.lockbox) {
@@ -211,10 +210,11 @@
     var st = statusInfo(p), done = p.status === 'DELIVERED';
     var html = '<div class="pass tone-' + st.tone + '" role="region" aria-label="Your valet pass">' +
       '<section class="card tcard">' +
-        '<p class="lbl">Your valet pass</p>' +
+        '<div class="tc-top"><p class="lbl">Your valet pass</p><p class="pass-status"><i aria-hidden="true"></i>' + esc(st.word) + '</p></div>' +
         '<p class="pass-car">' + (p.vehicle ? esc(niceVehicle(p.vehicle)) : 'Vehicle details will be updated soon.') + '</p>' +
-        '<p class="pass-status"><i aria-hidden="true"></i>' + esc(st.word) + '</p>' +
         '<p class="pass-line">' + st.line + '</p>' +
+        (p.day_trip && p.key_with_guest && !done ? '<p class="keychip"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="12" r="4.2"/><path d="M12 12h9M18 12v3.2M21 12v2.4"/></svg>You already have your key</p>' : '') +
+        (p.day_trip && !done && p.status !== 'CUSTOMS_CONFIRMED' ? '<p class="callout" role="note"><b>Please do not exit through the U.S. Customs terminal.</b> Transportation back to Makers Air is not available from that location.</p>' : '') +
         progress(p) +
       '</section>';
     if (done) {
@@ -354,7 +354,7 @@
     html += '<p class="contact-line">Questions? <a href="' + esc(tel(contactValet(p))) + '">Call ' + esc(contactValet(p)) + '</a></p>' +
       (c.reservations_phone ? '<p class="fine">Flights: <a href="' + esc(tel(c.reservations_phone)) + '">Makers Air ' + esc(c.reservations_phone) + '</a></p>' : '');
     // Operator credit (owner 2026-10-25): Farber Parking badge + office phone in the footer only.
-    html += '<footer><img class="foot-logo" src="assets/makers-air-valet-by-farber-blue.png" alt="Makers Air Valet by Farber Parking" width="220" height="77">' +
+    html += '<footer>' +
       '<div class="operator"><img src="assets/farber-parking-badge.png" alt="Farber Parking" width="44" height="44">' +
       '<div><p>Operated by Farber Parking</p><p><a href="tel:+15617740494">(561) 774-0494</a></p></div></div>' +
       '<p>Makers Air Valet, Hangar 19, Fort Lauderdale</p>' +

@@ -228,3 +228,24 @@ footer a,footer .flink{display:inline-flex;align-items:center;min-height:44px;pa
 /* Concept C cards (2026-10-27): the other blocks match the pass cards */
 .list,.hours,.grat{border:1px solid var(--line);box-shadow:var(--shadow)}
 .hours{margin:0}
+
+/* ── Valet Pass v2 (owner approved 2026-11-06): one logo, left-aligned ticket card, day trip callout + key chip ── */
+.hero{padding:calc(1.1rem + env(safe-area-inset-top)) 1.2rem 3.3rem}
+.hero-logo{width:min(13.5rem,62vw)}
+.sky{margin-top:0;height:84px}
+.hello{font-size:1.55rem}
+.hello-sub{font-size:.9rem}
+.tcard{text-align:left;padding:1.15rem 1.2rem 1.2rem}
+.tc-top{display:flex;align-items:center;justify-content:space-between;gap:.75rem}
+.tc-top .pass-status{margin:0;padding:.34rem .8rem;font-size:.88rem}
+.pass-car{margin:.7rem 0 0;font-size:1.35rem;line-height:1.25;letter-spacing:-.005em}
+.pass-line{margin:.45rem 0 0;max-width:none;font-size:1rem;line-height:1.5;color:#33415C}
+.keychip{display:inline-flex;align-items:center;gap:.45rem;margin:.8rem 0 0;padding:.4rem .8rem;border-radius:999px;background:var(--ok-bg);color:var(--ok-ink);font:600 .9rem/1.2 Inter,sans-serif}
+.keychip svg{width:1.05rem;height:1.05rem;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round}
+.callout{margin:.8rem 0 0;padding:.75rem .9rem;border-radius:.85rem;background:var(--amber-bg);color:var(--amber-ink);border-left:3px solid var(--accent);font-size:.95rem;line-height:1.45}
+.callout b{display:block;color:#4A2E00}
+.tl{margin-top:1.2rem}
+.tl-n3 li{width:5.2rem}
+.tl-n3::before{left:2.6rem;right:2.6rem}.tl-n3.tl-3::after{left:2.6rem;width:calc(100% - 5.2rem)}
+footer{align-items:center;text-align:center;gap:.35rem}
+.operator{justify-content:center;text-align:left}
