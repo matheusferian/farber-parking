@@ -119,15 +119,15 @@ function previewStore(over: Partial<SmsStore> = {}): SmsStore & { claims: number
   return s;
 }
 const ops = { userId: 'u', role: 'IPAD_OPS' as const, name: 'Ana' };
-Deno.test('preview: exact D1 text, dots for the token (same length), 1 segment, cost, no claim/mint/send', async () => {
+Deno.test('preview: exact check-in text (2026-11-06), dots for the token (same length), 2 segments, cost, no claim/mint/send', async () => {
   const store = previewStore();
   const provider = new MockProvider();
   const deps: SendDeps = { mode: 'live', store, provider, allowlist: [], passBaseUrl: 'https://airvalet.farberos.com/a#' };
   const p = await previewAirValetSms(deps, { passengerId: 1, type: 'CHECK_IN', actor: ops });
   assertEquals(p.ok, true);
-  assertEquals(p.body, 'Welcome to Makers Air Valet!\nYour vehicle has been checked in.\nYour digital valet pass:\nhttps://airvalet.farberos.com/a#' + '•'.repeat(17) + '\nReply STOP to opt out.');
-  assertEquals(p.segments, 1); assertEquals(p.encoding, 'GSM-7'); assertEquals(p.chars, 160);
-  assertEquals(p.estimated_cost_usd, 0.0113);
+  assertEquals(p.body, 'Welcome to Makers Air Valet!\nYour vehicle has been checked in.\nYour digital valet pass:\nhttps://airvalet.farberos.com/a#' + '•'.repeat(17) + '\nMsg & data rates may apply. Reply HELP for help, STOP to opt out.');
+  assertEquals(p.segments, 2); assertEquals(p.encoding, 'GSM-7'); assertEquals(p.chars, 203);
+  assertEquals(p.estimated_cost_usd, 0.0226);
   assertEquals(p.to, '+13055550142');
   assertEquals(p.would_send, true);
   assertEquals(store.claims, 0); assertEquals(store.mints, 0); assertEquals(provider.calls.length, 0);
