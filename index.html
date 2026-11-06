@@ -16712,7 +16712,7 @@ function tv4OtherRow(L){
     : '<span class="tv4-fst tv4-landed"><i></i>'+(st.stage === 'h19' ? 'AT HANGAR 19' : st.stage === 'customs' ? 'AT CUSTOMS' : 'LANDED '+st.mins+' MIN AGO')+'</span>';
   else s = '<span class="tv4-fst">LEAVES '+L.dep12+'</span>';
   return '<div class="tv4-oth">'+tv4Chip(L.code, L.tail)+tv4Chip(L.code, (typeof MF_TAG_CODE !== 'undefined' && MF_TAG_CODE[L.code]) || L.code)+
-    '<b>'+escapeHTML(L.place)+' &rarr; FXE</b><span class="tv4-nocars">NO CARS &middot; '+L.pax+' PAX</span>'+s+'</div>';
+    '<b>'+escapeHTML(L.place)+' &rarr;</b><img class="tv4-mkw" src="assets/makers-air-logo-white.png" alt="Makers Air (FXE)"><span class="tv4-nocars">NO CARS &middot; '+L.pax+' PAX</span>'+s+'</div>';
 }
 function tv4AirHtml(){
   var legs = tv4PanelLegs(), others = tv4OtherLegs(); if(!legs.length && !others.length) return '';
@@ -16734,7 +16734,7 @@ function tv4AirHtml(){
     var onb = tv4InboundPax(L.flight, L.reg); if(onb) meta.push('<b>'+onb+' pax</b> on board');
     html += '<div class="tv4-fc'+(st.k === 'live' || st.k === 'way' ? ' tv4-moving' : '')+'" style="--p:'+p.toFixed(3)+'">'+tv4CaravanSvg(L.reg)+
       '<div class="tv4-fc-top">'+tv4Chip(L.code, L.tail)+tv4Chip(L.code, (typeof MF_TAG_CODE !== 'undefined' && MF_TAG_CODE[L.code]) || L.code)+
-        '<b>'+escapeHTML(L.place)+' &rarr; FXE</b>'+(L.ascend ? '<img src="assets/ascend-logo.png" alt="Ascend">' : '')+stHtml+'</div>'+
+        '<b>'+escapeHTML(L.place)+' &rarr;</b><img class="tv4-mkw" src="assets/makers-air-logo-white.png" alt="Makers Air (FXE)">'+(L.ascend ? '<img src="assets/ascend-logo.png" alt="Ascend">' : '')+stHtml+'</div>'+
       // Owner 2026-11-06: island bag tag on the left, the Makers Air logo (original) at FXE on the right.
       '<div class="tv4-route"><span class="tv4-bagtag" style="'+tvMakersTag(L.code)+'">'+escapeHTML((typeof MF_TAG_CODE !== 'undefined' && MF_TAG_CODE[L.code]) || L.code)+'</span>'+
         '<span class="tv4-track"><span class="tv4-done"></span><span class="tv4-pl">&#9992;</span></span>'+
@@ -16851,6 +16851,18 @@ function tv4Fit(html, w, h, minS, maxScale, minCols){
   if(!best) best = opts.reduce(function(a, b){ return b.s > a.s ? b : a; });
   probe.innerHTML = '';
   return best;
+}
+// The off-screen measure can be a little short of the real screen (fonts, badges). Once a page is visible,
+// shrink its lists until they really fit (owner photo 2026-11-06: last check-in cut at the bottom).
+function tv4PostFit(root){
+  if(!root) return;
+  Array.prototype.forEach.call(root.querySelectorAll('.tv4-fitbox'), function(box){
+    var inner = box.querySelector('.tv4-fit-in'); if(!inner || !box.clientHeight) return;
+    var s = parseFloat(inner.style.getPropertyValue('--s')) || 1, guard = 0;
+    while((inner.scrollHeight > box.clientHeight + 1 || inner.scrollWidth > box.clientWidth + 1) && s > .3 && guard++ < 30){
+      s = Math.round(s * 95) / 100; inner.style.setProperty('--s', s);
+    }
+  });
 }
 function tv4FitWrap(html, fit, empty){
   if(!html) return '<div class="tv-empty">'+empty+'</div>';
@@ -16994,7 +17006,7 @@ function tvDoRender(){
   tvShowPage(_tv.currentPage);
   pages.forEach(function(pg, i){
     var bodyEl = document.getElementById('tvPageBody'+i);
-    if(bodyEl) pg.render(bodyEl);
+    if(bodyEl){ pg.render(bodyEl); if(i === _tv.currentPage) tv4PostFit(bodyEl); }
   });
   tvVerifyNoOverflow();
 }
@@ -17789,6 +17801,7 @@ function tvShowPage(idx){
     var p = document.getElementById('tvPage'+i);
     if(p) p.classList.toggle('tv-page-active', i===idx);
   }
+  try { tv4PostFit(document.getElementById('tvPageBody'+idx)); } catch(e) {}
   // Makers Departures: the whole board flips once each time the page comes up.
   if(_tv.lastShownPage !== idx && _tv.pageKinds && _tv.pageKinds[idx] === 'makers'){
     var mkBody = document.getElementById('tvPageBody'+idx);

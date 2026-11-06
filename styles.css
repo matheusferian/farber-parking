@@ -2970,3 +2970,4 @@ img.mk-asc{height:calc(var(--r)*.24);border:0;padding:0;}
 .mk-row,.mk-cols{grid-template-columns:calc(var(--r,var(--mk-row,56px))*3.0) calc(var(--r,var(--mk-row,56px))*2.0) minmax(0,1fr) calc(var(--r,var(--mk-row,56px))*.9);}
 .mk-col-today .mk-row,.mk-cols.mk-cols-st{grid-template-columns:calc(var(--r,var(--mk-row,56px))*3.0) calc(var(--r,var(--mk-row,56px))*2.0) minmax(0,1fr) calc(var(--r,var(--mk-row,56px))*.9) calc(var(--r,var(--mk-row,56px))*1.95);}
 .mk-time small{font-weight:700;color:#C8D3E6;}
+.tv4-fc-top .tv4-mkw,.tv4-oth .tv4-mkw{height:15px;width:auto;flex-shrink:0;}
