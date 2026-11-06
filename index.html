@@ -2288,7 +2288,7 @@ function buildDashboardTicketXml(r) {
     + ''
     // ── Ticket number (reduced width for portrait) ────────────────
     + '<text align="center">TICKET #&#10;</text>'
-    + '<text align="center" height="8" width="4">' + r.ticket + '&#10;</text>'
+    + '<text align="center" height="8" width="4">' + escapeHTML(String(r.ticket||'')) + '&#10;</text>'   // audit #33
     + '<text align="left" height="1" width="1">----------------&#10;</text>'
     // ── Return date (reduced width for portrait) ──────────────────
     + '<text align="center">RETURN&#10;</text>'
@@ -4050,11 +4050,18 @@ function vsRenderWorking(){
   wrap.innerHTML=html;
 }
 
+var _vsClockInBusy=false;   // audit 2026-11-06 (#27): one Clock In at a time (double tap on a slow network)
 async function vsClockIn(){
+  if(_vsClockInBusy) return;
   var name=(document.getElementById('vsName').value||'').trim().toUpperCase();
   var timeIn=document.getElementById('vsTimeIn').value;
   if(!name){showMsg('Valet name is required.',true);return;}
   var date=vsBusinessDateET();
+  _vsClockInBusy=true;
+  try{
+    var chk=await fetch(SUPABASE_URL+'/rest/v1/valet_shifts?select=id&valet_name=eq.'+encodeURIComponent(name)+'&business_date=eq.'+date+'&clock_out_at=is.null&limit=1',{headers:sbHeaders()});
+    if(chk.ok){ var open=await chk.json(); if(open&&open.length){ showMsg(name+' is already clocked in today.',true); _vsClockInBusy=false; return; } }
+  }catch(e){ /* the check is a convenience; the save below still runs */ }
   var payload={
     valet_name:name,
     business_date:date,
@@ -4077,6 +4084,7 @@ async function vsClockIn(){
     console.error('vsClockIn error',e);
     showMsg('Clock In failed: '+e.message,true);
   }
+  _vsClockInBusy=false;
 }
 
 function vsStartClockOut(shiftId){
@@ -6716,6 +6724,12 @@ async function saveEntry(sendSms, printMode, opts){
   var v2=!!(opts&&opts.v2);
   var name=document.getElementById('fName').value.trim();
   var ticket=document.getElementById('fTicket').value.trim();
+  // Audit 2026-11-06 (#31): the automatic number was picked when the form opened. If the day changed since
+  // (form opened 11:58 PM, saved after midnight), take today's next number instead.
+  if(ticket && ticket===_autoTicket){
+    var _tFresh=(document.getElementById('fTicket').dataset.op==='ASCEND'||/^A-/.test(ticket))?getNextAscendTicket():getNextTicket();
+    if(_tFresh && _tFresh.split('-').slice(-2,-1)[0]!==ticket.split('-').slice(-2,-1)[0]){ ticket=_tFresh; _autoTicket=_tFresh; document.getElementById('fTicket').value=_tFresh; }
+  }
   if(!name||!ticket){alert('Name and Ticket required.');return {ok:false};}
   var status0=document.getElementById('fStatus').value;
   var retVal=document.getElementById('fReturn').value;
@@ -7729,7 +7743,8 @@ async function ci2TipSave(){
   var c = tipQuickCents(ci2El('ci2Tip'));
   if (c === null) return say('Pick an amount or type it.', true);
   if (c === false) return say(TIP_FIX_TEXT.INVALID, true);
-  _ci.tipBusy = true; _ci.tipKey = _ci.tipKey || tipNewKey();
+  if (_ci.tipKey && _ci.tipKeyCents !== c) _ci.tipKey = null;   // audit #30: a different amount is a new tip
+  _ci.tipBusy = true; _ci.tipKey = _ci.tipKey || tipNewKey(); _ci.tipKeyCents = c;
   var b = ci2El('ci2TipSave'); b.disabled = true; say('Saving…');
   var id = _ci.id, out = await tipRpc('airvalet_tip_record', { p_passenger_id: id, p_amount_cents: c, p_client_key: _ci.tipKey, p_received_by: null, p_source: 'CHECKIN' });
   if (!_ci || _ci.id !== id) return;
@@ -7740,11 +7755,12 @@ async function ci2TipSave(){
     return say(TIP_FIX_TEXT[out.result] || ('Not saved: ' + out.result), true);
   }
   _ci.tipKey = null;
-  if (!out.duplicate) _ci.tips.push(c);
+  var savedC = (out.tip && out.tip.amount_cents) || c;   // the amount the server really kept
+  _ci.tips.push(savedC);   // a duplicate here = the first answer was lost (the key resets after each success)
   tipQuickReset(ci2El('ci2Tip'));
   var tot = _ci.tips.reduce(function(a, x){ return a + x; }, 0), v = ci2El('ci2STipV');
   v.textContent = tipMoney(tot) + ' recorded'; v.className = 'v done';
-  say('✓ ' + tipMoney(c) + ' cash saved' + (_ci.tips.length > 1 ? ' · ' + tipMoney(tot) + ' at check-in' : '') + '. Another tip? Pick it and save again.');
+  say('✓ ' + tipMoney(savedC) + ' cash saved' + (_ci.tips.length > 1 ? ' · ' + tipMoney(tot) + ' at check-in' : '') + '. Another tip? Pick it and save again.');
 }
 
 // ── Authorized pickup (same ticket; nothing texted to that person) ──
@@ -8386,6 +8402,8 @@ async function tipFixSave(){
   if(!_tipFix.remove&&!c) return bad(TIP_FIX_TEXT.INVALID);
   var reason=_tipFix.mode==='CORRECT'?String(document.getElementById('tipFixReason').value||'').trim():'';
   if(_tipFix.mode==='CORRECT'&&reason.length<3) return bad(TIP_FIX_TEXT.REASON_REQUIRED);
+  if(_tipFix.keyCents!==undefined && _tipFix.keyCents!==c) _tipFix.key=tipNewKey();   // audit #30: changed amount = new request
+  _tipFix.keyCents=c;
   _tipFix.busy=true; ['tipFixSave','tipFixCancel'].forEach(function(b){ document.getElementById(b).disabled=true; });
   var r=_tipsCard.r, out=_tipFix.mode==='CORRECT'
     ?await tipRpc('airvalet_tip_correct',{p_tip_id:_tipFix.tip.id,p_new_amount_cents:c,p_reason:reason,p_client_key:_tipFix.key})
@@ -8399,7 +8417,8 @@ async function tipFixSave(){
          var pj=pr.ok?(await pr.json())[0]:null; if(pj){ d.tip_received=pj.tip_received; d.tip_in_person_cents=pj.tip_in_person_cents; } }catch(e){}
   }
   document.getElementById('tipFixOv').classList.remove('on');
-  showMsg(c?'✓ Cash tip '+tipMoney(c)+' saved.':'✓ Cash tip removed (kept in the history).', false);
+  var savedFix=(out.tip&&out.tip.amount_cents)||c;
+  showMsg(c?'✓ Cash tip '+tipMoney(savedFix)+' saved.'+(out.duplicate&&savedFix!==c?' (an earlier attempt had already saved this amount)':''):'✓ Cash tip removed (kept in the history).', false);
   render(); if(d) tipsLoad(d);
 }
 // ── GUESTS (owner 2026-10-27) ───────────────────────────────────
@@ -9248,7 +9267,9 @@ async function deliverWithTip(id, deliveryType, tipReceived, inPerson){
     var checkoutIso=new Date().toISOString();
     // customer_rating is intentionally never written here — it is a
     // retired historical field, preserved as-is for old records.
-    var upd={status:'DELIVERED',deldate:todayStr,checkout_date:checkoutIso,delivery_type:deliveryType,tip_received:tipRecorded};
+    // Audit 2026-11-06 (#28): a tip added earlier on the car card ("+ Add tip") stays recorded.
+    var tipFlag=(r.tip_received===true)?true:tipRecorded;
+    var upd={status:'DELIVERED',deldate:todayStr,checkout_date:checkoutIso,delivery_type:deliveryType,tip_received:tipFlag};
     if(!isCustoms){upd.loc='HANGAR 19';upd.previous_delivery_location=prevLoc;}
     if(deliveryType==='LOCKBOX'&&hasPickupAuth(r)){ showMsg('Authorized pickup on file: hand the key in person and check a photo ID (no lockbox).',true); return false; }
     var rel=pickupReleaseChoice(r);
@@ -9269,6 +9290,7 @@ async function deliverWithTip(id, deliveryType, tipReceived, inPerson){
     if(inPerson&&inPerson.answer==='YES'&&inPerson.cents){
       var tr=await tipRpc('airvalet_tip_record',{p_passenger_id:r.id,p_amount_cents:inPerson.cents,p_client_key:inPerson.key,p_received_by:inPerson.who,p_source:'DELIVERY'});
       if(tr.result==='OK'||tr.result==='ALREADY_RECORDED'||tr.result==='RECENT_SAME') tipSaved=tr.tip&&tr.tip.amount_cents;
+      else if(tr.result==='DAY_CLOSED') tipWarn=' Cash tip not saved: that day is already closed — ask an ADMIN to add it.';   // audit #29
       else tipWarn=' Cash tip not saved — add it from the car card (Tips).';
     } else if(inPerson&&inPerson.invalid){
       tipWarn=' Tip amount not saved (not a valid amount) — add it from the car card (Tips).';
@@ -9287,7 +9309,7 @@ async function deliverWithTip(id, deliveryType, tipReceived, inPerson){
         data[i].deldate=todayStr;
         data[i].checkout_date=checkoutIso;
         data[i].delivery_type=deliveryType;
-        data[i].tip_received=tipRecorded;
+        data[i].tip_received=tipFlag;
         if(tipSaved) data[i].tip_in_person_cents=tipSaved;
         if(!isCustoms){data[i].loc='HANGAR 19';data[i].previous_delivery_location=prevLoc;}
         if(upd.ret){data[i].ret=upd.ret;data[i].obs=upd.obs;}
@@ -14723,10 +14745,12 @@ async function crGenerateReport(){
     }
     var saved;
     if(existing){
-      saved=await dcrPatch(existing.id,payload);
+      // Audit 2026-11-06 (#32): only while that day is still open, and 0 rows saved is an error (never a fake report).
+      saved=await dcrPatch(existing.id,payload,'&closed_at=is.null');
       var rows=saved?[saved]:[];
       if(Array.isArray(saved)) rows=saved;
-      saved=rows[0]||Object.assign({},existing,payload);
+      if(!rows[0]) throw new Error('The report was not saved (this day may have just been closed on another device). Reload and try again.');
+      saved=rows[0];
     }else{
       payload.created_by=typeof currentUser!=='undefined'&&currentUser?currentUser.email:'';
       saved=await dcrInsert(payload);
@@ -17107,6 +17131,10 @@ async function offlineSyncSms(id, sms, saved, stage, phone){
   if((Date.now() - saved.getTime()) / 3600000 > OFFLINE_SYNC_AUTO_WELCOME_HOURS) return 'welcome_too_late';
   // International number: no AirValet SMS — staff share the pass from the ticket.
   if(guestPhoneIntl(phone != null ? phone : (paxById(id) || {}).phone)) return 'share_needed';
+  // Audit 2026-11-06 (#25): an automatic welcome never goes out between 9 PM and 8 AM ET. It waits and is
+  // tried again later (after the 6-hour window it becomes a manual send from the car card).
+  var _etH = parseInt(new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',hour:'2-digit',hourCycle:'h23'}).format(new Date()), 10);
+  if(_etH >= 21 || _etH < 8) return 'retry_welcome';
   var r = await sendServerSms(id, 'CHECK_IN');
   if(r && r.ok) return 'welcome_requested';
   var http = r && r.error ? r.error.http : 0;

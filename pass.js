@@ -79,6 +79,11 @@
     try { r = await post({ t: TOKEN }); } catch (e) { r = null; }
     if (r && r.data && r.data.state === 'ok') {
       pass = r.data.pass; lastOk = new Date();
+      // Audit 2026-11-06 (#34): nothing changed → keep the page as it is (screen readers keep their place,
+      // open "How to get there" steps stay open). Only the quiet "could not refresh" note goes away.
+      var sig = JSON.stringify(pass);
+      if (sig === lastSig && app.querySelector('main')) { var st0 = document.getElementById('stale'); if (st0) st0.remove(); return; }
+      lastSig = sig;
       render();
       startIntro();
       return;
@@ -94,7 +99,7 @@
     if (r.status === 429 || (r.data && r.data.state === 'limited')) return renderMessage('Too many attempts', 'Please wait a few minutes and try again.', true);
     renderMessage('Something went wrong', 'Please try again in a moment.', true);
   }
-  var lastOk = null;
+  var lastOk = null, lastSig = null;
   function showStale(what) {
     var el = document.getElementById('stale');
     if (!el) { el = document.createElement('p'); el.id = 'stale'; el.className = 'stale'; el.setAttribute('role', 'status'); var host = app.querySelector('main') || app; host.insertBefore(el, host.firstChild); }
@@ -216,7 +221,7 @@
     return '<div class="sf"><p class="k">' + k + '</p><p class="v' + (soft ? ' v-soft' : '') + '">' + v + '</p>' + (extra || '') + '</div>';
   }
   function passCard(p) {
-    var st = statusInfo(p), done = p.status === 'DELIVERED', day = !!p.day_trip && !done;
+    var st = statusInfo(p), done = p.status === 'DELIVERED', day = !!p.day_trip && !done && !p.lockbox;   // audit #38: lockbox wins
     var dayToday = day && fmtDate(p.return_date) === fmtIsoDate(todayIso());
     var hangar = esc(p.day_trip_hangar || 'Hangar 19');
     var html = '<section class="bp tone-' + st.tone + (day ? ' is-day' : '') + '" aria-label="Your valet pass">';
@@ -607,6 +612,7 @@
     if (!e.persisted) return;
     tipBusy = false;
     Array.prototype.forEach.call(document.querySelectorAll('button[data-tip]'), function (b) { b.disabled = false; });
+    lastSig = null;   // redraw the buttons even when the pass did not change
     if (pass) load();
   });
   // Latest data on every open/return to the page, and every 30 s while open.

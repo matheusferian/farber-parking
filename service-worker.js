@@ -97,7 +97,8 @@
 // v115: audit A6 (Closing before 4 AM = previous day), A7 (undo delivery offers to remove the cash tip), A8 (TV overdue list + key badge).
 // v116: audit #9 (offline upload watchdog), #10 (edited return request = new key), #12 (pass resets after Back from Stripe).
 // v117: audit #16 — integrity check on the html2canvas / jsPDF CDN scripts.
-var CACHE_VERSION = 'v117';
+// v118: audit #25 quiet hours, #27 clock-in guard, #28-#30 tips, #31 ticket after midnight, #32 closing save check, #33 print escape, #34/#35/#38 pass.
+var CACHE_VERSION = 'v118';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 var SHELL_FILES = [
