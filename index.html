@@ -16567,6 +16567,19 @@ function tv4LegState(o){
   }
   return {k:'landed', at:first, mins: Math.max(0, Math.round((Date.now() - first) / 60000)), src: spx ? 'sat' : st.src, stage: stage};
 }
+// The same aircraft flies several legs to FXE a day (WM: San Andros 11:01 and Cat Island 17:15). A live or
+// landed reading belongs only to the leg whose FXE arrival is closest to it.
+function tv4IsClosestLeg(o, refMs){
+  var day = tvMakersDay(tvDayKeyOffset(0)); if(!day) return true;
+  var reg = String(o.registration).toUpperCase(), best = null;
+  (day.inbound || []).concat((day.origins || []).map(function(x){ return {flight:x.flight, tail:x.registration, time:x.arrival_time}; })).forEach(function(f){
+    if(String(f.tail || '').toUpperCase() !== reg) return;
+    var a = tv4TodayMs(f.time); if(a == null) return;
+    var d = Math.abs(a - refMs);
+    if(!best || d < best.d) best = {d:d, flight:String(f.flight)};
+  });
+  return !best || best.flight === String(o.flight);
+}
 function tv4LegStateRaw(o){
   var now = Date.now(), arr = tv4TodayMs(o.arrival_time), dep = tv4TodayMs(o.dep_time);
   var ac = _tv.aircraftState && _tv.aircraftState[o.registration];
@@ -16577,12 +16590,12 @@ function tv4LegStateRaw(o){
   if(sp){
     var at = Date.parse(sp.last_at), afterDep = dep ? at >= dep - 10 * 60000 : (!arr || at >= arr - 90 * 60000);
     var dist = Number(sp.dist_fxe_nm), kt = Number(sp.speed_kt) || 0;
-    if(dist <= 3 && (sp.track_status === 'POWER_OFF' || kt < 30) && afterDep && inWin(at))
+    if(dist <= 3 && (sp.track_status === 'POWER_OFF' || kt < 30) && afterDep && inWin(at) && tv4IsClosestLeg(o, at))
       return {k:'landed', at:at, mins: Math.max(0, Math.round((now - at) / 60000)), src:'sat'};
     var closing = sp.prev_dist_fxe_nm != null ? Number(sp.prev_dist_fxe_nm) > dist + 0.2 : !!sp.inbound;
     if(kt >= 40 && dist > 2 && (sp.inbound || closing)){
       var eta2 = Math.round(dist / kt * 60);
-      if(inWin(now + eta2 * 60000)){
+      if(inWin(now + eta2 * 60000) && tv4IsClosestLeg(o, now + eta2 * 60000)){
         var from2 = String(o.route || '').split('-')[0], tot2 = TV4_NM[from2] || 200;
         return {k:'live', eta:eta2, nm:Math.round(dist), alt:sp.alt_ft, kt:Math.round(kt), p: Math.max(.03, Math.min(.98, 1 - dist / tot2)), src:'sat'};
       }
@@ -16590,7 +16603,7 @@ function tv4LegStateRaw(o){
   }
   if(ac && ac.landed_at){
     var l = new Date(ac.landed_at).getTime();
-    if(isFinite(l) && inWin(l) && now - l < 6 * 3600000) return {k:'landed', at:l, mins: Math.max(0, Math.round((now - l) / 60000))};
+    if(isFinite(l) && inWin(l) && now - l < 6 * 3600000 && tv4IsClosestLeg(o, l)) return {k:'landed', at:l, mins: Math.max(0, Math.round((now - l) / 60000))};
   }
   // Last radar fix right on final at FXE (<= 3 nm, <= 600 ft) and then silence: the transponder went off
   // on the ground (owner 2026-11-06: CH 15:45, 0.9 nm, 175 ft, then nothing). Display-only inference;
@@ -16598,13 +16611,13 @@ function tv4LegStateRaw(o){
   if(ac && !ac.landed_at && ac.freshness !== 'LIVE' && typeof ac.distance_to_fxe_nm === 'number' && ac.distance_to_fxe_nm <= 3 &&
      (ac.altitude_ft == null || ac.altitude_ft <= 600) && ac.last_position_at){
     var lp = new Date(ac.last_position_at).getTime();
-    if(isFinite(lp) && inWin(lp) && now - lp < 6 * 3600000) return {k:'landed', at:lp, mins: Math.max(0, Math.round((now - lp) / 60000))};
+    if(isFinite(lp) && inWin(lp) && now - lp < 6 * 3600000 && tv4IsClosestLeg(o, lp)) return {k:'landed', at:lp, mins: Math.max(0, Math.round((now - lp) / 60000))};
   }
   if(ac && ac.freshness === 'LIVE'){
     if(ac.physical_status === 'ON_GROUND_NEAR_FXE' && inWin(now)) return {k:'landed', at:now, mins:0};
     if(ac.physical_status === 'AIRBORNE' && ac.distance_trend === 'DECREASING' && typeof ac.distance_to_fxe_nm === 'number'){
       var sp = ac.ground_speed_kt, eta = (typeof sp === 'number' && sp > 0) ? Math.round(ac.distance_to_fxe_nm / sp * 60) : null;
-      if(inWin(now + (eta || 0) * 60000)){
+      if(inWin(now + (eta || 0) * 60000) && tv4IsClosestLeg(o, now + (eta || 0) * 60000)){
         var from = String(o.route || '').split('-')[0], tot = TV4_NM[from] || 200;
         return {k:'live', eta:eta, nm:Math.round(ac.distance_to_fxe_nm), alt:ac.altitude_ft, kt:Math.round(sp || 0),
           p: Math.max(.03, Math.min(.98, 1 - ac.distance_to_fxe_nm / tot))};
