@@ -3129,3 +3129,13 @@ img.mk-asc{height:calc(var(--r)*.24);border:0;padding:0;}
 #tvMode .tv4-alert .tv4-al-t{color:#1C2B45;}
 #tvMode .tv4-alert .tv4-al-w span,#tvMode .tv4-alert .tv4-al-s{color:#4A5B78;}
 #tvMode .tv4-al-land .tv4-al-k,#tvMode .tv4-al-land .tv4-al-bar{color:#137A52;}
+/* Departures board on the real TV (owner 2026-11-06 photo): the bag-tag hole sat on the first letter and
+   AIRCRAFT / DESTINATION ran together at the TV's own size. Tag sized to its text with room for the hole,
+   a wider aircraft column, headers scale with the rows and never spill into the next column. */
+.mk-bag{width:auto;min-width:calc(var(--r)*1.18);padding:0 calc(var(--r)*.14) 0 calc(var(--r)*.36);}
+.mk-bag::before{left:calc(var(--r)*.13);width:max(5px,calc(var(--r)*.11));height:max(5px,calc(var(--r)*.11));margin-top:calc(max(5px,calc(var(--r)*.11)) / -2);}
+.mk-row{column-gap:12px;grid-template-columns:calc(var(--r)*2.7) calc(var(--r)*2.25) minmax(0,1fr) calc(var(--r)*.9);}
+.mk-col-today .mk-row{grid-template-columns:calc(var(--r)*2.7) calc(var(--r)*2.25) minmax(0,1fr) calc(var(--r)*.9) calc(var(--r)*1.95);}
+.mk-cols{column-gap:12px;font-size:clamp(9px,calc(var(--mk-row,56px)*.26),13px);letter-spacing:.1em;grid-template-columns:calc(var(--mk-row,56px)*2.7) calc(var(--mk-row,56px)*2.25) minmax(0,1fr) calc(var(--mk-row,56px)*.9);}
+.mk-cols.mk-cols-st{grid-template-columns:calc(var(--mk-row,56px)*2.7) calc(var(--mk-row,56px)*2.25) minmax(0,1fr) calc(var(--mk-row,56px)*.9) calc(var(--mk-row,56px)*1.95);}
+.mk-cols span{min-width:0;overflow:hidden;white-space:nowrap;text-overflow:clip;}
