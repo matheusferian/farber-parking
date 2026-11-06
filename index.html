@@ -16537,7 +16537,35 @@ function tv4TodayMs(hhmm){
 function tv412(hhmm){ var t = tvMakersTime12(hhmm); return t.ap ? t.t + ' ' + t.ap : '—'; }
 // Where an inbound leg is now. Radar first (only when its ETA matches this leg: same -2 h/+6 h window
 // as tvComputeAircraftLegOwners, so the 11:00 RV never lights the 17:00 guest), then the schedule.
+// Owner 2026-11-06: the Caravan lands at Customs and shuts down, later powers on again to taxi to
+// Hangar 19 and shuts down again. The leg's landing is the FIRST stop: remembered per flight + aircraft
+// for the day, so the taxi neither looks like a new arrival nor resets "LANDED N MIN AGO".
 function tv4LegState(o){
+  var st = tv4LegStateRaw(o), day = tvDayKeyOffset(0), key = o.flight + '|' + o.registration;
+  if(!_tv.legFirstLand || _tv.legFirstLand.day !== day){   // kept for the day, also across a TV reload
+    var saved = {}; try{ saved = JSON.parse(localStorage.getItem('tvFirstLand:' + day) || '{}') || {}; }catch(e){}
+    _tv.legFirstLand = {day:day, map:saved};
+  }
+  var first = _tv.legFirstLand.map[key];
+  if(st.k === 'landed'){
+    if(!first || st.at < first){
+      _tv.legFirstLand.map[key] = first = st.at;
+      try{ localStorage.setItem('tvFirstLand:' + day, JSON.stringify(_tv.legFirstLand.map)); }catch(e){}
+    }
+  } else if(!(first && (st.k === 'live' || st.k === 'way' || st.k === 'due') && (!tvSpiderFix(o.registration) || Number(tvSpiderFix(o.registration).dist_fxe_nm) <= 3))){
+    return st;   // not landed (an already-landed aircraft only moving around FXE stays landed below)
+  }
+  // Landed. With the satellite (owner 2026-11-06): first shutdown = AT CUSTOMS, powered on again = COMING TO
+  // HANGAR 19 (taxi), shut down again later = AT HANGAR 19. Without it: just LANDED.
+  var spx = tvSpiderFix(o.registration), stage = null;
+  if(spx && Number(spx.dist_fxe_nm) <= 3){
+    var lastAt = Date.parse(spx.last_at);
+    if(spx.track_status !== 'POWER_OFF' && (Number(spx.speed_kt) || 0) < 40) stage = lastAt > first + 60000 ? 'taxi' : 'customs';
+    else if(spx.track_status === 'POWER_OFF') stage = lastAt > first + 3 * 60000 ? 'h19' : 'customs';
+  }
+  return {k:'landed', at:first, mins: Math.max(0, Math.round((Date.now() - first) / 60000)), src: spx ? 'sat' : st.src, stage: stage};
+}
+function tv4LegStateRaw(o){
   var now = Date.now(), arr = tv4TodayMs(o.arrival_time), dep = tv4TodayMs(o.dep_time);
   var ac = _tv.aircraftState && _tv.aircraftState[o.registration];
   var inWin = function(ms){ return !arr || ((ms - arr) > -TV_LEG_EARLY_MIN * 60000 && (ms - arr) < TV_LEG_LATE_MIN * 60000); };
@@ -16609,7 +16637,7 @@ function tv4PanelLegs(){
   return tv4InboundLegs().filter(function(L){
     if(!L.open && L.st.k !== 'landed') return false;
     if(L.st.k === 'live' || L.st.k === 'way') return true;
-    if(L.st.k === 'landed') return L.st.mins <= 45;
+    if(L.st.k === 'landed') return L.st.mins <= 10 || L.st.stage === 'taxi';   // owner: once down, leave the panel (the guest card keeps the status); taxiing stays
     if(L.st.k === 'sched') return L.st.dep && L.st.dep - now <= 120 * 60000;
     return false;
   }).slice(0, 4);
@@ -16656,7 +16684,7 @@ function tv4OtherLegs(){
       place:(typeof MF_AIRPORTS !== 'undefined' && MF_AIRPORTS[code]) || code, arr12:tv412(f.time), dep12:tv412(f.dep), st:tv4LegState(o)};
   }).filter(function(L){
     if(L.st.k === 'live' || L.st.k === 'way') return true;
-    if(L.st.k === 'landed') return L.st.mins <= 30;
+    if(L.st.k === 'landed') return L.st.mins <= 10;
     if(L.st.k === 'sched') return L.st.dep && L.st.dep - now <= 60 * 60000;
     return false;
   }).sort(function(a, b){ return String(a.o.arrival_time).localeCompare(String(b.o.arrival_time)); }).slice(0, 4);
@@ -16665,7 +16693,8 @@ function tv4OtherRow(L){
   var st = L.st, s;
   if(st.k === 'live') s = '<span class="tv4-fst tv4-live"><i></i>LIVE &middot; ETA '+(st.eta != null ? st.eta+' MIN' : 'SOON')+'</span>';
   else if(st.k === 'way') s = '<span class="tv4-fst tv4-way"><i></i>ON THE WAY &middot; LANDS '+L.arr12+'</span>';
-  else if(st.k === 'landed') s = '<span class="tv4-fst tv4-landed"><i></i>LANDED '+st.mins+' MIN AGO</span>';
+  else if(st.k === 'landed') s = st.stage === 'taxi' ? '<span class="tv4-fst tv4-taxi"><i></i>COMING TO HANGAR 19</span>'
+    : '<span class="tv4-fst tv4-landed"><i></i>'+(st.stage === 'h19' ? 'AT HANGAR 19' : st.stage === 'customs' ? 'AT CUSTOMS' : 'LANDED '+st.mins+' MIN AGO')+'</span>';
   else s = '<span class="tv4-fst">LEAVES '+L.dep12+'</span>';
   return '<div class="tv4-oth">'+tv4Chip(L.code, L.tail)+tv4Chip(L.code, (typeof MF_TAG_CODE !== 'undefined' && MF_TAG_CODE[L.code]) || L.code)+
     '<b>'+escapeHTML(L.place)+' &rarr; FXE</b><span class="tv4-nocars">NO CARS &middot; '+L.pax+' PAX</span>'+s+'</div>';
@@ -16680,7 +16709,10 @@ function tv4AirHtml(){
       meta.push('ETA <b>'+(st.eta != null ? st.eta+' min' : 'soon')+'</b>'); }
     else if(st.k === 'way'){ stHtml = '<span class="tv4-fst tv4-way"><i></i>ON THE WAY</span>';
       meta.push('left '+escapeHTML(L.place)+' <b>'+L.dep12+'</b>'); meta.push('lands <b>'+L.arr12+'</b> (schedule)'); }
-    else if(st.k === 'landed'){ stHtml = '<span class="tv4-fst tv4-landed"><i></i>LANDED</span>'; meta.push('<b>'+st.mins+' min</b> ago'); }
+    else if(st.k === 'landed'){
+      stHtml = st.stage === 'taxi' ? '<span class="tv4-fst tv4-taxi"><i></i>COMING TO HANGAR 19</span>'
+        : '<span class="tv4-fst tv4-landed"><i></i>'+(st.stage === 'h19' ? 'AT HANGAR 19' : st.stage === 'customs' ? 'AT CUSTOMS' : 'LANDED')+'</span>';
+      meta.push('landed <b>'+st.mins+' min</b> ago'); }
     else { stHtml = '<span class="tv4-fst">SCHEDULED</span>'; meta.push('leaves '+escapeHTML(L.place)+' <b>'+L.dep12+'</b>'); meta.push('lands <b>'+L.arr12+'</b>'); }
     var p = st.k === 'landed' ? 1 : (st.p || 0);
     var who = L.guests.map(function(r){ return escapeHTML(tvShortName(r.name)); }).join(', ');
@@ -16702,7 +16734,12 @@ function tv4LegPill(r){
   var o = tv4Origin(r, tvDayKeyOffset(0));
   if(o){
     var st = tv4LegState(o);
-    if(st.k === 'landed') return {edge:'landed', html:'<span class="tv4-pill tv4-p-landed">&#10003; LANDED '+st.mins+' MIN AGO</span>'};
+    if(st.k === 'landed'){
+      if(st.stage === 'taxi') return {edge:'way', html:'<span class="tv4-pill tv4-p-taxi"><i></i>COMING TO HANGAR 19</span>'};
+      if(st.stage === 'h19') return {edge:'landed', html:'<span class="tv4-pill tv4-p-landed">&#10003; AT HANGAR 19</span>'};
+      if(st.stage === 'customs') return {edge:'landed', html:'<span class="tv4-pill tv4-p-landed">&#10003; AT CUSTOMS &middot; '+st.mins+' MIN</span>'};
+      return {edge:'landed', html:'<span class="tv4-pill tv4-p-landed">&#10003; LANDED '+st.mins+' MIN AGO</span>'};
+    }
     if(st.k === 'live') return {edge:'live', html:'<span class="tv4-pill tv4-p-live"><i></i>LIVE &middot; ETA '+(st.eta != null ? st.eta+' MIN' : 'SOON')+'</span>'};
     if(st.k === 'way') return {edge:'way', html:'<span class="tv4-pill tv4-p-way"><i></i>ON THE WAY &middot; '+(st.eta > 0 ? 'ETA '+st.eta+' MIN' : 'DUE NOW')+'</span>'};
     if(st.k === 'sched' && st.dep){ var code = String(o.route || '').split('-')[0];
