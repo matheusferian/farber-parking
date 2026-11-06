@@ -16468,7 +16468,7 @@ function tvBuildMakersPages(vm){
   var n = Math.max(nT, nM, 1);
   var rowH = Math.max(24, Math.min(84, Math.floor(colW / 11.8), Math.floor(availH / n)));
   var maxRows = Math.max(1, Math.floor(availH / rowH));
-  return [{kind:'makers', sub:0, of:1, fitTier:'v4', dwell: Math.min(30, 9 + 0.6 * (nT + nM)) * 1000, render:function(bodyEl){
+  return [{kind:'makers', sub:0, of:1, fitTier:'v4', dwell: Math.min(50, Math.max(30, 12 + 1 * (nT + nM))) * 1000, render:function(bodyEl){   // owner: at least 30 s
     bodyEl.className = 'tv-page-body tv-density-normal tv4-dep';
     bodyEl.style.flexDirection = ''; bodyEl.style.gap = '';
     bodyEl.innerHTML = titleHtml + '<div class="mk-board">'+
@@ -16936,7 +16936,8 @@ function tvBuildTodayPages(vm){
   var lFit = lHtml ? tv4Fit(lHtml, leftW, box.height - tH - 4, .8) : {cols:1, s:1};
   var legs = air ? tv4PanelLegs().length + tv4OtherLegs().length * .5 : 0;
   return [{kind:'today', sub:0, of:1, fitTier:'v4 '+lFit.cols+'c '+Math.round(lFit.s * 100)+'%',
-    dwell: Math.min(40, 10 + 0.8 * vm.leavingTodayRemaining.length + 3 * legs) * 1000,
+    // Owner 2026-11-06: this page passed too fast — at least 30 s, up to 60 s with more cars/planes.
+    dwell: Math.min(60, Math.max(30, 14 + 1 * vm.leavingTodayRemaining.length + 6 * legs)) * 1000,
     render:function(bodyEl){
       bodyEl.className = 'tv-page-body tv-density-normal tv4-today';
       bodyEl.style.flexDirection = 'row'; bodyEl.style.gap = gap+'px';
