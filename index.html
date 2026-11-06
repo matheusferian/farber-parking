@@ -16412,13 +16412,15 @@ function tvBuildMakersPages(vm){
   var todayKey = tvDayKeyOffset(0), tomorrowKey = tvDayKeyOffset(1);
   if(!tvMakersDay(todayKey) && !tvMakersDay(tomorrowKey)) return [];
   var box = tvRealPageBodyBox();
-  var titleHtml = '<div class="tv-page-title tv4-title"><span>Makers Departures</span><span class="tv-count-pill">FXE</span></div>';
-  var colHeadH = 92, tickerH = 64, pad = 20;
-  var availH = Math.max(200, box.height - tvMeasureElementOuterHeight(titleHtml) - colHeadH - tickerH - pad);
+  // Owner 2026-11-06: every flight on screen — no page title (TODAY / TOMORROW and the FXE ticker say it),
+  // rows shrink down to 24 px before anything folds into "+N more".
+  var titleHtml = '';
+  var colHeadH = 90, tickerH = 64, pad = 16;
+  var availH = Math.max(160, box.height - colHeadH - tickerH - pad);
   var colW = (box.width - 22) / 2 - 32;
   var nT = tvMakersFlights(tvMakersDay(todayKey)).length, nM = tvMakersFlights(tvMakersDay(tomorrowKey)).length;
   var n = Math.max(nT, nM, 1);
-  var rowH = Math.max(34, Math.min(84, Math.floor(colW / 11.8), Math.floor(availH / n)));
+  var rowH = Math.max(24, Math.min(84, Math.floor(colW / 11.8), Math.floor(availH / n)));
   var maxRows = Math.max(1, Math.floor(availH / rowH));
   return [{kind:'makers', sub:0, of:1, fitTier:'v4', dwell: Math.min(30, 9 + 0.6 * (nT + nM)) * 1000, render:function(bodyEl){
     bodyEl.className = 'tv-page-body tv-density-normal tv4-dep';
