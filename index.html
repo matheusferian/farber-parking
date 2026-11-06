@@ -16610,7 +16610,7 @@ function tv4LegState(o){
     if(spx.track_status !== 'POWER_OFF' && (Number(spx.speed_kt) || 0) < 40) stage = lastAt > first + 60000 ? 'taxi' : 'customs';
     else if(spx.track_status === 'POWER_OFF') stage = lastAt > first + 3 * 60000 ? 'h19' : 'customs';
   }
-  return {k:'landed', at:first, mins: Math.max(0, Math.round((Date.now() - first) / 60000)), src: spx ? 'sat' : st.src, stage: stage};
+  return {k:'landed', at:first, mins: Math.max(0, Math.round((Date.now() - first) / 60000)), src: spx ? 'sat' : st.src, stage: stage, stageAt: spx ? Date.parse(spx.last_at) : null};
 }
 // The same aircraft flies several legs to FXE a day (WM: San Andros 11:01 and Cat Island 17:15). A live or
 // landed reading belongs only to the leg whose FXE arrival is closest to it.
@@ -16692,12 +16692,20 @@ function tv4InboundLegs(){
   return out.sort(function(a, b){ return String(a.o.arrival_time).localeCompare(String(b.o.arrival_time)); });
 }
 // Legs worth showing in the panel: in the air, landed in the last 45 min, or leaving the island within 2 h.
+// A landed aircraft stays on the panel (owner 2026-11-06): 10 min after landing, the whole time it sits at
+// Customs (up to 90 min), while it taxis to Hangar 19, and 10 min after it shuts down at Hangar 19.
+function tv4LandedStays(st){
+  if(st.mins <= 10 || st.stage === 'taxi') return true;
+  if(st.stage === 'customs') return st.mins <= 90;
+  if(st.stage === 'h19') return st.stageAt && Date.now() - st.stageAt <= 10 * 60000;
+  return false;
+}
 function tv4PanelLegs(){
   var now = Date.now();
   return tv4InboundLegs().filter(function(L){
     if(!L.open && L.st.k !== 'landed') return false;
     if(L.st.k === 'live' || L.st.k === 'way') return true;
-    if(L.st.k === 'landed') return L.st.mins <= 10 || L.st.stage === 'taxi';   // owner: once down, leave the panel (the guest card keeps the status); taxiing stays
+    if(L.st.k === 'landed') return tv4LandedStays(L.st);
     if(L.st.k === 'sched') return L.st.dep && L.st.dep - now <= 120 * 60000;
     return false;
   }).slice(0, 4);
@@ -16744,7 +16752,7 @@ function tv4OtherLegs(){
       place:(typeof MF_AIRPORTS !== 'undefined' && MF_AIRPORTS[code]) || code, arr12:tv412(f.time), dep12:tv412(f.dep), st:tv4LegState(o)};
   }).filter(function(L){
     if(L.st.k === 'live' || L.st.k === 'way') return true;
-    if(L.st.k === 'landed') return L.st.mins <= 10 || L.st.stage === 'taxi';   // owner 2026-11-06 (WM): same as ours, back on while it taxis to Hangar 19
+    if(L.st.k === 'landed') return tv4LandedStays(L.st);
     if(L.st.k === 'sched') return L.st.dep && L.st.dep - now <= 60 * 60000;
     return false;
   }).sort(function(a, b){ return String(a.o.arrival_time).localeCompare(String(b.o.arrival_time)); }).slice(0, 4);
