@@ -1,7 +1,7 @@
 // deno test --allow-env --allow-net --allow-read supabase/functions/stripe-webhook/webhook.test.ts
 import { assert, assertEquals } from 'jsr:@std/assert@1';
 import Stripe from 'npm:stripe@17';
-import { gratuityLinkIds, handle, refundUpdate, tipFromSession, type TipRow } from './index.ts';
+import { disputeUpdate, gratuityLinkIds, handle, refundUpdate, tipFromSession, type TipRow } from './index.ts';
 
 const GRAT = 'plink_1GratuityAAA';
 const CARWASH = 'plink_1CarWashBBB';
@@ -41,7 +41,8 @@ Deno.test('decision: gratuity link and AirValet checkout count; car wash link, u
   assertEquals(tipFromSession(session({ payment_link: null }), 'e', [GRAT]), null);
   const co = tipFromSession(session({ payment_link: null, metadata: { source: 'AIRVALET', type: 'TIP', passenger_id: '3701', ticket: '1025-2' } }), 'e', []);
   assertEquals([co?.passenger_id, co?.ticket, co?.amount_cents], [3701, '1025-2', 2000]);
-  assertEquals(tipFromSession(session({ client_reference_id: 'pax-42' }), 'e', [GRAT])?.passenger_id, 42);
+  // #37: a Payment Link reference comes from the payer's URL → counted, but tied to no passenger
+  assertEquals(tipFromSession(session({ client_reference_id: 'pax-42' }), 'e', [GRAT])?.passenger_id, null);
   assertEquals(tipFromSession(session({ client_reference_id: 'abc' }), 'e', [GRAT])?.passenger_id, null);
 });
 Deno.test('handler: signed gratuity payment recorded once; retries are no-ops', async () => {
@@ -101,4 +102,20 @@ Deno.test('dynamic Checkout Session (metadata set by valet-pass): tip with the c
 Deno.test('printed QR (current Payment Link, no reference): still a tip, no car', () => {
   const row = tipFromSession(session({ client_reference_id: null }), 'e', [GRAT]);
   assertEquals([row?.passenger_id, row?.amount_cents], [null, 2000]);
+});
+
+Deno.test('#36 disputes: created/funds_withdrawn → disputed; closed won → succeeded; lost → unchanged; test mode ignored', async () => {
+  assertEquals(disputeUpdate('charge.dispute.created', { payment_intent: 'pi_1' }), { paymentIntent: 'pi_1', to: 'disputed', from: 'succeeded' });
+  assertEquals(disputeUpdate('charge.dispute.funds_withdrawn', { payment_intent: 'pi_1' })?.to, 'disputed');
+  assertEquals(disputeUpdate('charge.dispute.closed', { payment_intent: 'pi_1', status: 'won' }), { paymentIntent: 'pi_1', to: 'succeeded', from: 'disputed' });
+  assertEquals(disputeUpdate('charge.dispute.closed', { payment_intent: 'pi_1', status: 'lost' }), null);
+  assertEquals(disputeUpdate('charge.dispute.created', {}), null);
+  const calls: string[] = [];
+  const d = deps([], { dispute: (pi: string, to: string, from: string) => { calls.push(pi + ':' + from + '>' + to); return Promise.resolve({ updated: 1, error: null }); } });
+  const r = await handle(await signed('charge.dispute.created', { object: 'dispute', payment_intent: 'pi_9', status: 'needs_response' }), d);
+  assertEquals(r.status, 200); assertEquals(calls, ['pi_9:succeeded>disputed']);
+  const payload = JSON.stringify({ id: 'evt_t', object: 'event', livemode: false, type: 'charge.dispute.created', data: { object: { payment_intent: 'pi_8' } } });
+  const header = await stripe.webhooks.generateTestHeaderStringAsync({ payload, secret: SECRET });
+  const r2 = await handle(new Request('https://x/stripe-webhook', { method: 'POST', headers: { 'stripe-signature': header }, body: payload }), d);
+  assertEquals(r2.status, 200); assertEquals(calls.length, 1);   // test-mode event touched nothing
 });

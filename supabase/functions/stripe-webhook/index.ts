@@ -51,7 +51,9 @@ export function tipFromSession(session: Session, eventId: string, links: string[
   if (!Number.isFinite(amount) || amount <= 0) return null;
   let passengerId: number | null = null;
   if (md.passenger_id && /^\d{1,12}$/.test(md.passenger_id)) passengerId = Number(md.passenger_id);
-  else {
+  else if (!session.payment_link) {
+    // Audit 2026-11-06 (#37): only our own Checkout sessions may carry the passenger reference. On a Payment
+    // Link the payer can type any "pax-<id>" into the URL, so that tip counts but is tied to no passenger.
     const m = /^pax-(\d{1,12})$/.exec(String(session.client_reference_id || ''));
     if (m) passengerId = Number(m[1]);
   }
@@ -78,12 +80,23 @@ export function refundUpdate(charge: { payment_intent?: unknown; amount?: number
   return { paymentIntent: pi, status: 'succeeded', amount_cents: amount - refunded };
 }
 
+// charge.dispute.* → status change on the tip with that payment intent (audit 2026-11-06, #36).
+export function disputeUpdate(type: string, dispute: { payment_intent?: unknown; status?: string | null }):
+  { paymentIntent: string; to: 'disputed' | 'succeeded'; from: 'succeeded' | 'disputed' } | null {
+  const pi = typeof dispute.payment_intent === 'string' ? dispute.payment_intent : null;
+  if (!pi) return null;
+  if (type === 'charge.dispute.created' || type === 'charge.dispute.funds_withdrawn') return { paymentIntent: pi, to: 'disputed', from: 'succeeded' };
+  if (type === 'charge.dispute.closed' && dispute.status === 'won') return { paymentIntent: pi, to: 'succeeded', from: 'disputed' };
+  return null;   // lost / warning_closed: the tip stays out of the reports
+}
+
 export type Deps = {
   webhookSecret: string | undefined;
   links: string[];
   stripe: Stripe;
   save: (row: TipRow) => Promise<{ error: { message: string; code?: string } | null }>;
   refund: (paymentIntent: string, status: string, amountCents: number) => Promise<{ updated: number; error: { message: string } | null }>;
+  dispute?: (paymentIntent: string, to: string, from: string) => Promise<{ updated: number; error: { message: string } | null }>;
   log: (event: string, data: Record<string, unknown>) => void;
 };
 
@@ -99,6 +112,16 @@ export async function handle(req: Request, deps: Deps): Promise<Response> {
     event = await deps.stripe.webhooks.constructEventAsync(rawBody, sig, deps.webhookSecret);
   } catch {
     return json(400, { error: 'signature verification failed' });
+  }
+  // Test-mode events never touch live tips (audit #36).
+  if ((event as { livemode?: boolean }).livemode === false) return json(200, { received: true, skipped: 'test_mode' });
+  if (event.type.startsWith('charge.dispute.')) {
+    const u = disputeUpdate(event.type, event.data.object as unknown as Parameters<typeof disputeUpdate>[1]);
+    if (!u || !deps.dispute) return json(200, { received: true, ignored: true });
+    const r = await deps.dispute(u.paymentIntent, u.to, u.from);
+    if (r.error) { deps.log('stripe_dispute_update_failed', { event: event.id, error: r.error.message }); return json(500, { received: false }); }
+    deps.log('stripe_dispute_applied', { event: event.id, updated: r.updated, status: u.to });
+    return json(200, { received: true, updated: r.updated });
   }
   if (event.type === 'charge.refunded') {
     const u = refundUpdate(event.data.object as unknown as Parameters<typeof refundUpdate>[0]);
@@ -151,6 +174,12 @@ if (import.meta.main) {
         .eq('stripe_payment_intent_id', pi).eq('type', 'TIP');
       if (status === 'succeeded') q = q.neq('status', 'refunded').gt('amount_cents', amountCents);
       const { data, error } = await q.select('id');
+      return { updated: Array.isArray(data) ? data.length : 0, error: error ? { message: error.message } : null };
+    },
+    // Disputes: only a live AirValet tip moves between 'succeeded' and 'disputed'.
+    dispute: async (pi, to, from) => {
+      const { data, error } = await admin.from('payments').update({ status: to })
+        .eq('stripe_payment_intent_id', pi).eq('type', 'TIP').eq('status', from).select('id');
       return { updated: Array.isArray(data) ? data.length : 0, error: error ? { message: error.message } : null };
     },
     log: (event, data) => console.log(JSON.stringify({ event, ...data })),
