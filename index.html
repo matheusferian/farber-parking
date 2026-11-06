@@ -1708,9 +1708,8 @@ https://buy.stripe.com/8x214mccK0uh9TjgIM6Vq00</div>
   <div class="tv-header">
     <div class="tv-brand">
       <div class="tv-brand-top">
-        <div class="tv-logo-badge"><img src="assets/logo-icon.png" alt="AirValet"></div>
-        <div class="tv-brand-name">AirValet</div>
-        <div class="tv-live-pill">LIVE OPERATIONS</div>
+        <img class="tv5-lockup" src="assets/makers-air-valet-lockup-white.png" alt="Makers Air Valet">
+        <div class="tv-live-pill"><i></i>LIVE</div>
       </div>
       <div class="tv-brand-sub">MAKERS AIR &middot; VALET OPERATIONS BOARD</div>
     </div>
@@ -1750,6 +1749,9 @@ https://buy.stripe.com/8x214mccK0uh9TjgIM6Vq00</div>
     <div class="tv-dwell-bar" id="tvDwellBar"></div>
     <div class="tv-page-dots tv-hidden" id="tvPageDots"></div>
   </div>
+
+  <!-- TV v5: one FXE ticker under every page; the label says which page is on (TODAY 1/5 …). -->
+  <div class="tv5-ticker" id="tvTicker"><span class="tv5-tk-lbl">FXE <small id="tvTickerPage"></small></span><div class="mk-tk-win"><span class="mk-tk-run" id="tvTickerRun"></span></div></div>
 
   <!-- Offscreen, real-DOM measurement surface for Operations capacity
        planning (tvMeasureColumnCapacity()) — never visible, never
@@ -15253,7 +15255,20 @@ function updateTvClock(){
   var dateEl = document.getElementById('tvDate');
   var clockEl = document.getElementById('tvClock');
   if(dateEl) dateEl.textContent = now.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
-  if(clockEl) clockEl.textContent = now.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',second:'2-digit'});
+  // TV v5 (owner 2026-11-06): clock as split-flap tiles, flipping the digits that change each minute.
+  if(clockEl){
+    var h12 = (now.getHours() + 11) % 12 + 1, txt = h12 + ':' + ('0' + now.getMinutes()).slice(-2), ap = now.getHours() < 12 ? 'AM' : 'PM';
+    if(clockEl.getAttribute('data-v') !== txt + ap){
+      var prev = clockEl.getAttribute('data-v') || '';
+      clockEl.innerHTML = '<span class="tv5-fl">' + tvFlapHtml(txt, 5) + '</span><small>' + ap + '</small>';
+      clockEl.setAttribute('data-v', txt + ap);
+      if(prev){ var pad = ('     ' + prev.replace(/AM|PM/, '')).slice(-5), cur = ('     ' + txt).slice(-5), k = 0;
+        Array.prototype.forEach.call(clockEl.querySelectorAll('.mk-fl'), function(tile, i){
+          var idx = i + (cur.indexOf(':') > -1 && i >= cur.indexOf(':') ? 1 : 0);
+          if(pad.charAt(idx) !== cur.charAt(idx)) tvFlapTileTo(tile, cur.charAt(idx), 2, (k++) * 70);
+        }); }
+    }
+  }
   var key = tvLocalDateKey(now);
   if(key !== _tv.dateKey){
     _tv.dateKey = key;
@@ -16426,7 +16441,7 @@ function tvBuildMakersPages(vm){
   // Owner 2026-11-06: every flight on screen — no page title (TODAY / TOMORROW and the FXE ticker say it),
   // rows shrink down to 24 px before anything folds into "+N more".
   var titleHtml = '';
-  var colHeadH = 90 + 50, tickerH = 64, pad = 16;   // + the TOTAL GOING OUT line
+  var colHeadH = 90 + 50, tickerH = 0, pad = 16;   // + the TOTAL GOING OUT line (the FXE ticker is global now)
   var availH = Math.max(160, box.height - colHeadH - tickerH - pad);
   var colW = (box.width - 22) / 2 - 32;
   var nT = tvMakersFlights(tvMakersDay(todayKey)).length, nM = tvMakersFlights(tvMakersDay(tomorrowKey)).length;
@@ -16438,8 +16453,7 @@ function tvBuildMakersPages(vm){
     bodyEl.style.flexDirection = ''; bodyEl.style.gap = '';
     bodyEl.innerHTML = titleHtml + '<div class="mk-board">'+
       tvMakersColumnHtml('Today', todayKey, rowH, maxRows, true)+
-      tvMakersColumnHtml('Tomorrow', tomorrowKey, rowH, maxRows, false)+'</div>'+
-      tvMakersTickerHtml(todayKey, tomorrowKey);
+      tvMakersColumnHtml('Tomorrow', tomorrowKey, rowH, maxRows, false)+'</div>';
     tvFlapChanged(bodyEl);
   }}];
 }
@@ -16793,12 +16807,13 @@ function tv4FromChip(o){
   var place = (typeof MF_AIRPORTS !== 'undefined' && MF_AIRPORTS[code]) || code;
   // Owner 2026-11-06: "Congo Town → Makers Air" — the island, an arrow, the Makers Air logo (FXE).
   return '<span class="tv4-from">'+(o.registration ? tv4Chip(code, tvMakersTailSuffix(o.registration)) : '')+tv4Chip(code, tag)+
-    escapeHTML(place)+' <span class="tv4-arrow">&rarr;</span><img class="tv4-mklogo" src="assets/makers-air-logo-navy.png" alt="Makers Air">'+
+    escapeHTML(place)+' <span class="tv4-arrow">&rarr;</span><img class="tv4-mklogo" src="assets/makers-air-logo-white.png" alt="Makers Air">'+
     (o.flight ? '<span class="tv4-fno">'+escapeHTML(String(o.flight))+'</span>' : '')+'</span>';
 }
 function tv4Time(hhmm, sub){
   var t = tvMakersTime12(hhmm);
-  return '<div class="tv4-tm">'+(t.ap ? t.t : '&mdash;')+'<small>'+(t.ap || '')+(sub ? ' &middot; '+escapeHTML(sub) : '')+'</small></div>';
+  if(!t.ap) return '<div class="tv4-tm">&mdash;</div>';
+  return '<div class="tv4-tm"><span class="tv5-fl">'+tvFlapHtml(t.t, 5)+'</span><small>'+t.ap+(sub ? ' &middot; '+escapeHTML(sub) : '')+'</small></div>';
 }
 function tv4Meta(r){
   var noLoc = !r.loc || !String(r.loc).trim();
@@ -17015,6 +17030,11 @@ function tvDoRender(){
   var pages = [].concat(tvBuildTodayPages(vm), tvBuildMakersPages(vm), tvBuildTomorrowPages(vm), tvBuildCheckinPages(vm), tvBuildOpsPages(vm));
   tvReconcilePageDom(pages);
   _tv.pageDwells = pages.map(function(pg){ return pg.dwell || 0; });   // TV v4: more to read = longer on screen
+  try {   // TV v5: global FXE ticker (same text everywhere; only re-written when it changes, so it keeps scrolling)
+    var tk = tvMakersTickerHtml(tvDayKeyOffset(0), tvDayKeyOffset(1)).replace(/^[\s\S]*?<span class="mk-tk-run">/, '').replace(/<\/span><\/div><\/div>$/, '');
+    var run = document.getElementById('tvTickerRun');
+    if(run && run.getAttribute('data-v') !== tk){ run.innerHTML = tk; run.setAttribute('data-v', tk); }
+  } catch(e) {}
   try { tv4CheckLandings(); } catch(e) { console.warn('TV landing alerts:', e); }
   if(_tv.currentPage >= _tv.pageCount) _tv.currentPage = 0;
   // Newly created .tv-page elements start with no active class (see
@@ -17139,7 +17159,7 @@ function tvRenderKpis(vm){
   if(!el) return;
   function kpi(label, num, sub, level){
     return '<div class="tv-kpi'+(level?' tv-lvl-'+level:'')+'">'+
-      '<div class="tv-kpi-num">'+num+'</div>'+
+      '<div class="tv-kpi-num"><span class="tv5-fl">'+tvFlapHtml(String(num), String(num).length)+'</span></div>'+
       '<div class="tv-kpi-lbl">'+escapeHTML(label)+'</div>'+
       (sub?'<div class="tv-kpi-sub">'+escapeHTML(sub)+'</div>':'')+
     '</div>';
@@ -17830,6 +17850,9 @@ function tvShowPage(idx){
     if(p) p.classList.toggle('tv-page-active', i===idx);
   }
   try { tv4PostFit(document.getElementById('tvPageBody'+idx)); } catch(e) {}
+  var TV5_NAMES = {today:'TODAY', makers:'DEPARTURES', tomorrow:'TOMORROW', checkin:'CHECK-IN', ops:'OPERATIONS'};
+  var tkp = document.getElementById('tvTickerPage');
+  if(tkp && _tv.pageKinds) tkp.textContent = (TV5_NAMES[_tv.pageKinds[idx]] || '') + ' \u00b7 ' + (idx + 1) + '/' + _tv.pageCount;
   // Makers Departures: the whole board flips once each time the page comes up.
   if(_tv.lastShownPage !== idx && _tv.pageKinds && _tv.pageKinds[idx] === 'makers'){
     var mkBody = document.getElementById('tvPageBody'+idx);

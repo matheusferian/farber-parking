@@ -3013,3 +3013,80 @@ img.mk-asc{height:calc(var(--r)*.24);border:0;padding:0;}
 .mk-total small{font:500 15px Inter,sans-serif;color:#8C9BBB;}
 .tv4-fc-other{opacity:.92;}
 .tv4-fc-other .tv4-cv{filter:saturate(.85);}
+
+/* ══ TV v5 (owner approved 2026-11-06, mockup tv-flights/v5): every page is the same navy airport board ══ */
+#tvMode{
+  --tv-bg:#061433; --tv-panel:#0C1D45; --tv-panel2:#0A1838; --tv-border:rgba(255,255,255,.1);
+  --tv-text:#F3F1EA; --tv-mu:#8C9BBB; --tv-navy:#C9A84C; --tv-accent:#7FB0FF; --tv-gold:#C9A84C;
+  --tv-ok:#3CEB7F; --tv-ok-bg:rgba(60,235,127,.12); --tv-warning:#FFB224; --tv-warning-bg:rgba(255,178,36,.12);
+  --tv-critical:#FF4B4B; --tv-critical-bg:rgba(255,75,75,.12);
+  background:radial-gradient(1400px 700px at 50% -20%,#0F2050 0%,#061433 55%,#040C22 100%);
+}
+#tvMode .tv-header{background:linear-gradient(#0B1B44,#081536);border-bottom:2px solid rgba(201,168,76,.55);padding:12px 32px;}
+#tvMode .tv5-lockup{height:52px;width:auto;}
+#tvMode .tv-brand-sub{display:none;}
+#tvMode .tv-live-pill{font-family:'Barlow Condensed',sans-serif;font-size:17px;letter-spacing:.14em;color:#3CEB7F;background:none;border:0;display:flex;align-items:center;gap:8px;padding:0;}
+#tvMode .tv-live-pill i{width:10px;height:10px;border-radius:50%;background:#3CEB7F;animation:tv4Blink 1.4s steps(1,end) infinite;}
+/* split-flap tiles sized in em (header numbers, clock, guest times) */
+#tvMode .tv5-fl{display:inline-flex;align-items:center;gap:.05em;}
+#tvMode .tv5-fl .mk-fl{width:.6em;height:.98em;font-size:1em;font-weight:700;}
+#tvMode .tv5-fl .mk-h i{height:.98em;line-height:.98em;}
+#tvMode .tv5-fl .mk-b i,#tvMode .tv5-fl .mk-fb i{top:-.49em;}
+#tvMode .tv5-fl .mk-fl-sep{font-size:.85em;padding:0 .02em;}
+#tvMode .tv-kpi-inhead .tv-kpi{align-items:center;}
+#tvMode .tv-kpi-inhead .tv-kpi-num{font-size:clamp(28px,2.3vw,46px);color:#fff;}
+#tvMode .tv-kpi-inhead .tv-kpi-lbl{color:var(--tv-mu);}
+#tvMode .tv-kpi-inhead .tv-lvl-ok .tv-kpi-lbl{color:#3CEB7F;} #tvMode .tv-kpi-inhead .tv-lvl-warning .tv-kpi-lbl{color:#FFB224;} #tvMode .tv-kpi-inhead .tv-lvl-critical .tv-kpi-lbl{color:#FF4B4B;}
+#tvMode .tv-kpi-inhead .tv-kpi-num{color:#fff!important;}
+#tvMode .tv-date{color:var(--tv-mu);}
+#tvMode .tv-clock{display:flex;align-items:center;gap:6px;font-family:'Barlow Condensed',sans-serif;font-size:clamp(34px,3vw,58px);}
+#tvMode .tv-clock small{font:700 .38em 'Barlow Condensed',sans-serif;color:#C9A84C;align-self:flex-end;padding-bottom:.2em;}
+/* titles: gold board heading with a gold rule */
+#tvMode .tv-page-title{color:#C9A84C;text-transform:uppercase;letter-spacing:.06em;border-bottom:1px solid rgba(201,168,76,.4);padding-bottom:6px;}
+#tvMode .tv-page-title .tv-count-pill{background:none;color:#fff;font-size:24px;margin-left:auto;padding:0;}
+#tvMode .tv-prep-badge{background:none;border-color:rgba(255,255,255,.2);color:var(--tv-mu);}
+/* guest rows = board rows */
+#tvMode .tv4-car{background:transparent;border-radius:0;box-shadow:none;border-bottom:1px solid rgba(255,255,255,.08);padding:.6em .6em .6em 1em;}
+#tvMode .tv4-car,#tvMode .tv4-has-ph{grid-template-columns:5.6em minmax(0,1fr);}
+#tvMode .tv4-multi .tv4-car,#tvMode .tv4-multi .tv4-has-ph{grid-template-columns:5em minmax(0,1fr);}
+#tvMode .tv4-tm{font-size:1.55em;color:#fff;display:flex;flex-direction:column;align-items:flex-start;}
+#tvMode .tv4-tm small{color:#C8D3E6;font-family:'Barlow Condensed',sans-serif;font-size:.4em;letter-spacing:.06em;margin-top:.2em;}
+#tvMode .tv4-ck .tv4-tm{font-size:1.25em;}
+#tvMode .tv4-tm-unset{color:#FFB224;font-size:.95em;}
+#tvMode .tv4-nm{color:#fff;font-size:1.6em;}
+#tvMode .tv4-mt{color:var(--tv-mu);} #tvMode .tv4-mt b{color:#fff;}
+#tvMode .tv4-from{background:rgba(255,255,255,.06);color:#D7DEEA;}
+#tvMode .tv4-p-live{background:rgba(255,75,75,.14);color:#FF6B6B;}
+#tvMode .tv4-p-way{background:rgba(127,176,255,.14);color:#9CC2FF;}
+#tvMode .tv4-p-landed{background:rgba(60,235,127,.12);color:#3CEB7F;}
+#tvMode .tv4-p-sched{background:rgba(255,255,255,.06);color:var(--tv-mu);}
+#tvMode .tv4-p-taxi{background:rgba(255,178,36,.14);color:#FFB224;}
+#tvMode .tv4-obs{color:var(--tv-mu);}
+#tvMode .tv4-deliv{color:#3CEB7F;}
+#tvMode .tv4-more{color:var(--tv-mu);}
+#tvMode .tv4-air{background:var(--tv-panel2);border:1px solid rgba(201,168,76,.25);}
+#tvMode .tv4-chips .tv-badge,#tvMode .tv4-mt .tv-badge{background:transparent;border:1px solid currentColor;}
+/* operations rows */
+#tvMode .tv-row,#tvMode .tv-list-row{background:transparent;border-radius:0;box-shadow:none;border-bottom:1px solid rgba(255,255,255,.08);}
+#tvMode .tv-row-name,#tvMode .tv-list-name{color:#fff;}
+#tvMode .tv-row-meta b{color:#fff;}
+#tvMode .tv-subgroup-hdr{color:#C9A84C;border-bottom-color:rgba(201,168,76,.4);}
+#tvMode .tv-subgroup-hdr .tv-subgroup-count{background:rgba(255,255,255,.1);color:#fff;}
+#tvMode .tv4-wo-t{color:#fff;} #tvMode .tv4-wo-who b{color:#fff;}
+#tvMode .tv4-wo-ic{background:rgba(255,255,255,.08)!important;}
+#tvMode .wo-wb .tv4-wo-ic{color:#7FB0FF;box-shadow:inset 0 0 0 1px rgba(127,176,255,.45);}
+#tvMode .wo-crit .tv4-wo-ic{color:#FF4B4B;box-shadow:inset 0 0 0 1px rgba(255,75,75,.5);}
+#tvMode .wo-warn .tv4-wo-ic{color:#FFB224;box-shadow:inset 0 0 0 1px rgba(255,178,36,.5);}
+#tvMode .wo-wash .tv4-wo-ic{color:#3FD6E6;box-shadow:inset 0 0 0 1px rgba(63,214,230,.45);}
+#tvMode .wo-price .tv4-wo-ic{color:#C79BFF;box-shadow:inset 0 0 0 1px rgba(199,155,255,.45);}
+#tvMode .tv-hangar-card{background:var(--tv-panel);box-shadow:inset 0 0 0 1px rgba(201,168,76,.25);}
+#tvMode .tv-empty{color:var(--tv-mu);}
+#tvMode .tv4-allclear{color:#3CEB7F!important;}
+#tvMode .mk-col{box-shadow:inset 0 0 0 1px rgba(201,168,76,.25);}
+#tvMode .tv-page-dot{background:rgba(255,255,255,.2);} #tvMode .tv-page-dot.tv-page-dot-active{background:#C9A84C;}
+#tvMode .tv-fs-btn{background:rgba(255,255,255,.08);color:#fff;border-color:rgba(255,255,255,.2);}
+/* global FXE ticker */
+#tvMode .tv5-ticker{height:52px;flex-shrink:0;display:flex;align-items:center;background:#081433;border-top:1px solid rgba(201,168,76,.45);overflow:hidden;position:relative;z-index:2;}
+#tvMode .tv5-tk-lbl{height:100%;display:flex;align-items:center;gap:10px;padding:0 20px;background:#C9A84C;color:#111;font:700 22px 'Barlow Condensed',sans-serif;letter-spacing:.1em;flex-shrink:0;}
+#tvMode .tv5-tk-lbl small{font:700 14px 'Barlow Condensed',sans-serif;letter-spacing:.1em;opacity:.7;}
+#tvMode .tv5-ticker .mk-tk-run{font-size:24px;}
