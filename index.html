@@ -7141,9 +7141,13 @@ function mkNamesLoad(force){
 function mkNamesMatch(q){
   if (!q) return [];
   var seen = {}, out = [];
+  var now = new Date(), nowMin = now.getHours() * 60 + now.getMinutes();
   _mkNames.list.forEach(function(n){
     var nm = String(n.name || '').toUpperCase();
     if (!nm || seen[nm]) return;
+    // Today's flight that left more than 30 min ago (owner 2026-11-06): not suggested any more.
+    var tm = /^(\d{1,2}):(\d{2})/.exec(String(n.time || ''));
+    if (!n.d && tm && (+tm[1]) * 60 + (+tm[2]) + 30 < nowMin) return;
     var hit = nm.indexOf(q) === 0 || nm.split(' ').some(function(w){ return w.indexOf(q) === 0; }) || (q.length >= 3 && nm.indexOf(q) >= 0);
     if (hit) { seen[nm] = true; out.push(n); }
   });
