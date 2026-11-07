@@ -13,18 +13,21 @@
 // Auth: X-Makers-Sync-Secret (pg_cron, constant-time) or a staff JWT with an ops role.
 // Env: MAKERS_SUITE_USER / MAKERS_SUITE_PASSWORD (set by the owner), MAKERS_SYNC_SECRET,
 //      VAPID (push), SUPABASE_URL / SUPABASE_ANON_KEY / SUPABASE_SERVICE_ROLE_KEY.
-// If Makers refuses the login (password changed), the run says so and the push tells the owner.
+// If Makers refuses the login (password changed), the run says so and the push tells the owner; the
+// scheduled runs then STOP trying (no account lock-out) until a staff member runs "Update from Makers".
+// Security rules and what is kept: makers-sync/SECURITY.md.
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { MakersSuite, MakersSuiteError } from '../_shared/makers/suite.ts';
 import { HeldCar, runSync, SyncResult } from '../_shared/makers/sync.ts';
 import { Feedback, parseDate } from '../_shared/manifest/match.ts';
 import { notifyCategory } from '../_shared/notify/staff.ts';
-import { changeLine, diffDepartures, type DepChange, type DepFlight } from '../_shared/makers/changes.ts';
+import { changeLine, diffDepartures, KEY_VERSION, type DepChange, type DepFlight } from '../_shared/makers/changes.ts';
 import { readVapid } from '../_shared/notify/runtime.ts';
 
 const ALLOWED_ORIGINS = ['https://airvalet.farberos.com', 'https://matheusferian.github.io'];
 const OPS = ['ADMIN', 'MANAGER', 'IPAD_OPS', 'IPHONE_OPS'];
+const ROBOT_OWNERS = ['matheusferian@airvalet.local'];   // the only login that may run this robot by hand
 
 function cors(origin: string | null): Record<string, string> {
   return {
@@ -72,7 +75,9 @@ Deno.serve(async (req) => {
     const caller = createClient(SUPABASE_URL, Deno.env.get('SUPABASE_ANON_KEY')!, { global: { headers: { Authorization: authHeader } }, auth: { persistSession: false } });
     const [{ data: u }, { data: role, error: roleErr }] = await Promise.all([caller.auth.getUser(), caller.rpc('current_user_role')]);
     if (roleErr || !u?.user) return json(401, { ok: false, error: { code: 'UNAUTHENTICATED' } });
-    if (!OPS.includes(String(role))) return json(403, { ok: false, error: { code: 'FORBIDDEN' } });
+    // Owner 2026-11-06: "não deixe qualquer um acessar o robô — somente eu". Only the owner's own login
+    // (ADMIN) can run it by hand; everyone else gets FORBIDDEN. The schedule uses the robot secret.
+    if (String(role) !== 'ADMIN' || !ROBOT_OWNERS.includes(String(u.user.email || '').toLowerCase())) return json(403, { ok: false, error: { code: 'FORBIDDEN' } });
     userId = u.user.id;
     // One manual run at a time per minute: Makers is not ours to hammer.
     const { count } = await admin.from('airvalet_manifest_scans').select('id', { count: 'exact', head: true })
@@ -104,6 +109,24 @@ Deno.serve(async (req) => {
   }
   const user = Deno.env.get('MAKERS_SUITE_USER'), pass = Deno.env.get('MAKERS_SUITE_PASSWORD');
   if (!user || !pass) return json(200, { ok: false, error: { code: 'NOT_CONFIGURED' } });
+  // An on-demand run with the robot secret follows the same once-a-minute rule as the app button.
+  if (isCron && cronBody.day) {
+    const { count } = await admin.from('airvalet_manifest_scans').select('id', { count: 'exact', head: true })
+      .eq('usage->>mode', 'makers_sync').gte('created_at', new Date(Date.now() - 60_000).toISOString());
+    if ((count || 0) > 0) return json(200, { ok: false, error: { code: 'TOO_SOON' } });
+  }
+  // Last reading refused the login (password changed?): the schedule stops trying so the Makers account is
+  // never locked by repeated failures. A staff "Update from Makers" tries again (after the owner fixes it).
+  if (isCron) {
+    const { data: last } = await admin.from('airvalet_manifest_scans').select('result,usage').eq('usage->>mode', 'makers_sync')
+      .order('created_at', { ascending: false }).limit(1).maybeSingle();
+    const stopCode = last && last.usage?.ok === false ? String(last.result?.error || '') : '';
+    if (['LOGIN_FAILED', 'LAYOUT', 'BLOCKED'].includes(stopCode)) return json(200, { ok: false, error: { code: 'STOPPED_' + stopCode } });
+  }
+  // One run at a time (cron, app button and on-demand), even when two start together.
+  const { data: locked } = await admin.rpc('airvalet_robot_lock', { p_name: 'makers-sync', p_secs: 150 });
+  if (locked !== true) return json(200, { ok: false, error: { code: 'BUSY' } });
+  const unlock = () => admin.rpc('airvalet_robot_unlock', { p_name: 'makers-sync' });
   const date = target, today = etDay(0);
   const vapid = readVapid((k) => Deno.env.get(k));
   const deps = { db: admin, vapid, log: (event: string, data: Record<string, unknown>) => console.log(JSON.stringify({ event, ...data })) };
@@ -118,19 +141,27 @@ Deno.serve(async (req) => {
       admin.from('passengers').select('id,ticket,name,ret,status,deldate,return_flight,departure_time,return_operator,ts,archived_at').in('status', ['PENDING', 'NO DATE']).limit(2000),
       admin.from('airvalet_manifest_feedback').select('manifest_name,system_name,verdict').limit(5000),
     ]);
-    if (cErr || fErr) return json(500, { ok: false, error: { code: 'LOOKUP_FAILED' } });
+    if (cErr || fErr) { await unlock(); return json(500, { ok: false, error: { code: 'LOOKUP_FAILED' } }); }
     const pool: HeldCar[] = (cars || []).filter((c) => !c.archived_at).map((c) => ({ ...c, checkin: parseDate(String(c.ts || '').split(',')[0]) }));
     noDateIds = new Set(pool.filter((c) => c.status === 'NO DATE').map((c) => c.id));
-    result = await runSync(suite, { date, today, pool, feedback: (fb || []) as Feedback[] });
+    result = await runSync(suite, { date, today, pool, feedback: (fb || []) as Feedback[], keySecret: Deno.env.get('MAKERS_SYNC_SECRET') || undefined });
   } catch (e) {
     const code = e instanceof MakersSuiteError ? e.code : 'READ_FAILED';
     console.log(JSON.stringify({ event: 'makers_sync.error', code, msg: (e as Error).message }));
     await admin.from('airvalet_manifest_scans').insert({ created_by: userId, service_date: date, result: { error: code }, usage: { mode: 'makers_sync', ok: false, cron: isCron } });
-    if (isCron) {
-      await notifyCategory(deps, 'DAILY', { title: 'Makers robot could not read the flights',
-        body: code === 'LOGIN_FAILED' ? 'Makers Air Suite did not accept the login. Did the password change? Tell Matheus.' : 'Makers Air Suite did not answer as expected. Check the list by hand today.',
+    // Owner 2026-11-06: a changed Makers page (or anything the read-only guard refused) = stop at once, change
+    // nothing, tell the owner right away; the schedule stays stopped until it is fixed and a staff member runs
+    // "Update from Makers" again.
+    const pageChanged = code === 'LAYOUT' || code === 'BLOCKED';
+    if (isCron || pageChanged || code === 'LOGIN_FAILED') {
+      await notifyCategory(deps, 'DAILY', {
+        title: pageChanged ? 'Makers robot STOPPED — Makers page changed' : 'Makers robot could not read the flights',
+        body: code === 'LOGIN_FAILED' ? 'Makers Air Suite did not accept the login. Did the password change? Tell Matheus. The robot stopped trying.'
+          : pageChanged ? 'Nothing was changed in Makers. The robot stopped and will not run again until it is fixed. Tell Matheus.'
+          : 'Makers Air Suite did not answer as expected. Check the list by hand today.',
         url: '/?mf=1', tag: 'makers-sync-error' });
     }
+    await unlock();
     return json(200, { ok: false, error: { code } });
   }
 
@@ -142,7 +173,8 @@ Deno.serve(async (req) => {
     .eq('service_date', date).eq('usage->>mode', 'makers_sync').eq('usage->>ok', 'true')
     .order('created_at', { ascending: false }).limit(1).maybeSingle();
   let changes: { since: string; items: DepChange[]; lines: string[] } | null = null;
-  const prevOut = prevRow?.result?.outbound as DepFlight[] | undefined;
+  // Keys of another kind (before HMAC, 2026-11-06) cannot be compared: counts only for that reading.
+  const prevOut = (prevRow?.result?.outbound as DepFlight[] | undefined)?.map((f) => prevRow?.result?.kv === KEY_VERSION ? f : { ...f, ids: undefined });
   if (prevRow && Array.isArray(prevOut)) {
     const items = diffDepartures(prevOut, result.outbound as DepFlight[]);
     changes = { since: prevRow.created_at, items, lines: items.map(changeLine) };
@@ -164,6 +196,7 @@ Deno.serve(async (req) => {
     if (noShowRun) still_off = missing.filter((x) => !prevBy.has(x.passenger_id)).map((x) => ({ passenger_id: x.passenger_id, ticket: x.ticket, system_name: x.system_name }));
   }
   const saved = {
+    kv: KEY_VERSION,
     no_show, still_off,
     changes,
     date: result.date, inbound: result.inbound, outbound: result.outbound, matches: m.matches, missing: m.missing,
@@ -213,5 +246,9 @@ Deno.serve(async (req) => {
       body: changes.lines.slice(0, 4).join('\n') + (changes.lines.length > 4 ? `\n+${changes.lines.length - 4} more` : '') + '\nOpen Makers Flights to resend the updated picture.',
       url: '/?mf=1', tag: `makers-changes-${date}` });
   }
+  await unlock();
+  // The scheduler's copy of the answer is kept by pg_net (net._http_response): counts only, no names.
+  if (isCron) return json(200, { ok: true, date, names_saved: namesSaved, inbound: result.inbound.length, outbound: result.outbound.length,
+    matches: m.matches.length, missing: m.missing.length, changes: changes ? changes.items.length : 0 });
   return json(200, { ok: true, created_at: new Date().toISOString(), names_saved: namesSaved, ...saved });
 });

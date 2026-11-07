@@ -18055,7 +18055,7 @@ async function mfHome(){
   try { latest = await vpRpc('airvalet_manifest_latest', {}); } catch(e) { latest = null; }
   if (latest && latest.ok && latest.result) { _mf.res = mfRobotRes(latest.result, latest.created_at); mfRenderResult(); return; }
   b.innerHTML = (latest && latest.ok === false ? '<p class="mf-err" role="alert">The last Makers reading failed. Tap Update to try again.</p>' : '<p class="mf-p">No Makers list yet for tomorrow.</p>') +
-    '<button type="button" class="mf-btn mf-go" onclick="mfUpdate()">🔄 Update from Makers</button>' +
+    (mfRobotOwner() ? '<button type="button" class="mf-btn mf-go" onclick="mfUpdate()">🔄 Update from Makers</button>' : '') +
     '<button type="button" class="mf-link" onclick="mfRenderPick()">No Makers access? Check with photos of the printed pages</button>';
 }
 // Owner 2026-11-06: flights with 0 passengers (freight, pilot training) never count — not in the lists,
@@ -18072,7 +18072,10 @@ var MF_SYNC_ERR = { NOT_CONFIGURED: 'The Makers robot is not set up yet. Ask the
   LAYOUT: 'Makers Air Suite changed its pages. Tell Matheus; check the list by hand meanwhile.', HTTP: 'Makers Air Suite is not answering. Try again in a few minutes.',
   READ_FAILED: 'Could not read Makers Air Suite. Try again in a few minutes.', TOO_SOON: 'Just updated — wait a minute.', NETWORK: 'No connection — try again.',
   FORBIDDEN: 'This login cannot use the Makers check.', UNAUTHENTICATED: 'Session expired — sign in again.' };
+// Owner 2026-11-06: only the owner's own login runs the Makers robot by hand (the server checks it too).
+function mfRobotOwner(){ return String(_currentUserEmail || '').toLowerCase() === 'matheusferian@airvalet.local'; }
 async function mfUpdate(day){
+  if (!mfRobotOwner()) { showMsg('Only Matheus can run the Makers robot. It runs by itself on schedule.', true); return; }
   if (_mf.busy) return;
   if (navigator.onLine === false) { showMsg('No connection — the Makers check needs internet.', true); return; }
   _mf.busy = true;
@@ -18374,7 +18377,7 @@ function mfRenderResult(){
     ((r.inbound || []).length ? '<section class="mf-sec"><h3>🛬 Arrivals at FXE <span>' + pax(r.inbound) + ' pax</span></h3><ul class="mf-fl">' + flights(r.inbound) + '</ul></section>' : '') +
     sec('Already delivered', 'mf-s-del', del, '') +
     (r.robot
-      ? '<button type="button" class="mf-btn mf-go" onclick="mfUpdate()">🔄 Update from Makers</button><button type="button" class="mf-link" onclick="mfRenderPick()">No Makers access? Check with photos</button>'
+      ? (mfRobotOwner() ? '<button type="button" class="mf-btn mf-go" onclick="mfUpdate()">🔄 Update from Makers</button>' : '') + '<button type="button" class="mf-link" onclick="mfRenderPick()">No Makers access? Check with photos</button>'
       : '<button type="button" class="mf-btn" onclick="mfHome()">Back</button>');
 }
 async function mfFill(i){

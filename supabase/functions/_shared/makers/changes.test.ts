@@ -4,10 +4,12 @@ import { changeLine, DepFlight, diffDepartures, paxKey } from './changes.ts';
 const F = (flight: string, dest: string, time: string, tail: string, ids?: string[]): DepFlight =>
   ({ flight, route: `FXE-${dest}`, tail, time, pax: ids ? ids.length : 0, ids });
 
-Deno.test('paxKey: anonymous, stable, case and spacing insensitive, 12 hex', async () => {
+Deno.test('paxKey: anonymous, stable, case and spacing insensitive, 16 hex; HMAC differs by secret', async () => {
   const a = await paxKey('Doctor', 'Randall'), b = await paxKey(' DOCTOR ', 'randall');
   assertEquals(a, b);
-  assertEquals(/^[0-9a-f]{12}$/.test(a), true);
+  assertEquals(/^[0-9a-f]{16}$/.test(a), true);
+  const h1 = await paxKey('Doctor', 'Randall', 's1'), h2 = await paxKey('DOCTOR', 'RANDALL', 's1'), h3 = await paxKey('Doctor', 'Randall', 's2');
+  assertEquals(h1, h2); assertEquals(h1 === h3, false); assertEquals(h1 === a, false);
 });
 
 Deno.test('3 left the 6:45 (one went to the 10:00), one new on the 10:00', () => {

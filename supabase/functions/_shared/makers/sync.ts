@@ -55,7 +55,7 @@ export function pickTrip(car: HeldCar, trips: Trip[], today: string): Trip | nul
   return near[0].t;
 }
 
-export async function runSync(suite: SuiteLike, o: { date: string; today: string; pool: HeldCar[]; feedback: Feedback[]; maxLookups?: number }): Promise<SyncResult> {
+export async function runSync(suite: SuiteLike, o: { date: string; today: string; pool: HeldCar[]; feedback: Feedback[]; maxLookups?: number; keySecret?: string }): Promise<SyncResult> {
   const warnings: string[] = [];
   const legsByDay = new Map<string, Leg[]>(), inByDay = new Map<string, PaxRow[]>();
   const legs = async (iso: string) => { if (!legsByDay.has(iso)) legsByDay.set(iso, await suite.schedule(isoToMdy(iso))); return legsByDay.get(iso)!; };
@@ -78,7 +78,7 @@ export async function runSync(suite: SuiteLike, o: { date: string; today: string
   }).filter((f) => f.pax > 0).sort((a, b) => a.time.localeCompare(b.time));
   for (const f of outbound) {
     const keys = new Set<string>();
-    for (const r of outPax) if (r.flight === f.flight) keys.add(await paxKey(r.last, r.first));
+    for (const r of outPax) if (r.flight === f.flight) keys.add(await paxKey(r.last, r.first, o.keySecret));
     f.ids = [...keys].sort();
   }
   const pages: ManifestPage[] = inbound.map((f) => ({
@@ -94,11 +94,17 @@ export async function runSync(suite: SuiteLike, o: { date: string; today: string
   const date_diffs: DateDiff[] = [], no_return: NoReturn[] = [], not_found_list: NotFound[] = [];
   let checked = 0, not_found = 0;
   const held = o.pool.filter((c) => (c.status === 'PENDING' || c.status === 'NO DATE') && String(c.return_operator || 'MAKERS').toUpperCase() !== 'ASCEND' && !settled.has(c.id));
-  for (const car of held.slice(0, o.maxLookups ?? 120)) {
+  for (const car of held.slice(0, o.maxLookups ?? 100)) {
     const toks = normTokens(car.name);
     if (toks.length < 2) continue;
     let trips: Trip[] = [];
-    try { trips = await suite.trips(toks[toks.length - 1]); } catch (e) { warnings.push(`lookup failed: ${car.ticket}: ${String((e as Error)?.message || e).slice(0, 120)}`); continue; }
+    try { trips = await suite.trips(toks[toks.length - 1]); } catch (e) {
+      const code = (e as { code?: string })?.code;
+      // A changed page or a blocked request stops the whole run (never keep going on a page we do not know).
+      if (code === 'BLOCKED' || code === 'LAYOUT' || code === 'LOGIN_FAILED') throw e;
+      if (code === 'DEADLINE') { warnings.push('stopped early: time limit'); break; }
+      warnings.push(`lookup failed: ${car.ticket}: ${String((e as Error)?.message || e).slice(0, 120)}`); continue;
+    }
     checked++;
     const t = pickTrip(car, trips, o.today);
     if (!t) { not_found++; not_found_list.push({ passenger_id: car.id, ticket: car.ticket, system_name: car.name, ours: car.ret || null }); continue; }
@@ -107,7 +113,7 @@ export async function runSync(suite: SuiteLike, o: { date: string; today: string
     if (t.ret === ours) continue;
     date_diffs.push({ passenger_id: car.id, ticket: car.ticket, system_name: car.name, ours: car.ret || null, makers: t.ret });
   }
-  if (held.length > (o.maxLookups ?? 120)) warnings.push(`only the first ${o.maxLookups ?? 120} cars were checked`);
+  if (held.length > (o.maxLookups ?? 100)) warnings.push(`only the first ${o.maxLookups ?? 100} cars were checked`);
   date_diffs.sort((a, b) => a.makers.localeCompare(b.makers));
   // 3. Follow-up guests (NO DATE) on that day's flights: arriving (manifest match) or leaving FXE (departure list).
   const followup_seen: FollowUpSeen[] = [];

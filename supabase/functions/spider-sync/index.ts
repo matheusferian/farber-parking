@@ -1,6 +1,6 @@
 // spider-sync (owner 2026-11-06): every minute (pg_cron 'spider-sync', 5:30 AM – 9 PM Fort Lauderdale)
 // read the Makers Air fleet positions from Spidertracks (READ-ONLY) into airvalet_spider_state for the TV.
-// Auth: cron header X-Makers-Sync-Secret (same secret as makers-sync) or an ops JWT (manual run).
+// Auth: cron header X-Spider-Sync-Secret (its OWN secret since 2026-11-06, never the Makers robot one) or an ops JWT.
 // Login: the owner's Spidertracks user (SPIDER_USER / SPIDER_PASS secrets, set by the owner) through the
 // web app's own Cognito pool; the refresh token is kept in airvalet_spider_session (service role only),
 // so the robot signs in with the password only when the refresh token is gone.
@@ -12,6 +12,7 @@ import { notifyCategory } from '../_shared/notify/staff.ts';
 import { readVapid } from '../_shared/notify/runtime.ts';
 
 const OPS = ['ADMIN', 'MANAGER', 'IPAD_OPS', 'IPHONE_OPS'];
+const ROBOT_OWNERS = ['matheusferian@airvalet.local'];   // the only login that may run this robot by hand
 function timingSafeEqual(a: string, b: string): boolean {
   if (!a || !b || a.length !== b.length) return false;
   let r = 0; for (let i = 0; i < a.length; i++) r |= a.charCodeAt(i) ^ b.charCodeAt(i);
@@ -123,12 +124,13 @@ Deno.serve(async (req) => {
   if (req.method !== 'POST') return json(405, { ok: false, error: { code: 'METHOD' } });
   const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
   const admin = createClient(SUPABASE_URL, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false, autoRefreshToken: false } });
-  const isCron = timingSafeEqual(req.headers.get('X-Makers-Sync-Secret') ?? '', Deno.env.get('MAKERS_SYNC_SECRET') ?? '');
+  const isCron = timingSafeEqual(req.headers.get('X-Spider-Sync-Secret') ?? '', Deno.env.get('SPIDER_SYNC_SECRET') ?? '');
   if (!isCron) {
     const authHeader = req.headers.get('Authorization') || '';
     const caller = createClient(SUPABASE_URL, Deno.env.get('SUPABASE_ANON_KEY')!, { global: { headers: { Authorization: authHeader } }, auth: { persistSession: false } });
     const [{ data: u }, { data: role }] = await Promise.all([caller.auth.getUser(), caller.rpc('current_user_role')]);
-    if (!u?.user || !OPS.includes(String(role))) return json(403, { ok: false, error: { code: 'FORBIDDEN' } });
+    // Owner 2026-11-06: only the owner's own login runs the robot by hand.
+    if (!u?.user || String(role) !== 'ADMIN' || !ROBOT_OWNERS.includes(String(u.user.email || '').toLowerCase())) return json(403, { ok: false, error: { code: 'FORBIDDEN' } });
   }
   const now = etNow();
   if (isCron && (now.min < 5 * 60 + 30 || now.min > 21 * 60)) return json(200, { ok: true, skipped: 'night' });

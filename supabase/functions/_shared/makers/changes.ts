@@ -21,10 +21,18 @@ export type DepChange = {
   tail_from?: string; time_from?: string;
 };
 
-export async function paxKey(last: string, first: string): Promise<string> {
+// With a secret (security review 2026-11-06): HMAC-SHA256, so nobody can test "is SMITH|JOHN on this flight"
+// against a stored key. Readings made with keys of another kind (kv) are compared by counts only.
+export const KEY_VERSION = 2;
+export async function paxKey(last: string, first: string, secret?: string): Promise<string> {
   const norm = `${String(last || '').trim().toUpperCase()}|${String(first || '').trim().toUpperCase()}`.replace(/\s+/g, ' ');
-  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(norm));
-  return [...new Uint8Array(buf)].slice(0, 6).map((b) => b.toString(16).padStart(2, '0')).join('');
+  const data = new TextEncoder().encode(norm);
+  let buf: ArrayBuffer;
+  if (secret) {
+    const k = await crypto.subtle.importKey('raw', new TextEncoder().encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+    buf = await crypto.subtle.sign('HMAC', k, data);
+  } else buf = await crypto.subtle.digest('SHA-256', data);
+  return [...new Uint8Array(buf)].slice(0, 8).map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
 const dest = (f: DepFlight) => String(f.route || '').replace(/^FXE-/, '');

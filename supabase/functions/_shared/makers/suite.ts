@@ -1,5 +1,11 @@
-// Makers Air Suite reader (owner 2026-11-06). READ-ONLY by rule: it logs in and runs two SEARCH
-// reports, nothing else. It never opens a flight edit form, never posts a Save/Add/Delete button,
+// Makers Air Suite reader (owner 2026-11-06). READ-ONLY by rule — see supabase/functions/makers-sync/SECURITY.md.
+// Enforced in code, not only by habit (security review 2026-11-06):
+//   • only 4 paths can ever be requested (ALLOWED_PATHS); a redirect anywhere else stops the run;
+//   • POST only to the login and the 3 search pages, pressing only a button whose name ends with its
+//     Search button and contains "search"; __EVENTTARGET/__EVENTARGUMENT always blank; any field named
+//     like an action (save/add/delete/update/edit/…) or another button is dropped before posting;
+//   • responses capped at 6 MB, 30 s per request, one overall deadline per run, a short pause between requests.
+// It logs in and runs SEARCH reports, nothing else. It never opens a flight edit form, never posts a Save/Add/Delete button,
 // and keeps only what AirValet needs: flight number, route, times, tail, passenger names, counts.
 //   1. Reservations/FlightSchedule.aspx  ("Flight Schedule AG")   → legs with times and tail
 //   2. PassangerFlightReport.aspx        ("Passenger Flight List") → passenger names per flight
@@ -14,8 +20,8 @@ export type Trip = { last: string; first: string; dep: string; depTime: string; 
 
 // "11:01 AM" → "11:01", "5:41 PM" → "17:41"
 export function to24(t: string): string {
-  const m = String(t || '').trim().match(/^(\d{1,2}):(\d{2})\s*([AP])M$/i);
-  if (!m) return '';
+  const m = String(t || '').trim().match(/^(\d{1,2}):([0-5]\d)\s*([AP])M$/i);
+  if (!m || +m[1] < 1 || +m[1] > 12) return '';
   let h = +m[1] % 12;
   if (m[3].toUpperCase() === 'P') h += 12;
   return `${String(h).padStart(2, '0')}:${m[2]}`;
@@ -121,14 +127,65 @@ export function setRadDate(f: Map<string, string>, picker: string, mdy: string):
   }
 }
 
-export class MakersSuiteError extends Error { constructor(public code: 'LOGIN_FAILED' | 'HTTP' | 'LAYOUT', msg: string) { super(msg); } }
+export class MakersSuiteError extends Error { constructor(public code: 'LOGIN_FAILED' | 'HTTP' | 'LAYOUT' | 'BLOCKED' | 'DEADLINE', msg: string) { super(msg); } }
+
+// The only pages the robot may ever open (case-insensitive, no query string).
+export const ALLOWED_PATHS = ['/Login.aspx', '/Reservations/FlightSchedule.aspx', '/PassangerFlightReport.aspx', '/Reservations/ViewReservation.aspx'];
+const SEARCH_PATHS = ALLOWED_PATHS.slice(1).map((p) => p.toLowerCase());
+export function allowedPath(path: string): boolean {
+  return /^\/[A-Za-z0-9_\/.-]+$/.test(path) && ALLOWED_PATHS.some((p) => p.toLowerCase() === path.toLowerCase());
+}
+// Field names that look like an action: never posted, whatever the page puts in its form.
+const ACTION_NAME = /(save|add|delete|del|remove|update|upd|edit|insert|ins|cancel|void|approve|confirm|submit|book|pay|refund|send|post|create|new|copy|move|assign|change|reset)$/i;
+// The form the robot posts for one search: page fields minus anything that could trigger an action.
+export function safeSearchForm(html: string, f: Map<string, string>, button: string): Map<string, string> {
+  const buttons = [...html.matchAll(/<input\b[^>]*>/gi)].map((m) => m[0])
+    .filter((t) => ['submit', 'button', 'image'].includes(String(attr(t, 'type') || '').toLowerCase())).map((t) => attr(t, 'name')).filter(Boolean) as string[];
+  const out = new Map<string, string>();
+  for (const [k, v] of f) {
+    const last = k.split(/[$:]/).pop() || k;
+    if (buttons.includes(k)) continue;
+    if (!k.startsWith('__') && ACTION_NAME.test(last) && !/^(RadDate|RadDatePicker|RadTextBox|txt|ddl|CheckBox|hf)/i.test(last)) continue;
+    out.set(k, v);
+  }
+  out.set('__EVENTTARGET', ''); out.set('__EVENTARGUMENT', '');
+  if (!/search/i.test(button)) throw new MakersSuiteError('BLOCKED', 'only a Search button can be pressed');
+  return out;
+}
+
+// Reads at most `max` bytes of a response (a page is 200–400 KB; anything far bigger is not a report).
+export async function readCapped(res: Response, max: number): Promise<string> {
+  if (!res.body) return '';
+  const reader = res.body.getReader(), parts: Uint8Array[] = []; let n = 0;
+  for (;;) {
+    const { done, value } = await reader.read(); if (done) break;
+    n += value.byteLength;
+    if (n > max) { try { await reader.cancel(); } catch { /* ignore */ } throw new MakersSuiteError('LAYOUT', 'response too large'); }
+    parts.push(value);
+  }
+  const all = new Uint8Array(n); let o = 0; for (const p of parts) { all.set(p, o); o += p.byteLength; }
+  return new TextDecoder().decode(all);
+}
 
 export class MakersSuite {
   private cookies = new Map<string, string>();
   private pageCache = new Map<string, string>();   // a search page's blank form, reused for the next search
-  constructor(private fetchImpl: typeof fetch = fetch) {}
+  private deadline: number;
+  private lastAt = 0;
+  requests = 0;
+  constructor(private fetchImpl: typeof fetch = fetch, o: { deadlineMs?: number; pauseMs?: number; maxRequests?: number } = {}) {
+    this.deadline = Date.now() + (o.deadlineMs ?? 110_000); this.pauseMs = o.pauseMs ?? 250; this.maxRequests = o.maxRequests ?? 150;
+  }
+  private pauseMs: number;
+  private maxRequests: number;
 
   private async req(path: string, body?: URLSearchParams): Promise<{ status: number; html: string; location: string | null }> {
+    if (!allowedPath(path)) throw new MakersSuiteError('BLOCKED', `path not allowed: ${path.slice(0, 60)}`);
+    if (body && !(path.toLowerCase() === '/login.aspx' || SEARCH_PATHS.includes(path.toLowerCase()))) throw new MakersSuiteError('BLOCKED', 'POST not allowed');
+    if (Date.now() > this.deadline) throw new MakersSuiteError('DEADLINE', 'run took too long');
+    if (++this.requests > this.maxRequests) throw new MakersSuiteError('DEADLINE', 'too many requests');
+    const wait = this.lastAt + this.pauseMs - Date.now(); if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+    this.lastAt = Date.now();
     const res = await this.fetchImpl(SUITE + path, {
       method: body ? 'POST' : 'GET', redirect: 'manual', body,
       headers: { ...(body ? { 'Content-Type': 'application/x-www-form-urlencoded' } : {}), Cookie: [...this.cookies].map(([k, v]) => `${k}=${v}`).join('; '), 'User-Agent': 'AirValet-MakersSync/1.0' },
@@ -138,17 +195,21 @@ export class MakersSuite {
       const [kv] = c.split(';'); const i = kv.indexOf('=');
       if (i > 0) this.cookies.set(kv.slice(0, i).trim(), kv.slice(i + 1).trim());
     }
-    const html = await res.text();
+    const html = await readCapped(res, 6 * 1024 * 1024);
     if (res.status >= 500) throw new MakersSuiteError('HTTP', `${path} → ${res.status}`);
     return { status: res.status, html, location: res.headers.get('location') };
   }
   private async getFollow(path: string): Promise<string> {
     let r = await this.req(path);
     for (let i = 0; i < 3 && r.status >= 300 && r.status < 400 && r.location; i++) {
-      const loc = r.location.startsWith('http') ? new URL(r.location).pathname + new URL(r.location).search : '/' + r.location.replace(/^\.?\//, '');
+      let loc: string;
+      try { const u = new URL(r.location, SUITE + path); if (u.origin !== SUITE) throw new Error('off-site'); loc = u.pathname; }
+      catch { throw new MakersSuiteError('BLOCKED', 'redirect off Makers Air Suite'); }
       if (/login/i.test(loc)) throw new MakersSuiteError('LOGIN_FAILED', 'session expired');
+      if (loc.toLowerCase() !== path.toLowerCase()) throw new MakersSuiteError('BLOCKED', 'redirected to another page');
       r = await this.req(loc);
     }
+    if (r.status >= 300) throw new MakersSuiteError('LAYOUT', `${path} → ${r.status}`);
     return r.html;
   }
 
@@ -157,7 +218,7 @@ export class MakersSuite {
     const f = formFields(page.html);
     const u = [...f.keys()].find((k) => k.endsWith('Login1$UserName')), p = [...f.keys()].find((k) => k.endsWith('Login1$Password'));
     if (!u || !p) throw new MakersSuiteError('LAYOUT', 'login form not found');
-    f.set(u, user); f.set(p, pass);
+    f.set(u, user); f.set(p, pass); f.set('__EVENTTARGET', ''); f.set('__EVENTARGUMENT', '');
     const btn = u.replace(/UserName$/, 'LoginButton');
     const body = new URLSearchParams([...f.entries()]); body.set(btn, 'Log In');
     const r = await this.req('/Login.aspx', body);
@@ -186,9 +247,9 @@ export class MakersSuite {
       Object.assign(o, { enabled: true, emptyMessage: '', validationText: v, valueAsString: v, lastSetTextBoxValue: v }); f.set(k, JSON.stringify(o));
     }
     const bt = [...html.matchAll(/<input\b[^>]*>/gi)].map((m) => m[0])
-      .find((t) => String(attr(t, 'type') || '').toLowerCase() === 'submit' && String(attr(t, 'name') || '').endsWith(button));
+      .find((t) => String(attr(t, 'type') || '').toLowerCase() === 'submit' && (String(attr(t, 'name') || '').split('$').pop() || '') === button);
     if (!bt) throw new MakersSuiteError('LAYOUT', `${path}: search button not found`);
-    const body = new URLSearchParams([...f.entries()]); body.set(attr(bt, 'name')!, attr(bt, 'value') || 'Search');
+    const body = new URLSearchParams([...safeSearchForm(html, f, button).entries()]); body.set(attr(bt, 'name')!, attr(bt, 'value') || 'Search');
     const r = await this.req(path, body);
     if (r.status >= 300 && r.status < 400 && /login/i.test(r.location || '')) throw new MakersSuiteError('LOGIN_FAILED', 'session expired');
     return r.html;

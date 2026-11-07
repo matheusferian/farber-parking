@@ -59,3 +59,55 @@ Deno.test('grid inside a layout table: header and first row are kept', () => {
     <tr><td>MT1</td><td>x</td><td>DOCTOR</td><td>RANDALL</td><td>01/01/1960</td><td>11/01/2026 12:45</td><td>11/13/2026 16:15</td><td><input type="submit" value="Select"></td></tr></table></td></tr></table>`;
   assertEquals(parseTrips(html).map((t) => t.ret), ['2026-11-13']);
 });
+
+// ── Read-only guard (security review 2026-11-06) ──
+import { ALLOWED_PATHS, allowedPath, MakersSuite as Suite2, MakersSuiteError as SErr, safeSearchForm, to24 as t24 } from './suite.ts';
+
+Deno.test('guard: only the 4 known pages, any case, nothing else', () => {
+  for (const p of ALLOWED_PATHS) assertEquals(allowedPath(p), true);
+  assertEquals(allowedPath('/reservations/flightschedule.aspx'), true);
+  for (const p of ['/Reservations/EditFlight.aspx', '/Admin/Users.aspx', '/Reservations/R.aspx', '/Login.aspx?x=1', 'https://evil.com/Login.aspx', '/../Login.aspx', '/Default.aspx']) assertEquals(allowedPath(p), false);
+});
+
+Deno.test('guard: the posted form never carries an action field, another button, or an event target', () => {
+  const html = '<input type="submit" name="ctl00$Main$Button_DateSearch" value="Search"><input type="submit" name="ctl00$Main$ButtonDelete" value="Delete">' +
+    '<input type="hidden" name="__EVENTTARGET" value="ctl00$Main$Grid$ctl02$Delete"><input type="hidden" name="__EVENTARGUMENT" value="x">';
+  const f = new Map([['__EVENTTARGET', 'ctl00$Main$Grid$ctl02$Delete'], ['__EVENTARGUMENT', 'x'], ['__VIEWSTATE', 'v'], ['ctl00$Main$ButtonDelete', 'Delete'],
+    ['ctl00$Main$hiddenSave', '1'], ['ctl00$Main$UpdatePanel1$Update', 'go'], ['ctl00$Main$RadDatePicker_DateSearchFrom$dateInput', '11/7/2026'], ['ctl00$Main$txtFrom', 'FXE']]);
+  const out = safeSearchForm(html, f, 'Button_DateSearch');
+  assertEquals(out.get('__EVENTTARGET'), ''); assertEquals(out.get('__EVENTARGUMENT'), '');
+  assertEquals(out.has('ctl00$Main$ButtonDelete'), false); assertEquals(out.has('ctl00$Main$hiddenSave'), false); assertEquals(out.has('ctl00$Main$UpdatePanel1$Update'), false);
+  assertEquals(out.get('__VIEWSTATE'), 'v'); assertEquals(out.get('ctl00$Main$txtFrom'), 'FXE');
+  assertEquals(out.get('ctl00$Main$RadDatePicker_DateSearchFrom$dateInput'), '11/7/2026');
+  let blocked = false; try { safeSearchForm(html, f, 'ButtonDelete'); } catch (e) { blocked = e instanceof SErr && e.code === 'BLOCKED'; }
+  assertEquals(blocked, true);
+});
+
+Deno.test('guard: a redirect to another page or another site stops the run; nothing is requested there', async () => {
+  const asked: string[] = [];
+  const fake = (loc: string) => (async (url: string | URL | Request) => {
+    asked.push(String(url));
+    return String(url).endsWith('/Reservations/FlightSchedule.aspx') ? new Response('', { status: 302, headers: { location: loc } }) : new Response('<html></html>');
+  }) as typeof fetch;
+  for (const loc of ['/Reservations/EditFlight.aspx?id=1', 'https://evil.example/x', '//evil.example/x']) {
+    asked.length = 0;
+    const s = new Suite2(fake(loc), { pauseMs: 0 });
+    let code = ''; try { await s.schedule('11/7/2026'); } catch (e) { code = (e as SErr).code; }
+    assertEquals(code, 'BLOCKED');
+    assertEquals(asked.length, 1);   // only the allowed page was ever asked for
+  }
+});
+
+Deno.test('guard: request cap and deadline stop the run', async () => {
+  const ok = (async () => new Response('<html></html>')) as typeof fetch;
+  const s = new Suite2(ok, { pauseMs: 0, maxRequests: 1 });
+  let code = ''; try { await s.schedule('11/7/2026'); await s.schedule('11/8/2026'); } catch (e) { code = (e as SErr).code; }
+  assertEquals(code === 'DEADLINE' || code === 'LAYOUT', true);
+  const late = new Suite2(ok, { pauseMs: 0, deadlineMs: -1 });
+  code = ''; try { await late.schedule('11/7/2026'); } catch (e) { code = (e as SErr).code; }
+  assertEquals(code, 'DEADLINE');
+});
+
+Deno.test('to24: invalid times are empty', () => {
+  assertEquals(t24('11:75 AM'), ''); assertEquals(t24('13:00 PM'), ''); assertEquals(t24('0:30 AM'), ''); assertEquals(t24('12:05 AM'), '00:05'); assertEquals(t24('6:45 PM'), '18:45');
+});
