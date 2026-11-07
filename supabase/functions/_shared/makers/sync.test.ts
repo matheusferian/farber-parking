@@ -56,7 +56,7 @@ Deno.test('evening run: tomorrow match + Makers return dates + departures', asyn
   assertEquals(r.inbound.map((f) => `${f.flight} ${f.route} ${f.time} ${f.pax}`), ['2407 COX-FXE 11:21 2', '954 ELH-FXE 17:41 1']);
   assertEquals(r.inbound.map((f) => f.dep), ['09:30', '16:15']); // island departure, for ON THE WAY on the TV
   assertEquals(r.outbound.map((f) => `${f.flight} ${f.time} ${f.pax}`), ['123 06:45 3', '2404 08:00 2']);
-  assertEquals(r.outbound[0].day_trips, 1);   // R1 comes back the same day
+  assertEquals(r.outbound[0].day_trips, 0);   // R1: return date the same day but on no flight back to FXE → not a day trip (owner 11/07)
   const g = r.match.matches.find((m) => m.passenger_id === 1)!;
   assertEquals([g.state, g.suggest_flight, g.suggest_time, g.suggest_name], ['ok', 'JH', '11:21', 'DAVID GRASSETT']);
   assertEquals(r.match.missing.map((m) => m.passenger_id).sort(), [2, 6]);
@@ -118,4 +118,15 @@ Deno.test('pets are not passengers (owner 2026-11-07: dog, cat, bird, parrot, pa
   for (const r of [{ last: 'PETERSON', first: 'ANNA' }, { last: 'ADAMS', first: 'PETER' }, { last: 'CATTANEO', first: 'LUCA' }, { last: 'BIRDSALL', first: 'JOHN' }, { last: 'DOGGETT', first: 'SAM' }, { last: 'PEEL', first: 'NANCY' }]) {
     if (isPetRow(r)) throw new Error('should be a person: ' + JSON.stringify(r));
   }
+});
+
+Deno.test('day trip only when also booked on a flight back to FXE the same day (owner 2026-11-07)', async () => {
+  const back: PaxRow = { date: '11/7/2026', flight: '954', from: 'ELH', to: 'FXE', last: 'R1', first: 'A', retDate: '' };
+  const suite: SuiteLike = {
+    schedule: async (mdy) => mdy === '11/7/2026' ? LEGS : [],
+    passengers: async (mdy, d) => mdy !== '11/7/2026' ? [] : d.to ? [...IN, back] : OUT,
+    trips: async () => [],
+  };
+  const r = await runSync(suite, { date: '2026-11-07', today: '2026-11-06', feedback: [], pool: [] });
+  assertEquals(r.outbound[0].day_trips, 1);
 });

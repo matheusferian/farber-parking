@@ -80,11 +80,14 @@ export async function runSync(suite: SuiteLike, o: { date: string; today: string
   // Departures: one line per flight (owner: destination only, no stops). Each passenger is counted once;
   // a return booked the same day is a day trip.
   const sameDay = (d: string) => { const m = d.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/); return !!m && `${m[3]}-${m[1].padStart(2, '0')}-${m[2].padStart(2, '0')}` === o.date; };
+  const backToday = new Set(inPax.map((r) => `${r.last}|${r.first}`));
   const outbound: FlightSummary[] = L.filter((l) => l.from === 'FXE').map((l) => {
     const people = new Map<string, PaxRow>();
     for (const r of outPax) if (r.flight === l.flight) people.set(`${r.last}|${r.first}`, r);
     return { flight: l.flight, route: `FXE-${l.to}`, tail: l.tail, time: l.dep, pax: people.size, ascend: isAscendFlight(l.flight),
-      day_trips: [...people.values()].filter((r) => sameDay(r.retDate)).length };
+      // Owner 2026-11-07: a day trip only when Makers shows the return the SAME day AND the person is booked on a
+      // flight back to FXE that day (the passenger list to FXE) — the return date alone is not enough.
+      day_trips: [...people.values()].filter((r) => sameDay(r.retDate) && backToday.has(`${r.last}|${r.first}`)).length };
   }).filter((f) => f.pax > 0).sort((a, b) => a.time.localeCompare(b.time));
   for (const f of outbound) {
     const keys = new Set<string>();
