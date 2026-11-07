@@ -124,7 +124,9 @@ export const TEMPLATES: Record<MessageType, Template> = {
   CHECK_IN: {
     type: 'CHECK_IN', status: 'APPROVED', version: 'checkin-2026-11-06-live-b', freeText: false, allowedRoles: OPS,
     needsPassLink: true,
-    defaultEventRef: () => 'checkin',
+    // Owner 2026-11-07: one welcome per phone number. A corrected phone (typo at check-in) gets its own
+    // welcome from any ops login; the same number can never get it twice.
+    defaultEventRef: (_now, p) => { const d = String((p as { phone?: string | null }).phone || '').replace(/\D/g, '').slice(-10); return d ? 'checkin:' + d : 'checkin'; },
     guard: notArchived,
     render: (_p, env) => {
       if (!env.passUrl) throw new TemplateError('PASS_LINK_MISSING', 'passenger link not available');

@@ -420,7 +420,7 @@ Deno.test('service: happy path → one provider call, queued, SID + staff name s
   assertEquals(store.claims[0].body.length, provider.calls[0].body.length);
   assertEquals(store.claims[0].segments, 2);
   const row = [...store.rows.values()][0];
-  assertEquals(row.key, buildIdempotencyKey(1001, 'CHECK_IN', 'checkin'));
+  assertEquals(row.key.startsWith(buildIdempotencyKey(1001, 'CHECK_IN', 'checkin:')), true);
   assertEquals(store.claims[0].templateKey, 'CHECK_IN_PASS');
   assertEquals(store.claims[0].sentByName, 'Valet Ana');
 });
@@ -847,4 +847,18 @@ Deno.test('share welcome: same words as the SMS welcome, link included, no STOP 
   assertStringIncludes(b, 'Welcome to Makers Air Valet!');
   assertStringIncludes(b, 'https://airvalet.farberos.com/a#abc');
   assertFalse(b.includes('STOP'));
+});
+
+Deno.test('service: a corrected phone gets its own welcome; the same number never twice (owner 2026-11-07)', async () => {
+  const { deps, provider, store } = setup();
+  await sendAirValetSms(deps, { passengerId: 1001, type: 'CHECK_IN', actor: ops });
+  const again = await sendAirValetSms(deps, { passengerId: 1001, type: 'CHECK_IN', actor: ops });
+  assertEquals(provider.calls.length, 1);
+  assertEquals(again.ok === false || (again as { duplicate?: boolean }).duplicate === true, true);
+  const p = await deps.store.getPassenger(1001);
+  p!.phone = '(305) 555-0188';
+  const fixed = await sendAirValetSms(deps, { passengerId: 1001, type: 'CHECK_IN', actor: ops });
+  assertEquals(fixed.error?.code ?? 'OK', 'OK');
+  assertEquals(provider.calls.length, 2);
+  assertEquals(store.rows.size, 2);
 });

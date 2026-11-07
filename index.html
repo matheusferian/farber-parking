@@ -4831,14 +4831,12 @@ async function smsPhoneCorrected(r){
   if (row.opted_out) { showMsg('Consent saved, but this number replied STOP before — texts stay blocked until the passenger replies START.', true); return; }
   if (guestPhoneIntl(r.phone)) { showMsg('Consent saved. International number: use “Send pass link” on the ticket (WhatsApp / iMessage).', false); return; }
   if (!confirm('Consent saved. Send the welcome text with a new valet pass link to ' + fmtP(r.phone) + ' now?')) return;
-  // ADMIN / MANAGER: AirValet SMS resend (server rule). Other logins: iPhone Messages with a fresh pass link.
-  if (_currentUserRole === 'ADMIN' || _currentUserRole === 'MANAGER') {
-    var uid = (self.crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now()) + '-' + Math.random().toString(16).slice(2, 10);
-    var s = await sendServerSms(r.id, 'CHECK_IN', { eventRef: 'resend:' + uid });
-    if (s && s.ok) showMsg(s.duplicate ? 'Already sent to this number.' : '✓ Welcome text sent to the new number.', false);
-    else showMsg('Welcome not sent: ' + smsBlockText(s && s.error && s.error.code), true);
-    if (typeof loadInbox === 'function') loadInbox();
-    return;
+  // Owner 2026-11-07: every ops login sends it through AirValet SMS. The server keeps one welcome per phone
+  // number, so a corrected number gets its own welcome and the same number never gets it twice.
+  var s = await sendServerSms(r.id, 'CHECK_IN');
+  if (s && s.ok) { showMsg(s.duplicate ? 'Already sent to this number.' : '✓ Welcome text sent to the new number.', false); if (typeof loadInbox === 'function') loadInbox(); return; }
+  if (!(s && s.error && /NETWORK|PROVIDER|SEND_UNKNOWN/.test(String(s.error.code || '')))) {
+    showMsg('Welcome not sent: ' + smsBlockText(s && s.error && s.error.code), true); if (typeof loadInbox === 'function') loadInbox(); return;
   }
   var sh = await passShareLink(r.id, true);
   if (!sh.ok) { showMsg(passShareErrorText(sh.code), true); return; }
@@ -7210,7 +7208,7 @@ function ci2Html(){
   +   '<div class="ci2-foot"><button type="button" class="ci2-link" onclick="tryCloseAdd()">Cancel</button></div>'
   + '</div>'
   + '<div id="ci2Created" hidden><div class="ci2-tag">'
-  +   '<p class="ci2-who" id="ci2Who"></p><p class="ci2-num" id="ci2Num"></p>'
+  +   '<p class="ci2-who" id="ci2Who"></p><button type="button" class="ci2-fixph" onclick="ci2FixPhone()">Fix phone</button><p class="ci2-num" id="ci2Num"></p>'
   +   '<button type="button" class="ci2-veh" data-open="ci2SVeh"><span id="ci2TVeh"></span><u>Edit</u></button>'
   +   '<div class="ci2-meta">'
   +     '<button type="button" class="ci2-hgr" data-open="ci2SHangar" id="ci2THangar"></button>'
@@ -7572,6 +7570,25 @@ async function ci2NativeWelcome(){
   sendNativeSms({ passengerId: _ci.id, passengerName: name, phone: phone, ticket: _ci.ticket, templateKey: 'WELCOME',
     messageType: welcomeSmsMessageType(r), body: buildWelcomeSms(r), metadata: { trigger: 'New check-in v2 — Send from iPhone' } });
   ci2Sms('notsent', 'Opened in iPhone Messages — not tracked here');
+}
+// Owner 2026-11-07: a phone mistyped at check-in (306 instead of 305) could only be fixed in the classic
+// form. Here: correct it on the ticket, record consent for the new number and send the welcome again
+// (one welcome per phone number — the same number never gets it twice).
+async function ci2FixPhone(){
+  if (!_ci || !_ci.created || !_ci.id) return;
+  if (ci2LocalOnly()) { ci2Toast('Saved offline — fix the phone after it uploads.', true); return; }
+  var p = ci2El('ci2Phone'), cur = p.value;
+  var v = prompt('Correct phone number', cur);
+  if (v == null) return;
+  if (!ci2PhoneValid(v.trim())) { ci2Toast('Enter a valid phone: 10 digits (US) or + country code.', true); return; }
+  if (ci2Digits(v) === ci2Digits(cur)) return;
+  p.value = v.trim(); fmtGuestPhoneInput(p);
+  var nv = p.value.trim();
+  if (!(await ci2Save({ phone: nv }, null, 'Phone corrected → •••-' + ci2Digits(nv).slice(-4)))) { p.value = cur; return; }
+  var who = ci2El('ci2Who'); if (who) who.textContent = who.textContent.split(' · ')[0] + ' · •••-' + ci2Digits(nv).slice(-4);
+  var r = data.find(function(x){ return x.id === _ci.id; });
+  if (r && _smsEnrolled[r.id] && isServerSms()) { await smsPhoneCorrected(r); return; }
+  ci2Toast('Phone saved. Texts for this car will open in iPhone Messages.', false);
 }
 function ci2Done(){
   if (_ci && _ci.created && !_ci.printed && !confirm('Tags not printed yet. Close anyway?')) return;
