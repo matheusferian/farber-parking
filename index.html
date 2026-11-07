@@ -1746,7 +1746,7 @@ https://buy.stripe.com/8x214mccK0uh9TjgIM6Vq00</div>
        elements here; the first render creates whatever the current data
        actually needs, down to a single quiet-day page each. -->
   <div class="tv-pages" id="tvPages">
-    <div class="tv-dwell-bar" id="tvDwellBar"></div>
+    <div class="tv-dwell-bar" id="tvDwellBar"><span class="tv-dwell-plane" aria-hidden="true"><img src="assets/makers-caravan-3d.webp" alt=""></span></div>
     <div class="tv-page-dots tv-hidden" id="tvPageDots"></div>
   </div>
 
@@ -16670,7 +16670,7 @@ function tv4LegState(o){
     // A track that started after the landing = the Customs → Hangar 19 hop (the island track ends at Customs).
     // A short track (< 20 min) is the hop too, even when the TV first saw the aircraft already at Hangar 19.
     var depAt = Date.parse(spx.departed_at), hop = isFinite(depAt) && (depAt > first - 60000 || Date.parse(spx.last_at) - depAt < 20 * 60000);
-    if(spx.track_status !== 'POWER_OFF' && (Number(spx.speed_kt) || 0) < 40) stage = hop ? 'taxi' : 'customs';
+    if(spx.track_status !== 'POWER_OFF' && (Number(spx.speed_kt) || 0) < 40) stage = hop ? (Date.now() - first > 60 * 60000 ? 'h19' : 'taxi') : 'customs';
     else if(spx.track_status === 'POWER_OFF') stage = hop ? 'h19' : 'customs';
   }
   return {k:'landed', at:first, mins: Math.max(0, Math.round((Date.now() - first) / 60000)), src: spx ? 'sat' : st.src, stage: stage, stageAt: spx ? Date.parse(spx.last_at) : null};
@@ -16758,8 +16758,13 @@ function tv4InboundLegs(){
 // A landed aircraft stays on the panel (owner 2026-11-06): 10 min after landing, the whole time it sits at
 // Customs (up to 90 min), while it taxis to Hangar 19, and 10 min after it shuts down at Hangar 19.
 function tv4LandedStays(st){
-  if(st.mins <= 10 || st.stage === 'taxi') return true;
+  if(st.mins <= 10) return true;
+  // Owner 2026-11-07: AH landed 3 h earlier, parked and shut down at FXE, then its tracker woke up on the ramp —
+  // the TV showed "COMING TO HANGAR 19 · landed 191 min ago". The Customs → Hangar 19 hop happens soon after
+  // landing; a tracker waking up later at FXE is a parked plane, not an arrival.
+  if(st.stage === 'taxi') return st.mins <= 60;
   if(st.stage === 'customs') return st.mins <= 90;
+  if(st.mins > 90) return false;
   if(st.stage === 'h19') return st.stageAt && Date.now() - st.stageAt <= 10 * 60000;
   return false;
 }
@@ -16787,10 +16792,12 @@ function tv4PlanePose(st){
 }
 function tv4Plane3d(reg, st){
   var pose = tv4PlanePose(st);
-  return '<svg class="tv4-cv tv4-cv3d tv4-pose-'+pose+'" viewBox="0 0 600 264" role="img" aria-label="Makers Air Grand Caravan '+escapeHTML(reg)+'">'+
-    '<g class="tv4-pitch"><image href="assets/makers-caravan-3d.webp" width="600" height="264"/>'+
-    '<text x="24" y="100" font-family="Barlow Condensed,sans-serif" font-weight="700" font-size="27" fill="#1F5FA8" letter-spacing=".5">'+escapeHTML(reg)+'</text>'+
-    '<ellipse class="tv4-prop" cx="569" cy="182" rx="6" ry="52" fill="#E6ECF5" opacity=".2"/></g></svg>';
+  // Owner 2026-11-07: only the last letters (JR, CH…), fitted inside the white rear fuselage under the tail.
+  var tl = tvMakersTailSuffix(reg);
+  return '<svg class="tv4-cv tv4-cv3d tv4-pose-'+pose+'" viewBox="0 0 900 393" role="img" aria-label="Makers Air Grand Caravan '+escapeHTML(reg)+'">'+
+    '<g class="tv4-pitch"><image href="assets/makers-caravan-3d.webp" width="900" height="393"/>'+
+    '<text x="98" y="184" text-anchor="middle" font-family="Barlow Condensed,sans-serif" font-weight="800" font-size="'+(tl.length > 2 ? 40 : 52)+'" fill="#0B2350" letter-spacing="1">'+escapeHTML(tl)+'</text>'+
+    '<ellipse class="tv4-prop" cx="860" cy="262" rx="8" ry="76" fill="#E6ECF5" opacity=".2"/></g></svg>';
 }
 function tv4CaravanSvg(reg){
   var win = ''; for(var i = 0; i < 8; i++) win += '<rect x="'+(168 + i * 16.5)+'" y="'+(60 - i * 0.4)+'" width="10" height="8" rx="2.5" fill="#1A2436"/>';
@@ -17967,7 +17974,9 @@ function rotateTvPages(){
   var kind = (_tv.pageKinds && _tv.pageKinds[_tv.currentPage]) || 'today';
   var dwell = (_tv.pageDwells && _tv.pageDwells[_tv.currentPage]) || (kind==='today' ? TV_ROTATE_PAGE1_MS : TV_ROTATE_MS);
   var dbar = document.getElementById('tvDwellBar');   // thin gold bar: how long this page stays
-  if(dbar){ dbar.style.animation = 'none'; void dbar.offsetWidth; dbar.style.animation = _tv.rotationPaused ? 'none' : 'tvDwell '+dwell+'ms linear forwards'; }
+  // Owner 2026-11-07: a tiny Caravan flies at the tip of the bar — the bar grows in width so the plane rides its end.
+  if(dbar){ dbar.style.animation = 'none'; void dbar.offsetWidth; dbar.style.animation = _tv.rotationPaused ? 'none' : 'tvDwellW '+dwell+'ms linear forwards';
+    dbar.classList.toggle('tv-dwell-paused', !!_tv.rotationPaused); }
   _tv.rotationTimer = setTimeout(function(){
     if(!_tv.rotationPaused) _tv.currentPage = (_tv.currentPage+1) % _tv.pageCount;
     rotateTvPages();

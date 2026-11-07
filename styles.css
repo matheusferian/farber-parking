@@ -3182,3 +3182,14 @@ img.mk-asc{height:calc(var(--r)*.24);border:0;padding:0;}
 @keyframes tv4Climb{0%,100%{transform:rotate(-13deg)}50%{transform:rotate(-10deg)}}
 @keyframes tv4Descend{0%,100%{transform:rotate(9deg)}50%{transform:rotate(7deg)}}
 @media (prefers-reduced-motion:reduce){.tv4-moving .tv4-pitch{animation:none;}}
+
+/* Tiny Makers Caravan at the tip of the page-time bar (owner 2026-11-07): the bar grows in width (not scaleX,
+   which would squash the plane) and the plane sits on its right end. */
+#tvDwellBar{right:auto;width:0;transform:none;overflow:visible;}
+@keyframes tvDwellW{from{width:0}to{width:calc(100% - 64px)}}
+.tv-dwell-plane{position:absolute;right:-8px;top:-10px;width:48px;pointer-events:none;}
+.tv-dwell-plane img{display:block;width:100%;height:auto;filter:drop-shadow(0 2px 3px rgba(0,0,0,.5));}
+.tv-dwell-paused .tv-dwell-plane{display:none;}
+/* Bigger aircraft in the In the air panel when there is room (owner 2026-11-07: tail number hard to read). */
+.tv4-air:not(.tv4-air-c1) .tv4-fc{grid-template-columns:186px minmax(0,1fr);}
+.tv4-air:not(.tv4-air-c1) .tv4-cv3d{width:186px;}
