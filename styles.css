@@ -3193,3 +3193,10 @@ img.mk-asc{height:calc(var(--r)*.24);border:0;padding:0;}
 /* Bigger aircraft in the In the air panel when there is room (owner 2026-11-07: tail number hard to read). */
 .tv4-air:not(.tv4-air-c1) .tv4-fc{grid-template-columns:186px minmax(0,1fr);}
 .tv4-air:not(.tv4-air-c1) .tv4-cv3d{width:186px;}
+
+/* Leaving cards origin chip (owner 2026-11-07): code only, bigger, real bag-tag colours. */
+#tvMode .tv4-from{font-size:.72em;gap:.4em;padding:.18em .55em .18em .25em;}
+.tv4-from .tv4-mini{height:1.6em;min-width:2.1em;font-size:1.15em;}
+.tv4-from .tv4-bagtag{height:1.6em;min-width:3.4em;padding:0 .5em 0 1.05em;font-size:1.15em;}
+.tv4-from .tv4-bagtag::before{left:.4em;width:.32em;height:.32em;margin-top:-.16em;}
+.tv4-from .tv4-mklogo{height:1.05em;}

@@ -16896,7 +16896,7 @@ function tv4LegPill(r){
     if(st.k === 'live') return {edge:'live', html:'<span class="tv4-pill tv4-p-live"><i></i>LIVE &middot; ETA '+(st.eta != null ? st.eta+' MIN' : 'SOON')+'</span>'};
     if(st.k === 'way') return {edge:'way', html:'<span class="tv4-pill tv4-p-way"><i></i>ON THE WAY &middot; '+(st.eta > 0 ? 'ETA '+st.eta+' MIN' : 'DUE NOW')+'</span>'};
     if(st.k === 'sched' && st.dep){ var code = String(o.route || '').split('-')[0];
-      return {edge:'', html:'<span class="tv4-pill tv4-p-sched">LEAVES '+escapeHTML(((typeof MF_AIRPORTS !== 'undefined' && MF_AIRPORTS[code]) || code).toUpperCase())+' '+tv412(o.dep_time)+'</span>'}; }
+      return {edge:'', html:'<span class="tv4-pill tv4-p-sched">LEAVES '+escapeHTML(tv4TagCode(code))+' '+tv412(o.dep_time)+'</span>'}; }   // owner 2026-11-07: code, not the island name
   }
   var t = tvAircraftTrackingStatus(r);   // guests the robot did not match: radar on their return_flight
   if(t && t.status === 'LANDED'){ var ago = Math.max(0, Math.round((Date.now() - new Date(t.landedAt).getTime()) / 60000));
@@ -16907,10 +16907,10 @@ function tv4LegPill(r){
 function tv4FromChip(o){
   if(!o) return '';
   var code = String(o.route || '').split('-')[0], tag = (typeof MF_TAG_CODE !== 'undefined' && MF_TAG_CODE[code]) || code;
-  var place = (typeof MF_AIRPORTS !== 'undefined' && MF_AIRPORTS[code]) || code;
-  // Owner 2026-11-06: "Congo Town → Makers Air" — the island, an arrow, the Makers Air logo (FXE).
-  return '<span class="tv4-from">'+(o.registration ? tv4Chip(code, tvMakersTailSuffix(o.registration)) : '')+tv4Chip(code, tag)+
-    escapeHTML(place)+' <span class="tv4-arrow">&rarr;</span><img class="tv4-mklogo" src="assets/makers-air-logo-white.png" alt="Makers Air">'+
+  // Owner 2026-11-07: no island name ("Congo Town", "Fresh Creek") — the tail, the island bag tag in its real colour,
+  // an arrow and the Makers Air logo (FXE). Same tag shape as the In the air panel.
+  return '<span class="tv4-from">'+(o.registration ? tv4Chip(code, tvMakersTailSuffix(o.registration)) : '')+tv4BagTag(code)+
+    '<span class="tv4-arrow">&rarr;</span><img class="tv4-mklogo" src="assets/makers-air-logo-white.png" alt="Makers Air">'+
     (o.flight ? '<span class="tv4-fno">'+escapeHTML(String(o.flight))+'</span>' : '')+'</span>';
 }
 function tv4Time(hhmm, sub){
