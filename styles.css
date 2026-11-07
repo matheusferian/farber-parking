@@ -3140,3 +3140,34 @@ img.mk-asc{height:calc(var(--r)*.24);border:0;padding:0;}
 .mk-cols.mk-cols-st{grid-template-columns:calc(var(--mk-row,56px)*2.7) calc(var(--mk-row,56px)*2.25) minmax(0,1fr) calc(var(--mk-row,56px)*.9) calc(var(--mk-row,56px)*1.95);}
 .mk-cols span{min-width:0;overflow:hidden;white-space:nowrap;text-overflow:clip;}
 .ci2-ac-mk span{color:#1E4FB0;font-weight:600;}
+
+/* Departures board: flights leaving at the same time read as one group (owner 2026-11-07, 12:45 = 3 flights).
+   NEXT / BOARDING / FINAL CALL rows of one group join into one framed block. */
+.mk-next.mk-grp,.mk-boarding.mk-grp,.mk-final.mk-grp{border-radius:0;border-bottom-color:rgba(255,255,255,.04);}
+.mk-next.mk-grp-first,.mk-boarding.mk-grp-first,.mk-final.mk-grp-first{border-radius:8px 8px 0 0;}
+.mk-next.mk-grp-last,.mk-boarding.mk-grp-last,.mk-final.mk-grp-last{border-radius:0 0 8px 8px;border-bottom-color:transparent;}
+.mk-next.mk-grp{box-shadow:inset 4px 0 0 #C9A84C,inset -2px 0 0 rgba(201,168,76,.55);}
+.mk-next.mk-grp-first{box-shadow:inset 4px 0 0 #C9A84C,inset -2px 0 0 rgba(201,168,76,.55),inset 0 2px 0 rgba(201,168,76,.55);}
+.mk-next.mk-grp-last{box-shadow:inset 4px 0 0 #C9A84C,inset -2px 0 0 rgba(201,168,76,.55),inset 0 -2px 0 rgba(201,168,76,.55);}
+.mk-next.mk-grp-first.mk-grp-last{box-shadow:inset 4px 0 0 #C9A84C,inset 0 0 0 2px rgba(201,168,76,.55);}
+
+/* In the air panel: compact steps when many planes (owner 2026-11-07). Added by tv4AirFit() one at a time. */
+.tv4-air-c1 .tv4-fc{grid-template-columns:96px minmax(0,1fr);gap:0 12px;padding:5px 0;}
+.tv4-air-c1 .tv4-cv{width:96px;grid-row:1 / span 3;}
+.tv4-air-c1 .tv4-route,.tv4-air-c1 .tv4-fc-meta{grid-column:2;}
+.tv4-air-c1 .tv4-route{height:16px;}
+.tv4-air-c1 .tv4-pl{font-size:17px;top:-11px;line-height:20px;}
+.tv4-air-c1 .tv4-fc .tv4-dst img{height:15px;}
+.tv4-air-c1 .tv4-fc-top .tv4-mini{font-size:18px;padding:1px 8px;}
+.tv4-air-c1 .tv4-fc-top .tv4-bagtag{height:28px;min-width:62px;font-size:20px;padding:0 10px 0 19px;}
+.tv4-air-c1 .tv4-fc-top .tv4-nocars{font-size:14px;}
+.tv4-air-c1 .tv4-fst{font-size:16px;}
+.tv4-air-c1 .tv4-fc-meta{font-size:14px;}
+.tv4-air-c1 .tv4-oth-h{margin:4px 0 0;padding-top:5px;font-size:13px;}
+.tv4-air-c2 .tv4-route{display:none;}
+.tv4-air-c2 .tv4-cv{width:80px;grid-row:1 / span 2;}
+.tv4-air-c2 .tv4-fc{grid-template-columns:80px minmax(0,1fr);padding:3px 0;}
+.tv4-air-c3 .tv4-fc-meta > span:not(:first-child):not(.tv4-who){display:none;}
+.tv4-air-c3 .tv4-fc-top .tv4-bagtag{height:24px;font-size:17px;min-width:54px;}
+.tv4-air-c3 .tv4-cv{width:64px;}
+.tv4-air-c3 .tv4-fc{grid-template-columns:64px minmax(0,1fr);}

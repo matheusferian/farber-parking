@@ -16424,13 +16424,13 @@ function tvMakersStatus(f, dayKey, nextKey){
   if(mins < -TV_MAKERS_DEPARTED_MIN) return {code:'DEPARTED', text:'DEPARTED'};
   if(mins <= 10) return {code:'FINAL', text:'FINAL CALL'};   // last 10 min: red, fast blink
   if(mins <= TV_MAKERS_BOARDING_MIN) return {code:'BOARDING', text:'BOARDING'};
-  if(nextKey && nextKey === f.time + '|' + f.flight){
+  if(nextKey && nextKey === String(f.time)){   // owner 2026-11-07: every flight at the next time is NEXT (12:45 = 3 flights, one group)
     var h = Math.floor(mins / 60), mm = mins % 60;
     return {code:'NEXT', text: h ? 'NEXT · ' + h + 'H' + ('0' + mm).slice(-2) : 'NEXT · ' + mm + ' MIN'};
   }
   return {code:'SCHEDULED', text:'ON TIME'};
 }
-function tvMakersRowHtml(f, dayKey, nextKey, withStatus){
+function tvMakersRowHtml(f, dayKey, nextKey, withStatus, grp){
   var dest = String(f.route || '').replace(/^FXE-/, '');
   var code = (typeof MF_TAG_CODE !== 'undefined' && MF_TAG_CODE[dest]) || dest;
   var place = (typeof MF_AIRPORTS !== 'undefined' && MF_AIRPORTS[dest]) || dest;
@@ -16439,7 +16439,7 @@ function tvMakersRowHtml(f, dayKey, nextKey, withStatus){
   var dayTrips = typeof mfDayTrips === 'function' ? mfDayTrips(f) : 0;
   var st = withStatus ? tvMakersStatus(f, dayKey, nextKey) : null;
   var chg = tvMakersChangeFor(dayKey, f);
-  var cls = 'mk-row' + (st ? ' mk-' + st.code.toLowerCase() : '') + (chg ? ' mk-upd' : '');
+  var cls = 'mk-row' + (st ? ' mk-' + st.code.toLowerCase() : '') + (chg ? ' mk-upd' : '') + (grp ? ' ' + grp : '');
   var key = dayKey + '|' + f.time + '|' + f.flight;
   return '<div class="'+cls+'" data-mk-key="'+escapeHTML(key)+'">'+
     '<div class="mk-time" data-flap="'+escapeHTML(key+'|t')+'" data-val="'+escapeHTML(tm.t)+'">'+tvFlapHtml(tm.t, 5)+'<small>'+tm.ap+'</small></div>'+
@@ -16473,7 +16473,7 @@ function tvMakersColumnHtml(label, dayKey, rowH, maxRows, withStatus){
   if(withStatus){
     for(var i = 0; i < list.length; i++){
       var s0 = tvMakersStatus(list[i], dayKey, null);
-      if(s0.code === 'SCHEDULED'){ nextKey = list[i].time + '|' + list[i].flight; break; }
+      if(s0.code === 'SCHEDULED'){ nextKey = String(list[i].time); break; }
     }
   }
   // Too many rows for the screen: the earliest departed flights fold into one line.
@@ -16490,7 +16490,10 @@ function tvMakersColumnHtml(label, dayKey, rowH, maxRows, withStatus){
   var firstTot = day.first_outbound ? day.first_outbound.reduce(function(a, x){ return a + (Number(x.pax) || 0); }, 0) : null;
   var totalHtml = '<div class="mk-total"><span>TOTAL GOING OUT</span><b>'+(firstTot != null && firstTot !== pax && firstTot > 0 ? '<s class="mk-was">'+firstTot+'</s>' : '')+pax+'</b><small>passengers &middot; '+list.length+' flight'+(list.length === 1 ? '' : 's')+'</small></div>';
   var rows = (hidden ? '<div class="mk-row mk-folded"><span>&#10003; '+hidden+' DEPARTED EARLIER</span></div>' : '') +
-    shown.map(function(f){ return tvMakersRowHtml(f, dayKey, nextKey, withStatus); }).join('') +
+    shown.map(function(f, i){   // flights leaving at the same time read as one group (shared frame, owner 2026-11-07)
+      var same = function(j){ return shown[j] && String(shown[j].time) === String(f.time); };
+      var grp = (same(i - 1) || same(i + 1)) ? 'mk-grp' + (same(i - 1) ? '' : ' mk-grp-first') + (same(i + 1) ? '' : ' mk-grp-last') : '';
+      return tvMakersRowHtml(f, dayKey, nextKey, withStatus, grp); }).join('') +
     (later ? '<div class="mk-row mk-folded"><span>+ '+later+' MORE LATER</span></div>' : '');
   return '<section class="mk-col'+(withStatus ? ' mk-col-today' : '')+'" style="--mk-row:'+rowH+'px">'+head(sub)+
     '<div class="mk-rows">'+rows+'</div>'+totalHtml+'</section>';
@@ -16768,7 +16771,7 @@ function tv4PanelLegs(){
     if(L.st.k === 'landed') return tv4LandedStays(L.st);
     if(L.st.k === 'sched') return L.st.dep && L.st.dep - now <= 120 * 60000;
     return false;
-  }).slice(0, 4);
+  }).slice(0, 6);   // owner 2026-11-07: show every plane — tv4AirFit() shrinks the cards to make room
 }
 
 // Makers Air Cessna 208B Grand Caravan, side view, nose to the right, drawn from photos of N208JH:
@@ -16815,7 +16818,7 @@ function tv4OtherLegs(){
     if(L.st.k === 'landed') return tv4LandedStays(L.st);
     if(L.st.k === 'sched') return L.st.dep && L.st.dep - now <= 60 * 60000;
     return false;
-  }).sort(function(a, b){ return String(a.o.arrival_time).localeCompare(String(b.o.arrival_time)); }).slice(0, 4);
+  }).sort(function(a, b){ return String(a.o.arrival_time).localeCompare(String(b.o.arrival_time)); }).slice(0, 8);
 }
 // Status pill + short facts for a leg (owner 2026-11-06: less on the card — no island code, no altitude/speed,
 // Makers Air logo once in the panel title).
@@ -17002,7 +17005,16 @@ function tvBuildTodayPages(vm){
       bodyEl.innerHTML =
         '<div class="tv4-col" style="flex:0 0 '+leftW+'px">'+titleL+'<div class="tv4-fitbox">'+tv4FitWrap(lHtml, lFit, 'All vehicles delivered.')+'</div></div>'+
         (air ? '<div class="tv4-col tv4-aircol" style="flex:0 0 '+rightW+'px">'+air+'</div>' : '');
+      tv4AirFit(bodyEl);
     }}];
+}
+// Owner 2026-11-07: many planes in the air — every one must show. Shrink the cards step by step until
+// the panel fits (smaller plane → no route line → one short fact), never cut a plane off silently.
+function tv4AirFit(root){
+  var air = root && root.querySelector('.tv4-aircol .tv4-air'); if(!air) return;
+  var steps = ['tv4-air-c1', 'tv4-air-c2', 'tv4-air-c3'];
+  air.classList.remove.apply(air.classList, steps);
+  for(var i = 0; i < steps.length && air.scrollHeight > air.clientHeight + 1; i++) air.classList.add(steps[i]);
 }
 function tvBuildCheckinPages(vm){
   var box = tvRealPageBodyBox();
