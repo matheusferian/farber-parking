@@ -2480,7 +2480,57 @@ async function printKeyTicket(r) {
 }
 
 async function printDashboardTicket(r) {
-  return epsonSend(buildDashboardTicketXml(r), 'Dashboard');
+  var xml = null;
+  try { xml = await buildDashboardTicketXmlV2(r); } catch (e) { xml = null; }
+  return epsonSend(xml || buildDashboardTicketXml(r), 'Dashboard');
+}
+
+// ── DASHBOARD TICKET V2 (owner 2026-11-07) ─────────────────────
+// Stays in the car (cup holder / armrest, in a sleeve): ticket number and return date ONLY — no name, flight
+// or hangar (security). Thermal paper fades in the sun, so both are printed as images in a very heavy font
+// (Archivo Black), each at the biggest size that fits the paper width (1107-12, MON JAN 4 2027…).
+var DASH_FONT = null;
+async function dashTicketFont(){
+  if (DASH_FONT) return DASH_FONT;
+  var f = new FontFace('AirValetDashTicket', 'url(assets/fonts/archivo-black-latin.woff2)');
+  await f.load(); document.fonts.add(f); DASH_FONT = f; return f;
+}
+// Text → ePOS raster <image>, 576 dots wide (80 mm paper), black on white or white on a black bar.
+function dashTicketImage(text, maxPx, inverse){
+  var W = 576, MAXW = 556, pad = 6, px = maxPx;
+  var c = document.createElement('canvas'), g = c.getContext('2d');
+  var m;
+  for (; px > 20; px -= 2) {
+    g.font = px + 'px AirValetDashTicket'; m = g.measureText(text);
+    if (m.actualBoundingBoxLeft + m.actualBoundingBoxRight <= MAXW) break;
+  }
+  g.font = px + 'px AirValetDashTicket'; m = g.measureText(text);
+  var asc = Math.ceil(m.actualBoundingBoxAscent), desc = Math.ceil(m.actualBoundingBoxDescent);
+  var tw = m.actualBoundingBoxLeft + m.actualBoundingBoxRight, H = asc + desc + 2 * pad;
+  c.width = W; c.height = H;
+  g = c.getContext('2d');
+  g.fillStyle = inverse ? '#000' : '#fff'; g.fillRect(0, 0, W, H);
+  g.fillStyle = inverse ? '#fff' : '#000'; g.font = px + 'px AirValetDashTicket'; g.textBaseline = 'alphabetic';
+  g.fillText(text, Math.round((W - tw) / 2 + m.actualBoundingBoxLeft), pad + asc);
+  var d = g.getImageData(0, 0, W, H).data, bytes = new Uint8Array(W / 8 * H);
+  for (var y = 0; y < H; y++) for (var x = 0; x < W; x++) {
+    var i = (y * W + x) * 4;
+    if (d[i] + d[i + 1] + d[i + 2] < 384) bytes[y * (W / 8) + (x >> 3)] |= (0x80 >> (x & 7));
+  }
+  var bin = ''; for (var k = 0; k < bytes.length; k++) bin += String.fromCharCode(bytes[k]);
+  return '<image width="' + W + '" height="' + H + '" color="color_1" mode="mono">' + btoa(bin) + '</image>';
+}
+async function buildDashboardTicketXmlV2(r){
+  await dashTicketFont();
+  var d = (typeof tagDate === 'function') ? tagDate(r.ret) : null;
+  var ret = d ? d.label + (d.year !== new Date().getFullYear() ? ' ' + d.year : '') : 'NO DATE';
+  return '<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"><s:Body>'
+    + '<epos-print xmlns="http://www.epson-pos.com/schemas/2011/03/epos-print">'
+    + '<text align="center" font="font_b" width="1" height="1" em="false" reverse="false">' + (isAscend(r) ? 'ASCEND · PRIVATE FLIGHT' : 'MAKERS AIR VALET') + '&#10;</text>'
+    + '<feed unit="8"/>' + dashTicketImage(String(r.ticket || '—'), 150, false)
+    + '<feed unit="10"/><text align="center" font="font_b" width="1" height="1">RETURN&#10;</text>'
+    + dashTicketImage(ret, 62, true)
+    + '<feed line="2"/><cut type="feed"/></epos-print></s:Body></s:Envelope>';
 }
 
 // Car-panel print buttons: one job at a time (a double tap used to print twice).
@@ -15885,7 +15935,23 @@ function tvNeedsFollowUp(r){
   if(r.status==='NO DATE' || (typeof isApproxRecord==='function' && isApproxRecord(r))) return true;
   return r.status==='PENDING' && (!hasRealReturnDate(r.ret) || !pd(r.ret) || isLate(r.ret));
 }
+// Owner 2026-11-07 (Nancy Peel: "back in about 6 months"): a NO DATE car whose note says
+// "RETURN IN ABOUT N MONTHS/WEEKS/DAYS (PASSENGER SAID ON M/D/YYYY)" shows the time left on the TV,
+// counting down as the months go by. Returns null when the note has no such line.
+function tvAboutReturn(r){
+  var m = /RETURN IN ABOUT (\d{1,2}) (MONTHS?|WEEKS?|DAYS?)\b[^(]*\((?:PASSENGER )?SAID ON (\d{1,2})\/(\d{1,2})\/(\d{4})\)/i.exec(String(r && r.obs || ''));
+  if(!m) return null;
+  var n = +m[1], u = m[2].toUpperCase().charAt(0), t = new Date(+m[5], +m[3] - 1, +m[4]);
+  if(isNaN(t)) return null;
+  if(u === 'M') t.setMonth(t.getMonth() + n); else t.setDate(t.getDate() + (u === 'W' ? 7 * n : n));
+  var days = Math.round((t - new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate())) / 864e5);
+  var text = days > 45 ? '≈ ' + Math.round(days / 30.44) + ' MONTHS' : days > 13 ? '≈ ' + Math.round(days / 7) + ' WEEKS'
+    : days > 1 ? '≈ ' + days + ' DAYS — CONFIRM' : days >= 0 ? 'DUE ABOUT NOW — CONFIRM' : 'ABOUT ' + m[1] + ' ' + m[2].toUpperCase() + ' PASSED — FOLLOW UP';
+  return {days: days, text: text, level: days < 0 ? 'critical' : days <= 13 ? 'warning' : 'info'};
+}
 function tvFollowUpRank(r){
+  var ab = !hasRealReturnDate(r.ret) && tvAboutReturn(r);
+  if(ab) return ab.days < 0 ? 1 : ab.days <= 13 ? 2 : 5;   // far away: after everything that needs a call now
   if(!hasRealReturnDate(r.ret)) return 0;
   if(isLate2(r.ret)) return 1;
   if(isToday(r.ret)) return 2;
@@ -15893,6 +15959,8 @@ function tvFollowUpRank(r){
   return 4;
 }
 function tvFollowUpChip(r){
+  var ab = !hasRealReturnDate(r.ret) && tvAboutReturn(r);
+  if(ab) return {text:ab.text, level:ab.level};
   if(!hasRealReturnDate(r.ret) || !pd(r.ret)) return {text:'NO DATE — FOLLOW UP', level:'warning'};
   var d = pd(r.ret);
   var label = d ? d.toLocaleDateString('en-US',{month:'short',day:'numeric'}).toUpperCase() : '';

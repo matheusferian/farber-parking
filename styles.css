@@ -3203,3 +3203,6 @@ img.mk-asc{height:calc(var(--r)*.24);border:0;padding:0;}
 
 /* New check-in ticket card: fix a mistyped phone (owner 2026-11-07). */
 .ci2-fixph{margin:2px 0 4px;padding:4px 10px;border-radius:999px;border:1px solid var(--ln,#C9D3E3);background:transparent;color:var(--acc,#1F5FA8);font:600 12px Inter,sans-serif;cursor:pointer;}
+
+/* Follow-Up: far-away approximate return ("≈ 6 MONTHS", owner 2026-11-07) — calm blue, not an alarm. */
+.tv-badge-info{background:rgba(127,176,255,.16);color:#9CC2FF;border:1px solid rgba(127,176,255,.38);}
