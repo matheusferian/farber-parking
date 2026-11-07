@@ -16776,6 +16776,22 @@ function tv4PanelLegs(){
 
 // Makers Air Cessna 208B Grand Caravan, side view, nose to the right, drawn from photos of N208JH:
 // white top, navy belly + cargo pod, blue line along the windows, blue diamond-tile tail.
+// Owner 2026-11-07: the real Makers Air Caravan (3D model rendered in Blender, registration removed from the
+// tail and written per plane) — nose up just after take-off, level in cruise, nose down on the way in to land.
+function tv4PlanePose(st){
+  if(!st || (st.k !== 'live' && st.k !== 'way')) return 'level';
+  var p = st.p || 0;
+  if(p < .22) return 'climb';
+  if(p > .72 || (st.eta != null && st.eta <= 15)) return 'descend';
+  return 'level';
+}
+function tv4Plane3d(reg, st){
+  var pose = tv4PlanePose(st);
+  return '<svg class="tv4-cv tv4-cv3d tv4-pose-'+pose+'" viewBox="0 0 600 264" role="img" aria-label="Makers Air Grand Caravan '+escapeHTML(reg)+'">'+
+    '<g class="tv4-pitch"><image href="assets/makers-caravan-3d.webp" width="600" height="264"/>'+
+    '<text x="24" y="100" font-family="Barlow Condensed,sans-serif" font-weight="700" font-size="27" fill="#1F5FA8" letter-spacing=".5">'+escapeHTML(reg)+'</text>'+
+    '<ellipse class="tv4-prop" cx="569" cy="182" rx="6" ry="52" fill="#E6ECF5" opacity=".2"/></g></svg>';
+}
 function tv4CaravanSvg(reg){
   var win = ''; for(var i = 0; i < 8; i++) win += '<rect x="'+(168 + i * 16.5)+'" y="'+(60 - i * 0.4)+'" width="10" height="8" rx="2.5" fill="#1A2436"/>';
   return '<svg class="tv4-cv" viewBox="10 14 380 120" role="img" aria-label="Makers Air Grand Caravan '+escapeHTML(reg)+'">'+
@@ -16839,7 +16855,7 @@ function tv4BagTag(code){ return '<span class="tv4-bagtag" style="'+tvMakersTag(
 // Other Makers arrivals (no cars of ours): one line each — tail, island, NO CARS · N PAX, one fact, status.
 function tv4OtherRow(L){
   var st = L.st, f = tv4LegFacts(L), p = st.k === 'landed' ? 1 : (st.p || 0);
-  return '<div class="tv4-fc tv4-fc-other'+(st.k === 'live' || st.k === 'way' ? ' tv4-moving' : '')+'" style="--p:'+p.toFixed(3)+'">'+tv4CaravanSvg(L.reg)+
+  return '<div class="tv4-fc tv4-fc-other'+(st.k === 'live' || st.k === 'way' ? ' tv4-moving' : '')+'" style="--p:'+p.toFixed(3)+'">'+tv4Plane3d(L.reg, st)+
     '<div class="tv4-fc-top">'+tv4Chip(L.code, L.tail)+tv4BagTag(L.code)+'<span class="tv4-nocars">NO CARS &middot; '+L.pax+' PAX</span>'+f.s+'</div>'+
     '<div class="tv4-route"><span class="tv4-track"><span class="tv4-done"></span><span class="tv4-pl">&#9992;</span></span><span class="tv4-dst"><img src="assets/makers-air-logo-white.png" alt="Makers Air (FXE)"></span></div>'+
     '<div class="tv4-fc-meta">'+f.meta.map(function(m){ return '<span>'+m+'</span>'; }).join('')+'</div></div>';
@@ -16851,7 +16867,7 @@ function tv4AirHtml(){
     var st = L.st, f = tv4LegFacts(L), p = st.k === 'landed' ? 1 : (st.p || 0);
     var who = L.guests.map(function(r){ return escapeHTML(tvShortName(r.name)); }).join(', ');
     var onb = tv4InboundPax(L.flight, L.reg); if(onb && st.k !== 'landed') f.meta.push('<b>'+onb+' pax</b>');
-    html += '<div class="tv4-fc'+(st.k === 'live' || st.k === 'way' ? ' tv4-moving' : '')+'" style="--p:'+p.toFixed(3)+'">'+tv4CaravanSvg(L.reg)+
+    html += '<div class="tv4-fc'+(st.k === 'live' || st.k === 'way' ? ' tv4-moving' : '')+'" style="--p:'+p.toFixed(3)+'">'+tv4Plane3d(L.reg, st)+
       '<div class="tv4-fc-top">'+tv4Chip(L.code, L.tail)+tv4BagTag(L.code)+(L.ascend ? '<img src="assets/ascend-logo.png" alt="Ascend">' : '')+f.s+'</div>'+
       '<div class="tv4-route"><span class="tv4-track"><span class="tv4-done"></span><span class="tv4-pl">&#9992;</span></span><span class="tv4-dst"><img src="assets/makers-air-logo-white.png" alt="Makers Air (FXE)"></span></div>'+
       '<div class="tv4-fc-meta">'+f.meta.map(function(m){ return '<span>'+m+'</span>'; }).join('')+(who ? '<span class="tv4-who">&#128663; '+who+'</span>' : '')+'</div></div>';

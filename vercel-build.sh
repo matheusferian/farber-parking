@@ -11,6 +11,7 @@ cp index.html styles.css utils.js offline-auth.js offline-db.js sso-client.js se
    manifest.webmanifest logo.PNG apple-touch-icon.png icon-192.png icon-512.png \
    favicon-32x32.png dist/
 cp assets/*.png dist/assets/
+cp assets/*.webp dist/assets/
 cp vendor/supabase.js dist/vendor/
 # Public A2P compliance pages (SMS program, privacy, terms). Static only,
 # not app-shell files: not in SHELL_FILES, never cached by the service worker.

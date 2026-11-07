@@ -3171,3 +3171,14 @@ img.mk-asc{height:calc(var(--r)*.24);border:0;padding:0;}
 .tv4-air-c3 .tv4-fc-top .tv4-bagtag{height:24px;font-size:17px;min-width:54px;}
 .tv4-air-c3 .tv4-cv{width:64px;}
 .tv4-air-c3 .tv4-fc{grid-template-columns:64px minmax(0,1fr);}
+
+/* Real Makers Air Caravan (owner 2026-11-07): pitch follows the flight — climb after take-off, level, descend to land. */
+.tv4-cv3d{overflow:visible;}
+.tv4-cv3d .tv4-pitch{transform-box:fill-box;transform-origin:50% 55%;transition:transform 1.2s ease;filter:drop-shadow(0 6px 7px rgba(0,0,0,.45));}
+.tv4-pose-climb .tv4-pitch{transform:rotate(-13deg);}
+.tv4-pose-descend .tv4-pitch{transform:rotate(9deg);}
+.tv4-moving .tv4-pose-climb .tv4-pitch{animation:tv4Climb 4s ease-in-out infinite;}
+.tv4-moving .tv4-pose-descend .tv4-pitch{animation:tv4Descend 4s ease-in-out infinite;}
+@keyframes tv4Climb{0%,100%{transform:rotate(-13deg)}50%{transform:rotate(-10deg)}}
+@keyframes tv4Descend{0%,100%{transform:rotate(9deg)}50%{transform:rotate(7deg)}}
+@media (prefers-reduced-motion:reduce){.tv4-moving .tv4-pitch{animation:none;}}
