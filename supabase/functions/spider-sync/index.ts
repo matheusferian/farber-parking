@@ -111,7 +111,10 @@ async function planeEvents(admin: any, positions: Pos[], day: string): Promise<s
       const { data: landed } = await admin.from('airvalet_spider_events').select('at').eq('service_date', day).eq('leg_key', k).eq('event', 'LANDED').maybeSingle();
       // A NEW track (tracker switched on again) that started after the Customs shutdown = taxi to Hangar 19.
       const onAgain = sp.departed_at ? Date.parse(sp.departed_at) > (landed ? Date.parse(landed.at) - 5 * 60000 : Infinity) : false;
-      if (landed && onAgain && last > Date.parse(landed.at) && await once(k, 'LEFT_CUSTOMS')) {
+      // Owner 2026-11-07: only within 1 h of the landing — a tracker switched on hours later is a parked plane
+      // (or the next departure), not the Customs → Hangar 19 hop.
+      const recent = landed && last - Date.parse(landed.at) <= 60 * 60000;
+      if (landed && onAgain && recent && last > Date.parse(landed.at) && await once(k, 'LEFT_CUSTOMS')) {
         await notifyCategory(deps, 'DAILY', { title: `${tail} left Customs → Hangar 19`, body: `Flight ${L.flight} from ${from}\n${who}`, url: '/', tag: `plane-${k}-h19` });
         sent.push(`${k}:LEFT_CUSTOMS`);
       }
