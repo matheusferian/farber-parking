@@ -23,7 +23,7 @@ export type DepChange = {
 
 // With a secret (security review 2026-11-06): HMAC-SHA256, so nobody can test "is SMITH|JOHN on this flight"
 // against a stored key. Readings made with keys of another kind (kv) are compared by counts only.
-export const KEY_VERSION = 2;
+export const KEY_VERSION = 3;   // 3 = people only (pets excluded, owner 2026-11-07)
 export async function paxKey(last: string, first: string, secret?: string): Promise<string> {
   const norm = `${String(last || '').trim().toUpperCase()}|${String(first || '').trim().toUpperCase()}`.replace(/\s+/g, ' ');
   const data = new TextEncoder().encode(norm);

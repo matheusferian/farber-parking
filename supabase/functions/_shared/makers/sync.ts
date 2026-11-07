@@ -55,14 +55,24 @@ export function pickTrip(car: HeldCar, trips: Trip[], today: string): Trip | nul
   return near[0].t;
 }
 
+// Owner 2026-11-07: Makers books a pet as a passenger with the surname "PET" ("PET, ADAMS", "PET, DOG DUBOWITZ").
+// Any animal (dog, cat, bird, parrot, parakeet…) is not a person: never counted, never a name suggestion,
+// never matched to a car.
+const PET_WORD = /^(PETS?|ANIMALS?|DOGS?|PUPP(Y|IES)|K9|CANINE|CATS?|KITTEN|BIRDS?|PARROTS?|PARAKEETS?|BUDGIES?|COCKATIELS?|RABBITS?|BUNNY|FERRETS?|HAMSTERS?|TURTLES?)$/;
+export function isPetRow(r: { last: string; first: string }): boolean {
+  const last = String(r.last || '').trim().toUpperCase(), first = String(r.first || '').trim().toUpperCase();
+  return PET_WORD.test(last) || PET_WORD.test(first) || PET_WORD.test(first.split(/\s+/)[0] || '');
+}
+
 export async function runSync(suite: SuiteLike, o: { date: string; today: string; pool: HeldCar[]; feedback: Feedback[]; maxLookups?: number; keySecret?: string }): Promise<SyncResult> {
   const warnings: string[] = [];
   const legsByDay = new Map<string, Leg[]>(), inByDay = new Map<string, PaxRow[]>();
   const legs = async (iso: string) => { if (!legsByDay.has(iso)) legsByDay.set(iso, await suite.schedule(isoToMdy(iso))); return legsByDay.get(iso)!; };
-  const arrivals = async (iso: string) => { if (!inByDay.has(iso)) inByDay.set(iso, await suite.passengers(isoToMdy(iso), { to: 'FXE' })); return inByDay.get(iso)!; };
+  const humans = (rows: PaxRow[]) => rows.filter((r) => !isPetRow(r));
+  const arrivals = async (iso: string) => { if (!inByDay.has(iso)) inByDay.set(iso, humans(await suite.passengers(isoToMdy(iso), { to: 'FXE' }))); return inByDay.get(iso)!; };
 
   // 1. Tomorrow: arrivals and departures.
-  const L = await legs(o.date), inPax = await arrivals(o.date), outPax = await suite.passengers(isoToMdy(o.date), { from: 'FXE' });
+  const L = await legs(o.date), inPax = await arrivals(o.date), outPax = humans(await suite.passengers(isoToMdy(o.date), { from: 'FXE' }));
   // The report can list the same person twice (both legs of one booking): count each name once.
   const count = (rows: PaxRow[], f: string) => new Set(rows.filter((r) => r.flight === f).map((r) => `${r.last}|${r.first}`)).size;
   const inbound: FlightSummary[] = L.filter((l) => l.to === 'FXE').map((l) => ({ flight: l.flight, route: `${l.from}-FXE`, tail: l.tail, time: l.arr, dep: l.dep, pax: count(inPax, l.flight), ascend: isAscendFlight(l.flight) }))

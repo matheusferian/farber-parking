@@ -108,3 +108,14 @@ Deno.test('check-in name list: everyone leaving FXE, first + last, once per flig
   const r = await runSync(suite, { date: '2026-11-07', today: '2026-11-06', pool: [], feedback: [] });
   assertEquals(r.names, [{ name: 'PEDRO AUGUSTO', flight: '2404', time: '08:00', dest: 'COX' }, { name: "MARY ANN O'NEIL", flight: '2404', time: '08:00', dest: 'COX' }]);
 });
+
+Deno.test('pets are not passengers (owner 2026-11-07: dog, cat, bird, parrot, parakeet…)', async () => {
+  const { isPetRow } = await import('./sync.ts');
+  for (const r of [{ last: 'PET', first: 'ADAMS' }, { last: 'PET', first: 'DOG DUBOWITZ' }, { last: 'PET', first: 'DOGV KANTOR' }, { last: 'Pet', first: 'peel' },
+    { last: 'DUBOWITZ', first: 'DOG' }, { last: 'SMITH', first: 'PARROT' }, { last: 'CAT', first: 'MILO' }, { last: 'PARAKEET', first: 'KIWI' }]) {
+    if (!isPetRow(r)) throw new Error('should be a pet: ' + JSON.stringify(r));
+  }
+  for (const r of [{ last: 'PETERSON', first: 'ANNA' }, { last: 'ADAMS', first: 'PETER' }, { last: 'CATTANEO', first: 'LUCA' }, { last: 'BIRDSALL', first: 'JOHN' }, { last: 'DOGGETT', first: 'SAM' }, { last: 'PEEL', first: 'NANCY' }]) {
+    if (isPetRow(r)) throw new Error('should be a person: ' + JSON.stringify(r));
+  }
+});

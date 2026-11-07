@@ -175,7 +175,9 @@ Deno.serve(async (req) => {
   let changes: { since: string; items: DepChange[]; lines: string[] } | null = null;
   // Keys of another kind (before HMAC, 2026-11-06) cannot be compared: counts only for that reading.
   const prevOut = (prevRow?.result?.outbound as DepFlight[] | undefined)?.map((f) => prevRow?.result?.kv === KEY_VERSION ? f : { ...f, ids: undefined });
-  if (prevRow && Array.isArray(prevOut)) {
+  // Owner 2026-11-07: key version 3 counts people only (pets excluded) — a reading of another version counts
+  // differently, so it is never compared (no false "1 cancelled" for a dog).
+  if (prevRow && Array.isArray(prevOut) && Number(prevRow?.result?.kv || 0) >= 3) {
     const items = diffDepartures(prevOut, result.outbound as DepFlight[]);
     changes = { since: prevRow.created_at, items, lines: items.map(changeLine) };
   }
