@@ -18271,16 +18271,16 @@ function mfChangeHead(c){ return vpTime(c.time) + ' ' + (MF_AIRPORTS[c.dest] || 
 function mfSharedKey(r){ return 'mfShared:' + (r.manifest_date || ''); }
 function mfSharedGet(r){ try { return JSON.parse(localStorage.getItem(mfSharedKey(r)) || 'null'); } catch(e) { return null; } }
 function mfSharedSave(r){ try { localStorage.setItem(mfSharedKey(r), JSON.stringify({ at: new Date().toISOString(), outbound: r.outbound || [] })); } catch(e) {} }
-// What changed, and since when: the last picture shared from this device, else the robot's previous reading.
+// What changed since the last picture shared from this device. Owner 2026-11-08: the FIRST picture of a day is
+// never "UPDATED" — the group has not seen any earlier version, even when the robot read Makers earlier
+// (e.g. an early on-demand run before the usual 3 PM reading). No picture shared yet → no changes shown.
 function mfDepChanges(r){
   var sh = mfSharedGet(r);
   if (sh && Array.isArray(sh.outbound)) {
     var items = mfDiffDep(sh.outbound, r.outbound || []);
     return { items: items, since: 'since the picture shared ' + new Date(sh.at).toLocaleString('en-US', { weekday: 'short', hour: 'numeric', minute: '2-digit' }), shared: true };
   }
-  if (r.changes && r.changes.items && r.changes.items.length)
-    return { items: r.changes.items, since: 'since the Makers list of ' + new Date(r.changes.since).toLocaleString('en-US', { weekday: 'short', hour: 'numeric', minute: '2-digit' }), shared: false };
-  return { items: [], since: '', shared: !!sh };
+  return { items: [], since: '', shared: false };
 }
 function mfDeparturesText(r){
   var lines = (r.outbound || []).map(function(f){ return vpTime(f.time) + ' — ' + f.pax + ' pax (' + f.flight + ' ' + f.route.replace('FXE-', '→ ') + ')'; });
