@@ -228,11 +228,11 @@ export class MakersSuite {
 
   // Runs a page's own Search button for one day. Only the search button is ever pressed.
   private async search(path: string, pickers: string[], button: string, mdy: string, extra: Record<string, string> = {},
-    textStates: Record<string, string> = {}): Promise<string> {
+    textStates: Record<string, string> = {}, mdyTo = mdy): Promise<string> {
     const html = this.pageCache.get(path) ?? await this.getFollow(path);
     this.pageCache.set(path, html);
     const f = formFields(html);
-    for (const pk of pickers) setRadDate(f, pk, mdy);
+    pickers.forEach((pk, i) => setRadDate(f, pk, i === 1 ? mdyTo : mdy));   // [from, to]: a range when mdyTo differs
     for (const [suffix, v] of Object.entries(extra)) {
       const keys = [...f.keys()].filter((k) => k.endsWith(suffix));
       if (keys.length) for (const k of keys) f.set(k, v);
@@ -272,6 +272,14 @@ export class MakersSuite {
   async passengers(mdy: string, dir: { to?: string; from?: string }): Promise<PaxRow[]> {
     const html = await this.search('/PassangerFlightReport.aspx', ['RadDate_StartDate', 'RadDate_EndDate'], 'btnsearch', mdy,
       { '$txtto': dir.to || '', '$txtFrom': dir.from || '' });
+    if (!/Pax Name/i.test(html)) throw new MakersSuiteError('LAYOUT', 'passenger list grid not found');
+    return parsePassengers(html);
+  }
+
+  // Owner 2026-11-08 (demand forecast): the same passenger list search over a date range, every route. Read-only.
+  async passengersRange(fromMdy: string, toMdy: string): Promise<PaxRow[]> {
+    const html = await this.search('/PassangerFlightReport.aspx', ['RadDate_StartDate', 'RadDate_EndDate'], 'btnsearch', fromMdy,
+      { '$txtto': '', '$txtFrom': '' }, {}, toMdy);
     if (!/Pax Name/i.test(html)) throw new MakersSuiteError('LAYOUT', 'passenger list grid not found');
     return parsePassengers(html);
   }

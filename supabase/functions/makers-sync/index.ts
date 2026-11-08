@@ -25,6 +25,7 @@ import { notifyCategory } from '../_shared/notify/staff.ts';
 import { changeLine, diffDepartures, KEY_VERSION, type DepChange, type DepFlight } from '../_shared/makers/changes.ts';
 import { readVapid } from '../_shared/notify/runtime.ts';
 import { nextWeek, weekPeaks, weekText } from '../_shared/makers/week.ts';
+import { forecastDays } from '../_shared/makers/forecast.ts';
 
 const ALLOWED_ORIGINS = ['https://airvalet.farberos.com', 'https://matheusferian.github.io'];
 const OPS = ['ADMIN', 'MANAGER', 'IPAD_OPS', 'IPHONE_OPS'];
@@ -97,8 +98,14 @@ Deno.serve(async (req) => {
   // Owner 2026-11-08 (staff schedule): every Monday 8 AM Fort Lauderdale, next week's days with 2+ flights at
   // 6:45 AM or 12:45 PM. cron body {"week":"next"} (fires 12 and 13 UTC; only the 8 AM ET run works) or
   // {"week":"next","force":true} for an on-demand run.
-  let weekRun = false;
-  if (isCron && cronBody.week === 'next') {
+  let weekRun = false, forecastRun = false;
+  // Owner 2026-11-08: demand forecast every morning, 5 AM Fort Lauderdale (cron 'makers-forecast' fires 9 and 10 UTC),
+  // or {"forecast":true,"force":true} on demand.
+  if (isCron && cronBody.forecast === true) {
+    const h = +new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', hour12: false }).format(new Date());
+    if (cronBody.force !== true && h !== 5) return json(200, { ok: true, skipped: 'forecast: 5 AM Fort Lauderdale only' });
+    forecastRun = true;
+  } else if (isCron && cronBody.week === 'next') {
     const p = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', weekday: 'short', hour: 'numeric', hour12: false }).formatToParts(new Date()).map((x) => [x.type, x.value]));
     if (cronBody.force !== true && !(p.weekday === 'Mon' && +p.hour === 8)) return json(200, { ok: true, skipped: 'weekly peaks: Monday 8 AM Fort Lauderdale only' });
     weekRun = true;
@@ -140,6 +147,31 @@ Deno.serve(async (req) => {
   const vapid = readVapid((k) => Deno.env.get(k));
   const deps = { db: admin, vapid, log: (event: string, data: Record<string, unknown>) => console.log(JSON.stringify({ event, ...data })) };
   const t0 = Date.now();
+
+  if (forecastRun) {
+    try {
+      const suite = new MakersSuite();
+      await suite.login(user, pass);
+      const days = await forecastDays(suite, today, 200, 28);
+      const readAt = new Date().toISOString();
+      const { error: e1 } = await admin.from('airvalet_makers_forecast').upsert(days.map((d) => ({ ...d, read_at: readAt })), { onConflict: 'day' });
+      const { error: e2 } = await admin.from('airvalet_makers_forecast_history').upsert(days.map((d) => ({ read_date: today, ...d })), { onConflict: 'read_date,day' });
+      await admin.from('airvalet_makers_forecast').delete().lt('day', today);
+      await unlock();
+      if (e1 || e2) return json(500, { ok: false, error: { code: 'SAVE_FAILED' } });
+      return json(200, { ok: true, forecast_days: days.length, departures: days.reduce((a, d) => a + d.departures, 0), secs: Math.round((Date.now() - t0) / 1000) });
+    } catch (e) {
+      const code = e instanceof MakersSuiteError ? e.code : 'READ_FAILED';
+      console.log(JSON.stringify({ event: 'makers_forecast.error', code, msg: (e as Error).message }));
+      if (code === 'LAYOUT' || code === 'BLOCKED' || code === 'LOGIN_FAILED') {
+        await admin.from('airvalet_manifest_scans').insert({ created_by: userId, service_date: today, result: { error: code }, usage: { mode: 'makers_sync', ok: false, cron: true } });
+        await notifyCategory(deps, 'DAILY', { title: code === 'LOGIN_FAILED' ? 'Makers robot could not log in' : 'Makers robot STOPPED — Makers page changed',
+          body: 'Nothing was changed in Makers. The demand forecast was not updated. Tell Matheus.', url: '/?mf=1', tag: 'makers-sync-error' });
+      }
+      await unlock();
+      return json(200, { ok: false, error: { code } });
+    }
+  }
 
   if (weekRun) {
     const dates = nextWeek(today);
