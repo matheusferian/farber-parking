@@ -24,6 +24,7 @@ import { Feedback, parseDate } from '../_shared/manifest/match.ts';
 import { notifyCategory } from '../_shared/notify/staff.ts';
 import { changeLine, diffDepartures, KEY_VERSION, type DepChange, type DepFlight } from '../_shared/makers/changes.ts';
 import { readVapid } from '../_shared/notify/runtime.ts';
+import { nextWeek, weekPeaks, weekText } from '../_shared/makers/week.ts';
 
 const ALLOWED_ORIGINS = ['https://airvalet.farberos.com', 'https://matheusferian.github.io'];
 const OPS = ['ADMIN', 'MANAGER', 'IPAD_OPS', 'IPHONE_OPS'];
@@ -93,7 +94,15 @@ Deno.serve(async (req) => {
   let target = etDay(1), summaryRun = !isCron, noShowRun = false;
   let cronBody: Record<string, unknown> = {};
   if (isCron) { try { cronBody = await req.clone().json(); } catch { cronBody = {}; } }
-  if (isCron && (cronBody.day === 'today' || cronBody.day === 'tomorrow')) {
+  // Owner 2026-11-08 (staff schedule): every Monday 8 AM Fort Lauderdale, next week's days with 2+ flights at
+  // 6:45 AM or 12:45 PM. cron body {"week":"next"} (fires 12 and 13 UTC; only the 8 AM ET run works) or
+  // {"week":"next","force":true} for an on-demand run.
+  let weekRun = false;
+  if (isCron && cronBody.week === 'next') {
+    const p = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', weekday: 'short', hour: 'numeric', hour12: false }).formatToParts(new Date()).map((x) => [x.type, x.value]));
+    if (cronBody.force !== true && !(p.weekday === 'Mon' && +p.hour === 8)) return json(200, { ok: true, skipped: 'weekly peaks: Monday 8 AM Fort Lauderdale only' });
+    weekRun = true;
+  } else if (isCron && (cronBody.day === 'today' || cronBody.day === 'tomorrow')) {
     // An on-demand run with the robot secret (owner 2026-11-06: tomorrow's names now): that day, no summary push.
     target = cronBody.day === 'today' ? etDay(0) : etDay(1);
   } else if (isCron) {
@@ -131,6 +140,31 @@ Deno.serve(async (req) => {
   const vapid = readVapid((k) => Deno.env.get(k));
   const deps = { db: admin, vapid, log: (event: string, data: Record<string, unknown>) => console.log(JSON.stringify({ event, ...data })) };
   const t0 = Date.now();
+
+  if (weekRun) {
+    const dates = nextWeek(today);
+    try {
+      const suite = new MakersSuite();
+      await suite.login(user, pass);
+      const days = await weekPeaks(suite, dates);
+      const peak = days.filter((d) => d.am.length || d.noon.length);
+      const lab = (iso: string) => new Date(iso + 'T12:00:00Z').toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', timeZone: 'UTC' });
+      await admin.from('airvalet_manifest_scans').insert({ created_by: userId, service_date: dates[0], result: { week: dates, days },
+        usage: { mode: 'makers_week', ok: true, cron: true, secs: Math.round((Date.now() - t0) / 1000) } });
+      await notifyCategory(deps, 'DAILY', { title: `Next week ${lab(dates[0])}–${lab(dates[6])} · double 6:45 / 12:45`, body: weekText(days), url: '/?mf=1', tag: `makers-week-${dates[0]}` });
+      await unlock();
+      return json(200, { ok: true, week: [dates[0], dates[6]], peak_days: peak.length, days });
+    } catch (e) {
+      const code = e instanceof MakersSuiteError ? e.code : 'READ_FAILED';
+      console.log(JSON.stringify({ event: 'makers_week.error', code, msg: (e as Error).message }));
+      await admin.from('airvalet_manifest_scans').insert({ created_by: userId, service_date: dates[0], result: { error: code }, usage: { mode: 'makers_sync', ok: false, cron: true } });
+      const pageChanged = code === 'LAYOUT' || code === 'BLOCKED';
+      await notifyCategory(deps, 'DAILY', { title: pageChanged ? 'Makers robot STOPPED — Makers page changed' : 'Makers robot could not read next week',
+        body: pageChanged ? 'Nothing was changed in Makers. The robot stopped and will not run again until it is fixed. Tell Matheus.' : 'Check next week\'s 6:45 / 12:45 flights by hand.', url: '/?mf=1', tag: 'makers-sync-error' });
+      await unlock();
+      return json(200, { ok: false, error: { code } });
+    }
+  }
 
   let result: SyncResult;
   let noDateIds = new Set<number>();   // Return Date Follow-Up guests (status NO DATE)
