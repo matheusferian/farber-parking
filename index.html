@@ -16453,7 +16453,10 @@ function tvMakersChangeFor(dayKey, f){
   return null;
 }
 // One TV alert per new set of changes (skipped on the first load, so a reload never replays old news).
+// Owner 2026-11-10: no "Departures changed" pop-up alerts (cancelled / new / moved flights) on the TV for now.
+var TV_MAKERS_CHANGE_ALERTS = false;
 function tvMakersChangeAlerts(){
+  if(!TV_MAKERS_CHANGE_ALERTS) return;
   if(typeof mfChangeBits !== 'function') return;
   if(!_tv.mkChgSeen){ _tv.mkChgSeen = {}; var first = true; }
   [tvDayKeyOffset(0), tvDayKeyOffset(1)].forEach(function(dk, idx){
