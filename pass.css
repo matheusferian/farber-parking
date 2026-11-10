@@ -38,7 +38,14 @@ button,a.btn{font:inherit}
 .plane .s,.fw-plane .s{stroke:currentColor;stroke-width:1.1;stroke-linecap:round;fill:none}.plane .st,.fw-plane .st{stroke-width:.8}
 .plane .pd,.fw-plane .pd{fill:currentColor;fill-opacity:.22}.plane .pb,.fw-plane .pb{fill:currentColor;fill-opacity:.7}.pb2{opacity:.55}
 /* Makers Caravan 3D (owner preview 2026-11-10): softer light (owner: too dark, "like the sun on it") — lighter, low contrast, light shadow */
-.plane.plane3d{width:150px;height:66px}
+.plane.plane3d{width:150px;height:66px;offset-path:path("M -130 90 C -20 90, 100 84, 200 62 S 380 16, 540 0")}
+/* Floating chat button + quick messages (owner preview 2026-11-10) */
+.chat-fab{position:fixed;right:1rem;bottom:calc(1.1rem + env(safe-area-inset-bottom));z-index:15;display:flex;align-items:center;gap:.5rem;min-height:3.1rem;
+  padding:0 1.15rem 0 .95rem;border:0;border-radius:999px;background:var(--navy);color:#fff;font:700 .95rem Sora,Inter,sans-serif;
+  box-shadow:0 12px 26px -10px rgba(6,20,51,.6);cursor:pointer;-webkit-tap-highlight-color:transparent}
+.chat-fab svg{width:1.35rem;height:1.35rem;fill:none;stroke:var(--gold);stroke-width:2;stroke-linejoin:round}
+.quick{display:flex;gap:.45rem;flex-wrap:wrap}
+.quick button{min-height:2.5rem;padding:0 .9rem;border-radius:999px;border:1.5px solid var(--line);background:#fff;color:var(--navy);font:600 .9rem Inter,sans-serif;cursor:pointer}
 .plane.plane3d svg{display:none}
 .plane.plane3d .p3d{display:block;width:100%;height:100%;object-fit:contain;filter:brightness(1.06) contrast(.86) saturate(.88) drop-shadow(0 4px 10px rgba(0,0,0,.18))}
 /* 3D flight (owner 2026-11-10: "only flies straight"): climbs in nose-up and levels off, then floats gently

@@ -9,6 +9,9 @@
   var sheetBg = document.getElementById('sheetBg');
   var sheet = document.getElementById('sheet');
   var hero = document.getElementById('hero');
+  // Owner preview (2026-11-10), test ticket 1110-10 only: 3D Caravan climbing + floating chat button.
+  var PREVIEW = false;
+  var CLIMB = 'M -130 90 C -20 90, 100 84, 200 62 S 380 16, 540 0';
   var pass = null;
   var lastFocus = null;
   var form = {};           // current sheet state
@@ -156,9 +159,12 @@
     h1.hidden = false; sub.hidden = false;
     // Owner preview 2026-11-10: the Makers Caravan 3D (no tail number) instead of the drawing,
     // only on the owner's test ticket until approved. Swapped before the flight starts.
-    if (p.ticket === '1110-10' && !hero.querySelector('.plane .p3d')) {
+    PREVIEW = p.ticket === '1110-10';
+    if (PREVIEW && !hero.querySelector('.plane .p3d')) {
       var pl = hero.querySelector('.plane');
       if (pl) { pl.classList.add('plane3d'); pl.insertAdjacentHTML('beforeend', '<span class="p3d-w"><img class="p3d" src="assets/makers-caravan-3d.webp" alt="" width="900" height="393"><span class="prop3d"></span></span>'); }
+      // A real climb (owner: "the line is straight"): the dotted line and the flight rise to the right.
+      Array.prototype.forEach.call(hero.querySelectorAll('.route path'), function (el) { el.setAttribute('d', CLIMB); });
     }
     if (!hero.classList.contains('go')) hero.classList.add('go');
     if (hero.classList.contains('done') !== done) hero.classList.toggle('done', done);
@@ -405,6 +411,7 @@
       (p.terms_published && VALET_TERMS_URL ? '<a href="' + esc(VALET_TERMS_URL) + '">Valet Terms</a>' : '') +
       '<a href="sms.html">SMS program</a><a href="privacy.html">Privacy</a></p></footer></main>';
     app.innerHTML = html;
+    chatFab(p, done);
     if (RETURN) {   // once, on the first pass after coming back from Stripe
       var note = document.createElement('p'); note.className = RETURN === 'thanks' ? 'okbox return-note' : 'review return-note'; note.setAttribute('role', 'status');
       note.textContent = RETURN === 'thanks' ? 'Thank you for your gratuity.' : 'No gratuity was charged.';
@@ -419,6 +426,18 @@
       how.textContent = open ? 'Hide directions' : 'How to get there';
     });
   }
+
+  // Floating chat button (owner preview): lives outside #app, so the 30 s refresh never re-creates it.
+  function chatFab(p, done) {
+    var fab = document.getElementById('chatFab'), show = PREVIEW && p.chat_enabled && !done;
+    if (!show) { if (fab) fab.remove(); return; }
+    if (fab) return;
+    fab = document.createElement('button'); fab.type = 'button'; fab.id = 'chatFab'; fab.className = 'chat-fab';
+    fab.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg><span>Chat with valet</span>';
+    fab.addEventListener('click', function () { openSheet('chat'); });
+    document.body.appendChild(fab);
+  }
+  var QUICK = ['I landed', 'Running late', 'Where is my car?'];
 
   // ── Sheets ──
   function openSheet(kind) {
@@ -513,6 +532,7 @@
         '<button class="btn quiet" type="button" data-close>Close</button>';
     } else if (form.kind === 'chat') {
       h = head('Valet team') + '<div class="chat" id="chatList" aria-live="polite">' + chatHtml() + '</div>' +
+        (PREVIEW ? '<div class="quick">' + QUICK.map(function (q) { return '<button type="button" data-quick="' + esc(q) + '">' + esc(q) + '</button>'; }).join('') + '</div>' : '') +
         '<label class="f"><span class="sr">Message</span><textarea id="chatText" maxlength="600" placeholder="Write a message">' + esc(form.draft || '') + '</textarea></label>' +
         (form.err ? '<p class="err" role="alert">' + esc(form.err) + '</p>' : '') +
         '<button class="btn primary" type="button" data-chatsend' + (form.busy ? ' disabled' : '') + '>' + (form.busy ? 'Sending…' : 'Send') + '</button>' +
@@ -543,6 +563,7 @@
     on('[data-send]', function () { sendRequest({ kind: 'RETURN_CHANGE', reason: form.reason, date: form.date, time: form.time || null, carrier: form.carrier || null, note: form.note || null }, 4); });
     on('[data-wash]', function () { sendRequest({ kind: 'CAR_WASH' }, 9); });
     on('[data-chatsend]', sendChat);
+    on('[data-quick]', function (e) { var t = document.getElementById('chatText'); if (!t) return; t.value = e.currentTarget.getAttribute('data-quick'); form.draft = t.value; t.focus(); });
     // Other amount lives in a sheet: the 30 s refresh never wipes what the guest types.
     on('[data-tipother]', function (e) {
       var inp = document.getElementById('tipAmt'), gc = (pass && pass.gratuity_checkout) || {};
