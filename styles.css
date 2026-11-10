@@ -3206,3 +3206,7 @@ img.mk-asc{height:calc(var(--r)*.24);border:0;padding:0;}
 
 /* Follow-Up: far-away approximate return ("≈ 6 MONTHS", owner 2026-11-07) — calm blue, not an alarm. */
 .tv-badge-info{background:rgba(127,176,255,.16);color:#9CC2FF;border:1px solid rgba(127,176,255,.38);}
+/* Ascend logo in place of the word on the TV Operations page (owner 2026-11-10) */
+#tvMode .tv-asc-logo{display:inline-block;height:1.15em;width:auto;vertical-align:-.22em}
+#tvMode .tv-badge-asclogo{display:inline-flex;align-items:center;height:auto;line-height:1;overflow:visible;padding:3px 7px;background:rgba(201,168,76,.10);border-color:rgba(201,168,76,.55)}
+#tvMode .tv-badge-asclogo .tv-asc-logo{height:1.4em;vertical-align:middle}

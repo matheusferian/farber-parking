@@ -15906,6 +15906,8 @@ function tvGetTimeBucket(timeStr){
 var TV_BUCKET_ORDER = ['Early Morning','Morning','Midday','Afternoon','Evening','After Hours','TIME NOT SET'];
 
 // ── ASCEND IN CUSTODY sort — TODAY, TOMORROW, future dated, NO DATE last ──
+// Ascend logo instead of the word on the TV (owner 2026-11-10).
+var TV_ASC_LOGO = '<img class="tv-asc-logo" src="assets/ascend-logo.png" alt="Ascend">';
 function tvAscendSortRank(r){
   if(!hasRealReturnDate(r.ret)) return 3;
   if(isToday(r.ret)) return 0;
@@ -16159,7 +16161,7 @@ function buildTvViewModel(){
 // at delivery time, so a pending record can never legitimately carry one.
 function tvBadges(r){
   var out='';
-  if(typeof isAscend==='function' && isAscend(r)) out+='<span class="tv-badge tv-badge-ascend">&#9992; ASCEND</span>';
+  if(typeof isAscend==='function' && isAscend(r)) out+='<span class="tv-badge tv-badge-ascend tv-badge-asclogo">'+TV_ASC_LOGO+'</span>';
   if(returnOperator(r)==='OTHER') out+=OTHER_BOAT_TV_BADGE_HTML;
   return out;
 }
@@ -16707,7 +16709,7 @@ function tvFromLineHtml(o){
   var tm = tvMakersTime12(o.arrival_time);
   var bits = [];
   if(o.flight) bits.push('Flight '+escapeHTML(String(o.flight)));
-  if(o.ascend || /^99\d{2}$/.test(String(o.flight || ''))) bits.push('Ascend');
+  if(o.ascend || /^99\d{2}$/.test(String(o.flight || ''))) bits.push(TV_ASC_LOGO);
   if(tm.ap) bits.push('lands '+tm.t+' '+tm.ap);
   return '<div class="tv-from">'+
     (o.registration ? '<span class="tv-from-tail" style="'+tvMakersTag(code)+'">'+escapeHTML(tvMakersTailSuffix(o.registration))+'</span>' : '')+
@@ -17842,10 +17844,10 @@ function tvBuildOpsPages(vm){
     var destSlice = slice.filter(function(x){ return x.type==='customsdest'; });
     var html = '';
     if(ascendSlice.length){
-      html += '<div class="tv-subgroup-hdr">Ascend In Custody <span class="tv-subgroup-count">'+vm.ascendActive.length+'</span></div>';
+      html += '<div class="tv-subgroup-hdr">'+TV_ASC_LOGO+' In Custody <span class="tv-subgroup-count">'+vm.ascendActive.length+'</span></div>';
       html += ascendSlice.map(function(x){
         var chip = tvReturnDateLabel(x.r);
-        var badges = '<span class="tv-badge tv-badge-ascend">&#9992; ASCEND</span> RETURN: '+tvChipHtml(chip);
+        var badges = '<span class="tv-badge tv-badge-ascend tv-badge-asclogo">'+TV_ASC_LOGO+'</span> RETURN: '+tvChipHtml(chip);
         return tvRow(x.r,{nameBadges:badges});
       }).join('');
     }
@@ -17854,7 +17856,7 @@ function tvBuildOpsPages(vm){
       html += custSlice.map(function(x){
         var r=x.r;
         var badges = '<span class="tv-badge tv-badge-atcustoms">&#10003; AT CUSTOMS</span>';
-        if(typeof isAscend==='function' && isAscend(r)) badges = '<span class="tv-badge tv-badge-ascend">&#9992; ASCEND</span> '+badges;
+        if(typeof isAscend==='function' && isAscend(r)) badges = '<span class="tv-badge tv-badge-ascend tv-badge-asclogo">'+TV_ASC_LOGO+'</span> '+badges;
         if(gratuityDueIds[r.id]) badges += ' <span class="tv-badge tv-badge-gratuity">GRATUITY DUE</span>';
         badges += ' '+tvDayTagBadge(x.day);
         return tvRow(r,{completed:true, showLocationAlert:false, nameBadges:badges});
@@ -17904,7 +17906,7 @@ function tvBuildOpsPages(vm){
   var groupALayout = pageBodyBox.width >= need3 ? 'wide' : (pageBodyBox.width >= need2 ? 'medium' : 'narrow');
 
   var alertsSampleRow = tv4WorkOrderHtml({r:{name:'CHRISTOPHER ALEXANDER MARTINEZ',car:'Range Rover',color:'White',loc:'HANGAR 18',ticket:'0824-99'}, kind:'wb', title:'Send Welcome Back', sub:'Day trip lands 17:00 · key with passenger', lvl:'critical'});
-  var acSampleRow = tvRow({name:'ALEXANDRIA MONTGOMERY-SMITH',car:'Range Rover',color:'White',loc:'HANGAR 18',ticket:'0824-99'},{completed:true, showLocationAlert:false, nameBadges:'<span class="tv-badge tv-badge-ascend">&#9992; ASCEND</span> <span class="tv-badge tv-badge-atcustoms">&#10003; AT CUSTOMS</span> <span class="tv-badge tv-badge-gratuity">GRATUITY DUE</span> <span class="tv-badge tv-badge-daytag">TODAY</span>'});
+  var acSampleRow = tvRow({name:'ALEXANDRIA MONTGOMERY-SMITH',car:'Range Rover',color:'White',loc:'HANGAR 18',ticket:'0824-99'},{completed:true, showLocationAlert:false, nameBadges:'<span class="tv-badge tv-badge-ascend tv-badge-asclogo">'+TV_ASC_LOGO+'</span> <span class="tv-badge tv-badge-atcustoms">&#10003; AT CUSTOMS</span> <span class="tv-badge tv-badge-gratuity">GRATUITY DUE</span> <span class="tv-badge tv-badge-daytag">TODAY</span>'});
   var followUpSampleRow = tvRow({name:'JOHNATHAN PAUL WILLIAMS',car:'Range Rover',color:'White',loc:'HANGAR 18',ticket:'0824-99'},{nameBadges:tvChipHtml({level:'warning', text:'APPROX AUGUST 27 — CONFIRM'})});
 
   function colWidthsForGroupA(layout, bodyWidth){
@@ -17923,7 +17925,7 @@ function tvBuildOpsPages(vm){
   var colW = colWidthsForGroupA(groupALayout, pageBodyBox.width);
 
   var alertsTitleHtml = '<div class="tv-page-title" style="font-size:16px;margin-bottom:8px;">&#9888; Special Handling &amp; Alerts</div>';
-  var acTitleHtml = '<div class="tv-page-title" style="font-size:16px;margin-bottom:8px;">&#9992; Customs / Ascend</div>';
+  var acTitleHtml = '<div class="tv-page-title" style="font-size:16px;margin-bottom:8px;">&#9992; Customs / '+TV_ASC_LOGO+'</div>';
   var alertsAvailHeight = pageBodyBox.height - tvMeasureElementOuterHeight(alertsTitleHtml);
   var acAvailHeight = pageBodyBox.height - tvMeasureElementOuterHeight(acTitleHtml);
 
@@ -17944,7 +17946,7 @@ function tvBuildOpsPages(vm){
           '<div class="tv-list tv-density-'+alertsTier+'">'+alertsColHtml(alertsSlice)+'</div>'+
         '</div>'+
         '<div class="tv-ops-col tv-ops-col-customs">'+
-          '<div class="tv-page-title" style="font-size:16px;margin-bottom:8px;">&#9992; Customs / Ascend <span class="tv-count-pill">'+ascendCustomsCombined.length+'</span></div>'+
+          '<div class="tv-page-title" style="font-size:16px;margin-bottom:8px;">&#9992; Customs / '+TV_ASC_LOGO+' <span class="tv-count-pill">'+ascendCustomsCombined.length+'</span></div>'+
           '<div class="tv-list tv-density-'+acTier+'">'+ascendCustomsColHtml(acSlice)+'</div>'+
         '</div>'+
         (showHangar ? '<div class="tv-ops-col tv-ops-col-hangars">'+
@@ -17978,7 +17980,7 @@ function tvBuildOpsPages(vm){
       bodyEl.style.flexDirection='row'; bodyEl.style.gap=TV_OPS_GROUPA_GAP+'px';
       bodyEl.innerHTML =
         '<div class="tv-ops-col tv-ops-col-customs" style="flex:1;">'+
-          '<div class="tv-page-title" style="font-size:16px;margin-bottom:8px;">&#9992; Customs / Ascend <span class="tv-count-pill">'+ascendCustomsCombined.length+'</span>'+contHtml+'</div>'+
+          '<div class="tv-page-title" style="font-size:16px;margin-bottom:8px;">&#9992; Customs / '+TV_ASC_LOGO+' <span class="tv-count-pill">'+ascendCustomsCombined.length+'</span>'+contHtml+'</div>'+
           '<div class="tv-list tv-density-'+acTier+'">'+ascendCustomsColHtml(slice)+'</div>'+
         '</div>';
     }});
