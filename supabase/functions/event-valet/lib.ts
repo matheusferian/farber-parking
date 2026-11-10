@@ -27,8 +27,8 @@ const BRANDS: Record<string, Brand> = {
     note: 'Thank you for joining us at Watermakers!', place: 'Watermakers',
     short: '/w',
     // Plain GSM-7 (no emoji, straight quotes) so it stays one SMS segment (<=160 chars).
-    // Owner 2026-11-10: open with "Welcome to Watermakers!" (still one segment: 159 chars with a 4-digit # and the link).
-    checkin: (no, link) => `Welcome to Watermakers! Farber Parking Valet: car checked in (#${no}). Reply READY` +
+    // Owner 2026-11-10: open with "Welcome to Watermakers!" only, no "Farber Parking Valet:" (one segment, ~145 chars).
+    checkin: (no, link) => `Welcome to Watermakers! Your car is checked in (#${no}). Reply READY` +
       (link ? ` or tap ${link}` : '') + ` to get it. Reply STOP to opt out`,
   },
 };
