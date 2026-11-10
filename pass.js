@@ -12,6 +12,7 @@
   // Owner preview (2026-11-10), test ticket 1110-10 only: 3D Caravan climbing + floating chat button.
   var PREVIEW = false;
   var CLIMB = 'M -130 90 C -20 90, 100 84, 200 62 S 380 16, 540 0';
+  var DESCEND = 'M -130 0 C -30 0, 80 18, 170 50 S 330 76, 540 78';
   var pass = null;
   var lastFocus = null;
   var form = {};           // current sheet state
@@ -164,7 +165,10 @@
       var pl = hero.querySelector('.plane');
       if (pl) { pl.classList.add('plane3d'); pl.insertAdjacentHTML('beforeend', '<span class="p3d-w"><img class="p3d" src="assets/makers-caravan-3d.webp" alt="" width="900" height="393"><span class="prop3d"></span></span>'); }
       // A real climb (owner: "the line is straight"): the dotted line and the flight rise to the right.
-      Array.prototype.forEach.call(hero.querySelectorAll('.route path'), function (el) { el.setAttribute('d', CLIMB); });
+      // Return day (owner 2026-11-10): the guest is flying back, so the Caravan comes down to land instead.
+      var landing = !done && !!p.return_date && fmtDate(p.return_date) === fmtIsoDate(todayIso());
+      Array.prototype.forEach.call(hero.querySelectorAll('.route path'), function (el) { el.setAttribute('d', landing ? DESCEND : CLIMB); });
+      hero.classList.toggle('landing', landing);
     }
     if (!hero.classList.contains('go')) hero.classList.add('go');
     if (hero.classList.contains('done') !== done) hero.classList.toggle('done', done);
@@ -175,6 +179,13 @@
   function progress(p) {
     var at = p.status === 'DELIVERED' ? 3 : ((p.status === 'READY' && !dayTripEarly(p)) || p.status === 'CUSTOMS_CONFIRMED') ? 2 : 1;
     var names = ['Checked in', 'Parked', 'Ready', 'Delivered'];
+    // Owner 2026-11-10 (preview): once the check-in is done (hangar set, tags printed) the car IS parked —
+    // Checked in and Parked both checked, Ready and Delivered still to come (no step highlighted yet).
+    if (PREVIEW && at === 1 && !(p.day_trip && p.key_with_guest)) {
+      return '<ol class="tl tl-1" aria-label="Progress">' + names.map(function (n, i) {
+        return '<li class="' + (i < 2 ? 'done' : '') + '"' + (i === 1 ? ' aria-current="step"' : '') + '><span class="dot" aria-hidden="true"></span>' + n + '</li>';
+      }).join('') + '</ol>';
+    }
     // Day trip, key handed to the guest at drop-off (owner 2026-11-06): no Ready / Delivered steps.
     if (p.day_trip && p.key_with_guest && p.status !== 'DELIVERED') { names = ['Checked in', 'Parked', 'Key handed over']; at = 3; }
     return '<ol class="tl tl-' + at + (names.length === 3 ? ' tl-n3' : '') + '" aria-label="Progress">' + names.map(function (n, i) {
@@ -394,7 +405,7 @@
         '<p class="tip-fine">Secure payment by Stripe.</p></section>';
     }
     if (p.tip_thanks && hasGratuity(p)) html += '<div class="list"><button type="button" data-open="gratuity"><span>Gratuity</span><small>Optional</small></button></div>';
-    if (p.chat_enabled) html += '<button class="btn primary" type="button" data-open="chat">Message our valet team</button>';
+    if (p.chat_enabled && !PREVIEW) html += '<button class="btn primary" type="button" data-open="chat">Message our valet team</button>';   // preview: the floating chat only
     var wash = { REQUEST: 'Request', CONTACT: 'Ask our team', REQUESTED: 'Requested', PRICE_PENDING: 'Price coming', SCHEDULED: 'Scheduled', DONE: 'Done' }[p.car_wash];
     if (!done && wash && p.requests_enabled !== false && !p.day_trip) html += '<div class="list"><button type="button" data-open="wash"><span>Car wash</span><small>' + wash + '</small></button></div>';
     var c = p.contacts || {};

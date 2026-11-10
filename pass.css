@@ -59,6 +59,10 @@ button,a.btn{font:inherit}
 @keyframes p3dIn{0%{transform:rotate(-11deg) scale(.86)}45%{transform:rotate(-6deg) scale(.95)}80%{transform:rotate(-1.5deg) scale(1)}100%{transform:rotate(0) scale(1)}}
 @keyframes p3dFloat{0%,100%{transform:translateY(0) rotate(0)}50%{transform:translateY(-3px) rotate(-1.2deg)}}
 @keyframes p3dOut{0%{transform:rotate(0) scale(1)}25%{transform:rotate(-9deg) scale(1)}100%{transform:rotate(-15deg) scale(.62)}}
+/* Return day: comes down to land — descending line, nose slightly down, flares level at the end */
+.hero.landing .plane.plane3d{offset-path:path("M -130 0 C -30 0, 80 18, 170 50 S 330 76, 540 78")}
+.hero.go.landing .plane.plane3d .p3d-w{animation:p3dLand 5.8s cubic-bezier(.45,.05,.25,1) .3s both,p3dFloat 3.4s ease-in-out 6.1s infinite}
+@keyframes p3dLand{0%{transform:rotate(4deg) scale(.86)}55%{transform:rotate(1deg) scale(.96)}85%{transform:rotate(-5deg) scale(1)}100%{transform:rotate(-4deg) scale(1)}}
 @keyframes p3dProp{0%{transform:scaleY(1)}50%{transform:scaleY(.35)}100%{transform:scaleY(1)}}
 @media (prefers-reduced-motion: reduce){.hero.go .plane.plane3d .p3d-w,.hero.go .plane.plane3d .prop3d{animation:none}}
 .nav-g{fill:#3DDC84}.beacon{fill:#FF5A5A}.strobe{fill:#fff;opacity:0}
