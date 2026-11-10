@@ -17083,6 +17083,9 @@ function tv4Fit(html, w, h, minS, maxScale, minCols){
 // shrink its lists until they really fit (owner photo 2026-11-06: last check-in cut at the bottom).
 function tv4PostFit(root){
   if(!root) return;
+  // Pages are built while hidden (height 0), so the in-the-air panel can only be fitted once its page is
+  // on screen (owner 2026-11-10: it opened huge and shrank only at the next data refresh).
+  tv4AirFit(root);
   Array.prototype.forEach.call(root.querySelectorAll('.tv4-fitbox'), function(box){
     var inner = box.querySelector('.tv4-fit-in'); if(!inner || !box.clientHeight) return;
     var s = parseFloat(inner.style.getPropertyValue('--s')) || 1, guard = 0;
