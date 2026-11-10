@@ -158,7 +158,7 @@
     // only on the owner's test ticket until approved. Swapped before the flight starts.
     if (p.ticket === '1110-10' && !hero.querySelector('.plane .p3d')) {
       var pl = hero.querySelector('.plane');
-      if (pl) { pl.classList.add('plane3d'); pl.insertAdjacentHTML('beforeend', '<img class="p3d" src="assets/makers-caravan-3d.webp" alt="" width="900" height="393">'); }
+      if (pl) { pl.classList.add('plane3d'); pl.insertAdjacentHTML('beforeend', '<span class="p3d-w"><img class="p3d" src="assets/makers-caravan-3d.webp" alt="" width="900" height="393"><span class="prop3d"></span></span>'); }
     }
     if (!hero.classList.contains('go')) hero.classList.add('go');
     if (hero.classList.contains('done') !== done) hero.classList.toggle('done', done);

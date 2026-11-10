@@ -41,6 +41,19 @@ button,a.btn{font:inherit}
 .plane.plane3d{width:150px;height:66px}
 .plane.plane3d svg{display:none}
 .plane.plane3d .p3d{display:block;width:100%;height:100%;object-fit:contain;filter:brightness(1.06) contrast(.86) saturate(.88) drop-shadow(0 4px 10px rgba(0,0,0,.18))}
+/* 3D flight (owner 2026-11-10: "only flies straight"): climbs in nose-up and levels off, then floats gently
+   with the propeller turning; on delivery it pitches up and climbs away. Pitch only — the path stays the same. */
+.plane.plane3d .p3d-w{position:absolute;inset:0;transform-origin:55% 70%}
+.plane.plane3d .prop3d{position:absolute;left:94.2%;top:47%;width:4%;height:42%;border-radius:50%;
+  background:radial-gradient(ellipse at center,rgba(255,255,255,.55) 0%,rgba(255,255,255,.18) 55%,transparent 72%);opacity:0}
+.hero.go .plane.plane3d .p3d-w{animation:p3dIn 5.8s cubic-bezier(.45,.05,.25,1) .3s both,p3dFloat 3.4s ease-in-out 6.1s infinite}
+.hero.go .plane.plane3d .prop3d{opacity:1;animation:p3dProp .14s linear infinite}
+.hero.go.done .plane.plane3d .p3d-w{animation:p3dOut 6.5s cubic-bezier(.5,0,.2,1) .4s both}
+@keyframes p3dIn{0%{transform:rotate(-11deg) scale(.86)}45%{transform:rotate(-6deg) scale(.95)}80%{transform:rotate(-1.5deg) scale(1)}100%{transform:rotate(0) scale(1)}}
+@keyframes p3dFloat{0%,100%{transform:translateY(0) rotate(0)}50%{transform:translateY(-3px) rotate(-1.2deg)}}
+@keyframes p3dOut{0%{transform:rotate(0) scale(1)}25%{transform:rotate(-9deg) scale(1)}100%{transform:rotate(-15deg) scale(.62)}}
+@keyframes p3dProp{0%{transform:scaleY(1)}50%{transform:scaleY(.35)}100%{transform:scaleY(1)}}
+@media (prefers-reduced-motion: reduce){.hero.go .plane.plane3d .p3d-w,.hero.go .plane.plane3d .prop3d{animation:none}}
 .nav-g{fill:#3DDC84}.beacon{fill:#FF5A5A}.strobe{fill:#fff;opacity:0}
 .fw-plane .l,.fw-plane .lt{display:none}
 .hello{position:relative;z-index:3;margin:.2rem 0 0;font:800 1.75rem/1.12 Sora,Inter,sans-serif;letter-spacing:-.01em;overflow-wrap:anywhere}
