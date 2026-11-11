@@ -5,72 +5,71 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow">
 <meta name="referrer" content="no-referrer">
-<meta name="theme-color" content="#060B2B">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self'; connect-src https://sfewtirvqhrpanwhbchd.supabase.co http://127.0.0.1:8790 http://localhost:8790; base-uri 'none'; form-action 'none'">
+<meta name="theme-color" content="#000000">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self'; connect-src https://sfewtirvqhrpanwhbchd.supabase.co http://127.0.0.1:8790 http://localhost:8790; base-uri 'none'; form-action 'none'">
 <title>Watermakers Valet — Backup</title>
 <link rel="icon" href="/favicon-32x32.png">
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;800&display=swap" rel="stylesheet">
 <style>
-/* Watermakers · Thank You Veterans (BRAND.md 2026-11-05): deep navy UI, Watermakers blue primary,
-   flag red for requests; green/amber only for status. No orange. */
-:root{--bg:#060B2B;--p1:#0E1640;--p2:#16205A;--line:#26306A;--tx:#FFFFFF;--mu:#A9B3D6;--gold:#0090D2;--gold2:#4DA6DE;
-  --park:#4DA6DE;--req:#B3262E;--ret:#8FA2FF;--rdy:#3DD68C;--amb:#FFC24A;--bad:#E0444C}
+/* Watermakers staff phone — Apple-style (owner 2026-11-11): black, iOS grouped cards, system font,
+   big touch targets for valets. Blue = action, red = car requested, green = ready. */
+:root{--bg:#000;--p1:#1C1C1E;--p2:#2C2C2E;--line:rgba(84,84,88,.45);--tx:#F5F5F7;--mu:#8E8E93;--gold:#0A84FF;--gold2:#64D2FF;
+  --park:#64D2FF;--req:#FF453A;--ret:#BF5AF2;--rdy:#30D158;--amb:#FFD60A;--bad:#FF453A}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{margin:0;background:var(--bg);color:var(--tx);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Arial,sans-serif;-webkit-text-size-adjust:100%}
+html,body{margin:0;background:var(--bg);color:var(--tx);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display","Helvetica Neue",Arial,sans-serif;-webkit-text-size-adjust:100%;-webkit-font-smoothing:antialiased}
 body{padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
-button,input{font:inherit;color:inherit}
+button,input,select{font:inherit;color:inherit}
 .hidden{display:none!important}
-.top{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:10px;padding:10px 14px;background:#0A1448;border-bottom:1px solid var(--line)}
-.flag{height:5px;background:linear-gradient(90deg,#B3262E 0 33.3%,#FFFFFF 33.3% 66.6%,#0A1448 66.6%)}
-.top .wml{height:26px;width:auto;flex:none}
-.serif{font-family:"Playfair Display",Georgia,"Times New Roman",serif;font-weight:800;letter-spacing:.01em}
-.top .t{flex:1;min-width:0}.top b{display:block;font-size:17px;letter-spacing:.06em}.top small{display:block;color:var(--gold2);font-size:12px;font-weight:700}
-.back{width:46px;height:46px;border-radius:14px;background:var(--p2);border:0;font-size:22px}
-.net{font-size:12px;font-weight:850;padding:7px 10px;border-radius:999px}
-.net.on{background:rgba(61,214,140,.13);color:var(--rdy)}.net.off{background:rgba(255,194,74,.16);color:var(--amb)}
-.offbar{background:var(--amb);color:#1a1200;font-weight:850;font-size:14px;padding:10px 16px}
-.reqbar{display:block;width:100%;border:0;text-align:left;background:var(--req);color:#fff;padding:12px 16px;font-weight:850;font-size:15px}
-.body{padding:14px 16px 120px}
+.top{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:10px;padding:10px 16px;background:rgba(0,0,0,.82);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);border-bottom:.5px solid var(--line)}
+.flag{height:3px;background:linear-gradient(90deg,#B3262E 0 33.3%,#FFFFFF 33.3% 66.6%,#0090D2 66.6%)}
+.top .wml{height:22px;width:auto;flex:none}
+.serif{font-family:inherit;font-weight:700;letter-spacing:-.025em}
+.top .t{flex:1;min-width:0}.top b{display:block;font-size:17px;font-weight:600;letter-spacing:-.02em}.top small{display:block;color:var(--mu);font-size:12.5px;font-weight:400;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.back{width:40px;height:40px;border-radius:12px;background:var(--p2);border:0;font-size:24px;line-height:1;color:var(--gold)}
+.net{font-size:11.5px;font-weight:600;padding:6px 10px;border-radius:999px;letter-spacing:.02em}
+.net.on{background:rgba(48,209,88,.16);color:var(--rdy)}.net.off{background:rgba(255,214,10,.16);color:var(--amb)}
+.offbar{background:var(--amb);color:#1a1400;font-weight:600;font-size:14px;padding:10px 16px}
+.reqbar{display:block;width:100%;border:0;text-align:left;background:var(--req);color:#fff;padding:13px 16px;font-weight:600;font-size:15.5px;letter-spacing:-.01em}
+.body{padding:16px 16px 120px}
 .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
-.stat{background:var(--p1);border:1px solid var(--line);border-radius:14px;padding:9px 6px;text-align:center}
-.stat b{display:block;font-size:24px}.stat small{font-size:11px;letter-spacing:.08em;color:var(--mu);font-weight:800}
-.tile{display:flex;align-items:center;gap:14px;width:100%;min-height:82px;margin-top:12px;padding:0 18px;border-radius:20px;background:var(--p1);border:1px solid var(--line);font-weight:850;font-size:19px;text-align:left}
-.tile.primary{background:var(--gold);border-color:var(--gold);color:#fff;min-height:104px;font-size:23px}
-.tile:disabled{opacity:.4}
-.tile .cnt{margin-left:auto;min-width:42px;height:42px;border-radius:12px;display:grid;place-items:center;background:var(--p2)}
+.stat{background:var(--p1);border-radius:14px;padding:12px 6px;text-align:center}
+.stat b{display:block;font-size:26px;font-weight:600;letter-spacing:-.02em;font-variant-numeric:tabular-nums}.stat small{font-size:12px;color:var(--mu);font-weight:500}
+.tile{display:flex;align-items:center;gap:14px;width:100%;min-height:76px;margin-top:10px;padding:0 18px;border-radius:18px;background:var(--p1);border:0;font-weight:600;font-size:19px;letter-spacing:-.02em;text-align:left}
+.tile.primary{background:var(--gold);color:#fff;min-height:96px;font-size:22px}
+.tile:disabled{opacity:.35}
+.tile .cnt{margin-left:auto;min-width:40px;height:40px;border-radius:12px;display:grid;place-items:center;background:var(--p2);font-variant-numeric:tabular-nums}
 .tile .cnt.hot{background:var(--req);color:#fff}
-.note{color:var(--amb);font-size:14px;font-weight:750;margin-top:8px}
-.lab{display:block;font-size:12.5px;font-weight:850;letter-spacing:.14em;color:var(--gold2);margin:18px 0 8px}
-.field{width:100%;min-height:58px;padding:10px 14px;font-size:22px;font-weight:750;background:var(--p1);border:2px solid var(--line);border-radius:14px;outline:none}
-.field:focus{border-color:var(--gold)}
+.note{color:var(--amb);font-size:14px;font-weight:500;margin-top:8px}
+.lab{display:block;font-size:13px;font-weight:500;color:var(--mu);margin:20px 0 8px 4px}
+.field{width:100%;min-height:56px;padding:10px 16px;font-size:21px;font-weight:500;background:var(--p1);border:0;border-radius:14px;outline:none;box-shadow:inset 0 0 0 1px var(--line)}
+.field:focus{box-shadow:inset 0 0 0 2px var(--gold)}
 .chips{display:flex;flex-wrap:wrap;gap:8px}
-.chip{min-height:46px;padding:0 14px;border-radius:13px;background:var(--p1);border:2px solid var(--line);font-weight:750;font-size:15.5px}
-.chip.on{border-color:var(--gold);background:#0B2D55;color:#fff}
-.locs{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
-.loc{min-height:70px;border-radius:16px;background:var(--p1);border:2px solid var(--line);font-weight:900;font-size:18px}
-.loc.on{background:var(--gold);border-color:var(--gold);color:#fff}
-.big{display:block;width:100%;min-height:64px;margin-top:12px;border:0;border-radius:18px;font-weight:900;font-size:19px;letter-spacing:.04em}
-.big.gold{background:var(--gold);color:#fff}.big.green{background:var(--rdy);color:#03200f}.big.red{background:var(--req);color:#fff}
-.big.violet{background:var(--ret);color:#060B2B}.big.dark{background:var(--p2);border:1px solid var(--line)}
+.chip{min-height:44px;padding:0 15px;border-radius:12px;background:var(--p1);border:0;font-weight:500;font-size:15.5px}
+.chip.on{background:#fff;color:#000}
+.locs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.loc{min-height:64px;border-radius:14px;background:var(--p1);border:0;font-weight:600;font-size:17px}
+.loc.on{background:#fff;color:#000}
+.big{display:block;width:100%;min-height:58px;margin-top:12px;border:0;border-radius:14px;font-weight:600;font-size:18px;letter-spacing:-.015em}
+.big.gold{background:var(--gold);color:#fff}.big.green{background:var(--rdy);color:#00230b}.big.red{background:var(--req);color:#fff}
+.big.violet{background:var(--ret);color:#fff}.big.dark{background:var(--p2)}
 .big:disabled{opacity:.35}
-.foot{position:fixed;left:0;right:0;bottom:0;padding:10px 16px max(14px,env(safe-area-inset-bottom));background:linear-gradient(to top,var(--bg) 80%,transparent)}
-.hook{text-align:center;padding:20px 10px 24px;border-radius:24px;background:var(--p1);border:2px solid var(--gold);margin-top:8px}
-.hook small{font-weight:900;letter-spacing:.24em;color:var(--gold2)}.hook .n{font-size:130px;font-weight:900;line-height:1}
-.hook p{margin:0;font-size:18px;font-weight:750}
-.vc{display:flex;gap:12px;padding:12px;border-radius:18px;background:var(--p1);border:1px solid var(--line);margin-top:10px}
-.vc.REQUESTED{border-color:#E0444C}
-.vc .hn{flex:none;width:66px;border-radius:14px;background:var(--p2);display:flex;flex-direction:column;align-items:center;justify-content:center}
-.vc .hn small{font-size:10px;letter-spacing:.14em;color:var(--mu);font-weight:850}.vc .hn b{font-size:30px}
-.vc .i{flex:1;min-width:0}.vc .nm{font-size:17px;font-weight:850}.vc .meta{font-size:14px;color:var(--mu);margin-top:3px}
-.pill{display:inline-block;margin-top:6px;font-size:11.5px;font-weight:900;letter-spacing:.08em;padding:4px 9px;border-radius:999px}
-.pill.PARKED{background:rgba(77,166,222,.16);color:var(--park)}.pill.REQUESTED{background:rgba(179,38,46,.28);color:#FF9AA0}
-.pill.RETRIEVING{background:rgba(143,162,255,.18);color:var(--ret)}.pill.READY{background:rgba(61,214,140,.15);color:var(--rdy)}
-.pill.DELIVERED{background:rgba(140,140,147,.16);color:#8c8c93}
-.vc .act{margin-top:8px;width:100%;min-height:46px;border:0;border-radius:12px;font-weight:900;font-size:15px}
+.foot{position:fixed;left:0;right:0;bottom:0;padding:10px 16px max(14px,env(safe-area-inset-bottom));background:linear-gradient(to top,var(--bg) 78%,transparent)}
+.hook{text-align:center;padding:22px 10px 26px;border-radius:22px;background:var(--p1);margin-top:8px}
+.hook small{font-weight:500;font-size:14px;color:var(--mu)}.hook .n{font-size:128px;font-weight:700;line-height:1;letter-spacing:-.04em;font-variant-numeric:tabular-nums}
+.hook p{margin:0;font-size:18px;font-weight:500;color:var(--tx)}
+.vc{display:flex;gap:12px;padding:12px;border-radius:18px;background:var(--p1);margin-top:10px}
+.vc.REQUESTED{box-shadow:inset 0 0 0 2px var(--req)}
+.vc .hn{flex:none;width:64px;border-radius:12px;background:var(--p2);display:flex;flex-direction:column;align-items:center;justify-content:center}
+.vc .hn small{font-size:11px;color:var(--mu);font-weight:500}.vc .hn b{font-size:28px;font-weight:700;font-variant-numeric:tabular-nums}
+.vc .i{flex:1;min-width:0}.vc .nm{font-size:17px;font-weight:600;letter-spacing:-.015em}.vc .meta{font-size:14px;color:var(--mu);margin-top:3px}
+.pill{display:inline-block;margin-top:7px;font-size:12px;font-weight:600;padding:4px 9px;border-radius:999px}
+.pill.PARKED{background:rgba(100,210,255,.15);color:var(--park)}.pill.REQUESTED{background:rgba(255,69,58,.2);color:#FF8A82}
+.pill.RETRIEVING{background:rgba(191,90,242,.18);color:#D9A6F7}.pill.READY{background:rgba(48,209,88,.16);color:var(--rdy)}
+.pill.DELIVERED{background:rgba(142,142,147,.16);color:var(--mu)}
+.vc .act{margin-top:9px;width:100%;min-height:46px;border:0;border-radius:12px;font-weight:600;font-size:15.5px}
 .amts{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
-.amt{min-height:60px;border-radius:14px;background:var(--p1);border:2px solid var(--line);font-size:20px;font-weight:850}
-.amt.on{border-color:var(--rdy);color:var(--rdy)}
-.toast{position:fixed;left:14px;right:14px;bottom:96px;z-index:20;padding:14px 16px;border-radius:16px;background:var(--tx);color:#111;font-weight:800;font-size:15px}
+.amt{min-height:58px;border-radius:14px;background:var(--p1);border:0;font-size:20px;font-weight:600}
+.amt.on{background:#fff;color:#000}
+.toast{position:fixed;left:14px;right:14px;bottom:96px;z-index:20;padding:14px 16px;border-radius:14px;background:#fff;color:#000;font-weight:600;font-size:15px}
 .toast.warn{background:var(--amb)}.toast.bad{background:var(--req);color:#fff}
 .empty{color:var(--mu);text-align:center;padding:30px 0}
 .center{text-align:center}
@@ -117,7 +116,7 @@ async function api(method, op, body){
   } catch (e) {
     if (e && e.error) throw e;
     setOnline(false);
-    throw { error: 'OFFLINE', message: 'NO INTERNET — TRY AGAIN' };
+    throw { error: 'OFFLINE', message: 'No internet. Try again.' };
   } finally { clearTimeout(to); }
 }
 function setOnline(on){ if (S.online !== on) { S.online = on; render(); } }
@@ -136,40 +135,40 @@ function topbar(title, sub, back){
   var on = S.online;
   var rq = S.st ? S.st.tickets.filter(function(t){ return t.status === 'REQUESTED'; }) : [];
   return '<div class="flag"></div><div class="top">' + (back ? '<button class="back" data-a="home">‹</button>' : '<img class="wml" src="watermakers-logo-reverse.png" alt="Watermakers">') +
-    '<div class="t"><b>' + title + '</b><small>' + (sub || 'FARBER PARKING · BACKUP PHONE') + '</small></div>' +
-    '<span class="net ' + (on ? 'on' : 'off') + '">' + (on ? 'ONLINE' : 'OFFLINE') + '</span></div>' +
-    (on ? '' : '<div class="offbar">NO INTERNET — USE THE S710 TO CHECK IN CARS</div>') +
-    (rq.length && S.view !== 'cars' ? '<button class="reqbar" data-a="cars">CAR REQUESTED — HOOK ' + pad2(rq[0].hook) + ' · ' + rq.length + ' WAITING</button>' : '');
+    '<div class="t"><b>' + title + '</b><small>' + (sub || 'Farber Parking · backup phone') + '</small></div>' +
+    '<span class="net ' + (on ? 'on' : 'off') + '">' + (on ? 'Online' : 'Offline') + '</span></div>' +
+    (on ? '' : '<div class="offbar">No internet. Check in cars on the S710.</div>') +
+    (rq.length && S.view !== 'cars' ? '<button class="reqbar" data-a="cars">Car requested · hook ' + pad2(rq[0].hook) + ' · ' + rq.length + ' waiting</button>' : '');
 }
 var R = {};
 R.blocked = function(e){
   return '<div class="flag"></div><div class="body center" style="padding-top:40px"><img src="watermakers-logo-reverse.png" alt="Watermakers" style="display:block;width:180px;margin:0 auto 18px"><h2>' + esc(e.message || 'This link is not valid.') + '</h2>' +
-    '<p style="color:#A9B3D6">Watermakers Valet · Farber Parking</p></div>';
+    '<p style="color:#8E8E93">Watermakers Valet · Farber Parking</p></div>';
 };
 R.name = function(){
   return '<div class="flag"></div><div class="body" style="padding-top:28px"><img src="watermakers-logo-reverse.png" alt="Watermakers" style="display:block;width:210px;margin:0 auto 10px">' +
-    '<h2 class="center serif" style="font-size:28px;margin:6px 0 4px">THANK YOU VETERANS</h2><p class="center" style="color:#4DA6DE;margin:0;font-weight:700;letter-spacing:.06em;font-size:13px">VALET PARKING BY FARBER PARKING · BACKUP PHONE</p>' +
-    '<img src="farber-parking-logo.jpg" alt="Farber Parking" style="display:block;width:110px;margin:14px auto 0;mix-blend-mode:lighten">' +
-    '<label class="lab" for="nm">YOUR NAME</label><input id="nm" class="field" autocomplete="off" autocapitalize="words" placeholder="First name">' +
-    '<button class="big gold" data-a="start">START SHIFT</button></div>';
+    '<h2 class="center serif" style="font-size:30px;margin:10px 0 4px">Thank you, veterans.</h2><p class="center" style="color:#8E8E93;margin:0;font-size:15px">Valet staff · backup phone</p>' +
+    '<img src="farber-parking-crest.png" alt="Farber Parking" style="display:block;width:96px;margin:18px auto 0">' +
+    '<label class="lab" for="nm">Your name</label><input id="nm" class="field" autocomplete="off" autocapitalize="words" placeholder="First name">' +
+    '<button class="big gold" data-a="start">Start shift</button></div>';
 };
 R.home = function(){
   var c = S.st ? S.st.counts : { active: 0, requested: 0, hooksFree: 0 };
-  return topbar('WATERMAKERS VALET', S.st ? 'Shift: ' + esc(S.st.me.employeeName) + ' · ' + esc(S.st.me.label) : '') + '<div class="body">' +
-    '<div class="stats"><div class="stat"><b>' + c.active + '</b><small>CARS</small></div><div class="stat"><b style="color:#FF9AA0">' + c.requested + '</b><small>REQUESTS</small></div><div class="stat"><b>' + c.hooksFree + '</b><small>HOOKS FREE</small></div></div>' +
-    '<button class="tile primary" data-a="checkin"' + (S.online ? '' : ' disabled') + '>＋ CHECK IN CAR</button>' +
-    (S.online ? '' : '<div class="note">NO INTERNET — USE THE S710 TO CHECK IN CARS</div>') +
-    '<button class="tile" data-a="cars">🚗 GET CAR<span class="cnt' + (c.requested ? ' hot' : '') + '">' + c.requested + '</span></button>' +
-    '<button class="tile" data-a="search">🔍 SEARCH</button>' +
-    '<button class="tile" data-a="tip">💵 RECORD CASH TIP</button>' +
-    '<p style="color:#A9B3D6;font-size:13px;margin-top:18px">Card tips are taken on the S710.</p></div>';
+  return topbar('Watermakers Valet', S.st ? 'Shift: ' + esc(S.st.me.employeeName) + ' · ' + esc(S.st.me.label) : '') + '<div class="body">' +
+    '<div class="stats"><div class="stat"><b>' + c.active + '</b><small>Cars</small></div><div class="stat"><b style="color:#FF9AA0">' + c.requested + '</b><small>Requests</small></div><div class="stat"><b>' + c.hooksFree + '</b><small>Hooks free</small></div></div>' +
+    '<button class="tile primary" data-a="checkin"' + (S.online ? '' : ' disabled') + '>＋ Check in car</button>' +
+    (S.online ? '' : '<div class="note">No internet. Check in cars on the S710.</div>') +
+    '<button class="tile" data-a="cars">Get car<span class="cnt' + (c.requested ? ' hot' : '') + '">' + c.requested + '</span></button>' +
+    '<button class="tile" data-a="search">Search</button>' +
+    '<button class="tile" data-a="tip">Record cash tip</button>' +
+    '<p style="color:#8E8E93;font-size:13px;margin-top:18px">Card tips are taken on the S710.</p></div>';
 };
 R.checkin = function(){
   var d = S.draft;
   var ok = d.phone.length === 10 && ((d.mode === 'make' && d.make) || (d.mode === 'plate' && d.plate.trim().length >= 2)) && d.loc;
-  return topbar('CHECK IN CAR', 'Phone · car · where it is parked', true) + '<div class="body">' +
-    '<label class="lab" for="ph">CUSTOMER PHONE</label><input id="ph" class="field" type="tel" inputmode="numeric" placeholder="(954) 555-0000" value="' + esc(fmtPhone(d.phone)) + '">' +
-    '<label class="lab">CAR</label><div class="chips">' +
+  return topbar('Check in car', 'Phone, car and spot', true) + '<div class="body">' +
+    '<label class="lab" for="ph">Customer phone</label><input id="ph" class="field" type="tel" inputmode="numeric" placeholder="(954) 555-0000" value="' + esc(fmtPhone(d.phone)) + '">' +
+    '<label class="lab">Car</label><div class="chips">' +
       '<button class="chip' + (d.mode === 'make' ? ' on' : '') + '" data-a="mode" data-v="make">Color + make</button>' +
       '<button class="chip' + (d.mode === 'plate' ? ' on' : '') + '" data-a="mode" data-v="plate">License plate</button></div>' +
     (d.mode === 'make'
@@ -177,44 +176,44 @@ R.checkin = function(){
         '<div class="chips" style="margin-top:10px">' + MAKES.map(function(x){ return '<button class="chip' + (d.make === x ? ' on' : '') + '" data-a="make" data-v="' + x + '">' + x + '</button>'; }).join('') + '</div>' +
         '<input id="mk" class="field" style="margin-top:10px;font-size:18px" placeholder="Other make / model (optional)" value="' + esc(d.model) + '">'
       : '<input id="pl" class="field" style="margin-top:10px;text-transform:uppercase" placeholder="ABC 1234" value="' + esc(d.plate) + '">') +
-    '<label class="lab">PARKED AT</label><div class="locs">' + ['FRONT', 'SIDE', 'BACK'].map(function(x){ return '<button class="loc' + (d.loc === x ? ' on' : '') + '" data-a="loc" data-v="' + x + '">' + x + '</button>'; }).join('') + '</div>' +
-    '</div><div class="foot"><button class="big gold" data-a="assign"' + (ok && S.online && !S.busy ? '' : ' disabled') + ' id="assign">ASSIGN KEY HOOK</button></div>';
+    '<label class="lab">Parked at</label><div class="locs">' + ['FRONT', 'SIDE', 'BACK'].map(function(x){ return '<button class="loc' + (d.loc === x ? ' on' : '') + '" data-a="loc" data-v="' + x + '">' + x + '</button>'; }).join('') + '</div>' +
+    '</div><div class="foot"><button class="big gold" data-a="assign"' + (ok && S.online && !S.busy ? '' : ' disabled') + ' id="assign">Assign key hook</button></div>';
 };
 R.hook = function(){
-  return topbar('KEY HOOK', 'Put the key on the hook, then confirm', true) + '<div class="body">' +
-    '<div class="hook"><small>HOOK</small><div class="n">' + pad2(S.hook) + '</div><p>PUT KEY ON HOOK ' + pad2(S.hook) + '</p></div>' +
-    '<button class="big dark" data-a="otherHook">USE ANOTHER HOOK</button></div>' +
-    '<div class="foot"><button class="big green" data-a="confirm"' + (S.busy ? ' disabled' : '') + '>✓ KEY STORED — DONE</button></div>';
+  return topbar('Key hook', 'Put the key on the hook, then confirm', true) + '<div class="body">' +
+    '<div class="hook"><small>Hook</small><div class="n">' + pad2(S.hook) + '</div><p>Put the key on hook ' + pad2(S.hook) + '</p></div>' +
+    '<button class="big dark" data-a="otherHook">Use another hook</button></div>' +
+    '<div class="foot"><button class="big green" data-a="confirm"' + (S.busy ? ' disabled' : '') + '>Key stored</button></div>';
 };
 function card(t){
   var mine = S.st && t.retrievingBy && t.retrievingBy === S.st.me.employeeName;
-  var act = t.status === 'PARKED' || t.status === 'REQUESTED' ? '<button class="act" style="background:var(--req);color:#fff" data-a="st" data-id="' + t.id + '" data-to="RETRIEVING">GET CAR</button>'
-    : t.status === 'RETRIEVING' ? (mine ? '<button class="act" style="background:var(--gold);color:#fff" data-a="st" data-id="' + t.id + '" data-to="READY">CAR READY</button>' : '<div class="meta">' + esc(t.retrievingBy) + ' is getting this car</div>')
-    : t.status === 'READY' ? '<button class="act" style="background:var(--rdy);color:#03200f" data-a="st" data-id="' + t.id + '" data-to="DELIVERED">DELIVERED</button>' : '';
+  var act = t.status === 'PARKED' || t.status === 'REQUESTED' ? '<button class="act" style="background:var(--req);color:#fff" data-a="st" data-id="' + t.id + '" data-to="RETRIEVING">Get car</button>'
+    : t.status === 'RETRIEVING' ? (mine ? '<button class="act" style="background:var(--gold);color:#fff" data-a="st" data-id="' + t.id + '" data-to="READY">Car ready</button>' : '<div class="meta">' + esc(t.retrievingBy) + ' is getting this car</div>')
+    : t.status === 'READY' ? '<button class="act" style="background:var(--rdy);color:#03200f" data-a="st" data-id="' + t.id + '" data-to="DELIVERED">Delivered</button>' : '';
   var wait = t.status === 'REQUESTED' ? ' · waiting ' + mins(t.requestedAt) + ' min' : '';
-  return '<div class="vc ' + t.status + '"><div class="hn"><small>HOOK</small><b>' + (t.status === 'DELIVERED' ? '—' : pad2(t.hook)) + '</b></div><div class="i">' +
+  return '<div class="vc ' + t.status + '"><div class="hn"><small>Hook</small><b>' + (t.status === 'DELIVERED' ? '—' : pad2(t.hook)) + '</b></div><div class="i">' +
     '<div class="nm">' + esc(t.vehicleText) + '</div><div class="meta">' + esc(t.location || '') + ' · ••' + esc(t.phoneLast4) + wait + '</div>' +
-    '<span class="pill ' + t.status + '">' + t.status + (t.retrievingBy && t.status !== 'DELIVERED' && t.status !== 'PARKED' ? ' · ' + esc(t.retrievingBy) : '') + '</span>' + act + '</div></div>';
+    '<span class="pill ' + t.status + '">' + ({ PARKED: 'Parked', REQUESTED: 'Requested', RETRIEVING: 'On the way', READY: 'Ready', DELIVERED: 'Delivered' }[t.status] || t.status) + (t.retrievingBy && t.status !== 'DELIVERED' && t.status !== 'PARKED' ? ' · ' + esc(t.retrievingBy) : '') + '</span>' + act + '</div></div>';
 }
 var ORD = { REQUESTED: 0, RETRIEVING: 1, READY: 2, PARKED: 3, DELIVERED: 4 };
 function sorted(list){ return list.slice().sort(function(a, b){ return ORD[a.status] - ORD[b.status] || (a.status === 'REQUESTED' ? new Date(a.requestedAt) - new Date(b.requestedAt) : (a.hook || 99) - (b.hook || 99)); }); }
 R.cars = function(){
   var list = S.st ? sorted(S.st.tickets.filter(function(t){ return t.status !== 'DELIVERED'; })) : [];
-  return topbar('GET CAR', 'Requests first, oldest first', true) + '<div class="body">' + (list.length ? list.map(card).join('') : '<div class="empty">No cars right now.</div>') + '</div>';
+  return topbar('Get car', 'Requests first, oldest first', true) + '<div class="body">' + (list.length ? list.map(card).join('') : '<div class="empty">No cars right now.</div>') + '</div>';
 };
 R.search = function(){
-  return topbar('SEARCH', 'Phone, plate, car or hook #', true) + '<div class="body"><input id="q" class="field" placeholder="Phone, plate, car or hook #" value="' + esc(S.q) + '" autocomplete="off">' +
-    '<button class="big dark" data-a="doSearch">SEARCH</button>' +
+  return topbar('Search', 'Phone, plate, car or hook #', true) + '<div class="body"><input id="q" class="field" placeholder="Phone, plate, car or hook #" value="' + esc(S.q) + '" autocomplete="off">' +
+    '<button class="big dark" data-a="doSearch">Search</button>' +
     (S.results ? (S.results.length ? sorted(S.results).map(card).join('') : '<div class="empty">No car found.</div>') : '') + '</div>';
 };
 R.tip = function(){
   var t = S.tip, cars = S.st ? sorted(S.st.tickets) : [];
-  return topbar('RECORD CASH TIP', 'Cash only — card tips are on the S710', true) + '<div class="body">' +
-    '<label class="lab">AMOUNT</label><div class="amts">' + [5, 10, 20, 40].map(function(a){ return '<button class="amt' + (t.cents === a * 100 ? ' on' : '') + '" data-a="amt" data-v="' + a * 100 + '">$' + a + '</button>'; }).join('') + '</div>' +
+  return topbar('Record cash tip', 'Cash only. Card tips are on the S710.', true) + '<div class="body">' +
+    '<label class="lab">Amount</label><div class="amts">' + [5, 10, 20, 40].map(function(a){ return '<button class="amt' + (t.cents === a * 100 ? ' on' : '') + '" data-a="amt" data-v="' + a * 100 + '">$' + a + '</button>'; }).join('') + '</div>' +
     '<input id="oth" class="field" style="margin-top:10px" type="number" inputmode="numeric" placeholder="Other amount ($)" value="' + (t.other || '') + '">' +
-    '<label class="lab">CAR (OPTIONAL)</label><select id="car" class="field" style="font-size:17px"><option value="">No car — event tip</option>' +
+    '<label class="lab">Car (optional)</label><select id="car" class="field" style="font-size:17px"><option value="">No car — event tip</option>' +
       cars.map(function(c){ return '<option value="' + c.id + '"' + (t.ticketId === c.id ? ' selected' : '') + '>Hook ' + pad2(c.hook) + ' · ' + esc(c.vehicleText) + ' · ' + c.status + '</option>'; }).join('') + '</select>' +
-    '</div><div class="foot"><button class="big green" data-a="recordCash"' + (t.cents >= 100 && !S.busy ? '' : ' disabled') + '>RECORD $' + ((t.cents || 0) / 100) + ' CASH</button></div>';
+    '</div><div class="foot"><button class="big green" data-a="recordCash"' + (t.cents >= 100 && !S.busy ? '' : ' disabled') + '>Record $' + ((t.cents || 0) / 100) + ' cash</button></div>';
 };
 function render(){
   var a = $('app');
@@ -226,14 +225,14 @@ function render(){
 
 // ── actions ──
 function go(v){ S.view = v; render(); scrollTo(0, 0); }
-function fail(e){ toast(e.message || 'SOMETHING WENT WRONG — TRY AGAIN', e.error === 'OFFLINE' ? 'warn' : 'bad'); }
+function fail(e){ toast(e.message || 'Something went wrong. Try again.', e.error === 'OFFLINE' ? 'warn' : 'bad'); }
 document.addEventListener('input', function(e){
   var d = S.draft;
   if (e.target.id === 'ph') { d.phone = e.target.value.replace(/\D/g, '').slice(0, 10); e.target.value = fmtPhone(d.phone); }
   else if (e.target.id === 'pl') d.plate = e.target.value;
   else if (e.target.id === 'mk') d.model = e.target.value;
   else if (e.target.id === 'q') { S.q = e.target.value; return; }
-  else if (e.target.id === 'oth') { S.tip.other = e.target.value; S.tip.cents = Math.round(parseFloat(e.target.value || '0') * 100) || 0; var b = document.querySelector('[data-a=recordCash]'); if (b) { b.disabled = S.tip.cents < 100; b.textContent = 'RECORD $' + S.tip.cents / 100 + ' CASH'; } return; }
+  else if (e.target.id === 'oth') { S.tip.other = e.target.value; S.tip.cents = Math.round(parseFloat(e.target.value || '0') * 100) || 0; var b = document.querySelector('[data-a=recordCash]'); if (b) { b.disabled = S.tip.cents < 100; b.textContent = 'Record $' + S.tip.cents / 100 + ' cash'; } return; }
   else return;
   if (S.view === 'checkin') { var ok = d.phone.length === 10 && ((d.mode === 'make' && d.make) || (d.mode === 'plate' && d.plate.trim().length >= 2)) && d.loc; $('assign').disabled = !(ok && S.online); }
 });
@@ -244,7 +243,7 @@ document.addEventListener('click', async function(e){
   try {
     if (a === 'home') { S.draft = null; S.hook = null; go('home'); }
     else if (a === 'start') {
-      var n = ($('nm').value || '').trim(); if (n.length < 2) return toast('TYPE YOUR NAME (2 LETTERS OR MORE)', 'warn');
+      var n = ($('nm').value || '').trim(); if (n.length < 2) return toast('Type your name (2 letters or more)', 'warn');
       var s = await api('POST', 'session', { name: n }); SESSION = s.sessionId; ls('wm_s', SESSION); await refresh(); go('home');
     }
     else if (a === 'checkin') { S.draft = { phone: '', mode: 'make', color: '', make: '', model: '', plate: '', loc: '' }; S.ck = uid(); go('checkin'); }
@@ -254,8 +253,8 @@ document.addEventListener('click', async function(e){
     else if (a === 'loc') { d.loc = v; render(); }
     else if (a === 'assign') { S.busy = true; render(); var hres = await api('POST', 'hold', { clientKey: S.ck }); S.busy = false; S.hook = hres.hook; go('hook'); }
     else if (a === 'otherHook') {
-      var x = prompt('Hook number (41–50 on this phone):'); if (!x) return;
-      if (!/^\d{1,2}$/.test(x.trim())) return toast('CHOOSE A HOOK NUMBER', 'warn');
+      var x = prompt('Hook number (01–50):'); if (!x) return;
+      if (!/^\d{1,2}$/.test(x.trim())) return toast('Choose a hook number', 'warn');
       S.hook = parseInt(x, 10); render();
     }
     else if (a === 'confirm') {
@@ -263,7 +262,7 @@ document.addEventListener('click', async function(e){
       var veh = d.mode === 'make' ? { color: d.color === 'Other' ? '' : d.color, make: d.make, model: d.model } : { plate: d.plate };
       var r = await api('POST', 'checkin', { clientKey: S.ck, phone: d.phone, vehicle: veh, location: d.loc, hook: S.hook, keyStoredAt: new Date().toISOString() });
       S.busy = false; S.draft = null;
-      toast('CHECKED IN — HOOK ' + pad2(r.ticket.hook) + (r.sms && r.sms.welcome === 'SENT' ? ' · TEXT SENT' : ''));
+      toast('Checked in · hook ' + pad2(r.ticket.hook) + (r.sms && r.sms.welcome === 'SENT' ? ' · text sent' : ''));
       await refresh(); go('home');
     }
     else if (a === 'cars') go('cars');
@@ -272,7 +271,7 @@ document.addEventListener('click', async function(e){
     else if (a === 'st') {
       b.disabled = true;
       var r2 = await api('POST', 'status', { clientKey: uid(), ticketId: b.getAttribute('data-id'), to: b.getAttribute('data-to') });
-      toast({ RETRIEVING: 'GO GET HOOK ' + pad2(r2.ticket.hook), READY: 'CAR READY — HOOK ' + pad2(r2.ticket.hook), DELIVERED: 'DELIVERED — HOOK ' + pad2(r2.ticket.hook) + ' IS FREE' }[r2.ticket.status] || 'DONE');
+      toast({ RETRIEVING: 'Go get hook ' + pad2(r2.ticket.hook), READY: 'Car ready · hook ' + pad2(r2.ticket.hook), DELIVERED: 'Delivered · hook ' + pad2(r2.ticket.hook) + ' is free' }[r2.ticket.status] || 'DONE');
       await refresh(); if (S.view === 'search') { S.results = null; go('cars'); } else render();
     }
     else if (a === 'tip') { S.tip = { cents: 0, other: '', ticketId: null, ck: uid(), dupOk: false }; go('tip'); }
@@ -288,7 +287,7 @@ document.addEventListener('click', async function(e){
         }
         render(); throw err;
       }
-      S.busy = false; toast('$' + S.tip.cents / 100 + ' CASH RECORDED'); go('home');
+      S.busy = false; toast('$' + S.tip.cents / 100 + ' cash recorded'); go('home');
     }
   } catch (err) { S.busy = false; if (S.view !== 'home') render(); fail(err); }
 });
