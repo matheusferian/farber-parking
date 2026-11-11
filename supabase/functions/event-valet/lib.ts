@@ -56,9 +56,11 @@ export type CarOption = { code: string; vehicle: string };
 
 // Vehicles are stored in capitals ("TESLA MODEL Y"); guests read "Tesla Model Y".
 // Short words and words with digits stay as they are (BMW, GMC, X5, F-150, CR-V).
+// Short plain words that are not brands (colors): "RED FERRARI" reads "Red Ferrari", BMW stays BMW.
+const SHORT_WORDS = new Set(['RED', 'TAN']);
 export function displayVehicle(v: string): string {
   return String(v ?? '').split(' ').map((w) => w.split('-').map((p) =>
-    p.length <= 3 || /\d/.test(p) ? p : p.charAt(0) + p.slice(1).toLowerCase()).join('-')).join(' ');
+    (p.length <= 3 && !SHORT_WORDS.has(p)) || /\d/.test(p) ? p : p.charAt(0) + p.slice(1).toLowerCase()).join('-')).join(' ');
 }
 
 // Ticket code = last 4 digits of the guest's phone ("0101"; a repeated last 4
