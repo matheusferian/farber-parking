@@ -174,6 +174,7 @@
   </div>
 </div>
 <div class="pane on" id="pane-day">
+  <section class="jr-board" id="rideBoard" aria-live="polite" hidden></section>
   <!-- DAILY TIPS (owner 2026-10-28): cash the team recorded + online (Stripe) = total recorded.
        Read-only (airvalet_daily_tips); no split between staff. Falls back to the Stripe total alone. -->
   <section class="dtp" id="stripeTipsKpi" aria-labelledby="dtpTitle">
@@ -429,6 +430,19 @@
 </div>
 
 <button class="fab" onclick="openAdd()"><i class="fa-solid fa-circle-plus"></i> New Entry</button>
+<!-- JET RUNWAY RIDE (owner 2026-11-11): phone number only → text "reply READY or call"; see ride Edge Function. -->
+<div class="ov" id="rideOv">
+  <div class="modal jr-modal">
+    <h2>Jet Runway ride</h2>
+    <p class="msub">Guest phone only. They get a text to reply READY for the ride back.</p>
+    <label class="jr-lbl" for="jrPhone">Guest phone</label>
+    <input id="jrPhone" class="jr-phone" type="tel" inputmode="tel" autocomplete="off" placeholder="(954) 555-0142" maxlength="20">
+    <p class="jr-err" id="jrErr" role="alert" hidden></p>
+    <button type="button" class="jr-send" id="jrSend" onclick="rideCreate()">Send text</button>
+    <button type="button" class="jr-cancel" onclick="closeRide()">Cancel</button>
+  </div>
+</div>
+
 <div class="ov" id="addOv">
   <div class="modal">
     <h2 id="modalTitle">New Passenger</h2>
@@ -439,6 +453,7 @@
           <div class="ob on" id="modeValet" onclick="selMode(this,'VALET')">&#128663; Passenger</div>
           <div class="ob" id="modeRental" onclick="selMode(this,'RENTAL')">&#128273; Rental</div>
           <div class="ob" id="modeAttendance" onclick="selMode(this,'ATTENDANCE')"><i class="fa-solid fa-user-clock"></i> Valet</div>
+          <div class="ob" id="modeRide" onclick="openRide()">&#9749; Jet Runway</div>
         </div>
       </div>
     </div>
@@ -1729,6 +1744,7 @@ https://buy.stripe.com/8x214mccK0uh9TjgIM6Vq00</div>
   </div>
 
   <div class="tv-msg-toast" id="tvMsgToast" style="display:none" role="status"></div>
+  <div class="tv-ride-bar" id="tvRideBar" hidden role="status"></div>
   <!-- TV v4: Makers Air Caravan livery (tail tiles, skin, belly) shared by every aircraft drawing -->
   <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
     <pattern id="tv4Tile" width="10" height="10" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="10" height="10" fill="#123A7A"/><rect x="2" y="2" width="6" height="6" fill="none" stroke="#5FB0E6" stroke-width="1.3"/><rect x="4.2" y="4.2" width="1.6" height="1.6" fill="#9FD3F5"/></pattern>
@@ -16332,6 +16348,108 @@ function tvWelcomeBackBadge(r){
 var TV_MAKERS_FETCH_MS = 300000;      // the robot reads Makers 2-4× a day; 5 min is plenty
 var TV_MAKERS_BOARDING_MIN = 30;      // BOARDING from 30 min before the scheduled time
 var TV_MAKERS_DEPARTED_MIN = 5;       // struck through 5 min after the scheduled time
+// ── JET RUNWAY RIDES (owner 2026-11-11, mockups approved) ──────────────
+// Phone number only. Staff: New Entry → Jet Runway → number → Send text. Guest replies READY (or calls) →
+// red card on top of the Dashboard (iPhone/iPad) + push + red bar on the TV. On my way → Done (tip text, 1-day link).
+var _rides = { list: [], busy: false, ck: null, tvAt: 0 };
+function openRide(){
+  if (typeof closeAll === 'function') closeAll();
+  var i = document.getElementById('jrPhone'); i.value = '';
+  var e = document.getElementById('jrErr'); e.hidden = true; e.textContent = '';
+  _rides.ck = newCheckinKey();
+  document.getElementById('rideOv').classList.add('on');
+  setTimeout(function(){ try { i.focus(); } catch(x) {} }, 150);
+}
+function closeRide(){ document.getElementById('rideOv').classList.remove('on'); }
+function rideE164(v){
+  var d = String(v || '').replace(/\D/g, '');
+  if (/^\+/.test(String(v || '').trim()) && d.length >= 8 && d.length <= 15) return '+' + d;
+  if (d.length === 10) return '+1' + d;
+  if (d.length === 11 && d[0] === '1') return '+' + d;
+  return null;
+}
+async function rideApi(body){
+  var st = (typeof smsStaffName === 'function' && smsStaffName()) || null; if (st) body.staff_name = st;
+  return await smsApi('/functions/v1/ride', { method: 'POST', body: JSON.stringify(body) });
+}
+function rideSmsNote(sms){
+  return sms === 'SENT' ? '' : sms === 'OPTED_OUT' ? ' (number opted out of texts)' : /^BLOCKED_/.test(sms || '') ? ' (texts off / test mode)' : ' (text not confirmed)';
+}
+async function rideCreate(){
+  if (_rides.busy) return;
+  var phone = rideE164(document.getElementById('jrPhone').value), err = document.getElementById('jrErr');
+  if (!phone) { err.textContent = 'Type the guest’s 10-digit phone number.'; err.hidden = false; return; }
+  var btn = document.getElementById('jrSend'); _rides.busy = true; btn.disabled = true; btn.textContent = 'Sending…';
+  try {
+    var r = await rideApi({ action: 'create', phone: phone, ck: _rides.ck });
+    if (r && r.result === 'OK') { closeRide(); showMsg('✓ Jet Runway ride …' + phone.slice(-4) + (r.existing ? ' (already saved)' : ' · text sent' + rideSmsNote(r.sms)), false); }
+    else if (r && r.result === 'OPEN') { closeRide(); showMsg('This number already has an open Jet Runway ride.', true); }
+    else { err.textContent = r && r.result === 'BAD_PHONE' ? 'That phone number is not valid.' : 'Could not save. Try again.'; err.hidden = false; }
+  } catch(e) { err.textContent = 'No connection. Try again.'; err.hidden = false; }
+  _rides.busy = false; btn.disabled = false; btn.textContent = 'Send text';
+  ridesLoad();
+}
+async function rideAct(id, action){
+  if (_rides.busy) return;
+  if (action === 'cancel' && !confirm('Remove this Jet Runway ride? No text is sent.')) return;
+  _rides.busy = true;
+  try {
+    var r = await rideApi({ action: action, id: id });
+    if (r && r.result === 'OK') showMsg(action === 'onway' ? '✓ On my way · guest texted' + rideSmsNote(r.sms) : action === 'done' ? '✓ Done · tip link texted' + rideSmsNote(r.sms) : 'Ride removed.', false);
+    else if (r && r.result !== 'SAME') showMsg('Could not update this ride.', true);
+  } catch(e) { showMsg('No connection. Try again.', true); }
+  _rides.busy = false; ridesLoad();
+}
+function rideTime(iso){ var d = iso ? new Date(iso) : null; return d && !isNaN(d) ? d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : ''; }
+function rideAgo(iso){ var m = iso ? Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 60000)) : 0; return m < 1 ? 'just now' : m + ' min ago'; }
+async function ridesFetch(){
+  var res = await fetch(SUPABASE_URL + '/rest/v1/rpc/airvalet_rides_board', { method: 'POST', headers: sbHeaders(), body: '{}' });
+  if (!res.ok) throw new Error('rides ' + res.status);
+  var l = await res.json(); return Array.isArray(l) ? l : [];
+}
+async function ridesLoad(){
+  if (typeof _currentUserRole === 'undefined' || !_currentUserRole || _currentUserRole === 'TV_ONLY' || !_authToken) return;
+  try { _rides.list = await ridesFetch(); renderRides(); } catch(e) {}
+}
+function renderRides(){
+  var el = document.getElementById('rideBoard'); if (!el) return;
+  var l = _rides.list || [], open = l.filter(function(r){ return r.status !== 'DONE'; }), done = l.length - open.length;
+  if (!l.length) { el.hidden = true; el.innerHTML = ''; return; }
+  var tel = function(r){ return r.phone ? '<a class="jr-b jr-sec" href="tel:' + escapeHTML(r.phone) + '">Call</a>' : ''; };
+  var html = open.map(function(r){
+    var id = escapeHTML(r.id), n = '…' + escapeHTML(r.last4 || '');
+    if (r.status === 'READY') return '<article class="jr-card jr-ready"><div class="jr-h"><i></i>JET RUNWAY · READY</div><div class="jr-n">' + n + '</div>' +
+      '<div class="jr-t">Dropped ' + rideTime(r.created_at) + ' · asked ' + rideTime(r.ready_at) + ' (' + rideAgo(r.ready_at) + ')</div>' +
+      '<div class="jr-bt"><button type="button" class="jr-b jr-go" onclick="rideAct(\'' + id + '\',\'onway\')">On my way</button>' + tel(r) + '</div></article>';
+    if (r.status === 'ONWAY') return '<article class="jr-card jr-way"><div class="jr-h">JET RUNWAY · ON THE WAY</div><div class="jr-n">' + n + '</div>' +
+      '<div class="jr-t">Since ' + rideTime(r.onway_at) + (r.onway_by ? ' · ' + escapeHTML(r.onway_by) : '') + '</div>' +
+      '<div class="jr-bt"><button type="button" class="jr-b jr-ok" onclick="rideAct(\'' + id + '\',\'done\')">Done</button>' + tel(r) + '</div></article>';
+    return '<div class="jr-row"><span class="jr-ic">&#9749;</span><span class="jr-rn">' + n + '</span><span class="jr-rt">at Jet Runway · dropped ' + rideTime(r.created_at) + '</span>' +
+      '<button type="button" class="jr-sm" onclick="rideAct(\'' + id + '\',\'onway\')">On my way</button>' +
+      '<button type="button" class="jr-x" aria-label="Remove ride" onclick="rideAct(\'' + id + '\',\'cancel\')">&times;</button></div>';
+  }).join('');
+  if (done) html += '<p class="jr-done">&#10003; ' + done + ' Jet Runway ride' + (done > 1 ? 's' : '') + ' done today</p>';
+  el.innerHTML = html; el.hidden = false;
+}
+// TV: red bar while a guest waits for the ride back (gone once someone taps On my way).
+async function tvRidesTick(){
+  if (!document.body.classList.contains('tv-active')) return;
+  var bar = document.getElementById('tvRideBar'); if (!bar) return;
+  try {
+    var ready = (await ridesFetch()).filter(function(r){ return r.status === 'READY'; });
+    if (!ready.length) { bar.hidden = true; bar.innerHTML = ''; return; }
+    var html = '<img src="assets/jet-runway-logo.png" alt="Jet Runway Café"><div><b>JET RUNWAY · RIDE BACK READY</b><span>' +
+      ready.map(function(r){ return '…' + escapeHTML(r.last4 || '') + ' · asked ' + rideTime(r.ready_at); }).join(' &nbsp;|&nbsp; ') + '</span></div>';
+    if (bar.getAttribute('data-v') !== html) { bar.innerHTML = html; bar.setAttribute('data-v', html); }
+    bar.hidden = false;
+  } catch(e) {}
+}
+function ridesTick(){ if (document.hidden) return; if (document.body.classList.contains('tv-active')) tvRidesTick(); else ridesLoad(); }
+setTimeout(ridesTick, 4000); setInterval(ridesTick, 20000);
+document.addEventListener('visibilitychange', function(){ if (!document.hidden) ridesTick(); });
+function ridesFocus(){ if (location.hash !== '#rides') return; ridesLoad().then(function(){ var el = document.getElementById('rideBoard'); if (el && !el.hidden) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }); }
+window.addEventListener('hashchange', ridesFocus); setTimeout(ridesFocus, 2500);
+
 // App (iPhone/iPad dashboard): the same plane status as the TV, refreshed every minute without re-rendering
 // the cards (staff may be typing a flight/time on one).
 function appPlanePill(r){

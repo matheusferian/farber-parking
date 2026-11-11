@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<meta name="airvalet-ride-api" content="https://sfewtirvqhrpanwhbchd.supabase.co/functions/v1/ride">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; connect-src https://sfewtirvqhrpanwhbchd.supabase.co; img-src 'self'; base-uri 'none'; form-action 'none'">
+<meta name="theme-color" content="#061433">
+<title>Makers Air Valet · Driver tip</title>
+<!-- Jet Runway ride tip page (owner 2026-11-11): https://airvalet.farberos.com/r#<token>.
+     The token stays in the #fragment (never sent to a server log); the ride Edge Function alone
+     decides ok / expired (1 day). Tips go to Stripe Checkout (Makers Air Valet, Matt Solutions). -->
+<link rel="preload" href="assets/fonts/sora-latin-v17.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="r.css">
+</head>
+<body>
+<header class="top">
+  <div class="logos"><img class="mv" src="assets/makers-valet-lockup-white.png" alt="Makers Air Valet" width="320" height="102"><span class="x" aria-hidden="true"></span><img class="jr" src="assets/jet-runway-logo.png" alt="Jet Runway Café" width="261" height="300"></div>
+  <h1 id="title">Thanks for riding with us</h1>
+  <p class="sub" id="sub">Your ride from Jet Runway Café</p>
+</header>
+<main class="card" id="app" aria-live="polite"><p class="muted">Loading…</p></main>
+<script src="r.js"></script>
+</body>
+</html>

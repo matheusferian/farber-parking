@@ -50,6 +50,33 @@
       ]
     },
     {
+      "source": "/r",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-store" },
+        { "key": "X-Robots-Tag", "value": "noindex, nofollow" },
+        { "key": "Referrer-Policy", "value": "no-referrer" },
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "X-Frame-Options", "value": "DENY" }
+      ]
+    },
+    {
+      "source": "/r.html",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-store" },
+        { "key": "X-Robots-Tag", "value": "noindex, nofollow" },
+        { "key": "Referrer-Policy", "value": "no-referrer" },
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "X-Frame-Options", "value": "DENY" }
+      ]
+    },
+    {
+      "source": "/r.(js|css)",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-cache" },
+        { "key": "X-Content-Type-Options", "value": "nosniff" }
+      ]
+    },
+    {
       "source": "/w",
       "headers": [
         { "key": "Cache-Control", "value": "no-store" },
@@ -109,6 +136,7 @@
     { "source": "/events/watermakers-veterans-2026/staff", "destination": "/events/watermakers-veterans-2026/staff.html" },
     { "source": "/events/watermakers-veterans-2026/admin", "destination": "/events/watermakers-veterans-2026/admin.html" },
     { "source": "/events/watermakers-veterans-2026/", "destination": "/events/watermakers-veterans-2026/index.html" },
-    { "source": "/a", "destination": "/pass.html" }
+    { "source": "/a", "destination": "/pass.html" },
+    { "source": "/r", "destination": "/r.html" }
   ]
 }

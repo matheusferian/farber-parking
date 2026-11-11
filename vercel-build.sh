@@ -32,6 +32,8 @@ cp events/watermakers-veterans-2026/index.html events/watermakers-veterans-2026/
 # Makers Air Valet passenger page (/a#<token>, see vercel.json rewrite).
 # Static, not an app-shell file, not in SHELL_FILES.
 cp pass.html pass.js pass.css dist/
+# Jet Runway ride tip page (/r#<token>, 1-day link; owner 2026-11-11). Static, not an app-shell file.
+cp r.html r.js r.css dist/
 # Self-hosted Sora / Inter for the passenger page (no Google Fonts request).
 # Versioned file names: a new font file = a new name, never overwrite.
 mkdir -p dist/assets/fonts

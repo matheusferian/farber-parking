@@ -104,7 +104,8 @@
 // v122: TV alert for day trips 1 h before landing (send Welcome Back).
 // v123: TV day trip alert clears once the Welcome Back was sent.
 // v124: Welcome Back reminders repeat until sent; Inbox 'Welcome back…' counts; TV alert for every pending Welcome Back.
-var CACHE_VERSION = 'v179';
+// v180: Jet Runway Café rides (New Entry tab, READY card on the Dashboard, TV bar, /r tip page).
+var CACHE_VERSION = 'v180';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 var SHELL_FILES = [

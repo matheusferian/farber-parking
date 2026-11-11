@@ -21,7 +21,27 @@ import { notifyEvent } from '../_shared/notify/notify.ts';
 import { makeNotifyDeps } from '../_shared/notify/runtime.ts';
 import { makeHandler as makeEventValet } from '../event-valet/handler.ts';
 
+import { notifyRideReady } from '../_shared/notify/ride.ts';
+import { readVapid } from '../_shared/notify/runtime.ts';
+
 declare const EdgeRuntime: { waitUntil(p: Promise<unknown>): void } | undefined;
+
+const EMPTY_TWIML = '<?xml version="1.0" encoding="UTF-8"?><Response></Response>';
+// Jet Runway ride: only a READY text claims the message; anything else goes to the normal Inbox.
+// deno-lint-ignore no-explicit-any
+async function rideRoute(admin: any, get: (k: string) => string | undefined, log: (e: string, d: Record<string, unknown>) => void,
+  params: URLSearchParams, fromE164: string): Promise<Response | null> {
+  if (!/\bREADY\b/i.test(params.get('Body') || '')) return null;
+  const { data, error } = await admin.rpc('airvalet_ride_mark_ready', { p_phone: fromE164 });
+  if (error || data?.result !== 'READY') return null;
+  await admin.from('airvalet_ride_messages').insert({ ride_id: data.id, kind: 'READY_IN', body: 'READY', sid: params.get('MessageSid'), status: 'RECEIVED' });
+  log('ride.ready', { ride: data.id, new: !!data.new });
+  if (data.new) {
+    const job = notifyRideReady(admin, readVapid(get), data.id, String(data.last4 || ''), log);
+    if (typeof EdgeRuntime !== 'undefined') EdgeRuntime.waitUntil(job); else await job;
+  }
+  return new Response(EMPTY_TWIML, { status: 200, headers: { 'Content-Type': 'text/xml' } });
+}
 
 Deno.serve((req) => {
   const get = (k: string) => Deno.env.get(k);
@@ -41,10 +61,13 @@ Deno.serve((req) => {
     expectedMessagingServiceSid: get('TWILIO_MESSAGING_SERVICE_SID'),
     log,
     isAdminPhone: (e164) => store.isAdminAlertPhone!(e164),
-    // Event Valet READY routing (Watermakers): OFF unless EVENT_VALET_SMS_ROUTING=on.
-    preRoute: get('EVENT_VALET_SMS_ROUTING') === 'on'
-      ? (params) => makeEventValet(get).routedInbound(params)
-      : undefined,
+    // 1) Jet Runway rides (owner 2026-11-11): READY from a phone with an open ride → ride READY + staff push.
+    // 2) Event Valet READY routing (Watermakers): OFF unless EVENT_VALET_SMS_ROUTING=on.
+    preRoute: async (params, fromE164) => {
+      const ride = await rideRoute(admin, get, log, params, fromE164);
+      if (ride) return ride;
+      return get('EVENT_VALET_SMS_ROUTING') === 'on' ? makeEventValet(get).routedInbound(params) : null;
+    },
     onGuestMessage: (messageId) => {
       const job = notifyEvent(makeNotifyDeps(admin, cfg, get, log), 'GUEST_MESSAGE', messageId);
       if (typeof EdgeRuntime !== 'undefined') EdgeRuntime.waitUntil(job); else job.catch(() => {});
