@@ -235,7 +235,7 @@ function render(d){
     return true;
   }
   $('thanks').classList.add('hidden'); $('pass').classList.remove('hidden');
-  $('vName').textContent = d.vehicle_text || d.vehicle;
+  var vn = d.vehicle_text || d.vehicle; $('vName').textContent = (!vn || /^car$/i.test(vn)) ? 'Your car' : vn;
   $('vCode').textContent = '#' + d.ticket_code;
   var b = BAND[d.status] || BAND.PARKED;
   $('band').className = 'status ' + d.status; $('bTitle').textContent = b[0]; $('bText').textContent = b[1];

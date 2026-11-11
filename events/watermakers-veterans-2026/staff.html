@@ -73,6 +73,12 @@ button,input,select{font:inherit;color:inherit}
 .toast.warn{background:var(--amb)}.toast.bad{background:var(--req);color:#fff}
 .empty{color:var(--mu);text-align:center;padding:30px 0}
 .center{text-align:center}
+.board{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin:12px 0 4px}
+.ht{position:relative;height:60px;border-radius:12px;background:var(--p2);color:#fff;border:0;font-weight:700;font-size:23px;font-variant-numeric:tabular-nums;overflow:hidden;padding:0 0 6px}
+.ht.REQUESTED{background:#8E2442}.ht.RETRIEVING{background:#0A84FF}.ht.READY{background:#F2C230;color:#111}
+.ht i{position:absolute;left:0;right:0;bottom:0;height:5px;background:#FF9F0A}.ht i.FRONT{background:#64D2FF}.ht i.SIDE{background:#30D158}.ht i.BACK{background:#BF5AF2}
+.ht .dot{position:absolute;top:6px;right:6px;width:9px;height:9px;border-radius:50%;background:#FF8A1F}
+.big.amber{background:#FF9F0A;color:#1a1000}
 </style>
 </head>
 <body>
@@ -177,7 +183,7 @@ R.checkin = function(){
         '<input id="mk" class="field" style="margin-top:10px;font-size:18px" placeholder="Other make / model (optional)" value="' + esc(d.model) + '">'
       : '<input id="pl" class="field" style="margin-top:10px;text-transform:uppercase" placeholder="ABC 1234" value="' + esc(d.plate) + '">') +
     '<label class="lab">Parked at</label><div class="locs">' + ['FRONT', 'SIDE', 'BACK'].map(function(x){ return '<button class="loc' + (d.loc === x ? ' on' : '') + '" data-a="loc" data-v="' + x + '">' + x + '</button>'; }).join('') + '</div>' +
-    '</div><div class="foot"><button class="big gold" data-a="assign"' + (ok && S.online && !S.busy ? '' : ' disabled') + ' id="assign">Assign key hook</button></div>';
+    '</div><div class="foot"><button class="big amber" data-a="quick" id="quickBtn"' + (d.phone.length === 10 && S.online && !S.busy ? '' : ' disabled') + ' style="margin-bottom:10px">Busy? Skip — car later</button><button class="big gold" data-a="assign"' + (ok && S.online && !S.busy ? '' : ' disabled') + ' id="assign">Assign key hook</button></div>';
 };
 R.hook = function(){
   return topbar('Key hook', 'Put the key on the hook, then confirm', true) + '<div class="body">' +
@@ -192,14 +198,33 @@ function card(t){
     : t.status === 'READY' ? '<button class="act" style="background:var(--rdy);color:#03200f" data-a="st" data-id="' + t.id + '" data-to="DELIVERED">Delivered</button>' : '';
   var wait = t.status === 'REQUESTED' ? ' · waiting ' + mins(t.requestedAt) + ' min' : '';
   return '<div class="vc ' + t.status + '"><div class="hn"><small>Hook</small><b>' + (t.status === 'DELIVERED' ? '—' : pad2(t.hook)) + '</b></div><div class="i">' +
-    '<div class="nm">' + esc(t.vehicleText) + '</div><div class="meta">' + esc(t.location || '') + ' · ••' + esc(t.phoneLast4) + wait + '</div>' +
-    '<span class="pill ' + t.status + '">' + ({ PARKED: 'Parked', REQUESTED: 'Requested', RETRIEVING: 'On the way', READY: 'Ready', DELIVERED: 'Delivered' }[t.status] || t.status) + (t.retrievingBy && t.status !== 'DELIVERED' && t.status !== 'PARKED' ? ' · ' + esc(t.retrievingBy) : '') + '</span>' + act + '</div></div>';
+    '<div class="nm">' + esc(t.vehicleText) + '</div><div class="meta">' + (t.location ? esc(t.location) : '<span style="color:#FF9F0A">Spot not set</span>') + ' · ••' + esc(t.phoneLast4) + wait + '</div>' +
+    '<span class="pill ' + t.status + '">' + ({ PARKED: 'Parked', REQUESTED: 'Requested', RETRIEVING: 'On the way', READY: 'Ready', DELIVERED: 'Delivered' }[t.status] || t.status) + (t.retrievingBy && t.status !== 'DELIVERED' && t.status !== 'PARKED' ? ' · ' + esc(t.retrievingBy) : '') + '</span>' + act + (t.status !== 'DELIVERED' ? '<button class="act" style="background:' + (needs(t) ? '#FF9F0A;color:#1a1000' : 'var(--p2);color:#fff') + '" data-a="edit" data-id="' + t.id + '">' + (needs(t) ? 'Add car + spot' : 'Edit car / spot') + '</button>' : '') + '</div></div>';
 }
+function needs(t){ var v = t.vehicle || {}; return !t.location || (!v.color && !v.make && !v.plate); }
 var ORD = { REQUESTED: 0, RETRIEVING: 1, READY: 2, PARKED: 3, DELIVERED: 4 };
 function sorted(list){ return list.slice().sort(function(a, b){ return ORD[a.status] - ORD[b.status] || (a.status === 'REQUESTED' ? new Date(a.requestedAt) - new Date(b.requestedAt) : (a.hook || 99) - (b.hook || 99)); }); }
 R.cars = function(){
-  var list = S.st ? sorted(S.st.tickets.filter(function(t){ return t.status !== 'DELIVERED'; })) : [];
-  return topbar('Get car', 'Requests first, oldest first', true) + '<div class="body">' + (list.length ? list.map(card).join('') : '<div class="empty">No cars right now.</div>') + '</div>';
+  var all = S.st ? S.st.tickets.filter(function(t){ return t.status !== 'DELIVERED'; }) : [];
+  var f = S.filter || 'all';
+  var shown = all.filter(function(t){ return f === 'req' ? t.status !== 'PARKED' : f === 'need' ? needs(t) : true; });
+  var tiles = shown.slice().sort(function(a, b){ return (a.hook || 99) - (b.hook || 99); }).map(function(t){
+    return '<button class="ht ' + t.status + '" data-a="pick" data-id="' + t.id + '">' + pad2(t.hook) + (needs(t) ? '<span class="dot"></span>' : '') + '<i class="' + (t.location || '') + '"></i></button>'; }).join('');
+  var picked = S.pick && all.filter(function(t){ return t.id === S.pick; })[0];
+  var list = picked ? [picked] : sorted(shown.filter(function(t){ return t.status !== 'PARKED'; }));
+  return topbar('Get car', 'Tap a hook to see the car', true) + '<div class="body">' +
+    '<div class="chips">' + [['all', 'All ' + all.length], ['req', 'Requested'], ['need', 'Need info']].map(function(x){ return '<button class="chip' + (f === x[0] ? ' on' : '') + '" data-a="filter" data-v="' + x[0] + '">' + x[1] + '</button>'; }).join('') + '</div>' +
+    (tiles ? '<div class="board">' + tiles + '</div>' : '<div class="empty">No cars right now.</div>') +
+    list.map(card).join('') + '</div>';
+};
+R.edit = function(){
+  var d = S.draft, t = S.st && S.st.tickets.filter(function(x){ return x.id === S.editId; })[0];
+  if (!t) return topbar('Car', '', true) + '<div class="body"><div class="empty">Car not found.</div></div>';
+  return topbar('Hook ' + pad2(t.hook), 'Add car and spot', true) + '<div class="body">' +
+    '<label class="lab">Color</label><div class="chips">' + COLORS.map(function(x){ return '<button class="chip' + (d.color === x ? ' on' : '') + '" data-a="color" data-v="' + x + '">' + x + '</button>'; }).join('') + '</div>' +
+    '<label class="lab">Make</label><div class="chips">' + MAKES.map(function(x){ return '<button class="chip' + (d.make === x ? ' on' : '') + '" data-a="make" data-v="' + x + '">' + x + '</button>'; }).join('') + '</div>' +
+    '<label class="lab">Parked at</label><div class="locs">' + ['FRONT', 'SIDE', 'BACK'].map(function(x){ return '<button class="loc' + (d.loc === x ? ' on' : '') + '" data-a="loc" data-v="' + x + '">' + x + '</button>'; }).join('') + '</div>' +
+    '</div><div class="foot"><button class="big gold" data-a="saveEdit"' + ((d.make || d.loc) && !S.busy ? '' : ' disabled') + '>Save</button></div>';
 };
 R.search = function(){
   return topbar('Search', 'Phone, plate, car or hook #', true) + '<div class="body"><input id="q" class="field" placeholder="Phone, plate, car or hook #" value="' + esc(S.q) + '" autocomplete="off">' +
@@ -234,7 +259,7 @@ document.addEventListener('input', function(e){
   else if (e.target.id === 'q') { S.q = e.target.value; return; }
   else if (e.target.id === 'oth') { S.tip.other = e.target.value; S.tip.cents = Math.round(parseFloat(e.target.value || '0') * 100) || 0; var b = document.querySelector('[data-a=recordCash]'); if (b) { b.disabled = S.tip.cents < 100; b.textContent = 'Record $' + S.tip.cents / 100 + ' cash'; } return; }
   else return;
-  if (S.view === 'checkin') { var ok = d.phone.length === 10 && ((d.mode === 'make' && d.make) || (d.mode === 'plate' && d.plate.trim().length >= 2)) && d.loc; $('assign').disabled = !(ok && S.online); }
+  if (S.view === 'checkin') { var ok = d.phone.length === 10 && ((d.mode === 'make' && d.make) || (d.mode === 'plate' && d.plate.trim().length >= 2)) && d.loc; $('assign').disabled = !(ok && S.online); $('quickBtn').disabled = !(d.phone.length === 10 && S.online); }
 });
 document.addEventListener('change', function(e){ if (e.target.id === 'car') S.tip.ticketId = e.target.value || null; });
 document.addEventListener('click', async function(e){
@@ -251,7 +276,8 @@ document.addEventListener('click', async function(e){
     else if (a === 'color') { d.color = v; render(); }
     else if (a === 'make') { d.make = v; render(); }
     else if (a === 'loc') { d.loc = v; render(); }
-    else if (a === 'assign') { S.busy = true; render(); var hres = await api('POST', 'hold', { clientKey: S.ck }); S.busy = false; S.hook = hres.hook; go('hook'); }
+    else if (a === 'quick') { d.quick = true; S.busy = true; render(); var qh = await api('POST', 'hold', { clientKey: S.ck }); S.busy = false; S.hook = qh.hook; go('hook'); }
+    else if (a === 'assign') { d.quick = false; S.busy = true; render(); var hres = await api('POST', 'hold', { clientKey: S.ck }); S.busy = false; S.hook = hres.hook; go('hook'); }
     else if (a === 'otherHook') {
       var x = prompt('Hook number (01–50):'); if (!x) return;
       if (!/^\d{1,2}$/.test(x.trim())) return toast('Choose a hook number', 'warn');
@@ -259,13 +285,31 @@ document.addEventListener('click', async function(e){
     }
     else if (a === 'confirm') {
       S.busy = true; render();
-      var veh = d.mode === 'make' ? { color: d.color === 'Other' ? '' : d.color, make: d.make, model: d.model } : { plate: d.plate };
-      var r = await api('POST', 'checkin', { clientKey: S.ck, phone: d.phone, vehicle: veh, location: d.loc, hook: S.hook, keyStoredAt: new Date().toISOString() });
+      var veh = d.quick ? {} : d.mode === 'make' ? { color: d.color === 'Other' ? '' : d.color, make: d.make, model: d.model } : { plate: d.plate };
+      var body = { clientKey: S.ck, phone: d.phone, vehicle: veh, hook: S.hook, keyStoredAt: new Date().toISOString() };
+      if (d.quick) body.quick = true; else body.location = d.loc;
+      var r = await api('POST', 'checkin', body);
       S.busy = false; S.draft = null;
       toast('Checked in · hook ' + pad2(r.ticket.hook) + (r.sms && r.sms.welcome === 'SENT' ? ' · text sent' : ''));
       await refresh(); go('home');
     }
-    else if (a === 'cars') go('cars');
+    else if (a === 'cars') { S.pick = null; go('cars'); }
+    else if (a === 'filter') { S.filter = v; S.pick = null; render(); }
+    else if (a === 'pick') { var pid = b.getAttribute('data-id'); S.pick = S.pick === pid ? null : pid; render(); }
+    else if (a === 'edit') {
+      var et = S.st.tickets.filter(function(x){ return x.id === b.getAttribute('data-id'); })[0]; if (!et) return;
+      var ev = et.vehicle || {};
+      S.editId = et.id; S.draft = { phone: '', mode: 'make', color: ev.color ? ev.color.charAt(0) + ev.color.slice(1).toLowerCase() : '', make: ev.make ? ev.make.charAt(0) + ev.make.slice(1).toLowerCase() : '', model: '', plate: '', loc: et.location || '' };
+      go('edit');
+    }
+    else if (a === 'saveEdit') {
+      S.busy = true; render();
+      var eb = { clientKey: uid(), ticketId: S.editId };
+      if (d.make) eb.vehicle = { color: d.color === 'Other' ? '' : d.color, make: d.make };
+      if (d.loc) eb.location = d.loc;
+      await api('POST', 'edit', eb);
+      S.busy = false; S.draft = null; toast('Car saved'); await refresh(); S.pick = S.editId; go('cars');
+    }
     else if (a === 'search') { S.results = null; go('search'); setTimeout(function(){ var q = $('q'); if (q) q.focus(); }, 50); }
     else if (a === 'doSearch') { var sr = await api('GET', 'search', { q: S.q }); S.results = sr.tickets; render(); }
     else if (a === 'st') {
