@@ -183,7 +183,7 @@ R.checkin = function(){
         '<input id="mk" class="field" style="margin-top:10px;font-size:18px" placeholder="Other make / model (optional)" value="' + esc(d.model) + '">'
       : '<input id="pl" class="field" style="margin-top:10px;text-transform:uppercase" placeholder="ABC 1234" value="' + esc(d.plate) + '">') +
     '<label class="lab">Parked at</label><div class="locs">' + ['FRONT', 'SIDE', 'BACK'].map(function(x){ return '<button class="loc' + (d.loc === x ? ' on' : '') + '" data-a="loc" data-v="' + x + '">' + x + '</button>'; }).join('') + '</div>' +
-    '</div><div class="foot"><button class="big amber" data-a="quick" id="quickBtn"' + (d.phone.length === 10 && S.online && !S.busy ? '' : ' disabled') + ' style="margin-bottom:10px">Busy? Skip — car later</button><button class="big gold" data-a="assign"' + (ok && S.online && !S.busy ? '' : ' disabled') + ' id="assign">Assign key hook</button></div>';
+    '</div><div class="foot"><button class="big amber" data-a="quick" id="quickBtn"' + (d.phone.length === 10 && S.online && !S.busy ? '' : ' disabled') + ' style="margin-bottom:10px">Send text now — car later</button><button class="big gold" data-a="assign"' + (ok && S.online && !S.busy ? '' : ' disabled') + ' id="assign">Assign key hook</button></div>';
 };
 R.hook = function(){
   return topbar('Key hook', 'Put the key on the hook, then confirm', true) + '<div class="body">' +
@@ -220,7 +220,7 @@ R.cars = function(){
 R.edit = function(){
   var d = S.draft, t = S.st && S.st.tickets.filter(function(x){ return x.id === S.editId; })[0];
   if (!t) return topbar('Car', '', true) + '<div class="body"><div class="empty">Car not found.</div></div>';
-  return topbar('Hook ' + pad2(t.hook), 'Add car and spot', true) + '<div class="body">' +
+  return topbar('Key on hook ' + pad2(t.hook), 'Add car + spot now, or tap ‹ to do it later', true) + '<div class="body">' +
     '<label class="lab">Color</label><div class="chips">' + COLORS.map(function(x){ return '<button class="chip' + (d.color === x ? ' on' : '') + '" data-a="color" data-v="' + x + '">' + x + '</button>'; }).join('') + '</div>' +
     '<label class="lab">Make</label><div class="chips">' + MAKES.map(function(x){ return '<button class="chip' + (d.make === x ? ' on' : '') + '" data-a="make" data-v="' + x + '">' + x + '</button>'; }).join('') + '</div>' +
     '<label class="lab">Parked at</label><div class="locs">' + ['FRONT', 'SIDE', 'BACK'].map(function(x){ return '<button class="loc' + (d.loc === x ? ' on' : '') + '" data-a="loc" data-v="' + x + '">' + x + '</button>'; }).join('') + '</div>' +
@@ -276,7 +276,15 @@ document.addEventListener('click', async function(e){
     else if (a === 'color') { d.color = v; render(); }
     else if (a === 'make') { d.make = v; render(); }
     else if (a === 'loc') { d.loc = v; render(); }
-    else if (a === 'quick') { d.quick = true; S.busy = true; render(); var qh = await api('POST', 'hold', { clientKey: S.ck }); S.busy = false; S.hook = qh.hook; go('hook'); }
+    else if (a === 'quick') {
+      S.busy = true; render();
+      var qh = await api('POST', 'hold', { clientKey: S.ck });
+      var qr = await api('POST', 'checkin', { clientKey: S.ck, phone: d.phone, vehicle: {}, quick: true, hook: qh.hook, keyStoredAt: new Date().toISOString() });
+      S.busy = false; toast('Text sent · put key on hook ' + pad2(qr.ticket.hook));
+      await refresh();
+      S.editId = qr.ticket.id; S.draft = { phone: '', mode: 'make', color: '', make: '', model: '', plate: '', loc: '' };
+      go('edit');
+    }
     else if (a === 'assign') { d.quick = false; S.busy = true; render(); var hres = await api('POST', 'hold', { clientKey: S.ck }); S.busy = false; S.hook = hres.hook; go('hook'); }
     else if (a === 'otherHook') {
       var x = prompt('Hook number (01–50):'); if (!x) return;
@@ -313,6 +321,7 @@ document.addEventListener('click', async function(e){
     else if (a === 'search') { S.results = null; go('search'); setTimeout(function(){ var q = $('q'); if (q) q.focus(); }, 50); }
     else if (a === 'doSearch') { var sr = await api('GET', 'search', { q: S.q }); S.results = sr.tickets; render(); }
     else if (a === 'st') {
+      if (b.getAttribute('data-to') === 'DELIVERED' && !confirm('Before Delivered: tag removed from the CAR and from the KEY?')) return;
       b.disabled = true;
       var r2 = await api('POST', 'status', { clientKey: uid(), ticketId: b.getAttribute('data-id'), to: b.getAttribute('data-to') });
       toast({ RETRIEVING: 'Go get hook ' + pad2(r2.ticket.hook), READY: 'Car ready · hook ' + pad2(r2.ticket.hook), DELIVERED: 'Delivered · hook ' + pad2(r2.ticket.hook) + ' is free' }[r2.ticket.status] || 'DONE');
