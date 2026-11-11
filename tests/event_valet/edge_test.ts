@@ -460,9 +460,15 @@ Deno.test('READY SMS only when the car is ready, once per ready; thank-you only 
 Deno.test('Watermakers texts: Farber signature, own greeting; Halloween unchanged', () => {
   const W = 'watermakers-veterans-2026';
   const c = composeSms('CHECKIN', '0101', null, [], W);
-  assert(c.startsWith('🇺🇸 Welcome to Member Connect at Watermakers!') && c.includes('Ticket #0101') && c.includes('— Farber Parking Valet') && c.includes('Reply STOP'));
+  assert(c.startsWith('Welcome to Watermakers!') && c.includes('(#0101)') && c.includes('Reply STOP'));
   assert(!/Makers Air|Halloween|🎃/.test(c));
-  for (const k of ['CHECKIN', 'REQUESTED', 'READY', 'TIP', 'AMBIGUOUS', 'NO_MATCH'] as const) {
+  // Owner 2026-11-11: every guest text plain GSM-7, one segment; a link is never followed by punctuation.
+  const L = 'airvalet.farberos.com/w#AbCdEfGhIjKl';
+  for (const k of ['CHECKIN', 'REQUESTED', 'ONWAY', 'READY', 'THANKS'] as const) {
+    const m = composeSms(k, '10101', L, [], W);
+    assert(m.length <= 160 && /^[\x20-\x7E\n]*$/.test(m) && !m.includes(L + '.'), k + ': ' + m);
+  }
+  for (const k of ['TIP', 'AMBIGUOUS', 'NO_MATCH'] as const) {
     const m = composeSms(k, '0101', 'https://buy.stripe.com/x', [{ code: '0101', vehicle: 'TESLA MODEL Y' }], W);
     assert(m.includes('— Farber Parking Valet') && !/Makers Air|Halloween|🎃/.test(m), k);
   }

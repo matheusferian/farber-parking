@@ -27,6 +27,7 @@ mkdir -p dist/events/watermakers-veterans-2026
 cp events/watermakers-veterans-2026/index.html events/watermakers-veterans-2026/t.html \
    events/watermakers-veterans-2026/staff.html events/watermakers-veterans-2026/admin.html \
    events/watermakers-veterans-2026/farber-parking-logo.jpg events/watermakers-veterans-2026/watermakers-logo-reverse.png \
+   events/watermakers-veterans-2026/farber-parking-crest.png events/watermakers-veterans-2026/ad-film.mp4 events/watermakers-veterans-2026/ad-poster.jpg \
    events/watermakers-veterans-2026/sw.js events/watermakers-veterans-2026/manifest.webmanifest dist/events/watermakers-veterans-2026/
 # Makers Air Valet passenger page (/a#<token>, see vercel.json rewrite).
 # Static, not an app-shell file, not in SHELL_FILES.

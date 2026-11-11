@@ -12,7 +12,10 @@ export type Kind = 'CHECKIN' | 'REQUESTED' | 'READY' | 'TIP' | 'AMBIGUOUS' | 'NO
 // 2026-10-23); other events only swap the greeting, closing and signature.
 type Brand = { staff: string; sign: string; welcome: string; enjoy: string; thanks: string; thanks2?: string; note: string; place: string;
   // Optional (Watermakers, owner 2026-11-05): short pass-link path and a one-segment welcome text.
-  short?: string; checkin?: (no: string, link: string | null) => string };
+  short?: string; checkin?: (no: string, link: string | null) => string;
+  // Optional (Watermakers, owner 2026-11-11): plain one-segment texts for the rest of the flow.
+  requested?: (no: string) => string; onway?: (no: string) => string; ready?: (no: string) => string;
+  thanksNote?: (link: string) => string };
 const HALLOWEEN: Brand = {
   staff: '— Halloween Valet', sign: '— Makers Air Valet',
   welcome: '🎃 Welcome to the Makers Air Halloween Celebration!', enjoy: 'Enjoy the celebration!',
@@ -28,8 +31,14 @@ const BRANDS: Record<string, Brand> = {
     short: '/w',
     // Plain GSM-7 (no emoji, straight quotes) so it stays one SMS segment (<=160 chars).
     // Owner 2026-11-10: open with "Welcome to Watermakers!" only, no "Farber Parking Valet:" (one segment, ~145 chars).
-    checkin: (no, link) => `Welcome to Watermakers! Your car is checked in (#${no}). Reply READY` +
-      (link ? ` or tap ${link}` : '') + ` to get it. Reply STOP to opt out`,
+    // Owner 2026-11-11: premium wording, every text plain GSM-7 and one segment (<=160 chars).
+    // The link is never followed by punctuation (a trailing "." could be taken into the #token).
+    checkin: (no, link) => `Welcome to Watermakers! Your car is in good hands (#${no}). Ready to leave? ` +
+      (link ? `Tap ${link} or reply READY` : 'Reply READY') + `. Reply STOP to opt out`,
+    requested: (no) => `Watermakers Valet: request received (#${no}). Your car is being brought around now. We'll text you the moment it's ready.`,
+    onway: (no) => `Watermakers Valet: your car (#${no}) is on its way to the valet stand.`,
+    ready: (no) => `Watermakers Valet: your car (#${no}) is waiting for you at the valet stand. Thank you for joining us tonight.`,
+    thanksNote: (link) => `Thank you for joining us at Watermakers. We hope we exceeded your expectations. A note from your valet: ${link}`,
   },
 };
 export const brandFor = (eventId?: string | null): Brand => (eventId && BRANDS[eventId]) || HALLOWEEN;
@@ -73,6 +82,7 @@ export function composeSms(kind: Kind, code: string | null, link: string | null,
         'Reply STOP to opt out.',
       ].join('\n');
     case 'REQUESTED':
+      if (b.requested) return b.requested(no);
       return [
         '🚗 We’ve received your request!',
         `Ticket #${no}`,
@@ -80,6 +90,7 @@ export function composeSms(kind: Kind, code: string | null, link: string | null,
         b.sign,
       ].join('\n');
     case 'READY':
+      if (b.ready) return b.ready(no);
       return [
         '🚘 Your vehicle is ready!',
         `Ticket #${no}`,
@@ -109,6 +120,7 @@ export function composeSms(kind: Kind, code: string | null, link: string | null,
     // note after delivery (contract text), and the "don't guess" answer when the
     // same phone also has an active Makers Air trip.
     case 'ONWAY':
+      if (b.onway) return b.onway(no);
       return [
         '🚗 Your vehicle is on the way!',
         `Ticket #${no}`,
@@ -116,6 +128,7 @@ export function composeSms(kind: Kind, code: string | null, link: string | null,
         b.sign,
       ].join('\n');
     case 'THANKS':
+      if (b.thanksNote) return b.thanksNote(link ?? '');
       return `${b.note} Your valet has left you a note. View it here: ${link ?? ''} ${b.sign}`;
     case 'CROSS':
       return [
