@@ -19,6 +19,7 @@ import { readSmsConfig } from '../_shared/sms/config.ts';
 import { normalizePhoneE164 } from '../_shared/sms/phone.ts';
 import { TwilioProvider } from '../_shared/sms/provider.ts';
 import { rideSessionForm, rideText, smsAllowed, tipCents, type RideKind } from './lib.ts';
+import { rideInboxOutbound } from '../_shared/sms/ride-inbox.ts';
 
 const ORIGIN = 'https://airvalet.farberos.com';
 const TOK_RE = /^[A-Za-z0-9_-]{12,64}$/;
@@ -85,7 +86,12 @@ Deno.serve(async (req) => {
     if (oo?.opted_out) { await record('BLOCKED', null, 'OPTED_OUT'); return 'OPTED_OUT'; }
     if (!cfg.twilio) { await record('FAILED', null, 'NO_TWILIO'); return 'FAILED'; }
     const r = await new TwilioProvider({ ...cfg.twilio, timeoutMs: 10_000 }).send({ to, body });
-    if (r.kind === 'accepted') { await record('SENT', r.sid, null); return 'SENT'; }
+    if (r.kind === 'accepted') {
+      await record('SENT', r.sid, null);
+      // Owner 2026-11-12: the same text in the Inbox conversation of the guest's car (no car → ride only).
+      await rideInboxOutbound(admin, { rideId, kind, phone: to, body: tipUrl ? body.replace(/#.*/, '#********') : body, sid: r.sid, staffName: name }, log);
+      return 'SENT';
+    }
     await record(r.kind === 'unknown' ? 'UNKNOWN' : 'FAILED', null, r.errorCode);
     return r.kind === 'unknown' ? 'UNKNOWN' : 'FAILED';
   }

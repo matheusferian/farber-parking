@@ -22,6 +22,7 @@ import { makeNotifyDeps } from '../_shared/notify/runtime.ts';
 import { makeHandler as makeEventValet } from '../event-valet/handler.ts';
 
 import { notifyRideReady } from '../_shared/notify/ride.ts';
+import { rideInboxInbound } from '../_shared/sms/ride-inbox.ts';
 import { readVapid } from '../_shared/notify/runtime.ts';
 
 declare const EdgeRuntime: { waitUntil(p: Promise<unknown>): void } | undefined;
@@ -36,6 +37,8 @@ async function rideRoute(admin: any, get: (k: string) => string | undefined, log
   if (error || data?.result !== 'READY') return null;
   await admin.from('airvalet_ride_messages').insert({ ride_id: data.id, kind: 'READY_IN', body: 'READY', sid: params.get('MessageSid'), status: 'RECEIVED' });
   log('ride.ready', { ride: data.id, new: !!data.new });
+  // Owner 2026-11-12: the READY also shows in the Inbox conversation of the guest's car (already read).
+  await rideInboxInbound(admin, { phone: fromE164, body: params.get('Body') || 'READY', sid: params.get('MessageSid') || '' }, log);
   if (data.new) {
     const job = notifyRideReady(admin, readVapid(get), data.id, String(data.last4 || ''), log);
     if (typeof EdgeRuntime !== 'undefined') EdgeRuntime.waitUntil(job); else await job;

@@ -5175,7 +5175,7 @@ function renderThread(passengerId, keepComposer){
       var sys = (kw === 'STOP' || kw === 'START' || kw === 'HELP')
         ? '<div class="ibx-sys">' + (kw === 'STOP' ? 'Passenger replied STOP — opted out. Texts are blocked.' : kw === 'START' ? 'Passenger replied START — texts allowed again.' : 'Passenger asked for HELP — automatic help reply sent by the carrier service.') + '</div>' : '';
       return '<div class="ibx-msg in"><div class="ibx-bub">' + escapeHTML(m.body || '') + '</div>' +
-        '<div class="ibx-meta">' + (m.provider === 'portal' ? '&#128172; ' : '') + escapeHTML(ibxTime(m.received_at || m.created_at)) + '</div></div>' + sys;
+        '<div class="ibx-meta">' + (m.provider === 'portal' ? '&#128172; ' : '') + (m.message_type === 'INBOUND_RIDE' ? '&#9749; Jet Runway · ' : '') + escapeHTML(ibxTime(m.received_at || m.created_at)) + '</div></div>' + sys;
     }
     // Welcome text: did the passenger tap the link? Chat replies: did they open
     // the valet pass after the reply (SMS itself has no read receipts).
@@ -5186,7 +5186,7 @@ function renderThread(passengerId, keepComposer){
     else if (m.provider === 'portal') openInfo = (opened && opened.last_opened_at && new Date(opened.last_opened_at) > new Date(m.created_at))
       ? ' · <span class="ibx-st ok">Seen</span>' : ' · <span class="ibx-st">Not seen yet</span>';
     return '<div class="ibx-msg out' + (m.status === 'blocked' ? ' blocked' : '') + '"><div class="ibx-bub">' + escapeHTML(m.body || '') + '</div>' +
-      '<div class="ibx-meta">' + escapeHTML(m.sent_by_name || 'AirValet') + ' · ' + escapeHTML(ibxTime(m.created_at)) + ' · ' + (m.provider === 'portal' ? '&#128172; chat' : smsStatusHtml(m)) + openInfo + '</div></div>';
+      '<div class="ibx-meta">' + (m.message_type === 'JET_RUNWAY' ? '&#9749; Jet Runway · ' : '') + escapeHTML(m.sent_by_name || 'AirValet') + ' · ' + escapeHTML(ibxTime(m.created_at)) + ' · ' + (m.provider === 'portal' ? '&#128172; chat' : smsStatusHtml(m)) + openInfo + '</div></div>';
   }).join('');
   var optedOut = !!conv.opted_out;
   var header = '<div class="ibx-th-h"><button class="ibx-back" onclick="closeInboxThread()" aria-label="Back">&#8249;</button>' +
