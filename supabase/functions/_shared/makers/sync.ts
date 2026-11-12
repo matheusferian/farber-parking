@@ -16,6 +16,7 @@ export type SuiteLike = {
   schedule(mdy: string): Promise<Leg[]>;
   passengers(mdy: string, dir: { to?: string; from?: string }): Promise<PaxRow[]>;
   trips(last: string, first?: string): Promise<Trip[]>;
+  passengersByLast?(last: string, fromMdy: string, toMdy: string): Promise<PaxRow[]>;
 };
 export type HeldCar = Candidate & { checkin?: string | null };   // check-in day, YYYY-MM-DD
 // time = FXE arrival (inbound) or FXE departure (outbound); dep = departure from the island (inbound only),
@@ -30,6 +31,10 @@ export type NoReturn = { passenger_id: number; ticket: string; system_name: stri
 export type NotFound = NoReturn;   // no Makers trip for this name around our check-in: staff look it up by hand
 // A Return Date Follow-Up guest (status NO DATE) on a Makers flight from FXE that day (owner 2026-11-06).
 export type FollowUpSeen = { passenger_id: number; ticket: string; system_name: string; direction: 'out' | 'in'; flight: string; route: string; time: string };
+// Owner 2026-11-12: a same-last-name pair is checked in Makers BEFORE it is shown — when our guest flew out
+// and comes back, when the other person flew out, and whether they were on the same flight.
+export type Leg1 = { date: string; flight: string; route: string };
+export type SurnameCheck = { car_out: Leg1 | null; car_back: Leg1 | null; other_out: Leg1 | null; other_back: Leg1 | null; together: boolean | null };
 export type SyncResult = {
   date: string; inbound: FlightSummary[]; outbound: FlightSummary[]; match: MatchResult;
   date_diffs: DateDiff[]; no_return: NoReturn[]; not_found_list: NotFound[]; checked: number; not_found: number; warnings: string[];
@@ -62,6 +67,29 @@ const PET_WORD = /^(PETS?|ANIMALS?|DOGS?|PUPP(Y|IES)|K9|CANINE|CATS?|KITTEN|BIRD
 export function isPetRow(r: { last: string; first: string }): boolean {
   const last = String(r.last || '').trim().toUpperCase(), first = String(r.first || '').trim().toUpperCase();
   return PET_WORD.test(last) || PET_WORD.test(first) || PET_WORD.test(first.split(/\s+/)[0] || '');
+}
+
+const mdyToIso = (mdy: string) => { const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(mdy || ''); return m ? `${m[3]}-${m[1].padStart(2, '0')}-${m[2].padStart(2, '0')}` : ''; };
+const samePerson = (name: string, r: PaxRow) => { const s = scoreName(name, { last: r.last, first: r.first, middle: '', pnr: '', first_origin: '' }); return !!s && s.kind !== 'surname_only'; };
+const leg1 = (r: PaxRow): Leg1 => ({ date: mdyToIso(r.date), flight: r.flight, route: `${r.from}-${r.to}` });
+
+// Our guest: the flight out of FXE nearest our check-in day (±4 days), then the first flight back to FXE after it.
+// The other person: the last flight out of FXE before the manifest day, and the flight back to FXE on that day.
+export async function surnameCheck(suite: SuiteLike, car: HeldCar | undefined, systemName: string, manifestName: string, date: string): Promise<SurnameCheck> {
+  const last = normTokens(manifestName).pop() || '';
+  const ci = car?.checkin || null, ours = car ? parseDate(car.ret) : '';
+  const from = addDays([ci, date].filter(Boolean).sort()[0] as string, -45), to = addDays([ours, date].filter(Boolean).sort().reverse()[0] as string, 7);
+  const rows = (await suite.passengersByLast!(last, isoToMdy(from), isoToMdy(to))).filter((r) => !isPetRow(r) && mdyToIso(r.date));
+  const byDate = (a: PaxRow, b: PaxRow) => mdyToIso(a.date).localeCompare(mdyToIso(b.date));
+  const mine = rows.filter((r) => samePerson(systemName, r)).sort(byDate), theirs = rows.filter((r) => samePerson(manifestName, r)).sort(byDate);
+  const outs = mine.filter((r) => r.from === 'FXE' && (!ci || Math.abs((Date.parse(mdyToIso(r.date)) - Date.parse(ci)) / 864e5) <= 4));
+  const carOut = ci ? outs.sort((a, b) => Math.abs(Date.parse(mdyToIso(a.date)) - Date.parse(ci)) - Math.abs(Date.parse(mdyToIso(b.date)) - Date.parse(ci)))[0] : outs.pop();
+  const carBack = carOut ? mine.find((r) => r.to === 'FXE' && mdyToIso(r.date) > mdyToIso(carOut.date)) : undefined;
+  const otherOut = theirs.filter((r) => r.from === 'FXE' && mdyToIso(r.date) <= date).pop();
+  const otherBack = theirs.find((r) => r.to === 'FXE' && mdyToIso(r.date) === date);
+  return { car_out: carOut ? leg1(carOut) : null, car_back: carBack ? leg1(carBack) : null, other_out: otherOut ? leg1(otherOut) : null,
+    other_back: otherBack ? leg1(otherBack) : null,
+    together: carOut && otherOut ? (carOut.date === otherOut.date && carOut.flight === otherOut.flight) : null };
 }
 
 export async function runSync(suite: SuiteLike, o: { date: string; today: string; pool: HeldCar[]; feedback: Feedback[]; maxLookups?: number; keySecret?: string }): Promise<SyncResult> {
@@ -101,6 +129,20 @@ export async function runSync(suite: SuiteLike, o: { date: string; today: string
       .map((r) => ({ last: r.last, first: r.first, middle: '', pnr: '', first_origin: r.from })),
   }));
   const match = matchManifest(pages, o.pool, o.feedback);
+  if (suite.passengersByLast) {
+    let n = 0;
+    for (const m of match.matches) {
+      if (m.kind !== 'surname_only' || n >= 8) continue;
+      n++;
+      const car = o.pool.find((c) => c.id === m.passenger_id);
+      try { (m as typeof m & { check?: SurnameCheck }).check = await surnameCheck(suite, car, m.system_name, m.manifest_name, o.date); }
+      catch (e) {
+        const code = (e as { code?: string })?.code;
+        if (code === 'BLOCKED' || code === 'LAYOUT' || code === 'LOGIN_FAILED') throw e;
+        warnings.push(`last name check failed: ${m.ticket}`);
+      }
+    }
+  }
   const settled = new Set(match.matches.filter((m) => m.kind !== 'surname_only').map((m) => m.passenger_id));
 
   // 2. Every Makers car we hold: Makers return date vs ours.

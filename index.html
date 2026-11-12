@@ -18545,12 +18545,14 @@ function mfCard(m, i){
   }
   if (m.kind === 'surname_only') {
     lines += '<div class="mf-line mf-warn">Same last name only. Manifest: <b>' + escapeHTML(m.manifest_name) + '</b> · Ours: <b>' + escapeHTML(m.system_name) + '</b></div>';
+    lines += mfSurnameCheck(m);
   } else if (m.suggest_name && !m._name) {
     lines += '<div class="mf-line">Name on the manifest: <b>' + escapeHTML(m.suggest_name) + '</b> · ours: ' + escapeHTML(m.system_name) + '</div>';
   }
   var acts = [];
   if (m.kind === 'surname_only') {
     acts.push('<button type="button" class="mf-btn mf-sm" onclick="mfVerdict(' + i + ',\'same\')">Same person</button>');
+    acts.push('<button type="button" class="mf-btn mf-sm" onclick="mfVerdict(' + i + ',\'family\')">Same family</button>');
     acts.push('<button type="button" class="mf-btn mf-sm mf-ghost" onclick="mfVerdict(' + i + ',\'different\')">Not the same</button>');
   } else {
     if ((m.state === 'early' || m.state === 'late' || m.state === 'no_date') && !m._date) acts.push('<button type="button" class="mf-btn mf-sm mf-pri" onclick="mfDate(' + i + ')">Change return to ' + escapeHTML(fmtD(mfIsoToMdy(m.manifest_date))) + '</button>');
@@ -18671,14 +18673,42 @@ async function mfFixName(i){
   } catch(e) { showMsg('Name not changed: ' + e.message, true); }
   mfRenderResult();
 }
+// Owner 2026-11-12: what the robot found in Makers for a same-last-name pair, before anyone decides.
+function mfLeg(l){ return l ? fmtD(mfIsoToMdy(l.date)) + ' · flight ' + escapeHTML(l.flight) + ' · ' + escapeHTML(l.route) : ''; }
+function mfSurnameCheck(m){
+  var c = m.check; if (!c) return '';
+  var first = function(n){ return escapeHTML(String(n || '').split(' ')[0]); };
+  var row = function(who, out, back, backWord){
+    if (!out && !back) return '<div class="mf-ck"><b>' + who + '</b> <span class="mf-ck-no">not found in Makers</span></div>';
+    return '<div class="mf-ck"><b>' + who + '</b>' + (out ? '<span>Went ' + mfLeg(out) + '</span>' : '<span class="mf-ck-no">flight out not found</span>') +
+      (back ? '<span>' + backWord + ' ' + mfLeg(back) + '</span>' : '<span class="mf-ck-no">no flight back found</span>') + '</div>';
+  };
+  var tog = c.together === true ? '<div class="mf-ck-tog mf-ck-yes">✓ Flew out together</div>'
+    : c.together === false ? '<div class="mf-ck-tog">✗ Not on the same flight out</div>' : '';
+  return '<div class="mf-cks">' + row(first(m.system_name) + ' (our car)', c.car_out, c.car_back, 'Back') +
+    row(first(m.manifest_name) + ' (on this flight)', c.other_out, c.other_back, 'Back') + tog + '</div>';
+}
 // Teaches the matcher: "same" makes this pair match next time, "different" never suggests it again.
 async function mfVerdict(i, verdict){
   var m = _mf.res && _mf.res.matches[i]; if (!m) return;
+  // Same family = not the same person (never suggested again) + a note on our car for the team.
+  var family = verdict === 'family'; if (family) verdict = 'different';
   try {
     var out = await vpRpc('airvalet_manifest_feedback_set', { p_manifest_name: m.manifest_name, p_system_name: m.system_name, p_verdict: verdict });
     if (!out || out.result !== 'OK') throw new Error((out && out.result) || 'error');
   } catch(e) { showMsg('Not saved: ' + e.message, true); return; }
-  if (verdict === 'different') { m._done = 'gone'; showMsg('Got it — this pair will not be suggested again.', false); }
+  if (family) {
+    var r = paxById(m.passenger_id);
+    if (r) {
+      var note = 'FAMILY: ' + m.manifest_name + ' back ' + fmtD(mfIsoToMdy(m.manifest_date)) + ' (flight ' + m.flight_number + ', Makers)';
+      var obs = String(r.obs || '').trim();
+      if (obs.indexOf(note) < 0) {
+        var newObs = (obs ? obs + ' | ' : '') + note;
+        try { await sbUpdate(r.id, { obs: newObs }); r.obs = newObs; render(); } catch(e) { showMsg('Note not saved: ' + e.message, true); }
+      }
+    }
+    m._done = 'gone'; showMsg('Got it — same family. Note added to ' + m.system_name + '’s car.', false);
+  } else if (verdict === 'different') { m._done = 'gone'; showMsg('Got it — this pair will not be suggested again.', false); }
   else { m.kind = 'taught'; showMsg('Got it — this pair will match automatically next time.', false); }
   mfRenderResult();
 }

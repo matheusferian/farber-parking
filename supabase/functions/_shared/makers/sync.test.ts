@@ -130,3 +130,36 @@ Deno.test('day trip only when also booked on a flight back to FXE the same day (
   const r = await runSync(suite, { date: '2026-11-07', today: '2026-11-06', feedback: [], pool: [] });
   assertEquals(r.outbound[0].day_trips, 1);
 });
+
+// Owner 2026-11-12: Veronica Adams on the manifest, our car is William Adams (synthetic copy of the real case).
+Deno.test('same last name: checked in Makers before it is shown (when, which flight, together?)', async () => {
+  const ADAMS: PaxRow[] = [
+    { date: '11/8/2026', flight: '1533', from: 'FXE', to: 'GHC', last: 'ADAMS', first: 'WILLIAM', retDate: '11/14/2026' },
+    { date: '11/8/2026', flight: '1533', from: 'FXE', to: 'GHC', last: 'ADAMS', first: 'TANYA', retDate: '11/14/2026' },
+    { date: '11/9/2026', flight: '1533', from: 'FXE', to: 'GHC', last: 'ADAMS', first: 'VERONICA', retDate: '11/12/2026' },
+    { date: '11/12/2026', flight: '1534', from: 'GHC', to: 'FXE', last: 'ADAMS', first: 'VERONICA', retDate: '' },
+    { date: '11/14/2026', flight: '2113', from: 'GHC', to: 'FXE', last: 'ADAMS', first: 'WILLIAM', retDate: '' },
+    { date: '11/14/2026', flight: '2113', from: 'GHC', to: 'FXE', last: 'PET', first: 'ADAMS', retDate: '' },
+  ];
+  const legs: Leg[] = [{ date: '11/12/2026', dep: '10:00', arr: '11:00', flight: '1534', from: 'GHC', to: 'FXE', tail: 'N740RV' }];
+  const calls: string[] = [];
+  const s: SuiteLike = {
+    schedule: async (mdy) => mdy === '11/12/2026' ? legs : [],
+    passengers: async (mdy, d) => mdy === '11/12/2026' && d.to ? [ADAMS[3]] : [],
+    trips: async () => [],
+    passengersByLast: async (last, a, b) => { calls.push(`last ${last} ${a} ${b}`); return ADAMS.filter((r) => r.last === last); },
+  };
+  const run = (together: boolean) => runSync(s, { date: '2026-11-12', today: '2026-11-11', feedback: [],
+    pool: [car(7, together ? 'VERA ADAMS' : 'WILLIAM ADAMS', '11/14/2026', { checkin: together ? '2026-11-09' : '2026-11-08' })] });
+  const r = await run(false);
+  const m = r.match.matches.find((x) => x.passenger_id === 7) as unknown as { kind: string; check: Record<string, unknown> };
+  assertEquals(m.kind, 'surname_only');
+  assertEquals(m.check, {
+    car_out: { date: '2026-11-08', flight: '1533', route: 'FXE-GHC' }, car_back: { date: '2026-11-14', flight: '2113', route: 'GHC-FXE' },
+    other_out: { date: '2026-11-09', flight: '1533', route: 'FXE-GHC' }, other_back: { date: '2026-11-12', flight: '1534', route: 'GHC-FXE' },
+    together: false,
+  });
+  assertEquals(calls, ['last ADAMS 9/24/2026 11/21/2026']);
+  // never more than one lookup per pair, and a pair with no surname-only match is never looked up
+  assertEquals(calls.length, 1);
+});

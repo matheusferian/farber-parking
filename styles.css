@@ -2641,6 +2641,9 @@ body.tv-stale .tv-stale-banner{display:block;}
 .mf-chip.mf-asc{background:#F2ECFF;color:#5B3BA8}
 .mf-line{font-size:13px;margin:4px 0;line-height:1.4}
 .mf-warn{color:#7A4A00}
+.mf-cks{margin:8px 0 2px;padding:8px 10px;background:#F4F6FA;border-radius:10px;font-size:13px;line-height:1.45}
+.mf-ck{margin:2px 0 6px}.mf-ck b{display:block;color:#0B1A33}.mf-ck span{display:block;color:#3A4A66}.mf-ck .mf-ck-no{color:#9A6A1A}
+.mf-ck-tog{font-weight:700;color:#7A4A00}.mf-ck-tog.mf-ck-yes{color:#1B7F4B}
 .mf-done{color:var(--ok);font-weight:700;font-size:13px;margin:4px 0}
 .mf-acts{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
 

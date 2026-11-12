@@ -276,6 +276,15 @@ export class MakersSuite {
     return parsePassengers(html);
   }
 
+  // Owner 2026-11-12 (same last name check): every flight of one last name over a date range, every route.
+  // Read-only; the Passenger Flight List has no paging limit (View Reservation stops at 50 rows, oldest first).
+  async passengersByLast(last: string, fromMdy: string, toMdy: string): Promise<PaxRow[]> {
+    const html = await this.search('/PassangerFlightReport.aspx', ['RadDate_StartDate', 'RadDate_EndDate'], 'btnsearch', fromMdy,
+      { '$txtto': '', '$txtFrom': '', '$txtlastname': last }, {}, toMdy);
+    if (!/Pax Name/i.test(html)) throw new MakersSuiteError('LAYOUT', 'passenger list grid not found');
+    return parsePassengers(html).filter((r) => r.last === last.toUpperCase());
+  }
+
   // Owner 2026-11-08 (demand forecast): the same passenger list search over a date range, every route. Read-only.
   async passengersRange(fromMdy: string, toMdy: string): Promise<PaxRow[]> {
     const html = await this.search('/PassangerFlightReport.aspx', ['RadDate_StartDate', 'RadDate_EndDate'], 'btnsearch', fromMdy,
