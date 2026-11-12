@@ -25,9 +25,11 @@ export type HeldCar = Candidate & { checkin?: string | null };   // check-in day
 // dests (outbound only, owner 2026-11-12): where the people on board are going (Passenger Flight List "TO"),
 // biggest first — route is only the first stop (e.g. FXE-SAQ, then on to Staniel Cay / Great Harbour).
 export type FlightSummary = { flight: string; route: string; tail: string; time: string; pax: number; ascend: boolean; day_trips?: number; dep?: string; ids?: string[]; dests?: { to: string; pax: number }[] };
-// Ascend (Makers' charter brand) flights are numbered 99xx in Makers Air Suite (9948/9949 on 2026-11-06/07).
-// Owner to confirm the rule; the Suite reports carry no client name to tell otherwise.
-export const isAscendFlight = (flight: string) => /^99\d{2}$/.test(String(flight || '').trim());
+// Ascend (Makers' charter brand) flights are the 4-digit 9xxx numbers in Makers Air Suite: 9948/9949 (11/06-07),
+// 9218/9219 and 9371 (owner 2026-11-12: the two 8:30 Great Harbour flights on 11/13 are Ascend; the old 99xx rule
+// missed them). Regular Makers flights seen so far: 123-7524, incl. 3-digit 954 — never 4-digit 9xxx.
+// The Suite reports carry no client name, so the number is the only sign.
+export const isAscendFlight = (flight: string) => /^9\d{3}$/.test(String(flight || '').trim());
 export type DateDiff = { passenger_id: number; ticket: string; system_name: string; ours: string | null; makers: string };
 export type NoReturn = { passenger_id: number; ticket: string; system_name: string; ours: string | null };
 export type NotFound = NoReturn;   // no Makers trip for this name around our check-in: staff look it up by hand

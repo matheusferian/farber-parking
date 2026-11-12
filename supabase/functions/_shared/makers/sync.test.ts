@@ -83,8 +83,10 @@ Deno.test('pickTrip: the trip around our check-in, never a surname-only match', 
   assertEquals(pickTrip(car(1, 'PAUL SMITH', null), trips, '2026-11-06'), null);
 });
 
-Deno.test('Ascend flights are the 99xx numbers', () => {
-  assertEquals([isAscendFlight('9948'), isAscendFlight('9949'), isAscendFlight('9218'), isAscendFlight('881'), isAscendFlight('99')], [true, true, false, false, false]);
+Deno.test('Ascend flights are the 4-digit 9xxx numbers', () => {
+  // owner 2026-11-12: 9218 and 9371 (8:30 to Great Harbour) are Ascend; 954 (ELH) and 7524 are regular Makers
+  assertEquals(['9948', '9949', '9218', '9219', '9371', '954', '7524', '881', '99', '99999'].map(isAscendFlight),
+    [true, true, true, true, true, false, false, false, false, false]);
 });
 
 Deno.test('Return Date Follow-Up guest (NO DATE) flying out of FXE that day is reported', async () => {

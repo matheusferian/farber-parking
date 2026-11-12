@@ -16952,7 +16952,7 @@ function tvFromLineHtml(o){
   var tm = tvMakersTime12(o.arrival_time);
   var bits = [];
   if(o.flight) bits.push('Flight '+escapeHTML(String(o.flight)));
-  if(o.ascend || /^99\d{2}$/.test(String(o.flight || ''))) bits.push(TV_ASC_LOGO);
+  if(o.ascend || /^9\d{3}$/.test(String(o.flight || ''))) bits.push(TV_ASC_LOGO);
   if(tm.ap) bits.push('lands '+tm.t+' '+tm.ap);
   return '<div class="tv-from">'+
     (o.registration ? '<span class="tv-from-tail" style="'+tvMakersTag(code)+'">'+escapeHTML(tvMakersTailSuffix(o.registration))+'</span>' : '')+
@@ -17076,7 +17076,7 @@ function tv4InboundLegs(){
     var k = o.flight + '|' + o.registration;
     if(!byKey[k]){ var code = String(o.route || '').split('-')[0];
       byKey[k] = {o:o, flight:o.flight, reg:o.registration, tail:tvMakersTailSuffix(o.registration), code:code,
-        place:(typeof MF_AIRPORTS !== 'undefined' && MF_AIRPORTS[code]) || code, ascend: o.ascend || /^99\d{2}$/.test(String(o.flight || '')),
+        place:(typeof MF_AIRPORTS !== 'undefined' && MF_AIRPORTS[code]) || code, ascend: o.ascend || /^9\d{3}$/.test(String(o.flight || '')),
         arr12: tv412(o.arrival_time), dep12: tv412(o.dep_time), guests:[]};
       out.push(byKey[k]); }
     var r = paxById(Number(o.passenger_id)); if(r && byKey[k].guests.indexOf(r) < 0) byKey[k].guests.push(r);
@@ -17163,7 +17163,7 @@ function tv4OtherLegs(){
   var now = Date.now();
   return day.inbound.filter(function(f){ return !ours[f.flight + '|' + String(f.tail).toUpperCase()] && Number(f.pax) > 0; }).map(function(f){
     var code = String(f.route || '').split('-')[0];
-    var o = {flight:f.flight, route:f.route, registration:String(f.tail).toUpperCase(), arrival_time:f.time, dep_time:f.dep, ascend:f.ascend};
+    var o = {flight:f.flight, route:f.route, registration:String(f.tail).toUpperCase(), arrival_time:f.time, dep_time:f.dep, ascend:f.ascend || /^9\d{3}$/.test(String(f.flight || ''))};
     return {o:o, flight:f.flight, reg:o.registration, tail:tvMakersTailSuffix(f.tail), code:code, pax:Number(f.pax) || 0,
       place:(typeof MF_AIRPORTS !== 'undefined' && MF_AIRPORTS[code]) || code, arr12:tv412(f.time), dep12:tv412(f.dep), st:tv4LegState(o)};
   }).filter(function(L){
@@ -18847,8 +18847,8 @@ var MF_AIRPORTS = { ASD: 'Fresh Creek', COX: 'Congo Town', GHC: 'Great Harbor Ca
   SAQ: 'San Andros', TYM: 'Staniel Cay', ELH: 'North Eleuthera', TBI: 'Cat Island', RSD: 'Rock Sound', CCZ: 'Chub Cay',
   SML: 'Long Island', MHH: 'Marsh Harbour', NAS: 'Nassau', GGT: 'Exuma', TCB: 'Treasure Cay', LGI: "Deadman's Cay", BIM: 'Bimini', ZSA: 'San Salvador' };
 function mfRound(g, x, y, w, h, r){ g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); }
-// Ascend (Makers' charter brand): 99xx flight numbers, marked with the Ascend logo (ascendmakersair.com).
-function mfIsAscend(f){ return f && (f.ascend === true || /^99\d{2}$/.test(String(f.flight || ''))); }
+// Ascend (Makers' charter brand): 4-digit 9xxx flight numbers (9218, 9371, 9948… — owner 2026-11-12), marked with the Ascend logo.
+function mfIsAscend(f){ return f && (f.ascend === true || /^9\d{3}$/.test(String(f.flight || ''))); }
 // Owner: mark day trips only on the 6:45 AM flights and on Ascend flights.
 function mfDayTrips(f){ return f && f.day_trips > 0 && (f.time === '06:45' || mfIsAscend(f)) ? f.day_trips : 0; }
 var _mfAscendLogo = null;
