@@ -106,7 +106,8 @@
 // v124: Welcome Back reminders repeat until sent; Inbox 'Welcome back…' counts; TV alert for every pending Welcome Back.
 // v180: Jet Runway Café rides (New Entry tab, READY card on the Dashboard, TV bar, /r tip page).
 // v181: Makers robot — same last name pairs show what Makers says (flights out/back, together?) + Same family button.
-var CACHE_VERSION = 'v181';
+// v182: iPad kiosk view of the Dashboard (opt-in per device: Kiosk view button / ?kiosk=1; Classic view turns it off).
+var CACHE_VERSION = 'v182';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 var SHELL_FILES = [

@@ -174,6 +174,7 @@
   </div>
 </div>
 <div class="pane on" id="pane-day">
+  <button type="button" class="kv-on" id="kioskOnBtn" onclick="kioskSet(true)"><i class="fa-solid fa-table-columns" aria-hidden="true"></i> Kiosk view</button>
   <section class="jr-board" id="rideBoard" aria-live="polite" hidden></section>
   <!-- DAILY TIPS (owner 2026-10-28): cash the team recorded + online (Stripe) = total recorded.
        Read-only (airvalet_daily_tips); no split between staff. Falls back to the Stripe total alone. -->
@@ -3271,6 +3272,65 @@ function renderDay() {
   } else {
     document.getElementById('forgotSection').style.display='none';
   }
+  kioskGlance(arrived,lt,lm,forgot);
+}
+
+// ── iPad KIOSK VIEW (owner 2026-11-12, opt-in per device) ──────────
+// Same Dashboard laid out as a board: rides / tips / counts on top, then
+// Leaving Today | Leaving Tomorrow | Arrived + Sunday + Return passed.
+// It only MOVES the existing nodes (renderDay keeps filling them by id) and
+// puts them back when turned off, so no card or button logic is duplicated.
+// On/off per device: the button on the Dashboard, or ?kiosk=1 / ?kiosk=0.
+var KIOSK_KEY='av_kiosk', KIOSK_IDS=['rideBoard','stripeTipsKpi','titleToday','dToday','titleTomorrow','dTomorrow','titleArrived','dArrived','titleSunday','subSunday','dSunday','forgotSection'], _kioskSpots=null;
+function kioskWanted(){
+  try{
+    var q=new URLSearchParams(location.search).get('kiosk');
+    if(q==='1'||q==='0') localStorage.setItem(KIOSK_KEY,q);
+    return localStorage.getItem(KIOSK_KEY)==='1';
+  }catch(e){ return false; }
+}
+function kioskSet(on){ try{ localStorage.setItem(KIOSK_KEY,on?'1':'0'); }catch(e){} kioskApply(on); window.scrollTo(0,0); }
+function kioskBuild(){
+  var pane=document.getElementById('pane-day'), v=document.createElement('div');
+  v.id='kioskView'; v.className='kv';
+  v.innerHTML='<div class="kv-top"><div class="kv-w kv-rides" id="kvRides"><p class="kv-empty">&#9749; Jet Runway · nobody waiting for a ride back</p></div><div class="kv-tips" id="kvTips"></div><div class="kv-w kv-glance" id="kvGlance"></div></div>'+
+    '<div class="kv-board"><div class="kv-col kv-today" id="kvColToday"></div><div class="kv-col kv-tmrw" id="kvColTomorrow"></div>'+
+    '<div class="kv-stack"><div class="kv-col kv-arr" id="kvColArrived"></div><div class="kv-col kv-sun" id="kvColSunday"></div><div class="kv-col kv-late" id="kvColLate"></div></div></div>';
+  pane.insertBefore(v,pane.firstChild);
+  _kioskSpots={};
+  KIOSK_IDS.forEach(function(id){ var el=document.getElementById(id); if(!el) return; var ph=document.createComment('kiosk:'+id); el.parentNode.insertBefore(ph,el); _kioskSpots[id]=ph; });
+}
+function kioskApply(on){
+  if(typeof isTvMode==='function'&&isTvMode()) on=false;
+  var fresh=on&&!_kioskSpots;
+  if(fresh) kioskBuild();
+  if(!_kioskSpots) return;
+  var dest={rideBoard:'kvRides',stripeTipsKpi:'kvTips',titleToday:'kvColToday',dToday:'kvColToday',titleTomorrow:'kvColTomorrow',dTomorrow:'kvColTomorrow',
+    titleArrived:'kvColArrived',dArrived:'kvColArrived',titleSunday:'kvColSunday',subSunday:'kvColSunday',dSunday:'kvColSunday',forgotSection:'kvColLate'};
+  KIOSK_IDS.forEach(function(id){
+    var el=document.getElementById(id), ph=_kioskSpots[id]; if(!el||!ph) return;
+    if(on) document.getElementById(dest[id]).appendChild(el); else ph.parentNode.insertBefore(el,ph);
+  });
+  document.body.classList.toggle('av-kiosk',!!on);
+  var b=document.getElementById('kioskOnBtn'); if(b) b.hidden=!!on;
+  if(fresh) try{ renderDay(); }catch(e){ console.warn('Kiosk first render:', e); }
+}
+// Top-right counts on the kiosk; each one jumps to its column.
+function kioskGlance(arrived,lt,lm,forgot){
+  var el=document.getElementById('kvGlance'); if(!el) return;
+  var miss=arrived.filter(function(r){return !r.loc||!String(r.loc).trim();}).length;
+  var tile=function(col,n,label,cls){ return '<button type="button" class="kv-g '+cls+'" onclick="kioskJump(\''+col+'\')"><b>'+n+'</b><span>'+label+'</span></button>'; };
+  el.innerHTML='<div class="kv-gh"><span>Today at a glance</span><button type="button" class="kv-classic" onclick="kioskSet(false)">Classic view</button></div><div class="kv-gg">'+
+    tile('kvColArrived',arrived.length,'Arrived'+(miss?' · <em>'+miss+' no hangar</em>':''),'g-arr')+
+    tile('kvColToday',lt.filter(function(r){return r.status!=='DELIVERED';}).length,'Leaving today','g-today')+
+    tile('kvColTomorrow',lm.length,'Leaving tomorrow','g-tmrw')+
+    tile('kvColLate',forgot.length,'Return passed','g-late')+'</div>';
+}
+kioskApply(kioskWanted());
+function kioskJump(id){
+  var c=document.getElementById(id); if(!c) return;
+  c.scrollIntoView({behavior:'smooth',block:'start'});
+  c.classList.add('kv-flash'); setTimeout(function(){ c.classList.remove('kv-flash'); },1400);
 }
 
 // Updates the New Entry location pills' "(N)" counts in place — cheap
