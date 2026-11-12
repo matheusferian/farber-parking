@@ -3293,7 +3293,7 @@ function kioskSet(on){ try{ localStorage.setItem(KIOSK_KEY,on?'1':'0'); }catch(e
 function kioskBuild(){
   var pane=document.getElementById('pane-day'), v=document.createElement('div');
   v.id='kioskView'; v.className='kv';
-  v.innerHTML='<div class="kv-top"><div class="kv-w kv-rides" id="kvRides"><p class="kv-empty">&#9749; Jet Runway · nobody waiting for a ride back</p></div><div class="kv-tips" id="kvTips"></div><div class="kv-w kv-glance" id="kvGlance"></div></div>'+
+  v.innerHTML='<div class="kv-top"><div class="kv-w kv-glance" id="kvGlance"></div><div class="kv-tips" id="kvTips"></div><div class="kv-w kv-rides" id="kvRides"></div></div>'+
     '<div class="kv-board"><div class="kv-col kv-today" id="kvColToday"></div><div class="kv-col kv-tmrw" id="kvColTomorrow"></div>'+
     '<div class="kv-stack"><div class="kv-col kv-arr" id="kvColArrived"></div><div class="kv-col kv-sun" id="kvColSunday"></div><div class="kv-col kv-late" id="kvColLate"></div></div></div>';
   pane.insertBefore(v,pane.firstChild);
@@ -7290,6 +7290,38 @@ function ci2Open(){
   document.getElementById('modalTitle').textContent = 'New check-in';
   document.getElementById('modalSub').textContent = 'Name, phone and consent create the ticket and send the valet pass.';
   ci2Bind(); ci2RenderPickers(); ci2RenderHangars(); ci2RenderMakes(); ci2RenderColors(); ci2RenderWash(); ci2RenderPickLoc(); ci2Need();
+  kioskNeSteps();
+}
+// Kiosk view (owner 2026-11-12): the same check-in form, full screen, one step at a time
+// (Guest → Return → Texts). It only shows/hides parts of #ci2Step — every field, check,
+// the countdown and the ticket/SMS creation stay ci2's own. After the ticket exists the
+// tag + Print stay on the left and the details on the right (CSS), Hangar and Vehicle open.
+var KNE_STEPS=[['guest','Guest'],['ret','Return'],['texts','Texts']];
+function kioskNeSteps(){
+  var step=ci2El('ci2Step'); if(!step||!document.body.classList.contains('av-kiosk')) return;
+  var tag=function(el,k){ if(el) el.setAttribute('data-ks',k); };
+  tag(step.querySelector('.ci2-fly'),'guest'); tag(step.querySelector('.ci2-np'),'guest'); tag(ci2El('gxCi2'),'guest');
+  tag(ci2El('ci2Er'),'guest ret');
+  var rp=step.querySelector('.ci2-retpick[data-n="1"]'); tag(rp&&rp.closest('.ci2-f'),'ret');
+  tag(step.querySelector('.ci2-consent'),'texts');
+  ['ci2Dup','ci2SaveErr','ci2NoText','ci2Cd','ci2Saving'].forEach(function(id){ tag(ci2El(id),'texts'); });
+  var bar=document.createElement('div'); bar.className='kne-steps'; bar.id='kneSteps'; step.insertBefore(bar,step.firstChild);
+  var nav=document.createElement('div'); nav.className='kne-nav'; nav.id='kneNav'; step.insertBefore(nav,step.querySelector('.ci2-foot'));
+  ['ci2SHangar','ci2SVeh'].forEach(function(id){ var s=ci2El(id); if(s&&!s.classList.contains('open')) ci2Toggle(id); });
+  var rd=step.querySelector('.ci2-consent details'); if(rd) rd.open=true;
+  kioskNeGo('guest');
+}
+function kioskNeGuestOk(){ var n=ci2El('ci2Name'), p=ci2El('ci2Phone'); return !!(n&&n.value.trim())&&!!p&&ci2PhoneValid(p.value); }
+function kioskNeGo(k){
+  var step=ci2El('ci2Step'), bar=ci2El('kneSteps'), nav=ci2El('kneNav'); if(!step||!bar||!nav) return;
+  if(k!=='guest'&&!kioskNeGuestOk()){ ci2Toast('Add the name and a valid phone first.',true); k='guest'; }
+  step.setAttribute('data-kstep',k);
+  var i=KNE_STEPS.map(function(s){return s[0];}).indexOf(k), prev=KNE_STEPS[i-1], next=KNE_STEPS[i+1];
+  bar.innerHTML=KNE_STEPS.map(function(s,j){ return '<button type="button" class="'+(j===i?'on':j<i?'ok':'')+'" onclick="kioskNeGo(\''+s[0]+'\')"><i>'+(j<i?'✓':(j+1))+'</i>'+s[1]+'</button>'; }).join('');
+  nav.innerHTML=(prev?'<button type="button" class="kne-back" onclick="kioskNeGo(\''+prev[0]+'\')">‹ '+prev[1]+'</button>':'')+
+    (next?'<button type="button" class="kne-next" onclick="kioskNeGo(\''+next[0]+'\')">Next · '+next[1]+' ›</button>':'');
+  var first=k==='guest'?ci2El('ci2Name'):null; if(first&&!first.value) setTimeout(function(){ first.focus(); },60);
+  var m=document.querySelector('#addOv .modal'); if(m) m.scrollTop=0;
 }
 // Passenger / Rental / Valet tabs are hidden once the v2 ticket exists (switching would hide it).
 function ci2ModeRow(show){ var b = document.getElementById('modeValet'), row = b && b.closest('.fr'); if (row) row.style.display = show ? '' : 'none'; }

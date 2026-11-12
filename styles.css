@@ -3257,12 +3257,13 @@ img.mk-asc{height:calc(var(--r)*.24);border:0;padding:0;}
 #kioskView{display:none}
 body.av-kiosk #kioskView{display:block;padding:16px 18px 110px}
 body.av-kiosk #pane-day>.dsec{display:none}
-.kv-top{display:grid;gap:14px;grid-template-columns:1.15fr 1fr .95fr;align-items:stretch}
+/* Jet Runway rides are rare (owner 2026-11-12): not first, and the widget only shows while a ride is open. */
+.kv-top{display:grid;gap:14px;grid-template-columns:1fr 1fr;align-items:stretch}
+.kv-top:has(.kv-rides :is(.jr-card,.jr-row)){grid-template-columns:.95fr 1fr 1.05fr}
+.kv-rides:not(:has(.jr-board:not([hidden]) :is(.jr-card,.jr-row))){display:none}
 .kv-w{background:var(--s);border-radius:22px;padding:14px 16px;box-shadow:0 1px 2px rgba(1,21,50,.06),0 4px 14px rgba(1,21,50,.05);min-width:0}
 .kv-rides{padding:10px}
 .kv-rides .jr-board{margin:0}
-.kv-rides:not(:has(.jr-board[hidden])) .kv-empty{display:none}
-.kv-empty{margin:0;padding:8px;color:var(--mu);font-weight:600}
 .kv-rides .jr-card{border-radius:18px;padding:14px 16px}
 .kv-rides .jr-n{font-size:32px}
 .kv-rides .jr-b{min-height:54px;font-size:16px;border-radius:999px}
@@ -3312,10 +3313,41 @@ body.av-kiosk #pane-day>.dsec{display:none}
 .kv-col .qd-btn.wcb-btn{font-size:13px;width:100%}
 .kv-col .eday{padding:6px 8px 12px}
 @media (max-width:1100px){
-  .kv-top{grid-template-columns:1fr 1fr}.kv-glance{grid-column:1/3}.kv-gg{grid-template-columns:repeat(4,1fr)}
+  .kv-top,.kv-top:has(.kv-rides :is(.jr-card,.jr-row)){grid-template-columns:1fr 1fr}.kv-glance{grid-column:1/3}.kv-gg{grid-template-columns:repeat(4,1fr)}
   .kv-board{grid-template-columns:repeat(2,minmax(0,1fr))}
   .kv-stack{grid-column:1/3;grid-template-columns:repeat(2,minmax(0,1fr))}.kv-stack>.kv-arr{grid-column:1/3}
 }
-@media (max-width:700px){.kv-top,.kv-board,.kv-stack{grid-template-columns:1fr}.kv-glance,.kv-stack,.kv-stack>.kv-arr{grid-column:auto}.kv-gg{grid-template-columns:1fr 1fr}}
+@media (max-width:700px){.kv-top,.kv-top:has(.kv-rides :is(.jr-card,.jr-row)),.kv-board,.kv-stack{grid-template-columns:1fr}.kv-glance,.kv-stack,.kv-stack>.kv-arr{grid-column:auto}.kv-gg{grid-template-columns:1fr 1fr}}
 .kv-tips .dtp-h{flex-wrap:wrap;row-gap:8px}
 .kv-tips .dtp-h h2{white-space:nowrap}
+
+/* Kiosk view — New check-in full screen, one step at a time (see kioskNeSteps()). */
+body.av-kiosk #addOv{align-items:stretch}
+body.av-kiosk #addOv .modal.ci2-wide{max-width:none;width:100%;max-height:100%;height:100%;border-radius:0;border-top:0;padding:18px max(22px,env(safe-area-inset-right)) 24px max(22px,env(safe-area-inset-left))}
+.kne-steps{display:flex;gap:8px;margin-bottom:18px;flex-wrap:wrap}
+.kne-steps button{display:flex;align-items:center;gap:8px;min-height:44px;padding:0 16px 0 6px;border:0;border-radius:999px;background:var(--s2);color:var(--mu);font:700 15px 'Inter',sans-serif;cursor:pointer}
+.kne-steps button i{width:32px;height:32px;border-radius:50%;background:var(--b);display:flex;align-items:center;justify-content:center;font-style:normal;font-weight:800;color:var(--mu)}
+.kne-steps button.on{background:var(--navy);color:#fff}.kne-steps button.on i{background:rgba(255,255,255,.2);color:#fff}
+.kne-steps button.ok i{background:var(--ok);color:#fff}
+.kne-nav{display:flex;gap:10px;margin-top:18px}
+.kne-nav button{min-height:60px;border-radius:999px;font:800 17px 'Inter',sans-serif;cursor:pointer;padding:0 24px}
+.kne-back{border:1.5px solid var(--b);background:var(--s);color:var(--navy)}
+.kne-next{flex:1;border:0;background:var(--navy);color:#fff}
+#ci2Step[data-kstep="guest"] [data-ks]:not([data-ks~="guest"]),#ci2Step[data-kstep="ret"] [data-ks]:not([data-ks~="ret"]),#ci2Step[data-kstep="texts"] [data-ks]:not([data-ks~="texts"]){display:none}
+body.av-kiosk .ci2-wide #ci2Step{min-height:calc(100vh - 170px);display:flex;flex-direction:column}
+body.av-kiosk .ci2-wide #ci2Step .kne-nav{margin-top:auto;padding-top:18px}
+body.av-kiosk .ci2-wide .ci2-seg button{min-height:96px;font-size:21px}
+body.av-kiosk .ci2-wide .ci2-consent details{margin-top:12px}
+body.av-kiosk .ci2-wide .ci2-consent summary{font-size:16px;min-height:44px}
+@media (min-width:1101px){
+  body.av-kiosk .ci2-wide .ci2{display:grid;grid-template-columns:380px minmax(0,1fr);gap:16px;align-items:start}
+  body.av-kiosk .ci2-wide .ci2>#ci2Step{grid-column:1/-1}
+  body.av-kiosk .ci2-wide .ci2>#ci2Created{grid-column:1;grid-row:1}
+  body.av-kiosk .ci2-wide .ci2>#ci2Dock{grid-column:1;grid-row:2;position:static;flex-wrap:wrap;margin:0;padding:12px;border:1px solid var(--b);border-radius:16px}
+  body.av-kiosk .ci2-wide .ci2>#ci2Dock .ci2-need{flex-basis:100%;margin-bottom:6px}
+  body.av-kiosk .ci2-wide .ci2>#ci2Dock .ci2-printw{flex:1}
+  body.av-kiosk .ci2-wide .ci2>#ci2Dock .ci2-print{width:100%;min-height:60px;font-size:18px}
+  body.av-kiosk .ci2-wide .ci2>#ci2Details{grid-column:2;grid-row:1/span 3}
+}
+body.av-kiosk .ci2-wide #ci2Hangars button{min-height:64px;min-width:120px;font-size:18px;font-weight:700}
+body.av-kiosk .ci2-wide .ci2-script{font-size:17px;line-height:1.5}

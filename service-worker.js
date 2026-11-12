@@ -107,7 +107,8 @@
 // v180: Jet Runway Café rides (New Entry tab, READY card on the Dashboard, TV bar, /r tip page).
 // v181: Makers robot — same last name pairs show what Makers says (flights out/back, together?) + Same family button.
 // v182: iPad kiosk view of the Dashboard (opt-in per device: Kiosk view button / ?kiosk=1; Classic view turns it off).
-var CACHE_VERSION = 'v182';
+// v183: kiosk view — New check-in full screen in steps (Guest / Return / Texts); Jet Runway widget only while a ride is open, after tips.
+var CACHE_VERSION = 'v183';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 var SHELL_FILES = [
