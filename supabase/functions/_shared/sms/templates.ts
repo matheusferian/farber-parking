@@ -109,8 +109,12 @@ export function firstName(name: string | null): string {
   return Array.from(t).map((ch) => (isGsm7(ch) ? ch : ch.normalize('NFD').replace(/[\u0300-\u036f]/g, ''))).join('')
     .replace(/[^A-Za-z\u00C0-\u00FF'-]/g, '').slice(0, 20);
 }
+// Owner 2026-11-12: a Makers car already LEFT at Customs (delivered there) is parked with the key on the front
+// tire, driver's side — the owner chose to say so in the text (the only SMS that tells where a key is).
+export const isLeftAtCustoms = (p: Pick<PassengerCtx, 'status' | 'delivery_type'>) => p.status === 'DELIVERED' && p.delivery_type === 'CUSTOMS';
 function readyVariant(p: PassengerCtx): string {
   if (p.return_operator === 'ASCEND') return 'CUSTOMS_WELCOME';
+  if (p.return_operator === 'MAKERS' && isLeftAtCustoms(p)) return 'CUSTOMS_LEFT';
   if (p.return_operator === 'MAKERS') return p.delivery_at_customs ? 'CUSTOMS_EXCEPTION' : 'HANGAR19_WELCOME_BACK';
   return 'none';
 }
@@ -150,7 +154,7 @@ export const TEMPLATES: Record<MessageType, Template> = {
   // HANGAR19_WELCOME_BACK / CUSTOMS_WELCOME_*: chosen by the RETURN flight.
   // Manual only (staff button) — never automatic.
   VEHICLE_READY: {
-    type: 'VEHICLE_READY', status: 'APPROVED', version: 'ready-2026-10-25b', freeText: false, allowedRoles: OPS,
+    type: 'VEHICLE_READY', status: 'APPROVED', version: 'ready-2026-11-12', freeText: false, allowedRoles: OPS,
     defaultEventRef: (_now, p) => 'ready:' + readyVariant(p),
     guard: (p) => {
       // A car left at Customs is marked DELIVERED (delivery_type CUSTOMS) before
@@ -159,10 +163,13 @@ export const TEMPLATES: Record<MessageType, Template> = {
       if (!p.return_operator) return 'RETURN_NOT_SET';
       if (p.return_operator === 'OTHER') return 'RETURN_OTHER_MANUAL';
       // A Customs request under review: no definitive pickup instruction.
-      if (p.return_operator === 'MAKERS' && !p.delivery_at_customs && p.customs_exception_requested_at) return 'CUSTOMS_REQUEST_PENDING';
+      if (p.return_operator === 'MAKERS' && !p.delivery_at_customs && p.customs_exception_requested_at && !isLeftAtCustoms(p)) return 'CUSTOMS_REQUEST_PENDING';
       return null;
     },
     render: (p) => {
+      if (readyVariant(p) === 'CUSTOMS_LEFT') {
+        return { variant: 'CUSTOMS_LEFT', body: `${SENDER}: Welcome back! Your car is parked at U.S. Customs. The key is on the front tire, driver's side. Questions? Reply here or call ${VALET_PHONE}.` };
+      }
       if (readyVariant(p) === 'CUSTOMS_EXCEPTION') {
         // Makers return, Customs approved case by case. Owner 2026-10-25 (final):
         // never states where the key is; the guest replies on arrival and the

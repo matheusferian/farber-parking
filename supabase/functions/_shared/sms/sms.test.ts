@@ -67,7 +67,7 @@ Deno.test('templates: REPLY, CHECK_IN (D1), VEHICLE_READY and VEHICLE_DELIVERED 
   for (const t of Object.values(TEMPLATES)) {
     if (t.type === 'REPLY') { assertEquals(t.status, 'APPROVED'); assert(t.freeText); continue; }
     if (t.type === 'CHECK_IN') { assertEquals(t.status, 'APPROVED'); assertEquals(t.version, 'checkin-2026-11-06-live-b'); continue; }
-    if (t.type === 'VEHICLE_READY') { assertEquals(t.status, 'APPROVED'); assertEquals(t.version, 'ready-2026-10-25b'); continue; }
+    if (t.type === 'VEHICLE_READY') { assertEquals(t.status, 'APPROVED'); assertEquals(t.version, 'ready-2026-11-12'); continue; }
     if (t.type === 'VEHICLE_DELIVERED') { assertEquals(t.status, 'APPROVED'); assertEquals(t.version, 'delivered-2026-10-25'); continue; }
     assertEquals(t.status, 'PENDING_APPROVAL');
     assertEquals(codeOf(() => renderMessage(t, P({ status: 'DELIVERED', delivery_type: 'CUSTOMS', customs_welcome_sent: true, return_operator: 'MAKERS' }), ENV, 'x')), 'TEMPLATE_NOT_APPROVED');
@@ -155,7 +155,15 @@ Deno.test('Makers Customs exception: 8 owner scenarios (template + pickup rules)
 });
 Deno.test('Welcome Back: a car left at Customs (DELIVERED, CUSTOMS) can still get its Customs text; other deliveries cannot', () => {
   const r = (o: Partial<PassengerCtx>) => { try { return renderMessage(A.VEHICLE_READY, P(o), ENV).variant; } catch (e) { return (e as TemplateError).code; } };
-  assertEquals(r({ return_operator: 'MAKERS', delivery_at_customs: true, status: 'DELIVERED', delivery_type: 'CUSTOMS' }), 'CUSTOMS_EXCEPTION');
+  // Owner 2026-11-12: a Makers car LEFT at Customs says where the key is (front tire, driver's side), with or
+  // without an approved exception; Ascend keeps the in-person handoff.
+  assertEquals(r({ return_operator: 'MAKERS', delivery_at_customs: true, status: 'DELIVERED', delivery_type: 'CUSTOMS' }), 'CUSTOMS_LEFT');
+  assertEquals(r({ return_operator: 'MAKERS', delivery_at_customs: false, status: 'DELIVERED', delivery_type: 'CUSTOMS' }), 'CUSTOMS_LEFT');
+  assertEquals(r({ return_operator: 'MAKERS', customs_exception_requested_at: 'x', status: 'DELIVERED', delivery_type: 'CUSTOMS' }), 'CUSTOMS_LEFT');
+  const left = renderMessage(A.VEHICLE_READY, P({ return_operator: 'MAKERS', status: 'DELIVERED', delivery_type: 'CUSTOMS' }), ENV).body;
+  assertEquals(left, "Makers Air Valet: Welcome back! Your car is parked at U.S. Customs. The key is on the front tire, driver's side. Questions? Reply here or call (954) 352-1010.");
+  assertEquals(seg(left), 1);
+  assertFalse(/Hangar 19/.test(left));
   assertEquals(r({ return_operator: 'ASCEND', status: 'DELIVERED', delivery_type: 'CUSTOMS' }), 'CUSTOMS_WELCOME');
   assertEquals(r({ return_operator: 'MAKERS', status: 'DELIVERED', delivery_type: 'NORMAL' }), 'NOT_IN_CUSTODY');
   assertEquals(r({ return_operator: 'ASCEND', status: 'ARCHIVED', delivery_type: 'CUSTOMS' }), 'NOT_IN_CUSTODY');
@@ -166,6 +174,8 @@ Deno.test('ready idempotency key follows the instruction variant (exception ≠ 
   assertEquals(k({ return_operator: 'MAKERS', delivery_at_customs: true }), 'ready:CUSTOMS_EXCEPTION');
   assertEquals(k({ return_operator: 'ASCEND' }), 'ready:CUSTOMS_WELCOME');
 });
+// Owner 2026-11-12: the ONE exception is a Makers car already left at Customs (VEHICLE_READY variant
+// CUSTOMS_LEFT, front tire). Everything else below still never says where a key is.
 Deno.test('security: no SMS ever states where a key is left (Makers Customs exception included)', () => {
   const bodies: string[] = [];
   for (const dep of ['0714-3', 'A-0714-1']) {

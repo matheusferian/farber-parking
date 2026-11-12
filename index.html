@@ -6486,7 +6486,7 @@ function buildCustomsWelcomeSms(r){
   // Owner 2026-11-12: a car already delivered at Customs is parked there with the key on the front tire,
   // driver's side (always the same place).
   if(r&&r.status==='DELIVERED'&&r.delivery_type==='CUSTOMS'){
-    return 'Makers Air Valet: Welcome back! Your vehicle is parked at U.S. Customs. The key is on the front tire, driver\u2019s side. Questions? Reply here or call (954) 352-1010.';
+    return 'Makers Air Valet: Welcome back! Your car is parked at U.S. Customs. The key is on the front tire, driver\'s side. Questions? Reply here or call (954) 352-1010.';  // same as server VEHICLE_READY CUSTOMS_LEFT
   }
   return 'Makers Air Valet: Welcome back! As arranged, your vehicle will be at Customs. When you arrive, reply here or call (954) 352-1010 for your key.';
 }
