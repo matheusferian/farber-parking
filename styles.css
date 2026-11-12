@@ -3361,3 +3361,35 @@ body.av-kiosk .ci2-wide .ci2-script{font-size:17px;line-height:1.5}
 .mk-stop{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:calc(var(--r)*.24);letter-spacing:.08em;color:#FF8A8F;margin-right:calc(var(--r)*.04)}
 .mk-then{font-size:calc(var(--r)*.42);color:#8FA3C7;margin:0 calc(var(--r)*.06);line-height:1}
 .mk-departed .mk-dtags{text-decoration:line-through;text-decoration-thickness:3px}
+/* Kiosk view on iPhone (owner 2026-11-12): tabs on top (Today · Tomorrow · Arrived · Sunday · Late), one list
+   at a time, then tips; Jet Runway only while a ride is open. Same cards and actions as the iPad. */
+.kv-tabs{display:none}
+@media (max-width:700px){
+  .kv-on{display:inline-flex;align-items:center;gap:8px;margin:12px 12px 0;min-height:44px;padding:0 16px;border-radius:999px;border:1px solid var(--b);background:var(--s);color:var(--navy);font:700 14px 'Sora',sans-serif;cursor:pointer}
+  .kv-on[hidden]{display:none}
+  body.av-kiosk #kioskView{display:flex;flex-direction:column;gap:12px;padding:0 10px 110px}
+  body.av-kiosk .kv-top{display:contents}
+  .kv-tabs{display:flex;order:1;gap:6px;overflow-x:auto;position:sticky;top:var(--kv-hdr,64px);z-index:40;margin:0 -10px;padding:10px;background:var(--bg);scrollbar-width:none;-webkit-overflow-scrolling:touch}
+  .kv-tabs::-webkit-scrollbar{display:none}
+  .kv-tab{flex:0 0 auto;min-width:68px;min-height:58px;border:0;border-radius:16px;padding:6px 10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;cursor:pointer;font-family:'Sora',sans-serif;color:var(--tx);box-shadow:inset 0 0 0 1.5px transparent}
+  .kv-tab b{font-size:21px;font-weight:800;line-height:1}
+  .kv-tab span{font-size:11.5px;font-weight:700;white-space:nowrap}
+  .kv-tab em{font-style:normal;color:#fff;background:var(--red);border-radius:999px;padding:0 5px;font-size:10px}
+  .kv-tab.g-today{background:rgba(255,197,71,.22)}.kv-tab.g-today b{color:#9A6A00}
+  .kv-tab.g-tmrw{background:rgba(91,127,189,.15)}.kv-tab.g-tmrw b{color:var(--pur)}
+  .kv-tab.g-arr{background:rgba(26,158,106,.12)}.kv-tab.g-arr b{color:var(--ok)}
+  .kv-tab.g-sun{background:rgba(232,96,48,.12)}.kv-tab.g-sun b{color:#C2410C}
+  .kv-tab.g-late{background:rgba(231,76,60,.10)}.kv-tab.g-late b{color:var(--red)}
+  .kv-tab[aria-selected="true"]{box-shadow:inset 0 0 0 2.5px var(--navy)}
+  .kv-tab-classic{background:var(--s);border:1px solid var(--b)}
+  .kv-glance{display:none}
+  .kv-rides{order:2}
+  .kv-board{order:3;display:block;margin-top:0}
+  .kv-tips{order:4}
+  .kv-stack{display:block}
+  .kv-board .kv-col{display:none}
+  body[data-kvtab="today"] #kvColToday,body[data-kvtab="tomorrow"] #kvColTomorrow,body[data-kvtab="arrived"] #kvColArrived,
+  body[data-kvtab="sunday"] #kvColSunday,body[data-kvtab="late"] #kvColLate{display:block}
+  body[data-kvtab="late"] .kv-late:has(#forgotSection[style*="none"])::after{content:"No cars with a late return.";display:block;padding:14px 8px;color:var(--mu);font-weight:600}
+  .kv-col{scroll-margin-top:calc(var(--kv-hdr,64px) + 80px)}
+}

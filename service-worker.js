@@ -111,7 +111,8 @@
 // v184: TV departures — DELAYED while the plane is still at FXE after its time; destinations of the people on board (route = first stop only).
 // v185: TV departures — first stop + islands as bag tags (1ST STOP SAQ › TYM 4 · GHC 2).
 // v192: kiosk New check-in — name, phone and return date on the first screen (Guest → Texts).
-var CACHE_VERSION = 'v192';
+// v193: kiosk view on iPhone — tabs (Today · Tomorrow · Arrived · Sunday · Late), one list at a time; Kiosk view button on iPhone too.
+var CACHE_VERSION = 'v193';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 var SHELL_FILES = [

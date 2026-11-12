@@ -3272,7 +3272,7 @@ function renderDay() {
   } else {
     document.getElementById('forgotSection').style.display='none';
   }
-  kioskGlance(arrived,lt,lm,forgot);
+  kioskGlance(arrived,lt,lm,forgot,ls);
 }
 
 // ── iPad KIOSK VIEW (owner 2026-11-12, opt-in per device) ──────────
@@ -3293,7 +3293,7 @@ function kioskSet(on){ try{ localStorage.setItem(KIOSK_KEY,on?'1':'0'); }catch(e
 function kioskBuild(){
   var pane=document.getElementById('pane-day'), v=document.createElement('div');
   v.id='kioskView'; v.className='kv';
-  v.innerHTML='<div class="kv-top"><div class="kv-w kv-glance" id="kvGlance"></div><div class="kv-tips" id="kvTips"></div><div class="kv-w kv-rides" id="kvRides"></div></div>'+
+  v.innerHTML='<div class="kv-top"><div class="kv-tabs" id="kvTabs" role="tablist" aria-label="Cars"></div><div class="kv-w kv-glance" id="kvGlance"></div><div class="kv-tips" id="kvTips"></div><div class="kv-w kv-rides" id="kvRides"></div></div>'+
     '<div class="kv-board"><div class="kv-col kv-today" id="kvColToday"></div><div class="kv-col kv-tmrw" id="kvColTomorrow"></div>'+
     '<div class="kv-stack"><div class="kv-col kv-arr" id="kvColArrived"></div><div class="kv-col kv-sun" id="kvColSunday"></div><div class="kv-col kv-late" id="kvColLate"></div></div></div>';
   pane.insertBefore(v,pane.firstChild);
@@ -3312,11 +3312,12 @@ function kioskApply(on){
     if(on) document.getElementById(dest[id]).appendChild(el); else ph.parentNode.insertBefore(el,ph);
   });
   document.body.classList.toggle('av-kiosk',!!on);
+  if(on){ document.body.setAttribute('data-kvtab',_kioskTab); kioskHdr(); }
   var b=document.getElementById('kioskOnBtn'); if(b) b.hidden=!!on;
   if(fresh) try{ renderDay(); }catch(e){ console.warn('Kiosk first render:', e); }
 }
 // Top-right counts on the kiosk; each one jumps to its column.
-function kioskGlance(arrived,lt,lm,forgot){
+function kioskGlance(arrived,lt,lm,forgot,ls){
   var el=document.getElementById('kvGlance'); if(!el) return;
   var miss=arrived.filter(function(r){return !r.loc||!String(r.loc).trim();}).length;
   var tile=function(col,n,label,cls){ return '<button type="button" class="kv-g '+cls+'" onclick="kioskJump(\''+col+'\')"><b>'+n+'</b><span>'+label+'</span></button>'; };
@@ -3325,9 +3326,25 @@ function kioskGlance(arrived,lt,lm,forgot){
     tile('kvColToday',lt.filter(function(r){return r.status!=='DELIVERED';}).length,'Leaving today','g-today')+
     tile('kvColTomorrow',lm.length,'Leaving tomorrow','g-tmrw')+
     tile('kvColLate',forgot.length,'Return passed','g-late')+'</div>';
+  // iPhone (owner 2026-11-12): the columns become tabs, one list at a time.
+  var tabs=document.getElementById('kvTabs'); if(!tabs) return;
+  var t=function(id,n,label,cls,alert){ return '<button type="button" role="tab" class="kv-tab '+cls+'" data-tab="'+id+'" aria-selected="'+(_kioskTab===id)+'" onclick="kioskTab(\''+id+'\')"><b>'+n+'</b><span>'+label+(alert?' <em>!</em>':'')+'</span></button>'; };
+  tabs.innerHTML=t('today',lt.filter(function(r){return r.status!=='DELIVERED';}).length,'Today','g-today')+t('tomorrow',lm.length,'Tomorrow','g-tmrw')+
+    t('arrived',arrived.length,'Arrived','g-arr',miss>0)+t('sunday',(ls||[]).length,'Sunday','g-sun')+t('late',forgot.length,'Late','g-late')+
+    '<button type="button" class="kv-tab kv-tab-classic" onclick="kioskSet(false)" aria-label="Classic view"><b>&#8634;</b><span>Classic</span></button>';
+}
+var _kioskTab='today';
+// iPhone: the tab bar sticks under the (sticky) app header.
+function kioskHdr(){ var h=document.querySelector('header'); if(h) document.documentElement.style.setProperty('--kv-hdr',h.offsetHeight+'px'); }
+window.addEventListener('resize',function(){ if(document.body.classList.contains('av-kiosk')) kioskHdr(); });
+function kioskTab(id){
+  _kioskTab=id; document.body.setAttribute('data-kvtab',id);
+  Array.prototype.forEach.call(document.querySelectorAll('#kvTabs .kv-tab[data-tab]'),function(b){ b.setAttribute('aria-selected',String(b.getAttribute('data-tab')===id)); });
+  var v=document.getElementById('kioskView'); if(v&&window.matchMedia('(max-width:700px)').matches) window.scrollTo(0,v.getBoundingClientRect().top+window.scrollY-60);
 }
 kioskApply(kioskWanted());
 function kioskJump(id){
+  if(window.matchMedia('(max-width:700px)').matches){ kioskTab({kvColToday:'today',kvColTomorrow:'tomorrow',kvColArrived:'arrived',kvColSunday:'sunday',kvColLate:'late'}[id]||'today'); return; }
   var c=document.getElementById(id); if(!c) return;
   c.scrollIntoView({behavior:'smooth',block:'start'});
   c.classList.add('kv-flash'); setTimeout(function(){ c.classList.remove('kv-flash'); },1400);
