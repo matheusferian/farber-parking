@@ -1,6 +1,6 @@
 // deno test supabase/functions/_shared/makers/  — synthetic names only.
 import { assertEquals } from 'jsr:@std/assert@1';
-import { HeldCar, isAscendFlight, pickTrip, runSync, SuiteLike } from './sync.ts';
+import { HeldCar, isAscendFlight, pickTrip, runSync, SuiteLike, tripFromFlights } from './sync.ts';
 import type { Leg, PaxRow, Trip } from './suite.ts';
 
 const LEGS: Leg[] = [
@@ -194,4 +194,40 @@ Deno.test('not found in View Reservation (50-row cap): the flight list by last n
   assertEquals(r.not_found_list.map((x) => x.passenger_id), [3, 4]);
   assertEquals(calls.filter((c) => c.startsWith('last')).length, 4);
   assertEquals(calls[1], 'last SMITH 10/31/2026 3/11/2027');
+});
+
+// Owner 2026-11-12 (SANTIAGO ALVAREZ): Makers showed Return = the departure day on a booking with no return yet;
+// the robot said "return 11/12", staff moved our 11/15 to today, and he was on no flight back.
+Deno.test('a same-day Makers return counts only when the person is on a flight landing at FXE that day', async () => {
+  const TR: Record<string, Trip[]> = {
+    ALVAREZ: [{ last: 'ALVAREZ', first: 'SANTIAGO', dep: '2026-11-12', depTime: '07:30', ret: '2026-11-12', retTime: '' }],
+    DAYER: [{ last: 'DAYER', first: 'DAN', dep: '2026-11-12', depTime: '06:45', ret: '2026-11-12', retTime: '17:00' }],
+  };
+  const IN12: PaxRow[] = [{ date: '11/12/2026', flight: '1538', from: 'GHC', to: 'FXE', last: 'DAYER', first: 'DAN', retDate: '' }];
+  const s: SuiteLike = {
+    schedule: async () => [], trips: async (last) => TR[last] || [],
+    passengers: async (mdy, d) => (mdy === '11/12/2026' && d.to ? IN12 : []),
+  };
+  const r = await runSync(s, { date: '2026-11-13', today: '2026-11-12', feedback: [], pool: [
+    car(1, 'SANTIAGO ALVAREZ', '11/15/2026', { checkin: '2026-11-12' }),
+    car(2, 'DAN DAYER', '11/14/2026', { checkin: '2026-11-12' }),
+  ] });
+  assertEquals(r.date_diffs.map((d) => [d.system_name, d.makers]), [['DAN DAYER', '2026-11-12']]);   // real day trip: back on #1538
+  assertEquals(r.no_return.map((x) => x.system_name), ['SANTIAGO ALVAREZ']);                        // no flight back → no return booked
+  // the real case: two bookings — first leg one-way (Return = 11/12), the other with the return on 11/15
+  TR.ALVAREZ.push({ last: 'ALVAREZ', first: 'SANTIAGO', dep: '2026-11-12', depTime: '07:30', ret: '2026-11-15', retTime: '12:00' });
+  const r2 = await runSync(s, { date: '2026-11-13', today: '2026-11-12', feedback: [], pool: [car(1, 'SANTIAGO ALVAREZ', '11/12/2026', { checkin: '2026-11-12' })] });
+  assertEquals(r2.date_diffs.map((d) => [d.system_name, d.makers]), [['SANTIAGO ALVAREZ', '2026-11-15']]);
+  assertEquals(r2.no_return, []);
+  // flight list (second try): Return Date = departure day, real flight back on 11/15 → 11/15
+  // the real Makers rows (11/12): 2112 FXE-SAQ (two bookings: Return 11/12 and 11/15), SAQ-TYM, back 11/15 #1534
+  const FL: PaxRow[] = [
+    { date: '11/12/2026', flight: '2112', from: 'FXE', to: 'SAQ', last: 'ALVAREZ', first: 'SANTIAGO', retDate: '11/12/2026' },
+    { date: '11/12/2026', flight: '2112', from: 'FXE', to: 'SAQ', last: 'ALVAREZ', first: 'SANTIAGO', retDate: '11/15/2026' },
+    { date: '11/12/2026', flight: '2112', from: 'SAQ', to: 'TYM', last: 'ALVAREZ', first: 'SANTIAGO', retDate: '11/12/2026' },
+    { date: '11/15/2026', flight: '1534', from: 'GHC', to: 'FXE', last: 'ALVAREZ', first: 'SANTIAGO', retDate: '' },
+  ];
+  assertEquals(tripFromFlights(car(1, 'SANTIAGO ALVAREZ', null, { checkin: '2026-11-12' }), FL, '2026-11-12')?.ret, '2026-11-15');
+  assertEquals(tripFromFlights(car(1, 'SANTIAGO ALVAREZ', null, { checkin: '2026-11-12' }), FL.slice(0, 1), '2026-11-12')?.ret, '');
+  assertEquals(tripFromFlights(car(1, 'SANTIAGO ALVAREZ', null, { checkin: '2026-11-12' }), FL.slice(0, 3), '2026-11-12')?.ret, '2026-11-15');   // the booking with the real return wins
 });

@@ -103,10 +103,17 @@ export function tripFromFlights(car: HeldCar, rows: PaxRow[], today: string): Tr
     .sort((a, b) => mdyToIso(a.date).localeCompare(mdyToIso(b.date)));
   const ci = car.checkin || null;
   const outs = mine.filter((r) => r.from === 'FXE');
-  const retOf = (o: PaxRow) => mdyToIso(o.retDate) || mdyToIso(mine.find((r) => r.to === 'FXE' && mdyToIso(r.date) > mdyToIso(o.date))?.date || '');
+  // A Return Date equal to the departure day is not trusted (Makers shows it on bookings with no return yet):
+  // then the person's next flight back to FXE decides.
+  const retOf = (o: PaxRow) => {
+    const rd = mdyToIso(o.retDate), dep = mdyToIso(o.date);
+    if (rd && rd !== dep) return rd;
+    return mdyToIso(mine.find((r) => r.to === 'FXE' && mdyToIso(r.date) >= dep && r !== o)?.date || '');
+  };
   const out = ci
     ? outs.filter((r) => Math.abs((Date.parse(mdyToIso(r.date)) - Date.parse(ci)) / 864e5) <= 4)
-      .sort((a, b) => Math.abs(Date.parse(mdyToIso(a.date)) - Date.parse(ci)) - Math.abs(Date.parse(mdyToIso(b.date)) - Date.parse(ci)))[0]
+      .sort((a, b) => Math.abs(Date.parse(mdyToIso(a.date)) - Date.parse(ci)) - Math.abs(Date.parse(mdyToIso(b.date)) - Date.parse(ci))
+        || retOf(b).localeCompare(retOf(a)))[0]   // same day, two bookings: the one with the real return
     : outs.filter((r) => mdyToIso(r.date) <= today && (!retOf(r) || retOf(r) >= addDays(today, -1))).pop();
   if (!out) return null;
   return { last: out.last, first: out.first, dep: mdyToIso(out.date), depTime: '', ret: retOf(out), retTime: '' };
@@ -216,6 +223,21 @@ export async function runSync(suite: SuiteLike, o: { date: string; today: string
       }
     }
     if (!t) { not_found++; not_found_list.push({ passenger_id: car.id, ticket: car.ticket, system_name: car.name, ours: car.ret || null }); continue; }
+    // Owner 2026-11-12 (SANTIAGO ALVAREZ 1112-1: flew out today, the robot said "Makers return 11/12", staff
+    // moved our 11/15 to today, and he was on no flight back): Makers can show a Return date equal to the
+    // departure day on a booking with no return yet. A same-day return counts only when the person is
+    // really on a flight landing at FXE that day; otherwise it is "no return booked".
+    if (t.ret && t.ret === t.dep) {
+      let back = false;
+      try { back = (await arrivals(t.ret)).some((r) => samePerson(car.name, r)); } catch (e) {
+        const code = (e as { code?: string })?.code;
+        if (code === 'BLOCKED' || code === 'LAYOUT' || code === 'LOGIN_FAILED') throw e;
+        if (code === 'DEADLINE') { warnings.push('stopped early: time limit'); break; }
+      }
+      // The trip is often split in two bookings (first leg one-way, Return = same day; the other with the real
+      // return): then the booking with a later return wins.
+      if (!back) t = pickTrip(car, trips.filter((x) => x.ret && x.ret > x.dep), o.today) || { ...t, ret: '' };
+    }
     const ours = parseDate(car.ret);
     if (!t.ret) { no_return.push({ passenger_id: car.id, ticket: car.ticket, system_name: car.name, ours: car.ret || null }); continue; }
     if (t.ret === ours) continue;
