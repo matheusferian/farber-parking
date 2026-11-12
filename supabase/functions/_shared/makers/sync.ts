@@ -22,7 +22,9 @@ export type HeldCar = Candidate & { checkin?: string | null };   // check-in day
 // time = FXE arrival (inbound) or FXE departure (outbound); dep = departure from the island (inbound only),
 // used by the TV to show ON THE WAY before the aircraft is in radar range (owner 2026-11-06).
 // ids (outbound only): anonymous passenger keys (changes.ts) to tell cancelled from moved between readings.
-export type FlightSummary = { flight: string; route: string; tail: string; time: string; pax: number; ascend: boolean; day_trips?: number; dep?: string; ids?: string[] };
+// dests (outbound only, owner 2026-11-12): where the people on board are going (Passenger Flight List "TO"),
+// biggest first — route is only the first stop (e.g. FXE-SAQ, then on to Staniel Cay / Great Harbour).
+export type FlightSummary = { flight: string; route: string; tail: string; time: string; pax: number; ascend: boolean; day_trips?: number; dep?: string; ids?: string[]; dests?: { to: string; pax: number }[] };
 // Ascend (Makers' charter brand) flights are numbered 99xx in Makers Air Suite (9948/9949 on 2026-11-06/07).
 // Owner to confirm the rule; the Suite reports carry no client name to tell otherwise.
 export const isAscendFlight = (flight: string) => /^99\d{2}$/.test(String(flight || '').trim());
@@ -112,7 +114,10 @@ export async function runSync(suite: SuiteLike, o: { date: string; today: string
   const outbound: FlightSummary[] = L.filter((l) => l.from === 'FXE').map((l) => {
     const people = new Map<string, PaxRow>();
     for (const r of outPax) if (r.flight === l.flight) people.set(`${r.last}|${r.first}`, r);
-    return { flight: l.flight, route: `FXE-${l.to}`, tail: l.tail, time: l.dep, pax: people.size, ascend: isAscendFlight(l.flight),
+    const byDest = new Map<string, number>();
+    for (const r of people.values()) if (r.to) byDest.set(r.to, (byDest.get(r.to) || 0) + 1);
+    const dests = [...byDest].map(([to, pax]) => ({ to, pax })).sort((a, b) => b.pax - a.pax || a.to.localeCompare(b.to));
+    return { flight: l.flight, route: `FXE-${l.to}`, tail: l.tail, time: l.dep, pax: people.size, ascend: isAscendFlight(l.flight), dests,
       // Owner 2026-11-07: a day trip only when Makers shows the return the SAME day AND the person is booked on a
       // flight back to FXE that day (the passenger list to FXE) — the return date alone is not enough.
       day_trips: [...people.values()].filter((r) => sameDay(r.retDate) && backToday.has(`${r.last}|${r.first}`)).length };

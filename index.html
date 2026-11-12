@@ -16721,6 +16721,10 @@ function tvMakersStatus(f, dayKey, nextKey){
     if(thisLeg && kt >= 50 && dist > 1 && !sp.inbound) return {code:'DEPARTED', text:'DEPARTED'};
     if(thisLeg && dist <= 2 && sp.track_status !== 'POWER_OFF' && kt < 50) return {code:'DOORS', text:'CLOSING DOORS'};
   }
+  // Owner 2026-11-12 (6:45 RV still at the hangar, shown DEPARTED): past the time, the plane's last known
+  // position is FXE and it has not flown since → DELAYED. A parked tracker sends nothing (no fresh fix), so
+  // this reads the last stored position. A track > 15 min after (dep − 60 min) means it flew. 90 min cap.
+  if(mins < -TV_MAKERS_DEPARTED_MIN && mins > -90 && tvMakersStillAtFxe(f, dep)) return {code:'DELAYED', text:'DELAYED'};
   if(mins < -TV_MAKERS_DEPARTED_MIN) return {code:'DEPARTED', text:'DEPARTED'};
   if(mins <= 10) return {code:'FINAL', text:'FINAL CALL'};   // last 10 min: red, fast blink
   if(mins <= TV_MAKERS_BOARDING_MIN) return {code:'BOARDING', text:'BOARDING'};
@@ -16730,10 +16734,28 @@ function tvMakersStatus(f, dayKey, nextKey){
   }
   return {code:'SCHEDULED', text:'ON TIME'};
 }
+function tvMakersStillAtFxe(f, dep){
+  var sp = _tv.spider && _tv.spider[String(f.tail || '').toUpperCase()]; if(!sp) return false;
+  if(!(Number(sp.dist_fxe_nm) <= 2) || Number(sp.speed_kt) >= 50) return false;
+  var on = Date.parse(sp.departed_at), last = Date.parse(sp.last_at);
+  var flewThisLeg = isFinite(on) && isFinite(last) && on >= dep.getTime() - 60 * 60000 && last - on > 15 * 60000;
+  return !flewThisLeg;
+}
+// Where the people on board are going (robot dests, owner 2026-11-12): the route is only the first stop
+// (FXE-SAQ, then Staniel Cay / Great Harbour). One destination = its name; several = "Staniel Cay 4 · Great Harbor Cay 2".
+// via = the first stop, only when nobody gets off there. Older readings without dests keep the route.
+function tvMakersDests(f){
+  var stop = String(f.route || '').replace(/^FXE-/, ''), list = Array.isArray(f.dests) ? f.dests.filter(function(d){ return d && d.to; }) : [];
+  var name = function(c){ return (typeof MF_AIRPORTS !== 'undefined' && MF_AIRPORTS[c]) || c; };
+  if(!list.length) return {main: stop, place: name(stop), via: ''};
+  var place = list.length === 1 ? name(list[0].to) : list.map(function(d){ return name(d.to) + ' ' + d.pax; }).join(' · ');
+  var stopUsed = list.some(function(d){ return d.to === stop; });
+  return {main: list[0].to, place: place, via: stopUsed ? '' : name(stop)};
+}
 function tvMakersRowHtml(f, dayKey, nextKey, withStatus, grp){
-  var dest = String(f.route || '').replace(/^FXE-/, '');
+  var dd = tvMakersDests(f), dest = dd.main;
   var code = (typeof MF_TAG_CODE !== 'undefined' && MF_TAG_CODE[dest]) || dest;
-  var place = (typeof MF_AIRPORTS !== 'undefined' && MF_AIRPORTS[dest]) || dest;
+  var place = dd.place;
   var tm = tvMakersTime12(f.time);
   var ascend = typeof mfIsAscend === 'function' && mfIsAscend(f);
   var dayTrips = typeof mfDayTrips === 'function' ? mfDayTrips(f) : 0;
@@ -16746,7 +16768,7 @@ function tvMakersRowHtml(f, dayKey, nextKey, withStatus, grp){
     '<div class="mk-tags"><span class="mk-tail" style="'+tvMakersTag(dest)+'">'+escapeHTML(tvMakersTailSuffix(f.tail))+'</span>'+
       '<span class="mk-bag" style="'+tvMakersTag(dest)+'">'+escapeHTML(code)+'</span></div>'+
     '<div class="mk-dest"><b>'+escapeHTML(place)+'</b>'+
-      '<span class="mk-fn">Flight '+escapeHTML(String(f.flight || ''))+
+      '<span class="mk-fn">Flight '+escapeHTML(String(f.flight || ''))+(dd.via ? ' &middot; 1st stop '+escapeHTML(dd.via) : '')+
       (ascend ? '<img class="mk-asc" src="assets/ascend-logo.png" alt="Ascend">' : '')+
       (dayTrips ? '<span class="mk-dt">'+dayTrips+' DAY TRIP</span>' : '')+
       (chg ? '<span class="mk-updtag">UPDATED'+(chg.pax_from !== chg.pax_to && chg.status !== 'new' ? ' &middot; WAS '+chg.pax_from : '')+'</span>' : '')+'</span></div>'+
@@ -16802,8 +16824,8 @@ function tvMakersTickerHtml(todayKey, tomorrowKey){
   var bits = [];
   var t = tvMakersFlights(tvMakersDay(todayKey)), nx = null;
   for(var i = 0; i < t.length; i++){ var c = tvMakersStatus(t[i], todayKey, null).code; if(c !== 'DEPARTED'){ nx = t[i]; break; } }
-  if(nx){ var tm = tvMakersTime12(nx.time), dst = String(nx.route || '').replace(/^FXE-/, '');
-    bits.push('Next departure <b>'+tm.t+' '+tm.ap+'</b> · '+escapeHTML((typeof MF_AIRPORTS !== 'undefined' && MF_AIRPORTS[dst]) || dst)+' · '+escapeHTML(tvMakersTailSuffix(nx.tail))); }
+  if(nx){ var tm = tvMakersTime12(nx.time);
+    bits.push('Next departure <b>'+tm.t+' '+tm.ap+'</b> · '+escapeHTML(tvMakersDests(nx).place)+' · '+escapeHTML(tvMakersTailSuffix(nx.tail))); }
   tv4InboundLegs().forEach(function(L){
     if(L.st.k === 'live') bits.push(escapeHTML(L.tail)+' from '+escapeHTML(L.place)+' · <b>LIVE</b> · ETA '+(L.st.eta != null ? L.st.eta+' min' : 'soon'));
     else if(L.st.k === 'way') bits.push(escapeHTML(L.tail)+' from '+escapeHTML(L.place)+' · <b>ON THE WAY</b> · lands '+L.arr12);

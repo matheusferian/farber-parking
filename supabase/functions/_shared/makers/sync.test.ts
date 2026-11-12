@@ -56,6 +56,10 @@ Deno.test('evening run: tomorrow match + Makers return dates + departures', asyn
   assertEquals(r.inbound.map((f) => `${f.flight} ${f.route} ${f.time} ${f.pax}`), ['2407 COX-FXE 11:21 2', '954 ELH-FXE 17:41 1']);
   assertEquals(r.inbound.map((f) => f.dep), ['09:30', '16:15']); // island departure, for ON THE WAY on the TV
   assertEquals(r.outbound.map((f) => `${f.flight} ${f.time} ${f.pax}`), ['123 06:45 3', '2404 08:00 2']);
+  // route = first stop only; dests = where the people on board go (owner 2026-11-12: FXE-SAQ then Staniel / Great Harbour)
+  assertEquals(r.outbound[0].route, 'FXE-RSD');
+  assertEquals(r.outbound[0].dests, [{ to: 'TYM', pax: 2 }, { to: 'RSD', pax: 1 }]);
+  assertEquals(r.outbound[1].dests, [{ to: 'COX', pax: 2 }]);
   assertEquals(r.outbound[0].day_trips, 0);   // R1: return date the same day but on no flight back to FXE → not a day trip (owner 11/07)
   const g = r.match.matches.find((m) => m.passenger_id === 1)!;
   assertEquals([g.state, g.suggest_flight, g.suggest_time, g.suggest_name], ['ok', 'JH', '11:21', 'DAVID GRASSETT']);
