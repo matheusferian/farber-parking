@@ -6483,6 +6483,11 @@ function buildCustomsWelcomeSms(r){
   if(returnOperator(r)==='ASCEND'){
     return 'Makers Air Valet: Welcome back! Your vehicle is ready at Customs. An Ascend team member will personally hand you your key when you arrive.';
   }
+  // Owner 2026-11-12: a car already delivered at Customs is parked there with the key on the front tire,
+  // driver's side (always the same place).
+  if(r&&r.status==='DELIVERED'&&r.delivery_type==='CUSTOMS'){
+    return 'Makers Air Valet: Welcome back! Your vehicle is parked at U.S. Customs. The key is on the front tire, driver\u2019s side. Questions? Reply here or call (954) 352-1010.';
+  }
   return 'Makers Air Valet: Welcome back! As arranged, your vehicle will be at Customs. When you arrive, reply here or call (954) 352-1010 for your key.';
 }
 function buildCustomsGratuitySms(r){
@@ -8253,8 +8258,9 @@ function refreshReturnReviewBanner(id){
 async function sendUpdatedPickupMessage(id){
   var r=data.find(function(x){return x.id===id;});
   if(!r) return;
-  var pk=pickupLocation(r);
-  if(isCustomsRequestPending(r)){ showMsg('Decide the pending Customs request first.',true); return; }
+  // A car already left at Customs never gets the Hangar 19 text (owner 2026-11-12).
+  var pk=(r.status==='DELIVERED'&&r.delivery_type==='CUSTOMS')?'CUSTOMS':pickupLocation(r);
+  if(pk!=='CUSTOMS'&&isCustomsRequestPending(r)){ showMsg('Decide the pending Customs request first.',true); return; }
   if(!pk){ sendGenericTextSms(id); return; } // Other: staff write it, then mark the review
   var body=pk==='HANGAR_19'?buildWelcomeBackSms():buildCustomsWelcomeSms(r);
   var res=await sendPassengerSms({
@@ -9539,7 +9545,10 @@ async function deliverWithTip(id, deliveryType, tipReceived, inPerson){
     // Audit 2026-11-06 (#28): a tip added earlier on the car card ("+ Add tip") stays recorded.
     var tipFlag=(r.tip_received===true)?true:tipRecorded;
     var upd={status:'DELIVERED',deldate:todayStr,checkout_date:checkoutIso,delivery_type:deliveryType,tip_received:tipFlag};
+    // Owner 2026-11-12: a Customs delivery moves the car to CUSTOMS (it used to keep the old hangar, so the
+    // car still read "Hangar 19" after it was left at Customs).
     if(!isCustoms){upd.loc='HANGAR 19';upd.previous_delivery_location=prevLoc;}
+    else{upd.loc=CUSTOMS_LOC;upd.previous_delivery_location=prevLoc;}
     if(deliveryType==='LOCKBOX'&&hasPickupAuth(r)){ showMsg('Authorized pickup on file: hand the key in person and check a photo ID (no lockbox).',true); return false; }
     var rel=pickupReleaseChoice(r);
     if(rel&&rel.error){ showMsg(rel.error,true); return false; }
@@ -9569,8 +9578,8 @@ async function deliverWithTip(id, deliveryType, tipReceived, inPerson){
       await sbLog('DELIVERED_FROM_LOCATION',r.name,r.ticket,'HANGAR 19','Delivered as '+deliveryType+'. Previous location: '+prevLoc+'. Final location automatically changed to HANGAR 19.'+(isLateDeliver?' (late)':'')+tipNote,{passenger_id:r.id});
       vlhInsert({passenger_id:r.id,ticket:r.ticket,passenger_name:r.name,from_location:prevLoc,to_location:'HANGAR 19',action:'DELIVERED ('+deliveryType+')',note:(isLateDeliver?'Late delivery':''),created_by:_currentUserEmail});
     } else {
-      await sbLog('DELIVERED',r.name,r.ticket,r.loc,'Vehicle delivered'+(isLateDeliver?' (late)':'')+' via CUSTOMS'+tipNote,{passenger_id:r.id});
-      vlhInsert({passenger_id:r.id,ticket:r.ticket,passenger_name:r.name,from_location:prevLoc,to_location:r.loc,action:'DELIVERED (CUSTOMS)',note:(isLateDeliver?'Late delivery':''),created_by:_currentUserEmail});
+      await sbLog('DELIVERED',r.name,r.ticket,CUSTOMS_LOC,'Vehicle delivered'+(isLateDeliver?' (late)':'')+' via CUSTOMS. Previous location: '+prevLoc+'. Final location automatically changed to CUSTOMS.'+tipNote,{passenger_id:r.id});
+      vlhInsert({passenger_id:r.id,ticket:r.ticket,passenger_name:r.name,from_location:prevLoc,to_location:CUSTOMS_LOC,action:'DELIVERED (CUSTOMS)',note:(isLateDeliver?'Late delivery':''),created_by:_currentUserEmail});
     }
     for(var i=0;i<data.length;i++){
       if(data[i].id===r.id){
@@ -9581,6 +9590,7 @@ async function deliverWithTip(id, deliveryType, tipReceived, inPerson){
         data[i].tip_received=tipFlag;
         if(tipSaved) data[i].tip_in_person_cents=tipSaved;
         if(!isCustoms){data[i].loc='HANGAR 19';data[i].previous_delivery_location=prevLoc;}
+        else{data[i].loc=CUSTOMS_LOC;data[i].previous_delivery_location=prevLoc;}
         if(upd.ret){data[i].ret=upd.ret;data[i].obs=upd.obs;}
         break;
       }
@@ -9768,7 +9778,7 @@ async function undoDeliverToday(id){
     }
     render();
     sbLog('UNDO DELIVER',r.name,r.ticket,restoredLoc,'Restored to PENDING from dashboard'+(r.previous_delivery_location?' | Location restored to: '+restoredLoc:''),{passenger_id:r.id});
-    vlhInsert({passenger_id:r.id,ticket:r.ticket,passenger_name:r.name,from_location:'HANGAR 19',to_location:restoredLoc,action:'UNDO_DELIVERY',note:'Delivery undone, location restored',created_by:_currentUserEmail});
+    vlhInsert({passenger_id:r.id,ticket:r.ticket,passenger_name:r.name,from_location:r.loc||'',to_location:restoredLoc,action:'UNDO_DELIVERY',note:'Delivery undone, location restored',created_by:_currentUserEmail});
     showMsg('↩ Restored to pending: '+r.name,false);
     setTimeout(function(){ undoDeliveryTips(r); }, 300);
   }catch(e){showMsg('Error: '+e.message,true);}

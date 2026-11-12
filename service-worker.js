@@ -110,7 +110,7 @@
 // v183: kiosk view — New check-in full screen in steps (Guest / Return / Texts); Jet Runway widget only while a ride is open, after tips.
 // v184: TV departures — DELAYED while the plane is still at FXE after its time; destinations of the people on board (route = first stop only).
 // v185: TV departures — first stop + islands as bag tags (1ST STOP SAQ › TYM 4 · GHC 2).
-var CACHE_VERSION = 'v185';
+var CACHE_VERSION = 'v186';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 var SHELL_FILES = [
