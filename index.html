@@ -7298,16 +7298,17 @@ function ci2Open(){
   kioskNeSteps();
 }
 // Kiosk view (owner 2026-11-12): the same check-in form, full screen, one step at a time
-// (Guest → Return → Texts). It only shows/hides parts of #ci2Step — every field, check,
+// (Guest + return date → Texts). It only shows/hides parts of #ci2Step — every field, check,
 // the countdown and the ticket/SMS creation stay ci2's own. After the ticket exists the
 // tag + Print stay on the left and the details on the right (CSS), Hangar and Vehicle open.
-var KNE_STEPS=[['guest','Guest'],['ret','Return'],['texts','Texts']];
+var KNE_STEPS=[['guest','Guest'],['texts','Texts']];
 function kioskNeSteps(){
   var step=ci2El('ci2Step'); if(!step||!document.body.classList.contains('av-kiosk')) return;
   var tag=function(el,k){ if(el) el.setAttribute('data-ks',k); };
   tag(step.querySelector('.ci2-fly'),'guest'); tag(step.querySelector('.ci2-np'),'guest'); tag(ci2El('gxCi2'),'guest');
-  tag(ci2El('ci2Er'),'guest ret');
-  var rp=step.querySelector('.ci2-retpick[data-n="1"]'); tag(rp&&rp.closest('.ci2-f'),'ret');
+  // Owner 2026-11-12: name, phone and the return date are what the team asks first — one screen.
+  tag(ci2El('ci2Er'),'guest');
+  var rp=step.querySelector('.ci2-retpick[data-n="1"]'); tag(rp&&rp.closest('.ci2-f'),'guest');
   tag(step.querySelector('.ci2-consent'),'texts');
   ['ci2Dup','ci2SaveErr','ci2NoText','ci2Cd','ci2Saving'].forEach(function(id){ tag(ci2El(id),'texts'); });
   var bar=document.createElement('div'); bar.className='kne-steps'; bar.id='kneSteps'; step.insertBefore(bar,step.firstChild);
