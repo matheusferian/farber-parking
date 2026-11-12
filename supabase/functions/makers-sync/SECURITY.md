@@ -45,7 +45,13 @@ Kept (only what AirValet needs):
 Never read or kept: PNR / booking codes, date of birth, passport or any document, phone, e-mail, address,
 weights, payment data, agent, crew. The parsers skip those columns by design.
 
-Retention: robot readings (`airvalet_manifest_scans`, mode `makers_sync`) are deleted after **14 days**.
+Retention: robot readings (`airvalet_manifest_scans`, mode `makers_sync`) are deleted after **14 days**;
+quick checks (mode `makers_watch`, every 30 min 6:30 AM–6 PM, today's arrivals only, our guests' ticket +
+name + flight) after **3 days**.
+
+Writes to AirValet (owner 2026-11-12, the only one): a guest who moved to another flight that day gets the
+car's `departure_time` (and `return_flight` tail) updated, only while the car still shows the old flight;
+each change is logged in `activity_log` as "Makers robot". Nothing is ever written to Makers.
 The scheduler's copy of each answer (`net._http_response`) holds **counts only**, no names.
 
 ## 4. Who can run it

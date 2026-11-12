@@ -5,8 +5,10 @@
 //   • the return date Makers has for every Makers car we hold → dates that differ / no return booked;
 //   • tomorrow's departures from FXE (times, passenger counts).
 // READ-ONLY by owner rule: only the search reports (see _shared/makers/suite.ts); it never edits
-// anything in Makers, and keeps no documents, birth dates or contact data. Nothing is written to
-// passengers here: staff confirm each change in the app. The result is saved in
+// anything in Makers, and keeps no documents, birth dates or contact data. Staff confirm each change in
+// the app, with ONE exception (owner 2026-11-12): when a guest moves to another flight that day, the car's
+// arrival time (and tail) follow — only while they still show the old flight — logged as "Makers robot".
+// Quick check of today's arrivals every 30 min, 6:30 AM–6 PM: flight changes pushed at once. The result is saved in
 // airvalet_manifest_scans (usage.mode = 'makers_sync') and, on the scheduled runs, one push goes to
 // the phones with the "Summaries" reminders on.
 //
@@ -19,7 +21,8 @@
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { MakersSuite, MakersSuiteError } from '../_shared/makers/suite.ts';
-import { HeldCar, runSync, SyncResult } from '../_shared/makers/sync.ts';
+import { HeldCar, runSync, runWatch, SyncResult } from '../_shared/makers/sync.ts';
+import { carUpdate, diffMoves, type Move, moveLine, normT, seenOf } from '../_shared/makers/moves.ts';
 import { Feedback, parseDate } from '../_shared/manifest/match.ts';
 import { notifyCategory } from '../_shared/notify/staff.ts';
 import { changeLine, diffDepartures, KEY_VERSION, type DepChange, type DepFlight } from '../_shared/makers/changes.ts';
@@ -98,10 +101,21 @@ Deno.serve(async (req) => {
   // Owner 2026-11-08 (staff schedule): every Monday 8 AM Fort Lauderdale, next week's days with 2+ flights at
   // 6:45 AM or 12:45 PM. cron body {"week":"next"} (fires 12 and 13 UTC; only the 8 AM ET run works) or
   // {"week":"next","force":true} for an on-demand run.
-  let weekRun = false, forecastRun = false;
+  let weekRun = false, forecastRun = false, watchRun = false;
   // Owner 2026-11-08: demand forecast every morning, 5 AM Fort Lauderdale (cron 'makers-forecast' fires 9 and 10 UTC),
   // or {"forecast":true,"force":true} on demand.
-  if (isCron && cronBody.forecast === true) {
+  // Owner 2026-11-12 (flight changes): quick check of TODAY's arrivals every 30 minutes, 6:30 AM to 6 PM Fort
+  // Lauderdale (cron 'makers-watch' every :00 and :30 UTC).
+  if (isCron && cronBody.watch === true) {
+    const p = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', weekday: 'short', hour: 'numeric', minute: 'numeric', hour12: false }).formatToParts(new Date()).map((x) => [x.type, x.value]));
+    const h = +p.hour % 24, half = +p.minute >= 25 && +p.minute < 55 ? 30 : 0, hh = +p.minute >= 55 ? h + 1 : h;
+    const slot = hh * 60 + half;
+    // Slots of the other robot runs (one run at a time: the quick check must never take their turn):
+    // 6 AM / 11 AM / 4:30 PM today, 3 PM tomorrow, Monday 8 AM weekly peaks.
+    const full = [6 * 60, 11 * 60, 15 * 60, 16 * 60 + 30, ...(p.weekday === 'Mon' ? [8 * 60] : [])];
+    if (cronBody.force !== true && (slot < 6 * 60 + 30 || slot > 18 * 60 || full.includes(slot))) return json(200, { ok: true, skipped: 'watch: 6:30 AM–6 PM Fort Lauderdale, every 30 min' });
+    watchRun = true; target = etDay(0);
+  } else if (isCron && cronBody.forecast === true) {
     const h = +new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', hour12: false }).format(new Date());
     if (cronBody.force !== true && h !== 5) return json(200, { ok: true, skipped: 'forecast: 5 AM Fort Lauderdale only' });
     forecastRun = true;
@@ -198,18 +212,93 @@ Deno.serve(async (req) => {
     }
   }
 
+  // ── Flight changes (owner 2026-11-12) ────────────────────────────────────────────────────────────────
+  // The previous reading of the same day, full or quick: its matches are the baseline.
+  const prevMatches = async (day: string) => {
+    const { data } = await admin.from('airvalet_manifest_scans').select('created_at,result')
+      .eq('service_date', day).in('usage->>mode', ['makers_sync', 'makers_watch']).eq('usage->>ok', 'true')
+      .order('created_at', { ascending: false }).limit(1).maybeSingle();
+    return data && Array.isArray(data.result?.matches) ? data.result.matches as Record<string, unknown>[] : null;
+  };
+  const etStamp = () => new Date().toLocaleString('en-US', { timeZone: 'America/New_York' });
+  // The car's arrival time (and tail) follow the new flight only when they still show the old one.
+  const applyMoves = async (moves: Move[], pool: (HeldCar & { loc?: string | null })[]) => {
+    let n = 0;
+    for (const x of moves) {
+      const car = pool.find((c) => c.id === x.passenger_id); if (!car) continue;
+      const upd = carUpdate(x, car); if (!upd) continue;
+      const { data: row, error } = await admin.from('passengers').update(upd).eq('id', car.id).eq('departure_time', car.departure_time || '').in('status', ['PENDING', 'NO DATE']).select('id').maybeSingle();
+      if (error || !row) continue;
+      n++; (x as Move & { car_updated?: boolean }).car_updated = true;
+      const logs = Object.entries(upd).map(([field, v]) => ({
+        ts: etStamp(), action: 'FLIGHT_NOTE', passenger: car.name, ticket: String(car.ticket || ''), location: car.loc || '',
+        detail: `Makers robot: flight changed ${x.was_flight} ${x.was_time} → ${x.flight} ${x.time}. ${field === 'departure_time' ? 'Departure time' : 'Return flight'} set to ${v}`,
+        passenger_id: car.id, changed_by: 'Makers robot', field_name: field,
+        old_value: field === 'departure_time' ? (car.departure_time || '') : (car.return_flight || ''), new_value: v,
+      }));
+      await admin.from('activity_log').insert(logs);
+    }
+    return n;
+  };
+  const pushMoves = async (moves: Move[], day: string) => {
+    if (!moves.length) return;
+    const lines = moves.map((x) => moveLine(x) + ((x as Move & { car_updated?: boolean }).car_updated ? ' Car time updated.' : ''));
+    await notifyCategory(deps, 'DAILY', { title: `Flight changed — ${day === today ? 'today' : 'tomorrow'} ${dayLabel(day)}`,
+      body: lines.slice(0, 4).join('\n') + (lines.length > 4 ? `\n+${lines.length - 4} more` : ''), url: '/?mf=1', tag: `makers-moves-${day}-${Date.now()}` });
+  };
+
+  if (watchRun) {
+    try {
+      const [{ data: cars, error: cErr }, { data: fb, error: fErr }] = await Promise.all([
+        admin.from('passengers').select('id,ticket,name,ret,status,deldate,return_flight,departure_time,return_operator,ts,archived_at,loc').in('status', ['PENDING', 'NO DATE']).limit(2000),
+        admin.from('airvalet_manifest_feedback').select('manifest_name,system_name,verdict').limit(5000),
+      ]);
+      if (cErr || fErr) throw new Error('LOOKUP_FAILED');
+      const pool = (cars || []).filter((c) => !c.archived_at).map((c) => ({ ...c, checkin: parseDate(String(c.ts || '').split(',')[0]) }));
+      const prev = await prevMatches(today);
+      const suite = new MakersSuite();
+      await suite.login(user, pass);
+      const w = await runWatch(suite, { date: today, pool, feedback: (fb || []) as Feedback[] });
+      const moves = prev ? diffMoves(prev, w.match.matches, new Set(pool.map((c) => c.id))) : [];
+      const updated = moves.length ? await applyMoves(moves, pool) : 0;
+      await admin.from('airvalet_manifest_scans').insert({ created_by: userId, service_date: today, result: { kv: KEY_VERSION, date: today, matches: seenOf(w.match.matches), moves },
+        usage: { mode: 'makers_watch', ok: true, cron: isCron, secs: Math.round((Date.now() - t0) / 1000) } });
+      await admin.from('airvalet_manifest_scans').delete().eq('usage->>mode', 'makers_watch').lt('created_at', new Date(Date.now() - 3 * 864e5).toISOString());
+      await pushMoves(moves, today);
+      await unlock();
+      return json(200, { ok: true, watch: true, date: today, matches: w.match.matches.length, moves: moves.length, cars_updated: updated });
+    } catch (e) {
+      const code = e instanceof MakersSuiteError ? e.code : 'READ_FAILED';
+      console.log(JSON.stringify({ event: 'makers_watch.error', code, msg: (e as Error).message }));
+      const stop = code === 'LAYOUT' || code === 'BLOCKED' || code === 'LOGIN_FAILED';
+      // A refused login or a changed page stops every robot run (same row the full runs use); anything else
+      // is only logged — the next quick check tries again in 30 minutes.
+      await admin.from('airvalet_manifest_scans').insert({ created_by: userId, service_date: today, result: { error: code },
+        usage: { mode: stop ? 'makers_sync' : 'makers_watch', ok: false, cron: isCron } });
+      if (stop) await notifyCategory(deps, 'DAILY', {
+        title: code === 'LOGIN_FAILED' ? 'Makers robot could not read the flights' : 'Makers robot STOPPED — Makers page changed',
+        body: code === 'LOGIN_FAILED' ? 'Makers Air Suite did not accept the login. Did the password change? Tell Matheus. The robot stopped trying.'
+          : 'Nothing was changed in Makers. The robot stopped and will not run again until it is fixed. Tell Matheus.',
+        url: '/?mf=1', tag: 'makers-sync-error' });
+      await unlock();
+      return json(200, { ok: false, error: { code } });
+    }
+  }
+
   let result: SyncResult;
   let noDateIds = new Set<number>();   // Return Date Follow-Up guests (status NO DATE)
+  let heldPool: (HeldCar & { loc?: string | null })[] = [];
   try {
     const suite = new MakersSuite();
     await suite.login(user, pass);
     const [{ data: cars, error: cErr }, { data: fb, error: fErr }] = await Promise.all([
-      admin.from('passengers').select('id,ticket,name,ret,status,deldate,return_flight,departure_time,return_operator,ts,archived_at').in('status', ['PENDING', 'NO DATE']).limit(2000),
+      admin.from('passengers').select('id,ticket,name,ret,status,deldate,return_flight,departure_time,return_operator,ts,archived_at,loc').in('status', ['PENDING', 'NO DATE']).limit(2000),
       admin.from('airvalet_manifest_feedback').select('manifest_name,system_name,verdict').limit(5000),
     ]);
     if (cErr || fErr) { await unlock(); return json(500, { ok: false, error: { code: 'LOOKUP_FAILED' } }); }
     const pool: HeldCar[] = (cars || []).filter((c) => !c.archived_at).map((c) => ({ ...c, checkin: parseDate(String(c.ts || '').split(',')[0]) }));
     noDateIds = new Set(pool.filter((c) => c.status === 'NO DATE').map((c) => c.id));
+    heldPool = pool;
     result = await runSync(suite, { date, today, pool, feedback: (fb || []) as Feedback[], keySecret: Deno.env.get('MAKERS_SYNC_SECRET') || undefined });
   } catch (e) {
     const code = e instanceof MakersSuiteError ? e.code : 'READ_FAILED';
@@ -250,21 +339,29 @@ Deno.serve(async (req) => {
   // No-show watch (owner 2026-11-06): only guests WITH a car here (status PENDING, return today, Makers return —
   // Ascend / other boat are not in these lists). A guest who was on a flight in the previous reading and is on
   // none now = possible no-show (cancelled or rebooked). At 4:30 PM: everyone still not on any flight today.
+  const prevForMoves = await prevMatches(date);
   type NoShow = { passenger_id: number; ticket: string; system_name: string; was_flight?: string; was_time?: string };
   let no_show: NoShow[] = [];
   let still_off: NoShow[] = [];
   if (date === today) {
     const opOk = (o: unknown) => !['ASCEND', 'OTHER'].includes(String(o || 'MAKERS').toUpperCase());
     const missing = (m.missing || []).filter((x) => opOk(x.operator));
-    const prevMatches = ((prevRow?.result?.matches || []) as { passenger_id: number; flight_number: string; arrival_time: string; kind: string }[])
+    // Baseline = the previous reading of today, full or quick (a guest a quick check already reported is not
+    // reported again).
+    const prevList = ((prevForMoves || []) as { passenger_id: number; flight_number: string; arrival_time: string; kind: string }[])
       .filter((x) => x.kind !== 'surname_only');
-    const prevBy = new Map(prevMatches.map((x) => [x.passenger_id, x]));
+    const prevBy = new Map(prevList.map((x) => [x.passenger_id, x]));
     no_show = missing.filter((x) => prevBy.has(x.passenger_id))
       .map((x) => ({ passenger_id: x.passenger_id, ticket: x.ticket, system_name: x.system_name, was_flight: prevBy.get(x.passenger_id)!.flight_number, was_time: prevBy.get(x.passenger_id)!.arrival_time }));
     if (noShowRun) still_off = missing.filter((x) => !prevBy.has(x.passenger_id)).map((x) => ({ passenger_id: x.passenger_id, ticket: x.ticket, system_name: x.system_name }));
   }
+  // Flight changes since the previous reading of this day (full or quick). At 6 AM that is last night's 11 PM
+  // reading, so the morning report says who changed overnight.
+  const moves = prevForMoves ? diffMoves(prevForMoves, m.matches, new Set(heldPool.map((c) => c.id)), new Set(no_show.map((x) => x.passenger_id))) : [];
+  if (moves.length) await applyMoves(moves, heldPool);
   const saved = {
     kv: KEY_VERSION,
+    moves,
     no_show, still_off,
     changes,
     date: result.date, inbound: result.inbound, outbound: result.outbound, matches: m.matches, missing: m.missing,
@@ -287,8 +384,10 @@ Deno.serve(async (req) => {
     }
   } catch { /* suggestions are a convenience: never fail the robot */ }
   if (isCron && summaryRun) {
-    await notifyCategory(deps, 'DAILY', { title: `Makers · ${date === today ? 'today' : 'tomorrow'} ${dayLabel(date)}`, body: summaryText(result), url: '/?mf=1', tag: `makers-sync-${date}` });
+    await notifyCategory(deps, 'DAILY', { title: `Makers · ${date === today ? 'today' : 'tomorrow'} ${dayLabel(date)}`,
+      body: summaryText(result) + (moves.length ? ` Flight changes since last reading: ${moves.length}.` : ''), url: '/?mf=1', tag: `makers-sync-${date}` });
   }
+  await pushMoves(moves, date);
   if (no_show.length) {
     await notifyCategory(deps, 'DAILY', { title: 'Possible no-show — car waiting',
       body: no_show.map((x) => `${x.system_name} (#${x.ticket}) is no longer on flight ${x.was_flight}${x.was_time ? ' ' + x.was_time : ''}`).join('\n') + '\nCheck with Makers before waiting.',

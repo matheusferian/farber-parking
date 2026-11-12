@@ -112,6 +112,31 @@ export function tripFromFlights(car: HeldCar, rows: PaxRow[], today: string): Tr
   return { last: out.last, first: out.first, dep: mdyToIso(out.date), depTime: '', ret: retOf(out), retTime: '' };
 }
 
+// Flights landing at FXE that day with people on board (same person counted once), earliest first.
+export function inboundOf(L: Leg[], inPax: PaxRow[]): FlightSummary[] {
+  const count = (f: string) => new Set(inPax.filter((r) => r.flight === f).map((r) => `${r.last}|${r.first}`)).size;
+  return L.filter((l) => l.to === 'FXE').map((l) => ({ flight: l.flight, route: `${l.from}-FXE`, tail: l.tail, time: l.arr, dep: l.dep, pax: count(l.flight), ascend: isAscendFlight(l.flight) }))
+    .filter((f) => f.pax > 0).sort((a, b) => a.time.localeCompare(b.time));
+}
+export function pagesOf(inbound: FlightSummary[], inPax: PaxRow[], date: string): ManifestPage[] {
+  return inbound.map((f) => ({
+    flight_number: f.flight, manifest_date: isoToMdy(date).split('/').map((x, i) => i < 2 ? x.padStart(2, '0') : x).join('/'),
+    route: f.route, tail_number: f.tail, arrival_time: f.time, total_pax: f.pax, ascend_mark: f.ascend,
+    passengers: inPax.filter((r, i, all) => r.flight === f.flight && all.findIndex((x) => x.flight === r.flight && x.last === r.last && x.first === r.first) === i)
+      .map((r) => ({ last: r.last, first: r.first, middle: '', pnr: '', first_origin: r.from })),
+  }));
+}
+
+// Owner 2026-11-12 (DAVID HOCHER moved from the 11:00 to a 5 PM flight after the 6 AM reading): the quick
+// check every 30 minutes — only that day's flights landing at FXE and their people, matched with our cars.
+// 2 Makers searches, read-only.
+export async function runWatch(suite: SuiteLike, o: { date: string; pool: HeldCar[]; feedback: Feedback[] }): Promise<{ inbound: FlightSummary[]; match: MatchResult }> {
+  const L = await suite.schedule(isoToMdy(o.date));
+  const inPax = (await suite.passengers(isoToMdy(o.date), { to: 'FXE' })).filter((r) => !isPetRow(r));
+  const inbound = inboundOf(L, inPax);
+  return { inbound, match: matchManifest(pagesOf(inbound, inPax, o.date), o.pool, o.feedback) };
+}
+
 export async function runSync(suite: SuiteLike, o: { date: string; today: string; pool: HeldCar[]; feedback: Feedback[]; maxLookups?: number; keySecret?: string }): Promise<SyncResult> {
   const warnings: string[] = [];
   const legsByDay = new Map<string, Leg[]>(), inByDay = new Map<string, PaxRow[]>();
@@ -122,9 +147,7 @@ export async function runSync(suite: SuiteLike, o: { date: string; today: string
   // 1. Tomorrow: arrivals and departures.
   const L = await legs(o.date), inPax = await arrivals(o.date), outPax = humans(await suite.passengers(isoToMdy(o.date), { from: 'FXE' }));
   // The report can list the same person twice (both legs of one booking): count each name once.
-  const count = (rows: PaxRow[], f: string) => new Set(rows.filter((r) => r.flight === f).map((r) => `${r.last}|${r.first}`)).size;
-  const inbound: FlightSummary[] = L.filter((l) => l.to === 'FXE').map((l) => ({ flight: l.flight, route: `${l.from}-FXE`, tail: l.tail, time: l.arr, dep: l.dep, pax: count(inPax, l.flight), ascend: isAscendFlight(l.flight) }))
-    .filter((f) => f.pax > 0).sort((a, b) => a.time.localeCompare(b.time));
+  const inbound = inboundOf(L, inPax);
   // Departures: one line per flight (owner: destination only, no stops). Each passenger is counted once;
   // a return booked the same day is a day trip.
   const sameDay = (d: string) => { const m = d.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/); return !!m && `${m[3]}-${m[1].padStart(2, '0')}-${m[2].padStart(2, '0')}` === o.date; };
@@ -145,13 +168,7 @@ export async function runSync(suite: SuiteLike, o: { date: string; today: string
     for (const r of outPax) if (r.flight === f.flight) keys.add(await paxKey(r.last, r.first, o.keySecret));
     f.ids = [...keys].sort();
   }
-  const pages: ManifestPage[] = inbound.map((f) => ({
-    flight_number: f.flight, manifest_date: isoToMdy(o.date).split('/').map((x, i) => i < 2 ? x.padStart(2, '0') : x).join('/'),
-    route: f.route, tail_number: f.tail, arrival_time: f.time, total_pax: f.pax, ascend_mark: f.ascend,
-    passengers: inPax.filter((r, i, all) => r.flight === f.flight && all.findIndex((x) => x.flight === r.flight && x.last === r.last && x.first === r.first) === i)
-      .map((r) => ({ last: r.last, first: r.first, middle: '', pnr: '', first_origin: r.from })),
-  }));
-  const match = matchManifest(pages, o.pool, o.feedback);
+  const match = matchManifest(pagesOf(inbound, inPax, o.date), o.pool, o.feedback);
   if (suite.passengersByLast) {
     let n = 0;
     for (const m of match.matches) {
