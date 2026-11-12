@@ -163,7 +163,35 @@ Deno.test('same last name: checked in Makers before it is shown (when, which fli
     other_out: { date: '2026-11-09', flight: '1533', route: 'FXE-GHC' }, other_back: { date: '2026-11-12', flight: '1534', route: 'GHC-FXE' },
     together: false,
   });
-  assertEquals(calls, ['last ADAMS 9/24/2026 11/21/2026']);
-  // never more than one lookup per pair, and a pair with no surname-only match is never looked up
-  assertEquals(calls.length, 1);
+  // 1st: the pair check; 2nd: View Reservation found nothing for William, so the flight list is the second try
+  assertEquals(calls, ['last ADAMS 9/24/2026 11/21/2026', 'last ADAMS 11/3/2026 3/11/2027']);
+  assertEquals(r.not_found, 0);          // William found: out 11/8, back 11/14 = our date → nothing to show
+  assertEquals(r.date_diffs, []);
+});
+
+// Owner 2026-11-12: View Reservation stops at 50 reservations (oldest first) → a common last name was "not found".
+Deno.test('not found in View Reservation (50-row cap): the flight list by last name is the second try', async () => {
+  const old: Trip[] = Array.from({ length: 50 }, (_, i) => ({ last: 'SMITH', first: 'JOHN', dep: `2019-01-${String(i % 28 + 1).padStart(2, '0')}`, depTime: '', ret: '', retTime: '' }));
+  const FL: PaxRow[] = [
+    { date: '11/5/2026', flight: '516', from: 'FXE', to: 'COX', last: 'SMITH', first: 'JOHN', retDate: '11/18/2026' },
+    { date: '11/5/2026', flight: '516', from: 'FXE', to: 'COX', last: 'SMITH', first: 'MARY', retDate: '11/18/2026' },
+    { date: '11/1/2026', flight: '123', from: 'FXE', to: 'TYM', last: 'SMITH', first: 'PAUL', retDate: '' },
+    { date: '11/16/2026', flight: '124', from: 'TYM', to: 'FXE', last: 'SMITH', first: 'PAUL', retDate: '' },
+  ];
+  const calls: string[] = [];
+  const s: SuiteLike = {
+    schedule: async () => [], passengers: async () => [],
+    trips: async (last) => { calls.push('trips ' + last); return last === 'SMITH' ? old : []; },
+    passengersByLast: async (last, a, b) => { calls.push(`last ${last} ${a} ${b}`); return FL.filter((r) => r.last === last); },
+  };
+  const r = await runSync(s, { date: '2026-11-12', today: '2026-11-11', feedback: [], pool: [
+    car(1, 'JOHN SMITH', '11/20/2026', { checkin: '2026-11-05' }),   // Makers says 11/18 → date diff
+    car(2, 'PAUL SMITH', null),                                     // no check-in day, no Return Date → next flight back (11/16)
+    car(3, 'KATE SMITH', '11/20/2026', { checkin: '2026-11-05' }),  // not on any flight → still not found
+    car(4, 'JOHN SMITH', '11/20/2026', { checkin: '2026-10-01' }),  // flight is 35 days away from the check-in → not found
+  ] });
+  assertEquals(r.date_diffs.map((d) => [d.passenger_id, d.makers]), [[2, '2026-11-16'], [1, '2026-11-18']]);
+  assertEquals(r.not_found_list.map((x) => x.passenger_id), [3, 4]);
+  assertEquals(calls.filter((c) => c.startsWith('last')).length, 4);
+  assertEquals(calls[1], 'last SMITH 10/31/2026 3/11/2027');
 });

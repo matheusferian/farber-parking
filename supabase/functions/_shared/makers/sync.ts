@@ -94,6 +94,24 @@ export async function surnameCheck(suite: SuiteLike, car: HeldCar | undefined, s
     together: carOut && otherOut ? (carOut.date === otherOut.date && carOut.flight === otherOut.flight) : null };
 }
 
+// Owner 2026-11-12: View Reservation returns only 50 reservations, oldest first, so a common last name
+// (ADAMS) came back "not found". Second try: the Passenger Flight List searched by last name (no row limit).
+// Same rules as pickTrip: our guest's flight out of FXE nearest the check-in day (±4), else the latest one
+// still away; the return date is the booked Return Date, else the next flight of that person back to FXE.
+export function tripFromFlights(car: HeldCar, rows: PaxRow[], today: string): Trip | null {
+  const mine = rows.filter((r) => !isPetRow(r) && mdyToIso(r.date) && samePerson(car.name, r))
+    .sort((a, b) => mdyToIso(a.date).localeCompare(mdyToIso(b.date)));
+  const ci = car.checkin || null;
+  const outs = mine.filter((r) => r.from === 'FXE');
+  const retOf = (o: PaxRow) => mdyToIso(o.retDate) || mdyToIso(mine.find((r) => r.to === 'FXE' && mdyToIso(r.date) > mdyToIso(o.date))?.date || '');
+  const out = ci
+    ? outs.filter((r) => Math.abs((Date.parse(mdyToIso(r.date)) - Date.parse(ci)) / 864e5) <= 4)
+      .sort((a, b) => Math.abs(Date.parse(mdyToIso(a.date)) - Date.parse(ci)) - Math.abs(Date.parse(mdyToIso(b.date)) - Date.parse(ci)))[0]
+    : outs.filter((r) => mdyToIso(r.date) <= today && (!retOf(r) || retOf(r) >= addDays(today, -1))).pop();
+  if (!out) return null;
+  return { last: out.last, first: out.first, dep: mdyToIso(out.date), depTime: '', ret: retOf(out), retTime: '' };
+}
+
 export async function runSync(suite: SuiteLike, o: { date: string; today: string; pool: HeldCar[]; feedback: Feedback[]; maxLookups?: number; keySecret?: string }): Promise<SyncResult> {
   const warnings: string[] = [];
   const legsByDay = new Map<string, Leg[]>(), inByDay = new Map<string, PaxRow[]>();
@@ -152,7 +170,7 @@ export async function runSync(suite: SuiteLike, o: { date: string; today: string
 
   // 2. Every Makers car we hold: Makers return date vs ours.
   const date_diffs: DateDiff[] = [], no_return: NoReturn[] = [], not_found_list: NotFound[] = [];
-  let checked = 0, not_found = 0;
+  let checked = 0, not_found = 0, fallbacks = 0;
   const held = o.pool.filter((c) => (c.status === 'PENDING' || c.status === 'NO DATE') && String(c.return_operator || 'MAKERS').toUpperCase() !== 'ASCEND' && !settled.has(c.id));
   for (const car of held.slice(0, o.maxLookups ?? 100)) {
     const toks = normTokens(car.name);
@@ -166,7 +184,20 @@ export async function runSync(suite: SuiteLike, o: { date: string; today: string
       warnings.push(`lookup failed: ${car.ticket}: ${String((e as Error)?.message || e).slice(0, 120)}`); continue;
     }
     checked++;
-    const t = pickTrip(car, trips, o.today);
+    let t = pickTrip(car, trips, o.today);
+    if (!t && suite.passengersByLast && fallbacks < 25) {
+      fallbacks++;
+      const ci = car.checkin || null;
+      try {
+        const rows = await suite.passengersByLast(toks[toks.length - 1], isoToMdy(addDays(ci && ci < o.today ? ci : addDays(o.today, -120), -5)), isoToMdy(addDays(o.today, 120)));
+        t = tripFromFlights(car, rows, o.today);
+      } catch (e) {
+        const code = (e as { code?: string })?.code;
+        if (code === 'BLOCKED' || code === 'LAYOUT' || code === 'LOGIN_FAILED') throw e;
+        if (code === 'DEADLINE') { warnings.push('stopped early: time limit'); break; }
+        warnings.push(`second lookup failed: ${car.ticket}`);
+      }
+    }
     if (!t) { not_found++; not_found_list.push({ passenger_id: car.id, ticket: car.ticket, system_name: car.name, ours: car.ret || null }); continue; }
     const ours = parseDate(car.ret);
     if (!t.ret) { no_return.push({ passenger_id: car.id, ticket: car.ticket, system_name: car.name, ours: car.ret || null }); continue; }
