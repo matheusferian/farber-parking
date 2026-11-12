@@ -14847,7 +14847,11 @@ function crFmtTime12(t){
 function crLtRowsFor(dateStr){
   if(!dateStr) return [];
   var d=new Date(dateStr+'T12:00:00'); d.setDate(d.getDate()+1);
-  var next=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  return crBackRowsOn(d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'));
+}
+// Cars whose return date is that day (YYYY-MM-DD), in time order — also the Coming back picture.
+function crBackRowsOn(next){
+  if(!next) return [];
   return sortByDepartureTime((typeof data!=='undefined'&&data||[]).filter(function(r){
     if(crToDateET(r.ret)!==next||r.status==='ARCHIVED') return false;
     if(r.status==='DELIVERED'){ var dd=crGetDeliveredDateET(r); return !!dd&&dd>=next; }
@@ -14957,14 +14961,7 @@ function crBuildPreviewHTML(){
       +'<div style="font:700 14px \'Sora\',sans-serif;color:var(--navy)">'+escapeHTML(_crCashCustodian)+'</div>'
       +'</div>';
   }
-  var ltRowsPv=crLtRowsFor(_crBusinessDate);
-  if(_crLtCount>0||ltRowsPv.length){
-    html+='<div class="cr-pv-sec" style="margin-bottom:0"><div class="cr-pv-sec-title">LEAVING TOMORROW</div>'
-      +'<div style="font:800 24px \'Sora\',sans-serif;color:var(--navy)">'+(ltRowsPv.length||_crLtCount)+'</div>'
-      +'<div style="font:400 12px \'Inter\',sans-serif;color:var(--mu)">passengers</div>'
-      +crLtListHTML(ltRowsPv, false)
-      +'</div>';
-  }
+  // Leaving tomorrow left the Closing photo (owner 2026-11-12): it goes with the Departures picture as "Coming back".
   html+='</div>';
   html+='<div class="cr-pv-footer">Closed at '+crTimeNowET()+'</div>';
   return html;
@@ -15091,8 +15088,6 @@ function crBuildExportMarkup(report){
   var delivered=Number(report.delivered_today)||0;
   var inCustody=Number(report.in_custody_count)||0;
   var cashCustodian=report.cash_custodian_name||'';
-  var ltRows=crLtRowsFor(report.report_date);
-  var ltCount=ltRows.length||Number(report.leaving_tomorrow_count)||0;
   var valets=Array.isArray(report.attendants)?report.attendants.filter(function(a){return a.name&&a.name.trim();}):[];
   var closedTime='';
   if(report.closed_at){
@@ -15148,13 +15143,8 @@ function crBuildExportMarkup(report){
     if(cashCustodian) h+=row('Cash with',escapeHTML(cashCustodian),'#fff');
     h+='</div>';
   }
-  // Leaving tomorrow: count first, then every car (owner 2026-10-27).
-  if(ltCount>0){
-    h+='<div style="background:rgba(50,197,230,.08);border:1px solid rgba(50,197,230,.35);border-radius:14px;padding:12px 16px;margin-bottom:12px">';
-    h+='<div style="display:flex;justify-content:space-between;align-items:baseline"><span style="'+S+'font-weight:700;font-size:16px;color:#32C5E6">Leaving tomorrow</span>';
-    h+='<span style="'+S+'font-weight:800;font-size:32px;line-height:1;color:#32C5E6">'+ltCount+'</span></div>';
-    h+=crLtListHTML(ltRows, true)+'</div>';
-  }
+  // Leaving tomorrow is no longer here (owner 2026-11-12): the cars go in the "Coming back" picture,
+  // shared together with the Departures picture from the Makers screen. The Closing photo = tips and team.
   h+='<div style="text-align:center;'+I+'font-size:11px;color:rgba(255,255,255,.35)">Generated'+(closedTime?' at '+escapeHTML(closedTime):'')+' · AirValet</div>';
   h+='</div>';
   return h;
@@ -15213,7 +15203,7 @@ function crShowReadyScreen(report){
   if(_crLtCount>0){
     ltRow.style.display='';
     document.getElementById('crLtReadyCount').textContent=String(_crLtCount);
-    document.getElementById('crReadySub').textContent='Closing Report ready — Leaving Tomorrow is inside the photo.';
+    document.getElementById('crReadySub').textContent='Closing Report ready. Leaving Tomorrow goes with the Departures picture (Coming back).';
   }else{
     ltRow.style.display='none';
     document.getElementById('crReadySub').textContent='Your closing report has been generated.';
@@ -15249,8 +15239,8 @@ async function crShareAll(){
     var crBlob=await crJpegBlob(_crCanvas);
     var crFname='AirValet-Closing-Report-'+_crBusinessDate+'.jpg';
     var crFile=new File([crBlob],crFname,{type:'image/jpeg'});
-    // One photo only (owner 2026-11-05): Leaving Tomorrow is listed inside the Closing image,
-    // with the same alerts the separate Leaving Tomorrow photo had (see crLtListHTML).
+    // One photo only. Since 2026-11-12 the cars leaving tomorrow go in the Coming back picture
+    // (Makers screen, with Departures); this photo has the tips and the team.
     var files=[crFile];
     if(navigator.share&&navigator.canShare&&navigator.canShare({files:files})){
       await navigator.share({files:files});
@@ -18754,7 +18744,7 @@ function mfRenderResult(){
           '<div class="mf-line mf-warn">' + escapeHTML(mfChangeBits(c).join(' · ')) + '</div></article>'; }).join('') +
         '<button type="button" class="mf-btn mf-go" onclick="mfShareDepartures(this)">📷 Share UPDATED picture</button></section>'; })() +
     ((r.outbound || []).length ? '<section class="mf-sec"><h3>🛫 Departures from FXE <span>' + pax(r.outbound) + ' pax</span></h3><ul class="mf-fl">' + flights(r.outbound) + '</ul>' +
-      '<button type="button" class="mf-btn mf-go" onclick="mfShareDepartures(this)">📷 Share departures (picture)</button>' +
+      '<button type="button" class="mf-btn mf-go" onclick="mfShareDepartures(this)">📷 Share departures' + (r.manifest_date && mfBackRows(r.manifest_date).length ? ' + coming back (' + mfBackRows(r.manifest_date).length + ' cars)' : ' (picture)') + '</button>' +
       '<button type="button" class="mf-link" onclick="mfCopyDepartures(this)">Copy as text instead</button></section>' : '') +
     ((r.inbound || []).length ? '<section class="mf-sec"><h3>🛬 Arrivals at FXE <span>' + pax(r.inbound) + ' pax</span></h3><ul class="mf-fl">' + flights(r.inbound) + '</ul></section>' : '') +
     sec('Already delivered', 'mf-s-del', del, '') +
@@ -18991,6 +18981,95 @@ async function mfDeparturesCanvas(r){
   g.textAlign = 'left';
   return c;
 }
+// Coming back picture (owner 2026-11-12): made together with the Departures picture, so the group gets
+// both at once — every car to deliver that day, in time order, with the same alerts the Closing list had
+// (3+ cars at one time, MIDDAY RUSH, no hangar, US Customs, Ascend). The Closing photo now has the tips only.
+function mfBackRows(day){
+  return crBackRowsOn(day).filter(function(r){ return r.status !== 'DELIVERED'; });
+}
+async function mfComingBackCanvas(day, res){
+  var rows = mfBackRows(day);
+  if (!rows.length) return null;
+  try { if (document.fonts && document.fonts.load) await Promise.all([document.fonts.load('700 46px Sora'), document.fonts.load('600 30px Inter'), document.fonts.load('500 24px Inter')]); } catch(e) {}
+  var mavLogo = await mfImage('assets/makers-air-valet-lockup-white.png');
+  // Island of the flight each guest is on (robot reading of that day), for the same bag-tag colours.
+  var from = {};
+  if (res && res.manifest_date === day) (res.matches || []).forEach(function(m){
+    if (m && m.kind !== 'surname_only' && m.route) from[m.passenger_id] = String(m.route).split('-')[0];
+  });
+  var rush = crLtRushTimes(rows);
+  var midday = rows.filter(function(r){ var t = getDepartureTime(r); return t && t >= '11:00' && t <= '13:00'; }).length;
+  var W = 1080, P = 56, HEAD = 206, ROW = 124, LBL = 58, MID = midday > 2 ? 104 : 0, FOOT = 176;
+  var label = function(r, i){ var t = getDepartureTime(r); return !!(t && rush[t] && !(i > 0 && getDepartureTime(rows[i - 1]) === t)); };
+  var BODY = rows.reduce(function(a, r, i){ return a + ROW + (label(r, i) ? LBL : 0); }, 0);
+  var H = HEAD + MID + BODY + FOOT;
+  var c = document.createElement('canvas'); c.width = W; c.height = H;
+  var g = c.getContext('2d'), NAVY = '#061433', GOLD = '#C9A84C', INK = '#0B1A33', MU = '#5A6B8C', LINE = '#E3E7EE', TINT = '#F4F6FA', RED = '#C0392B', BLUE = '#2A5DB0';
+  var fit = function(text, font, maxW){ g.font = font; if (g.measureText(text).width <= maxW) return text;
+    while (text.length > 1 && g.measureText(text + '…').width > maxW) text = text.slice(0, -1); return text + '…'; };
+  g.textBaseline = 'alphabetic';
+  g.fillStyle = '#FFFFFF'; g.fillRect(0, 0, W, H);
+  // Header: same as Departures
+  g.fillStyle = NAVY; g.fillRect(0, 0, W, HEAD);
+  g.fillStyle = '#FFFFFF'; g.font = '700 66px Sora, sans-serif'; g.fillText('Coming back', P, 112);
+  var dayTxt = new Date(day + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+  g.fillStyle = '#C8D3E6'; g.font = '500 30px Inter, sans-serif'; g.fillText(dayTxt + ' · cars to deliver', P, 164);
+  if (mavLogo) { var lgh = 92, lgw = lgh * mavLogo.width / mavLogo.height; g.drawImage(mavLogo, W - P - lgw, (HEAD - lgh) / 2, lgw, lgh); }
+  var y = HEAD;
+  if (MID) {
+    g.fillStyle = '#FDECEA'; mfRound(g, P, y + 20, W - 2 * P, MID - 32, 14); g.fill();
+    g.strokeStyle = RED; g.lineWidth = 2.5; mfRound(g, P, y + 20, W - 2 * P, MID - 32, 14); g.stroke();
+    g.fillStyle = RED; g.font = '700 30px Sora, sans-serif'; g.fillText('⚠ MIDDAY RUSH: ' + midday + ' cars from 11:00 AM to 1:00 PM', P + 24, y + 20 + (MID - 32) / 2 + 11);
+    y += MID;
+  }
+  var COLON = 124, TAG_X = 274, TAIL_W = 78, TAG_H = 70, RIGHT_W = 300;
+  rows.forEach(function(r, i){
+    var t = getDepartureTime(r), inRush = !!(t && rush[t]);
+    if (label(r, i)) {
+      g.fillStyle = RED; g.font = '700 28px Sora, sans-serif'; g.fillText('⚠ ' + rush[t] + ' CARS AT ' + vpTime(t), P, y + 42);
+      y += LBL;
+    }
+    var mid = y + ROW / 2;
+    if (i % 2) { g.fillStyle = TINT; g.fillRect(0, y, W, ROW); }
+    if (inRush) { g.fillStyle = RED; g.fillRect(0, y, 12, ROW); }
+    // time, colons aligned (No time in red)
+    if (t) {
+      var tm = vpTime(t).match(/^(\d+)(:\d\d) (AM|PM)$/) || ['', vpTime(t), '', ''];
+      g.fillStyle = INK; g.font = '700 46px Sora, sans-serif';
+      g.textAlign = 'right'; g.fillText(tm[1], COLON, mid + 16); g.textAlign = 'left'; g.fillText(tm[2], COLON, mid + 16);
+      var mw = g.measureText(tm[2]).width; g.font = '600 22px Sora, sans-serif'; g.fillStyle = MU; g.fillText(tm[3], COLON + mw + 6, mid + 16);
+    } else { g.fillStyle = RED; g.font = '700 30px Sora, sans-serif'; g.fillText('No time', P - 20, mid + 11); }
+    // tail of the plane, in the colour of the island's Makers bag tag when the robot saw the guest on a flight
+    var isl = from[r.id], tag = (isl && MF_TAGS[isl]) || ['#E3E7EE', '#111111'], outline = (tag[0] === '#FFFFFF' || !isl) ? '#8E98A9' : null;
+    var tail = String(r.return_flight || '').trim().toUpperCase().split(/\s+/)[0] || '', ty = mid - TAG_H / 2;
+    if (tail) {
+      g.fillStyle = tag[0]; mfRound(g, TAG_X, ty, TAIL_W, TAG_H, 8); g.fill();
+      if (outline) { g.strokeStyle = outline; g.lineWidth = 2; mfRound(g, TAG_X, ty, TAIL_W, TAG_H, 8); g.stroke(); }
+      g.fillStyle = tag[1]; g.font = '700 ' + (tail.length > 2 ? 26 : 34) + 'px Sora, sans-serif'; g.textAlign = 'center'; g.fillText(tail, TAG_X + TAIL_W / 2, mid + 12); g.textAlign = 'left';
+    }
+    var textX = TAG_X + TAIL_W + 24;
+    // name, then ticket · car
+    var maxW = W - P - RIGHT_W - 20 - textX;
+    g.fillStyle = INK; g.fillText(fit(titleCaseName(r.name || ''), '600 32px Inter, sans-serif', maxW), textX, mid - 4);
+    g.fillStyle = MU; g.fillText(fit(['#' + (r.ticket || '—'), niceVehicleText([r.color, r.car].filter(Boolean).join(' '))].filter(Boolean).join(' · '), '500 24px Inter, sans-serif', maxW), textX, mid + 32);
+    // right: hangar (NO HANGAR in red), then Ascend / US Customs
+    var noLoc = !r.loc || !String(r.loc).trim(), mark = isAscend(r) ? 'ASCEND' : (pickupLocation(r) === 'CUSTOMS' ? '→ US Customs' + (isCustomsException(r) ? ' (exception)' : '') : '');
+    g.textAlign = 'right';
+    g.fillStyle = noLoc ? RED : NAVY; g.fillText(fit(noLoc ? 'NO HANGAR' : titleCaseName(r.loc), '700 28px Sora, sans-serif', RIGHT_W), W - P, mark ? mid - 4 : mid + 10);
+    if (mark) { g.fillStyle = BLUE; g.fillText(fit(mark, '700 22px Inter, sans-serif', RIGHT_W), W - P, mid + 30); }
+    g.textAlign = 'left';
+    g.fillStyle = LINE; g.fillRect(P, y + ROW - 1, W - 2 * P, 1);
+    y += ROW;
+  });
+  // Footer
+  g.fillStyle = NAVY; g.fillRect(0, y, W, FOOT);
+  g.fillStyle = '#FFFFFF'; g.font = '700 46px Sora, sans-serif'; g.fillText(rows.length + ' car' + (rows.length === 1 ? '' : 's'), P, y + 78);
+  g.fillStyle = '#C8D3E6'; g.font = '500 28px Inter, sans-serif'; g.fillText('to deliver', P, y + 122);
+  g.textAlign = 'right'; g.fillStyle = '#8FA0BF'; g.font = '500 22px Inter, sans-serif';
+  g.fillText('Made ' + new Date().toLocaleString('en-US', { weekday: 'short', hour: 'numeric', minute: '2-digit' }), W - P, y + 120);
+  g.textAlign = 'left';
+  return c;
+}
 async function mfShareDepartures(btn){
   var r = _mf.res; if (!r) return;
   var old = btn.textContent; btn.textContent = 'Preparing the picture…';
@@ -18999,15 +19078,19 @@ async function mfShareDepartures(btn){
     var blob = await new Promise(function(ok){ c.toBlob(ok, 'image/png'); });
     var name = 'departures-' + (r.manifest_date || 'makers') + '.png';
     var file = new File([blob], name, { type: 'image/png' });
-    if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      await navigator.share({ files: [file] });
+    // Coming back picture goes in the same share (owner 2026-11-12); none when no car comes back that day.
+    var files = [file], back = null, backBlob = null;
+    try { back = r.manifest_date ? await mfComingBackCanvas(r.manifest_date, r) : null; } catch(e) { console.error(e); }
+    if (back) { backBlob = await new Promise(function(ok){ back.toBlob(ok, 'image/png'); }); files.push(new File([backBlob], 'coming-back-' + r.manifest_date + '.png', { type: 'image/png' })); }
+    if (navigator.canShare && navigator.canShare({ files: files })) {
+      await navigator.share({ files: files });
       btn.textContent = old;
       mfSharedSave(r); mfRenderResult();   // next picture shows what changed since this one
     } else {
       // No Share sheet (desktop): save the picture instead.
-      var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click();
-      setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 1000);
-      btn.textContent = 'Picture saved ✓';
+      files.forEach(function(f){ var a = document.createElement('a'); a.href = URL.createObjectURL(f); a.download = f.name; document.body.appendChild(a); a.click();
+        setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 1000); });
+      btn.textContent = files.length > 1 ? 'Pictures saved ✓' : 'Picture saved ✓';
       mfSharedSave(r);
     }
   } catch(e) {
