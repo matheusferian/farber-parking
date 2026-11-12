@@ -18678,11 +18678,11 @@ function mfCard(m, i){
     acts.push('<button type="button" class="mf-btn mf-sm mf-ghost" onclick="mfVerdict(' + i + ',\'different\')">Not the same</button>');
   } else {
     if ((m.state === 'early' || m.state === 'late' || m.state === 'no_date') && !m._date) acts.push('<button type="button" class="mf-btn mf-sm mf-pri" onclick="mfDate(' + i + ')">Change return to ' + escapeHTML(fmtD(mfIsoToMdy(m.manifest_date))) + '</button>');
-    if (m.state !== 'delivered' && (m.suggest_flight || m.suggest_time) && !m._fill) acts.push('<button type="button" class="mf-btn mf-sm" onclick="mfFill(' + i + ')">Fill ' + escapeHTML([m.suggest_flight, m.suggest_time && vpTime(m.suggest_time)].filter(Boolean).join(' · ')) + '</button>');
+    if (mfNeedsFill(m)) acts.push('<button type="button" class="mf-btn mf-sm" onclick="mfFill(' + i + ')">Fill ' + escapeHTML([m.suggest_flight, m.suggest_time && vpTime(m.suggest_time)].filter(Boolean).join(' · ')) + '</button>');
     if (m.suggest_name && !m._name) acts.push('<button type="button" class="mf-btn mf-sm" onclick="mfFixName(' + i + ')">Fix name</button>');
     if (m.kind !== 'exact') acts.push('<button type="button" class="mf-btn mf-sm mf-ghost" onclick="mfVerdict(' + i + ',\'different\')">Not the same person</button>');
   }
-  var done = [m._date && 'Return date changed', m._fill && 'Tail and time saved', m._name && 'Name fixed', m._ok && 'Saved'].filter(Boolean);
+  var done = [m._date && 'Return date changed', (m._fill || ((m.suggest_flight || m.suggest_time) && m.state !== 'delivered' && mfHasFill(m))) && 'Tail and time saved', m._name && 'Name fixed', m._ok && 'Saved'].filter(Boolean);
   return '<article class="mf-card mf-' + m.state + '"><div class="mf-name"><b>' + escapeHTML(m._name || m.system_name) + '</b><span>' + escapeHTML(m.ticket) + '</span></div>' +
     '<div class="mf-chips">' + chips + '</div>' + lines +
     (done.length ? '<div class="mf-done">✓ ' + escapeHTML(done.join(' · ')) + '</div>' : '') +
@@ -18695,7 +18695,7 @@ function mfRenderResult(){
   var chk = M.filter(function(x){ return x.m.kind === 'surname_only'; });
   var ok = M.filter(function(x){ return x.m.kind !== 'surname_only' && x.m.state === 'ok'; });
   var del = M.filter(function(x){ return x.m.kind !== 'surname_only' && x.m.state === 'delivered'; });
-  var fillable = M.filter(function(x){ return x.m.kind !== 'surname_only' && x.m.state !== 'delivered' && !x.m._fill && (x.m.suggest_flight || x.m.suggest_time); });
+  var fillable = M.filter(function(x){ return x.m.kind !== 'surname_only' && mfNeedsFill(x.m); });
   var W = { COUNT_MISMATCH: 'names read do not match the page total', HARD_TO_READ: 'a name was hard to read', DUPLICATE_PAGE: 'same page twice (kept once)',
     NOT_A_MANIFEST: 'not a Makers manifest', READ_FAILED: 'could not be read', REFUSED: 'could not be read', TRUNCATED: 'could not be read', MIXED_DATES: 'pages from different days' };
   var warn = (r.warnings || []).map(function(w){ return '<li>' + (w.photo ? 'Photo ' + w.photo + ': ' : '') + escapeHTML(W[w.code] || w.code) + (w.detail ? ' (' + escapeHTML(w.detail) + ')' : '') + '</li>'; }).join('');
@@ -18752,6 +18752,15 @@ function mfRenderResult(){
       ? (mfRobotOwner() ? '<button type="button" class="mf-btn mf-go" onclick="mfUpdate()">🔄 Update from Makers</button>' : '') + '<button type="button" class="mf-link" onclick="mfRenderPick()">No Makers access? Check with photos</button>'
       : '<button type="button" class="mf-btn" onclick="mfHome()">Back</button>');
 }
+// Owner 2026-11-12: Fill came back after closing and reopening — the screen shows the robot's last reading,
+// made before the Fill. A guest whose car already has the suggested tail and time needs nothing.
+function mfHasFill(m){
+  var r = paxById(m.passenger_id); if (!r) return false;
+  var nt = function(t){ var x = /^(\d{1,2}):(\d{2})/.exec(String(t || '').trim()); return x ? x[1].padStart(2, '0') + ':' + x[2] : ''; };
+  var f = String(r.return_flight || '').trim().toUpperCase().split(/\s+/)[0] || '';
+  return (!m.suggest_flight || f === String(m.suggest_flight).toUpperCase()) && (!m.suggest_time || nt(r.departure_time) === nt(m.suggest_time));
+}
+function mfNeedsFill(m){ return m.state !== 'delivered' && !m._fill && !!(m.suggest_flight || m.suggest_time) && !mfHasFill(m); }
 async function mfFill(i){
   var m = _mf.res && _mf.res.matches[i]; if (!m || m._fill) return;
   var r = paxById(m.passenger_id); if (!r) { showMsg('Ticket not loaded — refresh.', true); return; }
@@ -18764,7 +18773,7 @@ async function mfFill(i){
 }
 async function mfFillAll(){
   var list = (_mf.res.matches || []).map(function(m, i){ return { m: m, i: i }; })
-    .filter(function(x){ return x.m._done !== 'gone' && x.m.kind !== 'surname_only' && x.m.state !== 'delivered' && !x.m._fill && (x.m.suggest_flight || x.m.suggest_time); });
+    .filter(function(x){ return x.m._done !== 'gone' && x.m.kind !== 'surname_only' && mfNeedsFill(x.m); });
   for (var k = 0; k < list.length; k++) await mfFill(list[k].i);
   showMsg('✓ Tail and arrival time saved for ' + list.length + ' guest' + (list.length > 1 ? 's' : '') + '.', false);
 }
