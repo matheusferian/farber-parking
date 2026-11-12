@@ -16,7 +16,8 @@
     return r.ok ? r.json() : { state: 'error' };
   }
   function form() {
-    app.innerHTML = '<p class="lbl">Leave a tip for your driver</p>' +
+    app.innerHTML = '<div class="note"><p class="nh">A note from your driver</p><p>Thank you for riding with us. It was a pleasure to drive you, and we hope you enjoyed Jet Runway Caf\u00e9.</p></div>' +
+      '<p class="lbl">Leave a tip for your driver</p>' +
       '<div class="amts" role="group" aria-label="Tip amount">' + [500, 1000, 2000].map(function (c) {
         return '<button type="button" class="amt" data-c="' + c + '" aria-pressed="' + (c === sel) + '">$' + c / 100 + '</button>'; }).join('') + '</div>' +
       '<button type="button" class="btn other" id="oBtn">Other amount</button><div class="oth" id="oBox" hidden><input id="oAmt" type="number" inputmode="decimal" min="1" max="500" step="1" placeholder="$ amount" aria-label="Other amount in dollars"></div>' +

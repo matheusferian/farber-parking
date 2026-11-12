@@ -8,6 +8,10 @@ Deno.test('ride texts are one GSM-7 segment each', () => {
     assertEquals(countSegments(s), 1, s);
   }
   assert(rideText('START').includes('READY') && rideText('START').includes('(954) 352-1010') && rideText('START').includes('STOP'));
+  for (const s of [rideText('START'), rideText('ONWAY'), rideText('DONE'), rideText('DONE', 'airvalet.farberos.com/r#abc')]) {
+    assert(!/tip|gratuit/i.test(s), 'no tip wording in SMS (owner 2026-11-12): ' + s);
+  }
+  assert(rideText('DONE', 'airvalet.farberos.com/r#abc').endsWith('left you a note: airvalet.farberos.com/r#abc'));
 });
 
 Deno.test('SMS gate: off / test / live', () => {

@@ -11,7 +11,8 @@ export function rideText(kind: RideKind, tipUrl?: string | null): string {
     case 'ONWAY':
       return "Makers Air Valet: we're on our way! Please wait outside Jet Runway Cafe, about 5 min.";
     case 'DONE':
-      return 'Thanks for riding with Makers Air Valet! A tip for your driver is always appreciated' + (tipUrl ? `: ${tipUrl}` : '.');
+      // Owner 2026-11-12: no tip wording in the SMS (A2P campaign); the note page offers the optional tip.
+      return 'Thanks for riding with Makers Air Valet!' + (tipUrl ? ` Your driver left you a note: ${tipUrl}` : '');
   }
 }
 
