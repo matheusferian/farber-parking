@@ -160,7 +160,8 @@
     h1.hidden = false; sub.hidden = false;
     // Owner preview 2026-11-10: the Makers Caravan 3D (no tail number) instead of the drawing,
     // only on the owner's test ticket until approved. Swapped before the flight starts.
-    PREVIEW = p.ticket === '1110-10';
+    // Owner 2026-11-12: approved on his test pass (1110-10) — now for every guest.
+    PREVIEW = true;
     if (PREVIEW && !hero.querySelector('.plane .p3d')) {
       var pl = hero.querySelector('.plane');
       if (pl) { pl.classList.add('plane3d'); pl.insertAdjacentHTML('beforeend', '<span class="p3d-w"><img class="p3d" src="assets/makers-caravan-3d.webp" alt="" width="900" height="393"><span class="prop3d"></span></span>'); }
