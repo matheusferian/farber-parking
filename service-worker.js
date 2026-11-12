@@ -109,7 +109,8 @@
 // v182: iPad kiosk view of the Dashboard (opt-in per device: Kiosk view button / ?kiosk=1; Classic view turns it off).
 // v183: kiosk view — New check-in full screen in steps (Guest / Return / Texts); Jet Runway widget only while a ride is open, after tips.
 // v184: TV departures — DELAYED while the plane is still at FXE after its time; destinations of the people on board (route = first stop only).
-var CACHE_VERSION = 'v184';
+// v185: TV departures — first stop + islands as bag tags (1ST STOP SAQ › TYM 4 · GHC 2).
+var CACHE_VERSION = 'v185';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 var SHELL_FILES = [

@@ -16747,10 +16747,18 @@ function tvMakersStillAtFxe(f, dep){
 function tvMakersDests(f){
   var stop = String(f.route || '').replace(/^FXE-/, ''), list = Array.isArray(f.dests) ? f.dests.filter(function(d){ return d && d.to; }) : [];
   var name = function(c){ return (typeof MF_AIRPORTS !== 'undefined' && MF_AIRPORTS[c]) || c; };
-  if(!list.length) return {main: stop, place: name(stop), via: ''};
+  if(!list.length) return {main: stop, place: name(stop), via: '', list: [], stop: ''};
   var place = list.length === 1 ? name(list[0].to) : list.map(function(d){ return name(d.to) + ' ' + d.pax; }).join(' · ');
   var stopUsed = list.some(function(d){ return d.to === stop; });
-  return {main: list[0].to, place: place, via: stopUsed ? '' : name(stop)};
+  return {main: list[0].to, place: place, via: stopUsed ? '' : name(stop), list: list, stop: stopUsed ? '' : stop};
+}
+// Owner 2026-11-12: a flight with a first stop or several islands shows bag tags, not a sentence —
+// [1ST STOP SAQ] → [TYM 4] [GHC 2], each in its real bag-tag colour.
+function tvMakersDestTags(dd){
+  var tag = function(c, n){ var code = (typeof MF_TAG_CODE !== 'undefined' && MF_TAG_CODE[c]) || c;
+    return '<span class="mk-bag mk-dtag" style="'+tvMakersTag(c)+'">'+escapeHTML(code)+(n ? '<em>'+n+'</em>' : '')+'</span>'; };
+  return '<span class="mk-dtags">'+(dd.stop ? '<span class="mk-stop">1ST STOP</span>'+tag(dd.stop, 0)+'<span class="mk-then">&#8250;</span>' : '')+
+    dd.list.map(function(d){ return tag(d.to, dd.list.length > 1 ? d.pax : 0); }).join('')+'</span>';
 }
 function tvMakersRowHtml(f, dayKey, nextKey, withStatus, grp){
   var dd = tvMakersDests(f), dest = dd.main;
@@ -16767,8 +16775,8 @@ function tvMakersRowHtml(f, dayKey, nextKey, withStatus, grp){
     '<div class="mk-time" data-flap="'+escapeHTML(key+'|t')+'" data-val="'+escapeHTML(tm.t)+'">'+tvFlapHtml(tm.t, 5)+'<small>'+tm.ap+'</small></div>'+
     '<div class="mk-tags"><span class="mk-tail" style="'+tvMakersTag(dest)+'">'+escapeHTML(tvMakersTailSuffix(f.tail))+'</span>'+
       '<span class="mk-bag" style="'+tvMakersTag(dest)+'">'+escapeHTML(code)+'</span></div>'+
-    '<div class="mk-dest"><b>'+escapeHTML(place)+'</b>'+
-      '<span class="mk-fn">Flight '+escapeHTML(String(f.flight || ''))+(dd.via ? ' &middot; 1st stop '+escapeHTML(dd.via) : '')+
+    '<div class="mk-dest">'+(dd.stop || dd.list.length > 1 ? tvMakersDestTags(dd) : '<b>'+escapeHTML(place)+'</b>')+
+      '<span class="mk-fn">Flight '+escapeHTML(String(f.flight || ''))+
       (ascend ? '<img class="mk-asc" src="assets/ascend-logo.png" alt="Ascend">' : '')+
       (dayTrips ? '<span class="mk-dt">'+dayTrips+' DAY TRIP</span>' : '')+
       (chg ? '<span class="mk-updtag">UPDATED'+(chg.pax_from !== chg.pax_to && chg.status !== 'new' ? ' &middot; WAS '+chg.pax_from : '')+'</span>' : '')+'</span></div>'+

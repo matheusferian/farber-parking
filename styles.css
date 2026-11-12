@@ -3354,3 +3354,10 @@ body.av-kiosk .ci2-wide .ci2-consent summary{font-size:16px;min-height:44px}
 }
 body.av-kiosk .ci2-wide #ci2Hangars button{min-height:64px;min-width:120px;font-size:18px;font-weight:700}
 body.av-kiosk .ci2-wide .ci2-script{font-size:17px;line-height:1.5}
+/* TV departures: first stop + islands as bag tags (owner 2026-11-12) */
+.mk-dtags{display:flex;align-items:center;flex-wrap:wrap;gap:calc(var(--r)*.1);min-height:calc(var(--r)*.6)}
+.mk-dtag{gap:calc(var(--r)*.1)}
+.mk-dtag em{font-style:normal;opacity:.75;margin-left:calc(var(--r)*.08)}
+.mk-stop{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:calc(var(--r)*.24);letter-spacing:.08em;color:#FF8A8F;margin-right:calc(var(--r)*.04)}
+.mk-then{font-size:calc(var(--r)*.42);color:#8FA3C7;margin:0 calc(var(--r)*.06);line-height:1}
+.mk-departed .mk-dtags{text-decoration:line-through;text-decoration-thickness:3px}
