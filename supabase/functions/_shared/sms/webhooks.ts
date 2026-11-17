@@ -32,6 +32,9 @@ export type WebhookDeps = {
   // claimed by the Event Valet module (READY for an active event car). null = not
   // claimed → normal AirValet handling. Errors never affect the AirValet path.
   preRoute?: (params: URLSearchParams, fromE164: string) => Promise<Response | null>;
+  // Called after a status is stored (owner 2026-11-17: a link text blocked by the carrier gets a no-link copy).
+  // Awaited but never allowed to fail the callback.
+  onStatus?: (sid: string, status: string, errorCode: string | null) => Promise<void>;
 };
 
 export type Keyword = 'STOP' | 'START' | 'HELP';
@@ -96,6 +99,7 @@ export async function handleStatusCallback(deps: WebhookDeps, req: Request): Pro
   try {
     const result = await deps.store.applyStatus(sid, status, errorCode, errorMessage, messageId);
     deps.log?.('twilio.status', { sid, status, result });
+    if (deps.onStatus) { try { await deps.onStatus(sid, status, errorCode); } catch { deps.log?.('twilio.on_status_error', { sid }); } }
     return new Response(null, { status: 204 });
   } catch {
     // 5xx → Twilio retries the callback later; the DB step is idempotent.

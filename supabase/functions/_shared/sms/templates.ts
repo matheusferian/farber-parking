@@ -124,7 +124,7 @@ const notArchived = (p: PassengerCtx) => (p.status === 'DELIVERED' || p.status =
 export const TEMPLATES: Record<MessageType, Template> = {
   // Owner final text (2026-10-25, go-live): no passenger name — the phone may
   // belong to a companion. Fixed length: 160 GSM-7 chars with the real link
-  // (https://airvalet.farberos.com/a# + 17-char token) = ONE segment.
+  // (https://airvalet.farberos.com/p/ + 17-char token, same length as /a#) = ONE segment.
   CHECK_IN: {
     type: 'CHECK_IN', status: 'APPROVED', version: 'checkin-2026-11-06-live-b', freeText: false, allowedRoles: OPS,
     needsPassLink: true,

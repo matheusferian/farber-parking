@@ -4,7 +4,15 @@
 (function () {
   'use strict';
   var API = (document.querySelector('meta[name="airvalet-pass-api"]') || {}).content || '';
-  var TOKEN = String(location.hash || '').replace(/^#/, '');
+  // Owner 2026-11-17: SMS links are /p/<token> (same as the approved A2P sample — carriers filtered some /a#
+  // links); /a#<token> links already sent keep working.
+  var tokenFromUrl = function () {
+    var h = String(location.hash || '').replace(/^#/, '');
+    if (h) return h;
+    var m = /^\/p\/([A-Za-z0-9]{17})\/?$/.exec(location.pathname);
+    return m ? m[1] : '';
+  };
+  var TOKEN = tokenFromUrl();
   var app = document.getElementById('app');
   var sheetBg = document.getElementById('sheetBg');
   var sheet = document.getElementById('sheet');
@@ -133,12 +141,12 @@
     cineTried = true;
     var kind = pass.status === 'DELIVERED' ? null
       : ((pass.status === 'READY' && !dayTripEarly(pass)) || pass.status === 'CUSTOMS_CONFIRMED' || isReturning(pass)) ? 'RETURN' : 'DEPARTURE';
-    if (kind) window.MAVCinematic.start({ kind: kind, v: CINEMATIC_VERSION }, TOKEN, 'cine/');
+    if (kind) window.MAVCinematic.start({ kind: kind, v: CINEMATIC_VERSION }, TOKEN, '/cine/');
   }
 
   function renderMessage(title, text, retry) {
     setHero(null);
-    app.innerHTML = '<div class="center"><img src="assets/makers-valet-badge.png" alt="Makers Air Valet" width="64" height="64">' +
+    app.innerHTML = '<div class="center"><img src="/assets/makers-valet-badge.png" alt="Makers Air Valet" width="64" height="64">' +
       '<h2>' + esc(title) + '</h2><p class="muted">' + esc(text) + '</p>' +
       (retry ? '<button class="btn quiet" type="button" id="retry">Try again</button>' : '') + '</div>';
     var b = document.getElementById('retry'); if (b) b.addEventListener('click', load);
@@ -164,7 +172,7 @@
     PREVIEW = true;
     if (PREVIEW && !hero.querySelector('.plane .p3d')) {
       var pl = hero.querySelector('.plane');
-      if (pl) { pl.classList.add('plane3d'); pl.insertAdjacentHTML('beforeend', '<span class="p3d-w"><img class="p3d" src="assets/makers-caravan-3d.webp" alt="" width="900" height="393"><span class="prop3d"></span></span>'); }
+      if (pl) { pl.classList.add('plane3d'); pl.insertAdjacentHTML('beforeend', '<span class="p3d-w"><img class="p3d" src="/assets/makers-caravan-3d.webp" alt="" width="900" height="393"><span class="prop3d"></span></span>'); }
       // A real climb (owner: "the line is straight"): the dotted line and the flight rise to the right.
       // Return day (owner 2026-11-10): the guest is flying back, so the Caravan comes down to land instead.
       var landing = !done && !!p.return_date && fmtDate(p.return_date) === fmtIsoDate(todayIso());
@@ -416,7 +424,7 @@
       '<p class="contact-line">Valet team: <a href="' + esc(tel(contactValet(p))) + '">' + esc(contactValet(p)) + '</a></p>' +
       (c.reservations_phone ? '<p class="fine">Flights: <a href="' + esc(tel(c.reservations_phone)) + '">Makers Air ' + esc(c.reservations_phone) + '</a></p>' : '') + '</section>';
     html += '<footer>' +
-      '<div class="operator"><img src="assets/farber-parking-badge.png" alt="Farber Parking" width="44" height="44">' +
+      '<div class="operator"><img src="/assets/farber-parking-badge.png" alt="Farber Parking" width="44" height="44">' +
       '<div><p>Operated by Farber Parking</p><p><a href="tel:+15617740494">(561) 774-0494</a></p></div></div>' +
       '<p>Makers Air Valet, Hangar 19, Fort Lauderdale</p>' +
       '<p class="foot-links"><button class="flink" type="button" data-open="info">Valet information</button>' +
@@ -663,7 +671,7 @@
 
   // A different link opened in the same tab: show that pass, never the previous one.
   window.addEventListener('hashchange', function () {
-    TOKEN = String(location.hash || '').replace(/^#/, ''); pass = null; chatMsgs = []; lastOk = null;
+    TOKEN = tokenFromUrl(); pass = null; chatMsgs = []; lastOk = null;
     if (!sheetBg.hidden) closeSheet();
     setHero(null);  // never keep the previous guest's name on screen
     app.innerHTML = '<div class="center"><p class="muted">Loading your valet pass…</p></div>';

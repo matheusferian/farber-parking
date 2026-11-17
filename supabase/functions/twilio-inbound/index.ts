@@ -24,6 +24,8 @@ import { makeHandler as makeEventValet } from '../event-valet/handler.ts';
 import { notifyRideReady } from '../_shared/notify/ride.ts';
 import { rideInboxInbound } from '../_shared/sms/ride-inbox.ts';
 import { readVapid } from '../_shared/notify/runtime.ts';
+import { TwilioProvider } from '../_shared/sms/provider.ts';
+import { isPassWord, passReply } from '../_shared/sms/link-fallback.ts';
 
 declare const EdgeRuntime: { waitUntil(p: Promise<unknown>): void } | undefined;
 
@@ -67,6 +69,19 @@ Deno.serve((req) => {
     // 1) Jet Runway rides (owner 2026-11-11): READY from a phone with an open ride → ride READY + staff push.
     // 2) Event Valet READY routing (Watermakers): OFF unless EVENT_VALET_SMS_ROUTING=on.
     preRoute: async (params, fromE164) => {
+      // 0) Owner 2026-11-17: "PASS" from a guest whose link text was blocked → the link, automatically (live only).
+      if (isPassWord(params.get('Body') || '') && cfg.mode === 'live' && cfg.twilio) {
+        const provider = new TwilioProvider({ ...cfg.twilio, timeoutMs: 10_000 });
+        const done = await passReply(admin, fromE164, params.get('MessageSid') || '', cfg.passBaseUrl, async (to, body, mid) => {
+          const o = await provider.send({ to, body, statusCallbackUrl: `${cfg.publicFunctionsUrl}/twilio-status-callback?mid=${mid}` });
+          if (o.kind === 'accepted') {
+            const st = (['accepted', 'queued', 'sending', 'sent'] as const).find((x) => x === o.status) ?? 'accepted';
+            return { ok: true, sid: o.sid, status: st, errorCode: null, errorMessage: null };
+          }
+          return { ok: false, sid: null, status: o.kind === 'unknown' ? 'send_unknown' : 'failed', errorCode: o.errorCode, errorMessage: o.errorMessage };
+        }, log);
+        if (done) return new Response(EMPTY_TWIML, { status: 200, headers: { 'Content-Type': 'text/xml' } });
+      }
       const ride = await rideRoute(admin, get, log, params, fromE164);
       if (ride) return ride;
       return get('EVENT_VALET_SMS_ROUTING') === 'on' ? makeEventValet(get).routedInbound(params) : null;
