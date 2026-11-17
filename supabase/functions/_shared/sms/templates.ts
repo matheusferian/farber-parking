@@ -125,17 +125,18 @@ export const TEMPLATES: Record<MessageType, Template> = {
   // Owner final text (2026-10-25, go-live): no passenger name — the phone may
   // belong to a companion. Fixed length: 160 GSM-7 chars with the real link
   // (https://airvalet.farberos.com/p/ + 17-char token, same length as /a#) = ONE segment.
+  // Owner 2026-11-17 (option 2): carriers filter the check-in text when it carries the link (30007), while the
+  // link sent as the answer to the guest's reply arrives. The check-in text has NO link and asks the guest to
+  // reply PASS; twilio-inbound answers PASS with the valet pass link (link-fallback.ts). Previous text with the
+  // link: welcomeBody() (still used by pass-share's device share).
   CHECK_IN: {
-    type: 'CHECK_IN', status: 'APPROVED', version: 'checkin-2026-11-06-live-b', freeText: false, allowedRoles: OPS,
-    needsPassLink: true,
+    type: 'CHECK_IN', status: 'APPROVED', version: 'checkin-2026-11-17-ask-pass', freeText: false, allowedRoles: OPS,
+    needsPassLink: false,
     // Owner 2026-11-07: one welcome per phone number. A corrected phone (typo at check-in) gets its own
     // welcome from any ops login; the same number can never get it twice.
     defaultEventRef: (_now, p) => { const d = String((p as { phone?: string | null }).phone || '').replace(/\D/g, '').slice(-10); return d ? 'checkin:' + d : 'checkin'; },
     guard: notArchived,
-    render: (_p, env) => {
-      if (!env.passUrl) throw new TemplateError('PASS_LINK_MISSING', 'passenger link not available');
-      return { variant: 'CHECK_IN_PASS', body: welcomeBody(env.passUrl) };
-    },
+    render: () => ({ variant: 'CHECK_IN_ASK_PASS', body: CHECK_IN_ASK_PASS_BODY }),
   },
   // Replaces RETURN_CONFIRMATION + TASK_CONFIRMATION. When the return flight
   // operator is unknown it also asks Makers Air or Ascend (1 segment).
@@ -284,6 +285,8 @@ export const SMS_CARRIER_FEE_EST_USD = 0.003;
 export function estimateCostUsd(segments: number): number {
   return Math.round(segments * (SMS_PRICE_PER_SEGMENT_USD + SMS_CARRIER_FEE_EST_USD) * 10000) / 10000;
 }
+
+export const CHECK_IN_ASK_PASS_BODY = 'Welcome to Makers Air Valet! Your car is checked in. Reply PASS to get your valet pass link. Msg & data rates may apply. Reply HELP for help, STOP to opt out.';
 
 // Owner's go-live welcome (single line breaks keep it at 160 chars = 1 segment).
 export function welcomeBody(link: string): string {

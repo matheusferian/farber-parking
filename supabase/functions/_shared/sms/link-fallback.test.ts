@@ -78,7 +78,7 @@ Deno.test('other errors and delivered texts never touch the DB', async () => {
 function passAdmin(copy: Record<string, unknown> | null, token: string | null = 'Ab3dE6gH9jK2mN4pQ') {
   const inserted: Record<string, unknown>[] = [], rpcs: [string, Record<string, unknown>][] = [], keys = new Set<string>();
   const chain: Record<string, unknown> = {};
-  for (const k of ['select', 'eq', 'gte', 'order', 'limit']) chain[k] = () => chain;
+  for (const k of ['select', 'eq', 'in', 'gte', 'order', 'limit']) chain[k] = () => chain;
   chain.maybeSingle = async () => ({ data: copy });
   const admin = {
     from: () => ({
@@ -128,4 +128,9 @@ Deno.test('no link available (car archived) → reply marked failed, nothing sen
   assertEquals(await passReply(f.admin, '+15615550100', 'SMin', BASE, okSend(sent)), true);
   assertEquals(sent.length, 0);
   assertEquals(f.rpcs[1][1].p_error_code, 'PASS_LINK_UNAVAILABLE');
+});
+
+Deno.test('option 2: the check-in text asks for PASS, so its PASS reply gets the link', async () => {
+  const { PASS_ASKING_KEYS } = await import('./link-fallback.ts');
+  assertEquals(PASS_ASKING_KEYS.includes('CHECK_IN_ASK_PASS'), true);
 });

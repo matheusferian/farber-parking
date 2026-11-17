@@ -65,8 +65,10 @@ export async function sendNoLinkCopy(admin: any, sid: string, status: string, er
 export const isPassWord = (body: string) => /^\s*pass\W*$/i.test(String(body || ''));
 export const passReplyBody = (link: string) => `${SENDER}: Here is your valet pass: ${link}`;
 const PASS_WINDOW_DAYS = 14;
+// Texts that ask the guest to reply PASS: the no-link copies of a blocked text + the check-in text (option 2).
+export const PASS_ASKING_KEYS = ['CHECK_IN_PASS_NOLINK', 'DELIVERED_NOLINK', 'CHECK_IN_ASK_PASS'];
 
-// Only a phone that got a no-link copy (its link was blocked) in the last 14 days, once per copy: a guest who
+// Only a phone that got a text asking for PASS in the last 14 days, once per such text: a guest who
 // already has a working link never gets it rotated by a stray "pass".
 // deno-lint-ignore no-explicit-any
 export async function passReply(admin: any, fromE164: string, sid: string, passBaseUrl: string, send: Send,
@@ -75,7 +77,7 @@ export async function passReply(admin: any, fromE164: string, sid: string, passB
     const since = new Date(Date.now() - PASS_WINDOW_DAYS * 86400_000).toISOString();
     const { data: copy } = await admin.from('airvalet_sms_messages')
       .select('id,passenger_id,ticket_snapshot,message_type')
-      .eq('direction', 'outbound').eq('phone_e164', fromE164).eq('template_version', NO_LINK_VERSION).gte('created_at', since)
+      .eq('direction', 'outbound').eq('phone_e164', fromE164).in('template_key', PASS_ASKING_KEYS).gte('created_at', since)
       .order('created_at', { ascending: false }).limit(1).maybeSingle();
     if (!copy?.passenger_id) return false;
     const placeholder = passReplyBody(passBaseUrl + '*'.repeat(17));

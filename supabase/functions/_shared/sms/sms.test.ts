@@ -5,7 +5,7 @@
 import { assert, assertEquals, assertFalse, assertStringIncludes } from 'jsr:@std/assert@1';
 import twilio from 'npm:twilio@5'; // reference oracle for the signature algorithm only
 import { isTwilioDomestic, maskPhone, normalizePhoneE164 } from './phone.ts';
-import { countSegments, isGsm7, departureOperator, firstName, PassengerCtx, pickupPlace, renderMessage, returnLocation, shareWelcomeBody, Template, TemplateError, TEMPLATES } from './templates.ts';
+import { CHECK_IN_ASK_PASS_BODY, countSegments, isGsm7, departureOperator, firstName, PassengerCtx, pickupPlace, renderMessage, returnLocation, shareWelcomeBody, Template, TemplateError, TEMPLATES, welcomeBody } from './templates.ts';
 import { computeTwilioSignature, isValidTwilioSignature } from './twilio-signature.ts';
 import { MOCK_FAULTS, MockProvider, SendOutcome, TwilioProvider } from './provider.ts';
 import { makeRedactor, sanitizeProviderText } from './sanitize.ts';
@@ -57,6 +57,10 @@ const P = (o: Partial<PassengerCtx> = {}): PassengerCtx => ({
 });
 const approve = (t: Template): Template => ({ ...t, status: 'APPROVED', version: 'test' });
 const A: Record<string, Template> = Object.fromEntries(Object.entries(TEMPLATES).map(([k, t]) => [k, approve(t)]));
+// The link machinery (mint after claim, mask in the log, rotate on resend) is still used by DELIVERED; these
+// service tests keep exercising it through the previous check-in text WITH the link (until 2026-11-17).
+const LINKED: Record<string, Template> = { ...A, CHECK_IN: { ...A.CHECK_IN, needsPassLink: true,
+  render: (_p, env) => ({ variant: 'CHECK_IN_PASS', body: welcomeBody(env.passUrl!) }) } as Template };
 const codeOf = (fn: () => unknown) => { try { fn(); return 'none'; } catch (e) { return (e as TemplateError).code; } };
 const PASS = 'https://airvalet.farberos.com/a#Ab3dE6gH9jK2mN4pQ'; // 17-char token in the #fragment
 const ENV = { passUrl: PASS };
@@ -66,7 +70,7 @@ Deno.test('templates: REPLY, CHECK_IN (D1), VEHICLE_READY and VEHICLE_DELIVERED 
   assertEquals(Object.keys(TEMPLATES).sort(), ['AFTER_HOURS_CONFIRMED', 'CHECK_IN', 'CUSTOM_OPERATIONAL', 'REPLY', 'RETURN_CONFIRMATION', 'RETURN_UPDATED', 'VEHICLE_DELIVERED', 'VEHICLE_READY']);
   for (const t of Object.values(TEMPLATES)) {
     if (t.type === 'REPLY') { assertEquals(t.status, 'APPROVED'); assert(t.freeText); continue; }
-    if (t.type === 'CHECK_IN') { assertEquals(t.status, 'APPROVED'); assertEquals(t.version, 'checkin-2026-11-06-live-b'); continue; }
+    if (t.type === 'CHECK_IN') { assertEquals(t.status, 'APPROVED'); assertEquals(t.version, 'checkin-2026-11-17-ask-pass'); continue; }
     if (t.type === 'VEHICLE_READY') { assertEquals(t.status, 'APPROVED'); assertEquals(t.version, 'ready-2026-11-12'); continue; }
     if (t.type === 'VEHICLE_DELIVERED') { assertEquals(t.status, 'APPROVED'); assertEquals(t.version, 'delivered-2026-10-25'); continue; }
     assertEquals(t.status, 'PENDING_APPROVAL');
@@ -87,15 +91,17 @@ Deno.test('identity: every templated SMS names Makers Air (CHECK_IN D1 = "welcom
     assertFalse(b.includes('Ascend Valet'), t);
   }
 });
-Deno.test('CHECK_IN (2026-11-06): exact owner wording, no passenger name, real link, rates + HELP + STOP, TWO GSM-7 segments', () => {
+Deno.test('CHECK_IN (2026-11-17, option 2): no link, asks to reply PASS, rates + HELP + STOP, ONE GSM-7 segment', () => {
   for (const n of ['ANA SILVA', 'JOÃO 😀', 'Wolfeschlegelsteinhausen', null]) {
-    const b = renderMessage(A.CHECK_IN, P({ name: n }), ENV).body;
-    assertEquals(b, `Welcome to Makers Air Valet! Your car is checked in.\nTap to see your car's live status, your return details and a direct line to our team:\n${PASS}\nMsg & data rates may apply. Reply HELP for help, STOP to opt out.`);
-    assertEquals(seg(b), 2);
+    const b = renderMessage(A.CHECK_IN, P({ name: n }), {}).body;
+    assertEquals(b, 'Welcome to Makers Air Valet! Your car is checked in. Reply PASS to get your valet pass link. Msg & data rates may apply. Reply HELP for help, STOP to opt out.');
+    assertEquals(b, CHECK_IN_ASK_PASS_BODY);
+    assertEquals(seg(b), 1);
     assert(Array.from(b).every((ch) => isGsm7(ch)));
+    assertFalse(/https?:|\.com/.test(b));
   }
+  assertEquals(renderMessage(A.CHECK_IN, P(), {}).variant, 'CHECK_IN_ASK_PASS');
   assertFalse(/Hangar|Customs|tip|gratuity/i.test(renderMessage(A.CHECK_IN, P(), ENV).body));
-  assertEquals(codeOf(() => renderMessage(A.CHECK_IN, P(), {})), 'PASS_LINK_MISSING');
 });
 Deno.test('RETURN_UPDATED / AFTER_HOURS_CONFIRMED: one segment, no lockbox code, pending approval', () => {
   const tpl = { ...A.RETURN_UPDATED, status: 'APPROVED' as const, version: 't' };
@@ -225,7 +231,7 @@ Deno.test('RETURN_CONFIRMATION: asks Makers Air or Ascend while the return is un
 });
 Deno.test('segment budget per message (cost guard) and GSM-7 only', () => {
   const budget: Array<[string, PassengerCtx, number]> = [
-    ['CHECK_IN', P(), 2],
+    ['CHECK_IN', P(), 1],
     ['RETURN_CONFIRMATION', P({ name: 'MAXIMILIANA' }), 1],
     ['VEHICLE_READY', P({ return_operator: 'MAKERS' }), 2],
     ['VEHICLE_READY', P({ ticket: 'A-1', return_operator: 'ASCEND' }), 1],
@@ -407,7 +413,7 @@ function setup(script: ConstructorParameters<typeof MockProvider>[0] = [], over:
   store.passengers.set(1005, { id: 1005, phone: '3055550505', ...P({ name: 'EVE', ticket: 'A-0901-1', return_operator: 'MAKERS' }) });
   const provider = new MockProvider(script);
   const logs: string[] = [];
-  const deps: SendDeps = { mode: 'live', store, provider, allowlist: [], templates: A, passBaseUrl: 'https://airvalet.farberos.com/a#', sleep: () => Promise.resolve(), log: (e, d) => logs.push(e + JSON.stringify(d)), ...over };
+  const deps: SendDeps = { mode: 'live', store, provider, allowlist: [], templates: LINKED, passBaseUrl: 'https://airvalet.farberos.com/a#', sleep: () => Promise.resolve(), log: (e, d) => logs.push(e + JSON.stringify(d)), ...over };
   return { store, provider, deps, logs };
 }
 const ops = { userId: 'u1', role: 'IPAD_OPS' as const, name: 'Valet Ana' };
