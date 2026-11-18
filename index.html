@@ -5088,11 +5088,26 @@ function renderSmsAlerts(){
         ? '<button class="rp-btn" onclick="resolveSmsAlert(\'' + a.id + '\',\'confirmed_received\')">Passenger got it</button>' +
           '<button class="rp-btn" onclick="resolveSmsAlert(\'' + a.id + '\',\'marked_not_sent\')">Not received — allow resend</button>'
         : '<button class="rp-btn" onclick="resolveSmsAlert(\'' + a.id + '\',\'acknowledged\')">OK</button>';
+      // Owner 2026-11-18: a link blocked by the carrier (even the answer to PASS) → send the valet pass from this iPhone.
+      if (a.attention === 'CARRIER_FILTERED' && a.passenger_id) acts = '<button class="rp-btn" onclick="alertSendFromIphone(\'' + a.id + '\',' + Number(a.passenger_id) + ')">Send from iPhone</button>' + acts;
       return '<div class="ibx-rv"><div class="ibx-rv-top"><span>' + escapeHTML(a.passenger_name || 'Passenger') + (a.ticket_snapshot ? ' · #' + escapeHTML(a.ticket_snapshot) : '') +
         ' · ' + escapeHTML(String(a.message_type || '').replace(/_/g, ' ')) + ' · ' + escapeHTML(ibxTime(a.attention_at || a.created_at)) + '</span>' +
         '<span class="ibx-tag ' + (a.attention === 'UNCONFIRMED' ? 'warn' : 'bad') + '">' + escapeHTML(a.attention) + (a.error_code ? ' · ' + escapeHTML(a.error_code) : '') + '</span></div>' +
         '<div class="ibx-rv-note">' + escapeHTML(SMS_ALERT_TEXT[a.attention] || 'Check this text.') + '</div><div class="ibx-rv-acts">' + acts + '</div></div>';
     }).join('');
+}
+// New valet pass link (the old one stops opening) in this iPhone's Messages; the alert closes once Messages opens.
+async function alertSendFromIphone(messageId, pid){
+  var r = paxById(pid); if (!r) { showMsg('Passenger not found on this device — refresh.', true); return; }
+  if (!confirm('Send the valet pass to ' + r.name + ' from this iPhone? A new link is created (an old link stops opening).')) return;
+  var s = await passShareLink(pid, true, r.status === 'DELIVERED');
+  if (!s.ok) { showMsg(passShareErrorText(s.code), true); return; }
+  var o = sendNativeSms({ passengerId: pid, passengerName: r.name, phone: r.phone, ticket: r.ticket, templateKey: 'WELCOME',
+    messageType: r.status === 'DELIVERED' ? 'VEHICLE_DELIVERED' : 'CHECK_IN', body: s.body, metadata: { trigger: 'Text alert (blocked by carrier) — Send from iPhone' } });
+  if (o && o.ok) {
+    try { await smsApi('/rest/v1/rpc/airvalet_sms_resolve_alert', { method: 'POST', body: JSON.stringify({ p_message_id: messageId, p_resolution: 'acknowledged' }) }); } catch(e) {}
+    await loadInbox();
+  }
 }
 async function resolveSmsAlert(messageId, resolution){
   if (resolution === 'marked_not_sent' && !confirm('Only if the passenger did NOT receive it: this allows the same text to be sent again. Continue?')) return;
