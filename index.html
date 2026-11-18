@@ -7416,7 +7416,7 @@ function ci2Html(){
   + '</div></div>'
   + '<div id="ci2Details" class="ci2-details" hidden><div class="ci2-col">'
   +   ci2Sec('ci2SHangar', 'Hangar', 'Not set', '<div class="ci2-chipset" id="ci2Hangars"></div>')
-  +   ci2Sec('ci2SVeh', 'Vehicle', 'Not set', '<p class="ci2-sub">Make</p><input class="ci2-search" id="ci2MakeQ" placeholder="Search or type any make" autocomplete="off"><div class="ci2-chipset" id="ci2Makes"></div>'
+  +   ci2Sec('ci2SVeh', 'Vehicle', 'Not set', '<p class="ci2-sub">Make</p><input class="ci2-search" id="ci2MakeQ" placeholder="Search or type any make" autocomplete="off"><div class="ci2-chipset ci2-logos" id="ci2Makes"></div>'
   +     '<div id="ci2ModelBox" hidden><p class="ci2-sub">Model</p><input class="ci2-search" id="ci2ModelQ" placeholder="Search or type any model" autocomplete="off"><div class="ci2-chipset" id="ci2Models"></div></div>'
   +     '<p class="ci2-sub">Color</p><div class="ci2-chipset" id="ci2Colors"></div><div id="ci2OtherColorBox" hidden><input class="ci2-search" id="ci2OtherColor" placeholder="Type the color" style="margin-top:8px"></div>')
   +   ci2Sec('ci2SRet', 'Return', 'No date yet', '<div class="ci2-retpick" data-n="2"></div><label class="ci2-check"><input type="checkbox" class="ci2-other"><span>Returning with another airline</span></label>'
@@ -7990,14 +7990,22 @@ function ci2RenderHangars(){
   }, function(h){ return escapeHTML(h) + (counts[h] ? '<small>' + counts[h] + '</small>' : ''); });
 }
 function ci2HangarSum(){ var v = ci2El('ci2SHangarV'); v.textContent = _ci.hangar || 'Not set'; v.className = 'v' + (_ci.hangar ? ' done' : ''); }
+// Make = tiles with the brand logo (owner 2026-11-18). Logos are local files (assets/make-*.png).
+// "Other" focuses the search box for any make; the saved car keeps the same "MAKE MODEL" text.
+function ci2MakeLogo(m){ return CI2_MAKES[m] ? 'assets/make-' + m.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '.png' : ''; }
 function ci2RenderMakes(){
   var raw = ci2El('ci2MakeQ').value.trim(), q = raw.toLowerCase();
   var list = Object.keys(CI2_MAKES).filter(function(m){ return !q || m.toLowerCase().indexOf(q) >= 0; });
-  if (q && !list.some(function(m){ return m.toLowerCase() === q; })) list = list.concat(['Use “' + raw + '”']);
-  ci2ChipSet(ci2El('ci2Makes'), q ? list : list.slice(0, 12), _ci.make, function(k){
+  var custom = _ci.make && !CI2_MAKES[_ci.make] ? _ci.make : '';
+  var other = q && !list.some(function(m){ return m.toLowerCase() === q; }) ? 'Use “' + raw + '”' : (custom || 'Other');
+  ci2ChipSet(ci2El('ci2Makes'), list.concat([other]), _ci.make, function(k){
+    if (k === 'Other' && !custom) { var i = ci2El('ci2MakeQ'); i.focus(); i.scrollIntoView({ block: 'center' }); return; }
     if (k.indexOf('Use “') === 0) k = raw;
     _ci.make = k; _ci.model = ''; _ci.vehText = ''; ci2El('ci2MakeQ').value = ''; ci2El('ci2ModelBox').hidden = false;
     ci2RenderMakes(); ci2RenderModels(); ci2VehSum(true);
+  }, function(k){
+    var src = ci2MakeLogo(k);
+    return (src ? '<img src="' + src + '" alt="" decoding="async">' : '<b aria-hidden="true">✎</b>') + '<span>' + escapeHTML(k) + '</span>';
   });
 }
 function ci2RenderModels(){

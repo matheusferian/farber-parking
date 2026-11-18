@@ -2170,6 +2170,14 @@ body.tv-stale .tv-stale-banner{display:block;}
 .ci2-inp,.ci2-rq button,.ci2-seg button,.ci2-chipset button,.ci2-search,.ci2-cal{border-color:var(--ctl-b);}
 .ci2-rq button[aria-pressed="true"],.ci2-seg button[aria-pressed="true"],.ci2-chipset button[aria-pressed="true"]{border-color:var(--navy);}
 .ci2-inp:focus,.ci2-search:focus{border-color:var(--blue);}
+/* Make picker: brand logo tiles (2026-11-18). White plate so every logo reads the same. */
+.ci2-chipset.ci2-logos{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:8px;}
+.ci2-chipset.ci2-logos button{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-height:92px;padding:10px 4px 8px;background:#fff;color:#011532;font-size:13px;line-height:1.15;text-align:center;}
+.ci2-chipset.ci2-logos img{width:64px;height:44px;object-fit:contain;}
+.ci2-chipset.ci2-logos button b{font-size:28px;line-height:44px;font-weight:500;}
+.ci2-chipset.ci2-logos button span{overflow-wrap:anywhere;}
+.ci2-chipset.ci2-logos button[aria-pressed="true"]{background:#fff;color:#011532;border:2.5px solid var(--navy);box-shadow:0 0 0 3px rgba(1,21,50,.18);}
+.ci2-chipset.ci2-logos button[aria-pressed="true"]::after{content:"✓";position:absolute;top:5px;right:6px;width:20px;height:20px;border-radius:50%;background:var(--navy);color:#fff;font:700 12px/20px 'Inter',sans-serif;}
 .ci2-link{min-height:44px;padding:0 12px;}
 .ci2-sms button{min-height:44px!important;}
 .ci2-cal-x{min-height:44px;}

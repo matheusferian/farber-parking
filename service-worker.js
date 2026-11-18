@@ -113,7 +113,8 @@
 // v192: kiosk New check-in — name, phone and return date on the first screen (Guest → Texts).
 // v193: kiosk view on iPhone — tabs (Today · Tomorrow · Arrived · Sunday · Late), one list at a time; Kiosk view button on iPhone too.
 // v194: Text alerts — 'Send from iPhone' on a text blocked by the carrier (new valet pass link in Messages).
-var CACHE_VERSION = 'v194';
+// v195: New check-in — car make picked from brand logo tiles (24 local logos assets/make-*.png, precached).
+var CACHE_VERSION = 'v195';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 var SHELL_FILES = [
@@ -131,7 +132,31 @@ var SHELL_FILES = [
   './vendor/supabase.js',
   './offline-auth.js',
   './offline-db.js',
-  './sso-client.js'
+  './sso-client.js',
+  './assets/make-ford.png',
+  './assets/make-chevrolet.png',
+  './assets/make-gmc.png',
+  './assets/make-toyota.png',
+  './assets/make-bmw.png',
+  './assets/make-mercedes-benz.png',
+  './assets/make-tesla.png',
+  './assets/make-jeep.png',
+  './assets/make-lexus.png',
+  './assets/make-audi.png',
+  './assets/make-honda.png',
+  './assets/make-land-rover.png',
+  './assets/make-cadillac.png',
+  './assets/make-nissan.png',
+  './assets/make-ram.png',
+  './assets/make-kia.png',
+  './assets/make-hyundai.png',
+  './assets/make-lincoln.png',
+  './assets/make-porsche.png',
+  './assets/make-subaru.png',
+  './assets/make-volvo.png',
+  './assets/make-rolls-royce.png',
+  './assets/make-bentley.png',
+  './assets/make-ferrari.png'
 ];
 
 self.addEventListener('install', function(event){
