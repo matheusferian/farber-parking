@@ -34,6 +34,10 @@ export type TwilioConfig = {
   apiKeySecret: string;
   messagingServiceSid: string;
   timeoutMs: number;
+  // Owner 2026-11-18: AT&T filters texts with the airvalet.farberos.com link (30007). With this on, Twilio
+  // rewrites links to the branded short domain go.farberparking.com (Messaging Service link shortening,
+  // "deliver anyway" on failure). Secret AIRVALET_SMS_SHORTEN_LINKS=on; anything else = off.
+  shortenLinks?: boolean;
 };
 
 export class TwilioProvider implements SmsProvider {
@@ -50,6 +54,7 @@ export class TwilioProvider implements SmsProvider {
       ValidityPeriod: '3600',
     });
     if (req.statusCallbackUrl) form.set('StatusCallback', req.statusCallbackUrl);
+    if (this.cfg.shortenLinks && /https?:\/\//i.test(req.body)) form.set('ShortenUrls', 'true');
 
     const ctl = new AbortController();
     const timer = setTimeout(() => ctl.abort(), this.cfg.timeoutMs);

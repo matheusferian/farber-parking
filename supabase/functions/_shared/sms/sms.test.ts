@@ -303,6 +303,16 @@ Deno.test('provider: request uses API key + Messaging Service + StatusCallback, 
   assertEquals(form.get('From'), null);
   assertEquals(form.get('ValidityPeriod'), '3600'); // stale operational texts are dropped, not delivered late
 });
+Deno.test('provider: ShortenUrls only when the switch is on AND the text has a link', async () => {
+  const run = async (shortenLinks: boolean, body: string) => {
+    const seen: Request[] = [];
+    await new TwilioProvider({ ...cfg, shortenLinks }, fakeFetch(201, { sid: 'SM' + 'c'.repeat(32), status: 'queued' }, seen)).send({ to: '+13055550101', body });
+    return new URLSearchParams(await seen[0].text()).get('ShortenUrls');
+  };
+  assertEquals(await run(true, 'Here is your valet pass: https://airvalet.farberos.com/p/Ab3dE6gH9jK2mN4pQ'), 'true');
+  assertEquals(await run(true, 'Your car is checked in. Reply PASS.'), null);
+  assertEquals(await run(false, 'Here is your valet pass: https://airvalet.farberos.com/p/Ab3dE6gH9jK2mN4pQ'), null);
+});
 Deno.test('provider: 4xx → rejected, 429 → throttled, 5xx → unknown, timeout → unknown', async () => {
   assertEquals((await new TwilioProvider(cfg, fakeFetch(400, { code: 21211, message: "The 'To' number +13055550101 is not valid" })).send({ to: '+1', body: 'x' })),
     { kind: 'rejected', errorCode: '21211', errorMessage: "The 'To' number [phone] is not valid" });

@@ -24,7 +24,7 @@ export type SmsConfig = {
   passBaseUrl: string;
   twilio: {
     accountSid: string; apiKeySid: string; apiKeySecret: string;
-    authToken: string | undefined; messagingServiceSid: string;
+    authToken: string | undefined; messagingServiceSid: string; shortenLinks: boolean;
   } | null;
   problems: string[];
 };
@@ -78,7 +78,7 @@ export function readSmsConfig(get: (k: string) => string | undefined): SmsConfig
     publicFunctionsUrl,
     webhookReady,
     passBaseUrl,
-    twilio: twilioComplete ? { accountSid, apiKeySid, apiKeySecret, authToken, messagingServiceSid } : null,
+    twilio: twilioComplete ? { accountSid, apiKeySid, apiKeySecret, authToken, messagingServiceSid, shortenLinks: get('AIRVALET_SMS_SHORTEN_LINKS') === 'on' } : null,
     problems,
   };
 }
