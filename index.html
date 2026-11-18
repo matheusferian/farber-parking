@@ -17458,7 +17458,27 @@ var TV4_AL = {
   req:{cls:'tv4-al-req', ic:'&#128197;', k:'NEW REQUEST', s:'Approve or decline on the iPad'},
   land:{cls:'tv4-al-land', ic:'&#128748;', k:'LANDED AT FXE', s:'Their cars go to Hangar 19'},
   chg:{cls:'tv4-al-chg', ic:'&#9888;&#65039;', k:'FLIGHT CHANGE', s:'Resend the updated departures picture'},
-  h19:{cls:'tv4-al-land', ic:'&#9992;&#65039;', k:'LEFT CUSTOMS \u2192 HANGAR 19', s:'Have their cars ready at Hangar 19'}};
+  h19:{cls:'tv4-al-land', ic:'&#9992;&#65039;', k:'LEFT CUSTOMS \u2192 HANGAR 19', s:'Have their cars ready at Hangar 19'},
+  pick:{cls:'tv4-al-chg', ic:'&#128663;', k:'PICK UP CAR AT CUSTOMS', s:'Bring it to Hangar 19, then set the location on the iPad'}};
+// Owner 2026-11-18 (David Hocher's flight moved to the next day): a car that is NOT delivered but still
+// sits at CUSTOMS must be brought back. The TV repeats the alert every 3 minutes until staff set the car's
+// location to a hangar on the iPad (or deliver it).
+var TV4_PICK_EVERY_MS = 3 * 60 * 1000;
+function tv4CheckCustomsPickups(){
+  if(!_tv4Al.pickTimer) _tv4Al.pickTimer = setInterval(function(){ try { tv4CheckCustomsPickups(); } catch(e) {} }, 60000);
+  var cars = (typeof data !== 'undefined' && data ? data : []).filter(function(r){
+    return r && r.status !== 'DELIVERED' && !r.archived_at && String(r.loc || '').toUpperCase() === 'CUSTOMS';
+  });
+  if(!cars.length){ _tv4Al.pickAt = 0; return; }
+  var now = Date.now();
+  if(_tv4Al.pickAt && now - _tv4Al.pickAt < TV4_PICK_EVERY_MS) return;
+  if(_tv4Al.q.some(function(a){ return a.type === 'pick'; })) return;
+  _tv4Al.pickAt = now;
+  cars.slice(0, 3).forEach(function(r){
+    tv4AlertPush({type:'pick', who: tvShortName(r.name), sub: 'Ticket #' + (r.ticket || ''),
+      text: [r.car, r.color].filter(Boolean).join(' ') + ' \u2014 at Customs, not delivered. Move to Hangar 19.'});
+  });
+}
 function tv4AlertPush(a){ _tv4Al.q.push(a); if(!_tv4Al.on) tv4AlertNext(); }
 function tv4AlertNext(){
   var el = document.getElementById('tvMsgToast'); if(!el) return;
@@ -17555,6 +17575,7 @@ function tvDoRender(){
     if(run && run.getAttribute('data-v') !== tk){ run.innerHTML = tk; run.setAttribute('data-v', tk); }
   } catch(e) {}
   try { tv4CheckLandings(); } catch(e) { console.warn('TV landing alerts:', e); }
+  try { tv4CheckCustomsPickups(); } catch(e) { console.warn('TV customs pickup alerts:', e); }
   if(_tv.currentPage >= _tv.pageCount) _tv.currentPage = 0;
   // Newly created .tv-page elements start with no active class (see
   // tvReconcilePageDom) — reassert which one is visible every render,
