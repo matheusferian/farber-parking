@@ -5253,8 +5253,17 @@ function smsSegmentsEstimate(t){
   var n = t.length; if (!n) return 0;
   return gsm ? (n <= 160 ? 1 : Math.ceil(n / 153)) : (n <= 70 ? 1 : Math.ceil(n / 67));
 }
+// Owner 2026-11-18: iPhone/iPad "smart punctuation" turns ' into ’ — one ’ makes the whole text Unicode
+// (70 chars per text instead of 160), so a normal message hit "too long". Swap them for plain ones while
+// typing (same length, the cursor stays put).
+function plainPunct(t){
+  return String(t).replace(/[‘’‚‛′]/g, "'").replace(/[“”„″]/g, '"')
+    .replace(/[–—]/g, '-').replace(/ /g, ' ');
+}
 function onInboxDraft(passengerId){
   var ta = document.getElementById('ibxText'); if (!ta) return;
+  var plain = plainPunct(ta.value);
+  if (plain !== ta.value){ var s = ta.selectionStart, e = ta.selectionEnd; ta.value = plain; try { ta.setSelectionRange(s, e); } catch (x) {} }
   var c = _ibx.compose[passengerId] || (_ibx.compose[passengerId] = { id: newComposeId(), text: '' });
   if (c.text !== ta.value){ c.text = ta.value; }
   var seg = smsSegmentsEstimate(ta.value);
@@ -5277,7 +5286,7 @@ function markWelcomeBackFromInbox(passengerId, text){
 async function sendInboxReply(passengerId){
   if (_ibx.sending) return;
   var ta = document.getElementById('ibxText'); if (!ta) return;
-  var text = ta.value.trim(); if (!text) return;
+  var text = plainPunct(ta.value).trim(); if (!text) return;
   var c = _ibx.compose[passengerId] || (_ibx.compose[passengerId] = { id: newComposeId(), text: text });
   // Edited after an attempt that may have gone out: the same id would make the
   // server answer "already sent" with the OLD words. Ask, then send as new.

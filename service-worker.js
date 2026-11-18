@@ -114,7 +114,8 @@
 // v193: kiosk view on iPhone — tabs (Today · Tomorrow · Arrived · Sunday · Late), one list at a time; Kiosk view button on iPhone too.
 // v194: Text alerts — 'Send from iPhone' on a text blocked by the carrier (new valet pass link in Messages).
 // v195: New check-in — car make picked from brand logo tiles (24 local logos assets/make-*.png, precached).
-var CACHE_VERSION = 'v195';
+// v196: Inbox — smart quotes (’) typed on iPhone/iPad become plain ' so a normal message is not 'too long'.
+var CACHE_VERSION = 'v196';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 var SHELL_FILES = [
