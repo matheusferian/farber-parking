@@ -277,7 +277,7 @@
     var dayCustoms = day && !dayH19;
     var hangar = esc(p.day_trip_hangar || 'Hangar 19');
     var html = '<section class="bp tone-' + st.tone + (day ? ' is-day' : '') + '" aria-label="Your valet pass">';
-    if (p.has_photo && photoUrl && !done) html += '<figure class="bp-photo"><img src="' + photoUrl + '" alt="Your ' + (p.vehicle ? esc(niceVehicle(p.vehicle)) : 'car') + ', parked by our valet team" width="1200" height="672"><figcaption>Your car today, photographed by our valet team.</figcaption></figure>';
+    if (p.has_photo && photoUrl && !done) html += '<figure class="bp-photo"><img src="' + photoUrl + '" alt="Your ' + (p.vehicle ? esc(niceVehicle(p.vehicle)) : 'car') + ', parked by our valet team" width="1200" height="672"></figure>';
     html += '<div class="bp-top">' +
       '<p class="bp-status">' + esc(st.word) + '</p>' +
       '<h2 class="bp-car">' + (p.vehicle ? esc(niceVehicle(p.vehicle)) : 'Vehicle details coming soon') + '</h2>';
