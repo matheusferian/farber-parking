@@ -7415,7 +7415,7 @@ function ci2Html(){
   +   '<div class="ci2-f"><label for="ci2Phone">Phone</label><div class="ci2-pw"><input id="ci2Phone" class="ci2-inp" type="tel" inputmode="tel" autocomplete="off" enterkeyhint="next" maxlength="18" placeholder="(305) 555-0142 or +49 …" aria-describedby="ci2PhoneHint"><span class="ci2-ok" id="ci2PhoneOk">Valid</span></div><div class="ci2-hint" id="ci2PhoneHint">US number, or + country code. It can be a companion’s phone.</div></div></div>'
   +   '<div class="gx-ci" id="gxCi2" hidden></div>'
   +   '<div class="ci2-er" id="ci2Er" hidden>⚠️ This passenger had an Early Return before. Confirm the return date carefully.</div>'
-  +   '<div class="ci2-f"><div class="ci2-lr"><span class="ci2-lab" id="ci2RetLbl">Return date</span><span class="ci2-opt">Optional</span></div><div class="ci2-retpick" data-n="1"></div>'
+  +   '<div class="ci2-f"><div class="ci2-lr"><span class="ci2-lab" id="ci2RetLbl">Return date</span><span class="ci2-opt">Optional</span></div><div class="ci2-retpick" data-n="1"></div><div class="ci2-mkret" id="ci2MkRet" role="status" hidden></div>'
   +     '<label class="ci2-check"><input type="checkbox" class="ci2-other"><span>Returning with another airline<small>No automatic pickup instructions; staff set the pickup place</small></span></label></div>'
   +   '<div class="ci2-consent"><p class="ci2-q">Guest agrees to texts about this car?</p>'
   +     '<div class="ci2-seg"><button type="button" class="yes" id="ci2Yes" aria-pressed="false">Yes, agreed</button><button type="button" class="no" id="ci2No" aria-pressed="false">No texts</button></div>'
@@ -7478,6 +7478,7 @@ function ci2Bind(){
     this.value = this.value.toUpperCase();
     if (_ci.timer) ci2Undo('Name changed — nothing sent.');
     ci2HideDup(); ci2Suggest(this.value); ci2MirrorChecks();
+    var mkr = ci2El('ci2MkRet'); if (mkr && !mkr.hidden && _ci.mkAsk !== this.value.trim()) { mkr.hidden = true; _ci.mkAsk = ''; }
   });
   nm.addEventListener('blur', function(){ setTimeout(function(){ var a = ci2El('ci2Ac'); if (a) a.hidden = true; }, 150); });
   ph.addEventListener('blur', function(){
@@ -7574,7 +7575,7 @@ function ci2Suggest(q){
     b.addEventListener('click', function(){
       var n = mk[parseInt(b.dataset.m, 10)];
       ci2El('ci2Name').value = String(n.name).toUpperCase();
-      drop.hidden = true; ci2MirrorChecks();
+      drop.hidden = true; ci2MirrorChecks(); ci2MkReturn(String(n.name).toUpperCase());
     });
   });
   drop.querySelectorAll('.ci2-ac-i[data-i]').forEach(function(b){
@@ -7590,6 +7591,45 @@ function ci2Suggest(q){
   });
   drop.hidden = false;
 }
+// Owner 2026-11-19 (step 7): "se o passageiro já tiver data de volta deixar mais ou menos preenchido, só
+// confirmamos com eles". Picking a Makers name asks the Makers robot (one read-only search) for that guest's
+// return; only a real flight back to FXE counts. Nothing is saved until staff tap "Guest confirmed".
+var CI2_MK_ERR = { BUSY: 'Makers is busy right now. Choose the date below.', STOPPED: 'Makers robot is stopped. Choose the date below.',
+  TOO_MANY: 'Makers check paused for a few minutes. Choose the date below.', NOT_CONFIGURED: '', FORBIDDEN: '', NETWORK: 'No connection. Choose the date below.' };
+async function ci2MkReturn(name){
+  var box = ci2El('ci2MkRet'); if (!box || !name) return;
+  if (navigator.onLine === false) { box.hidden = true; return; }
+  _ci.mkAsk = name; box.hidden = false; box.className = 'ci2-mkret';
+  box.innerHTML = '<span class="ci2-mk-wait">Checking the return in Makers…</span>';
+  var res;
+  try {
+    var ctl = new AbortController(), t = setTimeout(function(){ ctl.abort(); }, 30000);
+    res = await smsApi('/functions/v1/makers-sync', { method: 'POST', headers: sbHeaders(), body: JSON.stringify({ lookup: 'return', name: name }), signal: ctl.signal });
+    clearTimeout(t);
+  } catch (e) { res = { ok: false, error: { code: e && e.status === 403 ? 'FORBIDDEN' : 'NETWORK' } }; }
+  if (!_ci || _ci.mkAsk !== name || ci2El('ci2Name').value.trim().toUpperCase() !== name) return;   // name changed meanwhile
+  if (!res || !res.ok || !res.result) {
+    var msg = CI2_MK_ERR[(res && res.error && res.error.code) || ''];
+    if (msg === undefined) msg = 'Could not check Makers. Choose the date below.';
+    if (!msg) { box.hidden = true; return; }
+    box.innerHTML = '<span>' + escapeHTML(msg) + '</span>'; return;
+  }
+  var r = res.result;
+  if (r.state === 'found') {
+    var nice = ci2Nice(r.ret, { weekday: 'long', month: 'short', day: 'numeric' });
+    box.className = 'ci2-mkret found';
+    box.innerHTML = '<b>Makers: back ' + escapeHTML(nice) + '</b><span>Flight ' + escapeHTML(r.flight) + ' · ' + escapeHTML(String(r.route || '').replace('-', ' → ')) + '</span>'
+      + '<span class="ci2-mk-ask">Ask: “Coming back ' + escapeHTML(ci2Nice(r.ret, { weekday: 'long' })) + ', the ' + new Date(r.ret + 'T12:00:00').getDate() + ordinalSuffix(new Date(r.ret + 'T12:00:00').getDate()) + '?”</span>'
+      + '<div class="ci2-btnrow"><button type="button" class="ci2-btn" id="ci2MkYes">Guest confirmed</button><button type="button" class="ci2-btn line" id="ci2MkNo">Different date</button></div>';
+    ci2El('ci2MkYes').onclick = function(){ ci2SetRet(r.ret); box.className = 'ci2-mkret ok'; box.innerHTML = '<span>✓ Return ' + escapeHTML(nice) + ' — confirmed with the guest.</span>'; };
+    ci2El('ci2MkNo').onclick = function(){ box.hidden = true; };
+  } else if (r.state === 'no_return') {
+    box.innerHTML = '<span>Makers: no flight back booked yet' + (r.booked ? ' (booking says ' + escapeHTML(ci2Nice(r.booked)) + ')' : '') + '. Ask the guest.</span>';
+  } else {
+    box.hidden = true;
+  }
+}
+function ordinalSuffix(d){ return (d % 100 >= 11 && d % 100 <= 13) ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' }[d % 10] || 'th'); }
 // Previous visits + Early Return warning, reusing the classic checks.
 function ci2MirrorChecks(){
   var name = ci2El('ci2Name').value.trim(), phone = ci2El('ci2Phone').value.trim();

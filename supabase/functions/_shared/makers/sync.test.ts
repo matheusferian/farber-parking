@@ -1,6 +1,6 @@
 // deno test supabase/functions/_shared/makers/  — synthetic names only.
 import { assertEquals } from 'jsr:@std/assert@1';
-import { HeldCar, isAscendFlight, pickTrip, runSync, SuiteLike, tripFromFlights } from './sync.ts';
+import { HeldCar, isAscendFlight, lookupReturn, pickTrip, runSync, SuiteLike, tripFromFlights } from './sync.ts';
 import type { Leg, PaxRow, Trip } from './suite.ts';
 
 const LEGS: Leg[] = [
@@ -232,4 +232,36 @@ Deno.test('a same-day Makers return counts only when the person is on a flight l
   assertEquals(tripFromFlights(car(1, 'SANTIAGO ALVAREZ', null, { checkin: '2026-11-12' }), FL, '2026-11-12')?.ret, '2026-11-15');
   assertEquals(tripFromFlights(car(1, 'SANTIAGO ALVAREZ', null, { checkin: '2026-11-12' }), FL.slice(0, 1), '2026-11-12')?.ret, '');
   assertEquals(tripFromFlights(car(1, 'SANTIAGO ALVAREZ', null, { checkin: '2026-11-12' }), FL.slice(0, 3), '2026-11-12')?.ret, '2026-11-15');   // the booking with the real return wins
+});
+
+// Owner 2026-11-19 (step 7): check-in return lookup — one search, only a real flight to FXE proves the return.
+Deno.test('check-in return lookup: a real flight back to FXE, never the Return Date alone, never a pet', async () => {
+  const rows: PaxRow[] = [
+    { date: '11/19/2026', flight: '2112', from: 'FXE', to: 'SAQ', last: 'MORGAN', first: 'CHRIS', retDate: '11/19/2026' },   // split booking: one-way leg
+    { date: '11/19/2026', flight: '2112', from: 'FXE', to: 'SAQ', last: 'MORGAN', first: 'CHRIS', retDate: '11/23/2026' },
+    { date: '11/19/2026', flight: '2112', from: 'FXE', to: 'SAQ', last: 'PET', first: 'MORGAN', retDate: '' },
+    { date: '11/19/2026', flight: '2112', from: 'FXE', to: 'SAQ', last: 'MORGAN', first: 'DANA', retDate: '11/30/2026' },     // other person
+    { date: '11/23/2026', flight: '1534', from: 'GHC', to: 'FXE', last: 'MORGAN', first: 'CHRIS', retDate: '' },
+    { date: '11/30/2026', flight: '1537', from: 'GHC', to: 'FXE', last: 'MORGAN', first: 'DANA', retDate: '' },
+  ];
+  const calls: string[] = [];
+  const s: SuiteLike = { ...fake(calls), passengersByLast: async (last, from, to) => { calls.push(`last ${last} ${from}-${to}`); return rows.filter((r) => r.last === last); } };
+  assertEquals(await lookupReturn(s, 'CHRIS MORGAN', '2026-11-19'), { state: 'found', ret: '2026-11-23', flight: '1534', route: 'GHC-FXE', out_date: '2026-11-19' });
+  assertEquals(calls, ['last MORGAN 11/14/2026-3/19/2027']);   // ONE read-only search
+  assertEquals((await lookupReturn(s, 'DANA MORGAN', '2026-11-19')) as unknown, { state: 'found', ret: '2026-11-30', flight: '1537', route: 'GHC-FXE', out_date: '2026-11-19' });
+  // Booked return but no flight back yet: not a return (staff ask the guest); the booked date is only a hint.
+  const noBack: SuiteLike = { ...s, passengersByLast: async () => rows.slice(0, 2) };
+  assertEquals(await lookupReturn(noBack, 'CHRIS MORGAN', '2026-11-19'), { state: 'no_return', booked: '2026-11-23', out_date: '2026-11-19' });
+  // One-way leg only (Return = departure day): no hint at all.
+  const oneWay: SuiteLike = { ...s, passengersByLast: async () => rows.slice(0, 1) };
+  assertEquals(await lookupReturn(oneWay, 'CHRIS MORGAN', '2026-11-19'), { state: 'no_return', booked: null, out_date: '2026-11-19' });
+  // Not flying out around today, a single name, or a pet: not found.
+  assertEquals(await lookupReturn(s, 'CHRIS MORGAN', '2026-12-20'), { state: 'not_found' });
+  assertEquals(await lookupReturn(s, 'MORGAN', '2026-11-19'), { state: 'not_found' });
+  // Same-day day trip: a later flight back to FXE the same day counts.
+  const day: SuiteLike = { ...s, passengersByLast: async () => [
+    { date: '11/19/2026', flight: '123', from: 'FXE', to: 'RSD', last: 'MORGAN', first: 'CHRIS', retDate: '11/19/2026' },
+    { date: '11/19/2026', flight: '954', from: 'ELH', to: 'FXE', last: 'MORGAN', first: 'CHRIS', retDate: '' },
+  ] };
+  assertEquals(await lookupReturn(day, 'CHRIS MORGAN', '2026-11-19'), { state: 'found', ret: '2026-11-19', flight: '954', route: 'ELH-FXE', out_date: '2026-11-19' });
 });

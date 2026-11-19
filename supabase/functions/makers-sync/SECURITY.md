@@ -45,6 +45,10 @@ Kept (only what AirValet needs):
 Never read or kept: PNR / booking codes, date of birth, passport or any document, phone, e-mail, address,
 weights, payment data, agent, crew. The parsers skip those columns by design.
 
+Check-in return lookup (owner 2026-11-19): the answer (return date + flight) goes back to the app only; staff
+confirm it with the guest. The log row (`airvalet_manifest_scans`, mode `makers_return_lookup`) keeps only the
+state (found / no_return / not_found) — no name, no date — and is deleted the next day.
+
 Retention: robot readings (`airvalet_manifest_scans`, mode `makers_sync`) are deleted after **14 days**;
 quick checks (mode `makers_watch`, every 30 min 6:30 AM–6 PM, today's arrivals only, our guests' ticket +
 name + flight) after **3 days**.
@@ -60,6 +64,12 @@ The scheduler's copy of each answer (`net._http_response`) holds **counts only**
   4:30 PM (today) and 3 PM, 7 PM, 11 PM (tomorrow), Fort Lauderdale time.
 - **By hand: only the owner's login** (`matheusferian@airvalet.local`, ADMIN). Every other login, including
   other ADMIN logins, gets `FORBIDDEN`; the app hides the "Update from Makers" button for them.
+- **Check-in return lookup (owner 2026-11-19, written OK "Sim, autorizo"):** staff logins with an ops role
+  (ADMIN, MANAGER, IPAD_OPS, IPHONE_OPS) may ask for the return of the **one guest being checked in**
+  (`{ "lookup": "return", "name": "FIRST LAST" }`). It runs ONE read-only search (Passenger Flight List by last
+  name, 5 days back to 120 days ahead), uses the same lock as every run, never retries a refused login, refuses
+  while the robot is stopped, max 40 per hour. Only a real flight of that person landing at FXE counts as the
+  return (`lookupReturn`, tests in `_shared/makers/sync.test.ts`). It cannot start a full run.
 - The satellite robot (`spider-sync`) has its **own** secret (`X-Spider-Sync-Secret`), so one never opens
   the other.
 - Makers credentials: Supabase secrets `MAKERS_SUITE_USER` / `MAKERS_SUITE_PASSWORD`, set by the owner only.

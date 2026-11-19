@@ -21,7 +21,7 @@
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { MakersSuite, MakersSuiteError } from '../_shared/makers/suite.ts';
-import { HeldCar, runSync, runWatch, SyncResult } from '../_shared/makers/sync.ts';
+import { HeldCar, lookupReturn, runSync, runWatch, SyncResult } from '../_shared/makers/sync.ts';
 import { carUpdate, diffMoves, type Move, moveLine, normT, seenOf, boardOf } from '../_shared/makers/moves.ts';
 import { Feedback, parseDate } from '../_shared/manifest/match.ts';
 import { notifyCategory } from '../_shared/notify/staff.ts';
@@ -64,6 +64,54 @@ export function summaryText(r: SyncResult): string {
   return `${parts.join(' · ')}. Ours: ${ours}.` + (todo.length ? ` Check: ${todo.join(', ')}.` : ' Nothing to check.');
 }
 
+// Owner 2026-11-19 (step 7, written OK: "Sim, autorizo"): at check-in, staff logins (ops roles) may ask the robot
+// for the return of the ONE guest being checked in. One read-only search (lookupReturn), same lock as every
+// robot run (never logs in together with the schedule), never retries a refused login, and stops when the
+// robot is stopped. Nothing personal is kept: the log row has no name and no date and is deleted the next day.
+// deno-lint-ignore no-explicit-any
+async function returnLookup(admin: any, json: (s: number, b: unknown) => Response, role: string, userId: string, rawName: unknown): Promise<Response> {
+  if (!OPS.includes(role)) return json(403, { ok: false, error: { code: 'FORBIDDEN' } });
+  const name = String(rawName || '').toUpperCase().replace(/[^A-Z' -]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (name.length < 3 || name.length > 60 || !name.includes(' ')) return json(400, { ok: false, error: { code: 'BAD_NAME' } });
+  const user = Deno.env.get('MAKERS_SUITE_USER'), pass = Deno.env.get('MAKERS_SUITE_PASSWORD');
+  if (!user || !pass) return json(200, { ok: false, error: { code: 'NOT_CONFIGURED' } });
+  const today = etDay(0);
+  const { data: last } = await admin.from('airvalet_manifest_scans').select('result,usage').eq('usage->>mode', 'makers_sync')
+    .order('created_at', { ascending: false }).limit(1).maybeSingle();
+  const stopCode = last && last.usage?.ok === false ? String(last.result?.error || '') : '';
+  if (['LOGIN_FAILED', 'LAYOUT', 'BLOCKED'].includes(stopCode)) return json(200, { ok: false, error: { code: 'STOPPED' } });
+  const { count } = await admin.from('airvalet_manifest_scans').select('id', { count: 'exact', head: true })
+    .eq('usage->>mode', 'makers_return_lookup').gte('created_at', new Date(Date.now() - 3600_000).toISOString());
+  if ((count || 0) >= 40) return json(200, { ok: false, error: { code: 'TOO_MANY' } });
+  const { data: locked } = await admin.rpc('airvalet_robot_lock', { p_name: 'makers-sync', p_secs: 60 });
+  if (locked !== true) return json(200, { ok: false, error: { code: 'BUSY' } });
+  const unlock = () => admin.rpc('airvalet_robot_unlock', { p_name: 'makers-sync' });
+  try {
+    const suite = new MakersSuite();
+    await suite.login(user, pass);
+    const result = await lookupReturn(suite, name, today);
+    await unlock();
+    await admin.from('airvalet_manifest_scans').insert({ created_by: userId, service_date: today, result: { state: result.state }, usage: { mode: 'makers_return_lookup', ok: true } });
+    await admin.from('airvalet_manifest_scans').delete().eq('usage->>mode', 'makers_return_lookup').lt('service_date', today);
+    return json(200, { ok: true, result });
+  } catch (e) {
+    const code = e instanceof MakersSuiteError ? e.code : 'READ_FAILED';
+    console.log(JSON.stringify({ event: 'makers_return_lookup.error', code }));
+    if (code === 'LOGIN_FAILED' || code === 'LAYOUT' || code === 'BLOCKED') {
+      // Same stop as a robot run: the schedule stops trying (no lock-out) and the owner is told.
+      await admin.from('airvalet_manifest_scans').insert({ created_by: userId, service_date: today, result: { error: code }, usage: { mode: 'makers_sync', ok: false, via: 'return_lookup' } });
+      const vapid = readVapid((k) => Deno.env.get(k));
+      await notifyCategory({ db: admin, vapid, log: (event: string, data: Record<string, unknown>) => console.log(JSON.stringify({ event, ...data })) }, 'DAILY', {
+        title: code === 'LOGIN_FAILED' ? 'Makers robot could not read the flights' : 'Makers robot STOPPED — Makers page changed',
+        body: code === 'LOGIN_FAILED' ? 'Makers Air Suite did not accept the login. Did the password change? Tell Matheus. The robot stopped trying.'
+          : 'Nothing was changed in Makers. The robot stopped and will not run again until it is fixed. Tell Matheus.',
+        url: '/?mf=1', tag: 'makers-sync-error' });
+    }
+    await unlock();
+    return json(200, { ok: false, error: { code: code === 'LOGIN_FAILED' || code === 'LAYOUT' || code === 'BLOCKED' ? 'STOPPED' : 'READ_FAILED' } });
+  }
+}
+
 Deno.serve(async (req) => {
   const headers = { ...cors(req.headers.get('origin')), 'Content-Type': 'application/json', 'Cache-Control': 'no-store' };
   const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers });
@@ -80,6 +128,9 @@ Deno.serve(async (req) => {
     const caller = createClient(SUPABASE_URL, Deno.env.get('SUPABASE_ANON_KEY')!, { global: { headers: { Authorization: authHeader } }, auth: { persistSession: false } });
     const [{ data: u }, { data: role, error: roleErr }] = await Promise.all([caller.auth.getUser(), caller.rpc('current_user_role')]);
     if (roleErr || !u?.user) return json(401, { ok: false, error: { code: 'UNAUTHENTICATED' } });
+    let lk: Record<string, unknown> = {};
+    try { lk = await req.clone().json(); } catch { lk = {}; }
+    if (lk.lookup === 'return') return await returnLookup(admin, json, String(role), u.user.id, lk.name);
     // Owner 2026-11-06: "não deixe qualquer um acessar o robô — somente eu". Only the owner's own login
     // (ADMIN) can run it by hand; everyone else gets FORBIDDEN. The schedule uses the robot secret.
     if (String(role) !== 'ADMIN' || !ROBOT_OWNERS.includes(String(u.user.email || '').toLowerCase())) return json(403, { ok: false, error: { code: 'FORBIDDEN' } });

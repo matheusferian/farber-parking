@@ -126,7 +126,8 @@
 // v205: New check-in — optional Front/Rear photos (kept 30 days on the device); the rear photo goes on the Valet Pass (owner 11/19 step 4).
 // v206: Staff Dashboard/Kiosk — 'Leaving Today/Tomorrow' renamed 'Coming back today/tomorrow' (owner 11/19 step 5). TV and reports unchanged.
 // v207: New check-in — 'Fill car from photos' (car AI = the FarberOS / Funky Buddha AI, Farber OpenAI account) (owner 11/19 step 6).
-var CACHE_VERSION = 'v207';
+// v208: New check-in — picking a Makers name shows that guest's return from Makers; staff confirm it with the guest (owner 11/19 step 7).
+var CACHE_VERSION = 'v208';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 var SHELL_FILES = [

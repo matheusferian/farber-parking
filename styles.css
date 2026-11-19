@@ -3422,3 +3422,11 @@ body.av-kiosk .ci2-wide .ci2-script{font-size:17px;line-height:1.5}
   body[data-kvtab="late"] .kv-late:has(#forgotSection[style*="none"])::after{content:"No cars with a late return.";display:block;padding:14px 8px;color:var(--mu);font-weight:600}
   .kv-col{scroll-margin-top:calc(var(--kv-hdr,64px) + 80px)}
 }
+
+/* Owner 2026-11-19 (step 7): return found in Makers at check-in — staff confirm it with the guest. */
+.ci2-mkret{margin-top:8px;border:1px solid var(--b);border-radius:12px;padding:10px 12px;background:var(--s);display:flex;flex-direction:column;gap:3px;font-size:14px;color:var(--tx);}
+.ci2-mkret.found{border-color:#9DC7B0;background:#F1F8F4;}
+.ci2-mkret.found b{font-size:16px;color:var(--tx);}
+.ci2-mkret .ci2-mk-ask{color:var(--tx-ok);font-weight:600;}
+.ci2-mkret.ok{border-color:#9DC7B0;color:var(--tx-ok);font-weight:600;}
+.ci2-mk-wait{color:var(--mu);}

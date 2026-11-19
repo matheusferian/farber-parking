@@ -270,3 +270,31 @@ export async function runSync(suite: SuiteLike, o: { date: string; today: string
   }
   return { date: o.date, inbound, outbound, match, date_diffs, no_return, not_found_list, checked, not_found, warnings, followup_seen, names };
 }
+
+// Owner 2026-11-19 (step 7, written OK): at check-in, the return of the ONE guest being checked in, so the
+// app can show it and staff only confirm it with the guest. One read-only Makers search: the Passenger Flight
+// List by last name (no 50-row cap), from 5 days ago to 120 days ahead. Return-date traps
+// (feedback_makers_return_date_traps): only a real flight of that person LANDING AT FXE proves a return —
+// the booking's Return Date alone never does (split bookings show Return = departure day). Pets never count.
+// Nothing is stored: the answer goes back to the app only.
+export type ReturnLookup =
+  | { state: 'found'; ret: string; flight: string; route: string; out_date: string }
+  | { state: 'no_return'; booked: string | null; out_date: string }
+  | { state: 'not_found' };
+export async function lookupReturn(suite: SuiteLike, name: string, today: string): Promise<ReturnLookup> {
+  const toks = normTokens(name);
+  if (toks.length < 2 || !suite.passengersByLast) return { state: 'not_found' };
+  const rows = (await suite.passengersByLast(toks[toks.length - 1], isoToMdy(addDays(today, -5)), isoToMdy(addDays(today, 120))))
+    .filter((r) => !isPetRow(r) && mdyToIso(r.date) && samePerson(name, r))
+    .sort((a, b) => mdyToIso(a.date).localeCompare(mdyToIso(b.date)));
+  // The flight out of FXE: today first, else the nearest day before (a guest who left yesterday and parks today).
+  const outs = rows.filter((r) => r.from === 'FXE' && mdyToIso(r.date) <= addDays(today, 1) && mdyToIso(r.date) >= addDays(today, -5));
+  const out = outs.find((r) => mdyToIso(r.date) === today) || outs.filter((r) => mdyToIso(r.date) < today).pop() || outs.find((r) => mdyToIso(r.date) > today);
+  if (!out) return { state: 'not_found' };
+  const dep = mdyToIso(out.date);
+  // First flight of that person landing at FXE after the flight out (same day only if it is a later flight).
+  const back = rows.find((r) => r.to === 'FXE' && r !== out && (mdyToIso(r.date) > dep || (mdyToIso(r.date) === dep && r.flight !== out.flight)));
+  if (back) return { state: 'found', ret: mdyToIso(back.date), flight: back.flight, route: `${back.from}-FXE`, out_date: dep };
+  const booked = rows.filter((r) => r.from === 'FXE' && mdyToIso(r.date) === dep).map((r) => mdyToIso(r.retDate)).filter((d) => d && d !== dep).sort().pop() || null;
+  return { state: 'no_return', booked, out_date: dep };
+}
