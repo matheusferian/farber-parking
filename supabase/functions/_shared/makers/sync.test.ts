@@ -263,5 +263,18 @@ Deno.test('check-in return lookup: a real flight back to FXE, never the Return D
     { date: '11/19/2026', flight: '123', from: 'FXE', to: 'RSD', last: 'MORGAN', first: 'CHRIS', retDate: '11/19/2026' },
     { date: '11/19/2026', flight: '954', from: 'ELH', to: 'FXE', last: 'MORGAN', first: 'CHRIS', retDate: '' },
   ] };
-  assertEquals(await lookupReturn(day, 'CHRIS MORGAN', '2026-11-19'), { state: 'found', ret: '2026-11-19', flight: '954', route: 'ELH-FXE', out_date: '2026-11-19' });
+  // No times in the flight list: a same-day flight to FXE may be the MORNING arrival (landed 9 AM, left at noon),
+  // so it is only a hint — never a filled return.
+  assertEquals(await lookupReturn(day, 'CHRIS MORGAN', '2026-11-19'), { state: 'no_return', booked: '2026-11-19', out_date: '2026-11-19', same_day: true });
+  const morning: SuiteLike = { ...s, passengersByLast: async () => [
+    { date: '11/19/2026', flight: '2407', from: 'COX', to: 'FXE', last: 'MORGAN', first: 'CHRIS', retDate: '' },     // arrived 9 AM
+    { date: '11/19/2026', flight: '516', from: 'FXE', to: 'COX', last: 'MORGAN', first: 'CHRIS', retDate: '' },       // left at noon
+  ] };
+  assertEquals(await lookupReturn(morning, 'CHRIS MORGAN', '2026-11-19'), { state: 'no_return', booked: '2026-11-19', out_date: '2026-11-19', same_day: true });
+  // Accents (JOSÉ): the name still matches.
+  const acc: SuiteLike = { ...s, passengersByLast: async () => [
+    { date: '11/19/2026', flight: '2112', from: 'FXE', to: 'SAQ', last: 'PEREZ', first: 'JOSE', retDate: '' },
+    { date: '11/22/2026', flight: '1534', from: 'GHC', to: 'FXE', last: 'PEREZ', first: 'JOSE', retDate: '' },
+  ] };
+  assertEquals((await lookupReturn(acc, 'JOSÉ PÉREZ', '2026-11-19')).state, 'found');
 });

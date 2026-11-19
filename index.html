@@ -7594,7 +7594,7 @@ function ci2Suggest(q){
 // Owner 2026-11-19 (step 7): "se o passageiro já tiver data de volta deixar mais ou menos preenchido, só
 // confirmamos com eles". Picking a Makers name asks the Makers robot (one read-only search) for that guest's
 // return; only a real flight back to FXE counts. Nothing is saved until staff tap "Guest confirmed".
-var CI2_MK_ERR = { BUSY: 'Makers is busy right now. Choose the date below.', STOPPED: 'Makers robot is stopped. Choose the date below.',
+var CI2_MK_ERR = { BUSY: 'Robot busy — try again in a minute, or choose the date below.', STOPPED: 'Makers robot is stopped. Choose the date below.',
   TOO_MANY: 'Makers check paused for a few minutes. Choose the date below.', NOT_CONFIGURED: '', FORBIDDEN: '', NETWORK: 'No connection. Choose the date below.' };
 async function ci2MkReturn(name){
   var box = ci2El('ci2MkRet'); if (!box || !name) return;
@@ -7624,7 +7624,8 @@ async function ci2MkReturn(name){
     ci2El('ci2MkYes').onclick = function(){ ci2SetRet(r.ret); box.className = 'ci2-mkret ok'; box.innerHTML = '<span>✓ Return ' + escapeHTML(nice) + ' — confirmed with the guest.</span>'; };
     ci2El('ci2MkNo').onclick = function(){ box.hidden = true; };
   } else if (r.state === 'no_return') {
-    box.innerHTML = '<span>Makers: no flight back booked yet' + (r.booked ? ' (booking says ' + escapeHTML(ci2Nice(r.booked)) + ')' : '') + '. Ask the guest.</span>';
+    box.innerHTML = r.same_day ? '<span>Makers: also on a flight to FXE today — maybe a day trip. Ask the guest.</span>'
+      : '<span>Makers: no flight back booked yet' + (r.booked ? ' (booking says ' + escapeHTML(ci2Nice(r.booked)) + ')' : '') + '. Ask the guest.</span>';
   } else {
     box.hidden = true;
   }

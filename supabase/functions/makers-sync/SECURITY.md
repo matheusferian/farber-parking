@@ -70,6 +70,10 @@ The scheduler's copy of each answer (`net._http_response`) holds **counts only**
   name, 5 days back to 120 days ahead), uses the same lock as every run, never retries a refused login, refuses
   while the robot is stopped, max 40 per hour. Only a real flight of that person landing at FXE counts as the
   return (`lookupReturn`, tests in `_shared/makers/sync.test.ts`). It cannot start a full run.
+  Accepted risk (owner OK 2026-11-19): any ops login, including the iPad and iPhone, can ask the travel dates of
+  any name this way (max 40 per hour, one name per call, logged without the name). A same-day flight back is
+  only a hint (no times in the flight list), never a filled return. A lookup holds the robot lock for up to 60 s:
+  a quick check that finds the lock busy just skips that slot (no error row, the robot does not stop).
 - The satellite robot (`spider-sync`) has its **own** secret (`X-Spider-Sync-Secret`), so one never opens
   the other.
 - Makers credentials: Supabase secrets `MAKERS_SUITE_USER` / `MAKERS_SUITE_PASSWORD`, set by the owner only.

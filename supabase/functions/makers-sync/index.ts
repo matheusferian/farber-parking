@@ -71,7 +71,7 @@ export function summaryText(r: SyncResult): string {
 // deno-lint-ignore no-explicit-any
 async function returnLookup(admin: any, json: (s: number, b: unknown) => Response, role: string, userId: string, rawName: unknown): Promise<Response> {
   if (!OPS.includes(role)) return json(403, { ok: false, error: { code: 'FORBIDDEN' } });
-  const name = String(rawName || '').toUpperCase().replace(/[^A-Z' -]/g, ' ').replace(/\s+/g, ' ').trim();
+  const name = String(rawName || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[^A-Z' -]/g, ' ').replace(/\s+/g, ' ').trim();
   if (name.length < 3 || name.length > 60 || !name.includes(' ')) return json(400, { ok: false, error: { code: 'BAD_NAME' } });
   const user = Deno.env.get('MAKERS_SUITE_USER'), pass = Deno.env.get('MAKERS_SUITE_PASSWORD');
   if (!user || !pass) return json(200, { ok: false, error: { code: 'NOT_CONFIGURED' } });

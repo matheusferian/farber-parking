@@ -279,7 +279,7 @@ export async function runSync(suite: SuiteLike, o: { date: string; today: string
 // Nothing is stored: the answer goes back to the app only.
 export type ReturnLookup =
   | { state: 'found'; ret: string; flight: string; route: string; out_date: string }
-  | { state: 'no_return'; booked: string | null; out_date: string }
+  | { state: 'no_return'; booked: string | null; out_date: string; same_day?: boolean }
   | { state: 'not_found' };
 export async function lookupReturn(suite: SuiteLike, name: string, today: string): Promise<ReturnLookup> {
   const toks = normTokens(name);
@@ -292,9 +292,12 @@ export async function lookupReturn(suite: SuiteLike, name: string, today: string
   const out = outs.find((r) => mdyToIso(r.date) === today) || outs.filter((r) => mdyToIso(r.date) < today).pop() || outs.find((r) => mdyToIso(r.date) > today);
   if (!out) return { state: 'not_found' };
   const dep = mdyToIso(out.date);
-  // First flight of that person landing at FXE after the flight out (same day only if it is a later flight).
-  const back = rows.find((r) => r.to === 'FXE' && r !== out && (mdyToIso(r.date) > dep || (mdyToIso(r.date) === dep && r.flight !== out.flight)));
+  // First flight of that person landing at FXE on a LATER day. The flight list has no times, so a flight back
+  // the same day cannot be proven to land after the flight out (it may be the morning arrival): then it is
+  // only a hint ("maybe a day trip — ask"), never a filled return (TV session review 2026-11-19).
+  const back = rows.find((r) => r.to === 'FXE' && r !== out && mdyToIso(r.date) > dep);
   if (back) return { state: 'found', ret: mdyToIso(back.date), flight: back.flight, route: `${back.from}-FXE`, out_date: dep };
+  if (rows.some((r) => r.to === 'FXE' && r !== out && mdyToIso(r.date) === dep && r.flight !== out.flight)) return { state: 'no_return', booked: dep, out_date: dep, same_day: true };
   const booked = rows.filter((r) => r.from === 'FXE' && mdyToIso(r.date) === dep).map((r) => mdyToIso(r.retDate)).filter((d) => d && d !== dep).sort().pop() || null;
   return { state: 'no_return', booked, out_date: dep };
 }
