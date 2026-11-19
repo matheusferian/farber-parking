@@ -2,74 +2,25 @@
 // this returns make, model and color with a confidence for each. Nothing is saved to the car here:
 // the app shows the answer and staff tap "Looks right" (same save as tapping the chips).
 //
-// Owner 2026-11-19: "AI pode ser o mesmo do Funky Buddha" + "Farber paga" → the same AI as FarberOS
-// Vehicle AI (src/lib/vehicle-ai in the farberos repo): same OpenAI model, same prompt and JSON schema,
-// billed to Farber's OpenAI account (secret OPENAI_API_KEY in this project = a Farber key made for AirValet).
+// Owner 2026-11-19: "AI pode ser o mesmo do Funky Buddha", "Farber paga", "AirValet usa a FarberOS".
+// So this function does NOT call OpenAI itself: it checks the staff login and the daily cap here, then
+// asks FarberOS (POST /api/airvalet/vehicle-ai), which runs the SAME Vehicle AI as Funky Buddha (same
+// model, prompt, OpenAI key and cost log on FarberOS /admin/ai). No OpenAI key lives in this project.
+// Secrets: AIRVALET_VEHICLE_AI_SECRET (same value as on FarberOS), optional FARBEROS_VEHICLE_AI_URL.
 //
 // POST { passenger_id?: number, images: [{ angle: 'front'|'rear', b64: '/9j/…' }] } (1 or 2 images)
 // → { ok, result: { vehicle_visible, color, make, model, raw_color_description, confidence: {color,make,model} } }
 // Auth: the caller's Supabase JWT + current_user_role() in the ops roles (same as manifest-scan).
-// Privacy: photos are not stored here. Each call adds one activity_log row (action VEHICLE_AI) with the
-// answer and the token count — that is also the daily cap.
+// Privacy: photos are not stored (here or on FarberOS). Each call adds one activity_log row
+// (action VEHICLE_AI) with the answer — that is also the daily cap.
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
 const ALLOWED_ORIGINS = ['https://airvalet.farberos.com'];
 const OPS = ['ADMIN', 'MANAGER', 'IPAD_OPS', 'IPHONE_OPS'];
-const MODEL = Deno.env.get('OPENAI_VEHICLE_MODEL') || 'gpt-5.4-nano';   // FarberOS default
-const MAX_IMAGES = 2, MAX_B64 = 900_000, CALLS_PER_DAY = 200, TIMEOUT_MS = 20_000;
+const MAX_IMAGES = 2, MAX_B64 = 900_000, CALLS_PER_DAY = 200, TIMEOUT_MS = 40_000;
 const ANGLES = ['front', 'rear'];
-const OPENAI_URL = (Deno.env.get('OPENAI_BASE_URL') || 'https://api.openai.com/v1') + '/chat/completions';
-
-// Same text as FarberOS src/lib/vehicle-ai/prompt.ts, plus one line: several photos may show the same car.
-const SYSTEM = `You are a vehicle identification system. Analyze the provided vehicle photo and identify the vehicle's color, make, and model.
-
-Rules:
-- Return ONLY the JSON schema requested. No extra text.
-- You may get more than one photo (front and rear) of the SAME vehicle; use all of them for one answer.
-- For color, use one of these normalized values: Black, White, Gray, Silver, Blue, Red, Green, Brown, Beige, Gold, Orange, Yellow, Purple, Other
-- Also provide your detailed raw color observation as raw_color_description.
-- Color distinction guidance:
-  - WHITE: the paint appears genuinely white — a flat, opaque, non-metallic finish with no gray or silver undertone.
-  - SILVER: a light-colored metallic paint with visible metallic flake or sheen, often described as "silver", "champagne silver", or "platinum". Overcast sky reflections on a silver car can wash the hood toward white — look at the lower body panels and bumper for the true tone.
-  - GRAY: a darker, non-metallic or muted finish without the bright metallic luster of Silver. Includes charcoal, gunmetal, and medium grays.
-  - When strong sunlight or overcast light makes the distinction uncertain between White, Silver, and Gray, reduce color confidence rather than defaulting to White. Reflections and glare do not change the actual paint color.
-- For make, use the canonical manufacturer name:
-  - "Chevy" → "Chevrolet"
-  - "Benz" or "Merc" → "Mercedes-Benz"
-  - "VW" → "Volkswagen"
-  - "Range Rover" is a model by "Land Rover"
-- For model, return the model name only if you can identify it with reasonable confidence.
-- Set vehicle_visible to false if no vehicle is clearly visible in the image.
-- If you cannot determine a field, set it to null and its confidence to 0.
-- Confidence values are 0 to 1. Be calibrated: only score above 0.9 when very certain.
-- Do NOT invent or guess values. Null is always better than a wrong answer.`;
-
-const RESPONSE_FORMAT = {
-  type: 'json_schema',
-  json_schema: {
-    name: 'vehicle_identification',
-    strict: true,
-    schema: {
-      type: 'object',
-      properties: {
-        vehicle_visible: { type: 'boolean' },
-        color: { type: ['string', 'null'] },
-        make: { type: ['string', 'null'] },
-        model: { type: ['string', 'null'] },
-        raw_color_description: { type: ['string', 'null'] },
-        confidence: {
-          type: 'object',
-          properties: { color: { type: 'number' }, make: { type: 'number' }, model: { type: 'number' } },
-          required: ['color', 'make', 'model'],
-          additionalProperties: false,
-        },
-      },
-      required: ['vehicle_visible', 'color', 'make', 'model', 'raw_color_description', 'confidence'],
-      additionalProperties: false,
-    },
-  },
-};
+const FARBEROS_URL = Deno.env.get('FARBEROS_VEHICLE_AI_URL') || 'https://farberos.com/api/airvalet/vehicle-ai';
 
 // Placeholder words the model sometimes returns instead of null (FarberOS vehicle-update-rules).
 const PLACEHOLDER = /^(null|none|unknown|n\/a|na|other|-|\?)$/i;
@@ -117,8 +68,8 @@ Deno.serve(async (req) => {
   if (roleErr || !userData?.user) return json(401, { ok: false, error: { code: 'UNAUTHENTICATED' } });
   if (!OPS.includes(String(role))) return json(403, { ok: false, error: { code: 'FORBIDDEN' } });
 
-  const apiKey = Deno.env.get('OPENAI_API_KEY');
-  if (!apiKey) return json(200, { ok: false, error: { code: 'NOT_CONFIGURED' } });
+  const secret = Deno.env.get('AIRVALET_VEHICLE_AI_SECRET');
+  if (!secret) return json(200, { ok: false, error: { code: 'NOT_CONFIGURED' } });
   const admin = createClient(SUPABASE_URL, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false } });
 
   // Daily cap for the whole app (cost guard), counted from the log rows this function writes.
@@ -128,38 +79,27 @@ Deno.serve(async (req) => {
   if (cErr) return json(500, { ok: false, error: { code: 'LOOKUP_FAILED' } });
   if ((count || 0) >= CALLS_PER_DAY) return json(200, { ok: false, error: { code: 'DAILY_LIMIT' } });
 
-  const content: unknown[] = [{ type: 'text', text: images.length > 1 ? 'Identify the vehicle in these photos (front and rear of the same car).' : 'Identify the vehicle in this photo.' }];
-  for (const im of images) content.push({ type: 'image_url', image_url: { url: `data:image/jpeg;base64,${im.b64}`, detail: 'auto' } });
-
-  let data: Record<string, unknown>;
+  // deno-lint-ignore no-explicit-any
+  let data: any;
   try {
     const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), TIMEOUT_MS);
-    const res = await fetch(OPENAI_URL, {
+    const res = await fetch(FARBEROS_URL, {
       method: 'POST', signal: ctl.signal,
-      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: MODEL,
-        messages: [{ role: 'system', content: SYSTEM }, { role: 'user', content }],
-        response_format: RESPONSE_FORMAT,
-        max_completion_tokens: 2000,
-      }),
+      headers: { Authorization: `Bearer ${secret}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ images: images.map((i) => ({ angle: i.angle, b64: i.b64 })) }),
     });
     clearTimeout(t);
-    if (res.status === 401) return json(200, { ok: false, error: { code: 'AI_KEY_INVALID' } });
-    if (res.status === 429) return json(200, { ok: false, error: { code: 'AI_BUSY' } });
-    if (!res.ok) return json(200, { ok: false, error: { code: 'AI_FAILED', status: res.status } });
-    data = await res.json();
+    data = await res.json().catch(() => null);
+    if (!data?.ok) {
+      const e = String(data?.error || '');
+      const code = e === 'AI_DISABLED' || e === 'NO_API_KEY' || e === 'NOT_CONFIGURED' || res.status === 401 ? 'NOT_CONFIGURED'
+        : e === 'AI_BUSY' ? 'AI_BUSY' : e === 'AI_KEY_INVALID' || e === 'AI_QUOTA' ? 'AI_KEY_INVALID' : 'AI_FAILED';
+      return json(200, { ok: false, error: { code } });
+    }
   } catch {
     return json(200, { ok: false, error: { code: 'AI_FAILED' } });
   }
-
-  // deno-lint-ignore no-explicit-any
-  const choice = (data.choices as any[])?.[0];
-  const text = choice?.message?.content;
-  if (!text || choice?.message?.refusal) return json(200, { ok: false, error: { code: 'AI_NO_ANSWER' } });
-  // deno-lint-ignore no-explicit-any
-  let raw: any;
-  try { raw = JSON.parse(text); } catch { return json(200, { ok: false, error: { code: 'AI_BAD_JSON' } }); }
+  const raw = data.result || {};
   const result = {
     vehicle_visible: !!raw.vehicle_visible,
     color: clean(raw.color), make: clean(raw.make), model: clean(raw.model),
@@ -167,14 +107,11 @@ Deno.serve(async (req) => {
     confidence: { color: conf(raw.confidence?.color), make: conf(raw.confidence?.make), model: conf(raw.confidence?.model) },
   };
 
-  // deno-lint-ignore no-explicit-any
-  const usage = (data.usage || {}) as any;
   await admin.from('activity_log').insert({
     ts: new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }),
     action: 'VEHICLE_AI', passenger_id: passengerId, ticket: '', passenger: '', location: '',
     detail: JSON.stringify({
-      model: String(data.model || MODEL), photos: images.map((i) => i.angle), by: userData.user.id,
-      tokens_in: usage.prompt_tokens ?? null, tokens_out: usage.completion_tokens ?? null,
+      via: 'farberos', model: String(data.model || ''), photos: images.map((i) => i.angle), by: userData.user.id,
       make: result.make, model_name: result.model, color: result.color, confidence: result.confidence,
     }).slice(0, 1900),
   });
