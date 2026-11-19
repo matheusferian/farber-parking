@@ -17459,7 +17459,41 @@ var TV4_AL = {
   land:{cls:'tv4-al-land', ic:'&#128748;', k:'LANDED AT FXE', s:'Their cars go to Hangar 19'},
   chg:{cls:'tv4-al-chg', ic:'&#9888;&#65039;', k:'FLIGHT CHANGE', s:'Resend the updated departures picture'},
   h19:{cls:'tv4-al-land', ic:'&#9992;&#65039;', k:'LEFT CUSTOMS \u2192 HANGAR 19', s:'Have their cars ready at Hangar 19'},
-  pick:{cls:'tv4-al-chg', ic:'&#128663;', k:'PICK UP CAR AT CUSTOMS', s:'Bring it to Hangar 19, then set the location on the iPad'}};
+  pick:{cls:'tv4-al-chg', ic:'&#128663;', k:'PICK UP CAR AT CUSTOMS', s:'Bring it to Hangar 19, then set the location on the iPad'},
+  order:{cls:'tv4-al-land', ic:'&#128747;', k:'ARRIVAL ORDER', s:'Bring the cars out in this order'}};
+// Owner 2026-11-19 ("só hoje"): around 11 AM many flights land at once — which lands FIRST, by the live
+// satellite ETA (scheduled time when there is no fix), with its cars. Every 5 min, and at once when the order
+// changes, while 2+ flights with our cars are still to land and the first one is within 90 min. Days listed only.
+var TV4_ORDER_DAYS = ['2026-11-19'], TV4_ORDER_EVERY_MS = 5 * 60 * 1000;
+function tv4ArrivalOrder(){
+  var now = Date.now();
+  return tv4InboundLegs().filter(function(L){ return L.open && L.st && L.st.k !== 'landed'; }).map(function(L){
+    var st = L.st, at = st.k === 'live' && st.eta != null ? now + st.eta * 60000 : st.k === 'way' ? now + (st.eta || 0) * 60000
+      : st.k === 'due' ? now : (tv4TodayMs(L.o.arrival_time) || now + 864e5);
+    var cars = L.guests.filter(function(r){ return r.status !== 'DELIVERED' && r.status !== 'ARCHIVED'; });
+    return {L:L, at:at, live:st.k === 'live', cars:cars};
+  }).sort(function(a, b){ return a.at - b.at; });
+}
+function tv4CheckArrivalOrder(){
+  if(TV4_ORDER_DAYS.indexOf(tvDayKeyOffset(0)) < 0) return;
+  if(!_tv4Al.orderTimer) _tv4Al.orderTimer = setInterval(function(){ try { tv4CheckArrivalOrder(); } catch(e) {} }, 60000);
+  var list = tv4ArrivalOrder(), now = Date.now();
+  if(list.length < 2 || list[0].at - now > 90 * 60000){ _tv4Al.orderKey = ''; return; }
+  var key = list.map(function(x){ return x.L.flight; }).join('>');
+  if(key === _tv4Al.orderKey && _tv4Al.orderAt && now - _tv4Al.orderAt < TV4_ORDER_EVERY_MS) return;
+  if(_tv4Al.q.some(function(a){ return a.type === 'order'; })) return;
+  _tv4Al.orderKey = key; _tv4Al.orderAt = now;
+  var hm = function(ms){ return new Date(ms).toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit'}); };
+  var line = function(x, i){
+    var names = x.cars.map(function(r){ var n = String(r.name || '').trim().split(/\s+/).pop();
+      return n + (typeof pickupLocation === 'function' && pickupLocation(r) === 'CUSTOMS' ? ' (Customs)' : ''); });
+    return (i + 1) + ') ' + x.L.tail + ' (' + x.L.flight + ' ' + x.L.code + ') ~' + hm(x.at) + (x.live ? '' : ' sched') +
+      ' — ' + x.cars.length + ' car' + (x.cars.length === 1 ? '' : 's') + (names.length ? ': ' + names.slice(0, 5).join(', ') + (names.length > 5 ? ' +' + (names.length - 5) : '') : '');
+  };
+  var f = list[0];
+  tv4AlertPush({type:'order', who: f.L.tail + ' LANDS FIRST', sub: f.L.flight + ' from ' + f.L.place + ' · ~' + hm(f.at) + (f.live ? ' live ETA' : ' scheduled'),
+    text: 'Order: ' + list.map(function(x){ return x.L.tail; }).join(' → ') + '  |  ' + list.slice(0, 6).map(line).join('  |  ')});
+}
 // Owner 2026-11-18 (David Hocher's flight moved to the next day): a car that is NOT delivered but still
 // sits at CUSTOMS must be brought back. The TV repeats the alert every 3 minutes until staff set the car's
 // location to a hangar on the iPad (or deliver it).
@@ -17578,6 +17612,7 @@ function tvDoRender(){
   } catch(e) {}
   try { tv4CheckLandings(); } catch(e) { console.warn('TV landing alerts:', e); }
   try { tv4CheckCustomsPickups(); } catch(e) { console.warn('TV customs pickup alerts:', e); }
+  try { tv4CheckArrivalOrder(); } catch(e) { console.warn('TV arrival order alert:', e); }
   if(_tv.currentPage >= _tv.pageCount) _tv.currentPage = 0;
   // Newly created .tv-page elements start with no active class (see
   // tvReconcilePageDom) — reassert which one is visible every render,

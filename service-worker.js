@@ -117,7 +117,8 @@
 // v197: TV — a car not delivered but still at CUSTOMS shows 'PICK UP CAR AT CUSTOMS' every 3 min until moved to a hangar.
 // v196: Inbox — smart quotes (’) typed on iPhone/iPad become plain ' so a normal message is not 'too long'.
 // v198: TV — no PICK UP CAR AT CUSTOMS alert for a car that should wait at Customs (Ascend / Makers deliver-at-Customs).
-var CACHE_VERSION = 'v198';
+// v199: TV — ARRIVAL ORDER alert (owner 11/19): which flight with our cars lands first, by live ETA, with its cars.
+var CACHE_VERSION = 'v199';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 var SHELL_FILES = [
