@@ -474,7 +474,7 @@
     if (chatTimer) { clearInterval(chatTimer); chatTimer = null; }
     document.documentElement.classList.remove('sheet-open');
     sheetBg.style.top = ''; sheetBg.style.height = '';
-    sheetBg.hidden = true; sheet.innerHTML = ''; if (lastFocus && lastFocus.focus) lastFocus.focus();
+    sheetBg.hidden = true; sheet.innerHTML = ''; sheet.classList.remove('is-chat'); if (lastFocus && lastFocus.focus) lastFocus.focus();
   }
   // Owner 2026-11-18 ("o chat no iPhone não fecha"): position:fixed and vh follow the LAYOUT viewport, so
   // with Safari's bars or the keyboard up the top of the sheet (the ✕) and the dimmed backdrop were off screen.
@@ -507,6 +507,7 @@
 
   function drawSheet() {
     var p = pass, h = '';
+    sheet.classList.toggle('is-chat', form.kind === 'chat');
     if (form.kind === 'return') {
       h = head('Change return');
       if (form.step === 1) {
@@ -573,12 +574,16 @@
         '<div class="info-row"><p class="k">Operated by</p><p class="info-v">Farber Parking \u00b7 <a href="tel:+15617740494">(561) 774-0494</a></p></div>' +
         '<button class="btn quiet" type="button" data-close>Close</button>';
     } else if (form.kind === 'chat') {
-      h = head('Valet team') + '<div class="chat" id="chatList" aria-live="polite">' + chatHtml() + '</div>' +
-        (PREVIEW ? '<div class="quick">' + QUICK.map(function (q) { return '<button type="button" data-quick="' + esc(q) + '">' + esc(q) + '</button>'; }).join('') + '</div>' : '') +
-        '<label class="f"><span class="sr">Message</span><textarea id="chatText" maxlength="600" placeholder="Write a message">' + esc(form.draft || '') + '</textarea></label>' +
-        (form.err ? '<p class="err" role="alert">' + esc(form.err) + '</p>' : '') +
-        '<button class="btn primary" type="button" data-chatsend' + (form.busy ? ' disabled' : '') + '>' + (form.busy ? 'Sending…' : 'Send') + '</button>' +
-        '<p class="muted">Our replies also arrive by text message. You can reply to our texts too.</p>';
+      // Owner 2026-11-19: "um chat bem real tipo text message, bem profissional" — a messages-app layout.
+      var canSend = !!(form.draft && form.draft.trim()) && !form.busy;
+      h = '<div class="ch-head"><div class="ch-av" aria-hidden="true">MA</div><div class="ch-who"><h2 id="sheetTitle">Makers Air Valet</h2><p>Valet team \u00b7 Fort Lauderdale</p></div>' +
+          '<button class="x" type="button" data-close aria-label="Close">\u2715</button></div>' +
+        '<div class="ch-list" id="chatList" aria-live="polite">' + chatHtml() + '</div>' +
+        (form.err ? '<p class="ch-err" role="alert">' + esc(form.err) + '</p>' : '') +
+        (PREVIEW ? '<div class="ch-quick">' + QUICK.map(function (q) { return '<button type="button" data-quick="' + esc(q) + '">' + esc(q) + '</button>'; }).join('') + '</div>' : '') +
+        '<div class="ch-bar"><label class="sr" for="chatText">Message</label><textarea id="chatText" rows="1" maxlength="600" placeholder="Text message" enterkeyhint="send">' + esc(form.draft || '') + '</textarea>' +
+        '<button class="ch-send" type="button" data-chatsend aria-label="' + (form.busy ? 'Sending' : 'Send') + '"' + (canSend ? '' : ' disabled') + '>' +
+        '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button></div>';
     } else if (form.kind === 'lockbox') {
       var lb = p.lockbox || {};
       h = head('After-hours pickup') + '<ol class="steps"><li><span class="n">1</span>After Customs, go back to your pilots</li><li><span class="n">2</span>Walk to Hangar 19</li><li class="last"><span class="n">3</span>Open the lockbox with your code</li></ol>' +
@@ -615,7 +620,13 @@
     });
     on('.sheet [data-open="other"]', function () { form = { kind: 'other', step: 1, ck: clientKey() }; drawSheet(); var i = document.getElementById('tipAmt'); if (i) i.focus(); });
     var ta = document.getElementById('chatText');
-    if (ta) ta.addEventListener('input', function () { form.draft = ta.value; });
+    if (ta) {
+      var grow = function () { ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, 120) + 'px'; };
+      var sb = sheet.querySelector('.ch-send');
+      ta.addEventListener('input', function () { form.draft = ta.value; grow(); if (sb) sb.disabled = !ta.value.trim() || form.busy; });
+      ta.addEventListener('keydown', function (e) { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); if (ta.value.trim()) sendChat(); } });
+      grow();
+    }
     var cl = document.getElementById('chatList'); if (cl) cl.scrollTop = cl.scrollHeight;
   }
   function keep() {
@@ -626,11 +637,25 @@
   // ── Valet chat (no SMS for the passenger's messages) ──
   var chatMsgs = [], chatTimer = null;
   function chatHtml() {
-    if (!chatMsgs.length) return '<p class="muted">Send us a message about your car or your return. We usually reply quickly during valet hours.</p>';
-    return chatMsgs.map(function (m) {
-      var t = new Date(m.at), when = isNaN(t) ? '' : t.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
-      return '<div class="msg ' + (m.from === 'guest' ? 'me' : 'them') + '"><p>' + esc(m.body) + '</p><span>' + (m.from === 'guest' ? 'You' : 'Makers Air Valet') + ' · ' + esc(when) + '</span></div>';
-    }).join('');
+    var intro = '<p class="ch-intro">Messages with the Makers Air Valet team. Our replies also arrive by text message.</p>';
+    if (!chatMsgs.length) return intro + '<p class="ch-intro">Send us a message about your car or your return. We usually reply quickly during valet hours.</p>';
+    var now = new Date(), out = intro, prevT = 0, prevFrom = '', lastMe = -1;
+    chatMsgs.forEach(function (m, i) { if (m.from === 'guest') lastMe = i; });
+    chatMsgs.forEach(function (m, i) {
+      var t = new Date(m.at), ok = !isNaN(t), ms = ok ? t.getTime() : 0;
+      if (ok && (!prevT || ms - prevT > 15 * 60000)) {
+        var day = t.toDateString() === now.toDateString() ? 'Today' : t.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+        out += '<p class="ch-day">' + esc(day + ' ' + t.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })) + '</p>';
+        prevFrom = '';
+      }
+      var me = m.from === 'guest', next = chatMsgs[i + 1];
+      var tail = !next || (next.from === 'guest') !== me || (new Date(next.at).getTime() - ms > 15 * 60000);
+      out += '<div class="bub ' + (me ? 'me' : 'them') + (tail ? ' tail' : '') + (prevFrom && prevFrom !== m.from ? ' turn' : '') + '">' + esc(m.body) + '</div>';
+      if (i === lastMe && i === chatMsgs.length - 1) out += '<p class="ch-status">Delivered</p>';
+      prevT = ms || prevT; prevFrom = m.from;
+    });
+    if (form.busy) out += '<p class="ch-status">Sending\u2026</p>';
+    return out;
   }
   async function loadChat() {
     try {
