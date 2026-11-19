@@ -7356,7 +7356,19 @@ function kioskNeSteps(){
   var nav=document.createElement('div'); nav.className='kne-nav'; nav.id='kneNav'; step.insertBefore(nav,step.querySelector('.ci2-foot'));
   ['ci2SHangar','ci2SVeh'].forEach(function(id){ var s=ci2El(id); if(s&&!s.classList.contains('open')) ci2Toggle(id); });
   var rd=step.querySelector('.ci2-consent details'); if(rd) rd.open=true;
+  // 2026-11-18 proposal: Next stays off until name + phone are valid and says what is missing;
+  // Return on the keyboard moves name → phone → Texts.
+  var nm=ci2El('ci2Name'), ph=ci2El('ci2Phone');
+  [nm,ph].forEach(function(el){ if(el) el.addEventListener('input', kioskNeSyncNext); });
+  if(nm) nm.addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); if(ph) ph.focus(); } });
+  if(ph) ph.addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); if(kioskNeGuestOk()) kioskNeGo('texts'); } });
   kioskNeGo('guest');
+}
+function kioskNeSyncNext(){
+  var st=ci2El('ci2Step'), b=document.querySelector('#kneNav .kne-next'); if(!st||!b||st.getAttribute('data-kstep')!=='guest') return;
+  var n=ci2El('ci2Name'), p=ci2El('ci2Phone'), hasN=!!(n&&n.value.trim()), hasP=!!(p&&ci2PhoneValid(p.value));
+  b.disabled=!(hasN&&hasP);
+  b.textContent=hasN&&hasP?'Next · Texts ›':!hasN&&!hasP?'Add name and phone':!hasN?'Add the name':'Phone: 10 digits, or + country code';
 }
 function kioskNeGuestOk(){ var n=ci2El('ci2Name'), p=ci2El('ci2Phone'); return !!(n&&n.value.trim())&&!!p&&ci2PhoneValid(p.value); }
 function kioskNeGo(k){
@@ -7367,6 +7379,7 @@ function kioskNeGo(k){
   bar.innerHTML=KNE_STEPS.map(function(s,j){ return '<button type="button" class="'+(j===i?'on':j<i?'ok':'')+'" onclick="kioskNeGo(\''+s[0]+'\')"><i>'+(j<i?'✓':(j+1))+'</i>'+s[1]+'</button>'; }).join('');
   nav.innerHTML=(prev?'<button type="button" class="kne-back" onclick="kioskNeGo(\''+prev[0]+'\')">‹ '+prev[1]+'</button>':'')+
     (next?'<button type="button" class="kne-next" onclick="kioskNeGo(\''+next[0]+'\')">Next · '+next[1]+' ›</button>':'');
+  kioskNeSyncNext();
   var first=k==='guest'?ci2El('ci2Name'):null; if(first&&!first.value) setTimeout(function(){ first.focus(); },60);
   var m=document.querySelector('#addOv .modal'); if(m) m.scrollTop=0;
 }
@@ -7395,8 +7408,8 @@ function ci2Html(){
   + '<div class="ci2">'
   + '<div class="ci2-card" id="ci2Step">'
   +   '<div class="ci2-fly" role="group" aria-label="Flying with"><button type="button" data-op="MAKERS" aria-pressed="true">Makers Air</button><button type="button" data-op="ASCEND" aria-pressed="false"><span aria-hidden="true">✈ </span>Ascend</button></div>'
-  +   '<div class="ci2-np"><div class="ci2-f"><label for="ci2Name">Name</label><div class="ci2-acw"><input id="ci2Name" class="ci2-inp" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="First and last name"><div class="ci2-ac" id="ci2Ac" hidden></div></div><div class="ci2-hint" id="ci2Freq" hidden></div></div>'
-  +   '<div class="ci2-f"><label for="ci2Phone">Phone</label><div class="ci2-pw"><input id="ci2Phone" class="ci2-inp" type="tel" inputmode="tel" autocomplete="off" maxlength="18" placeholder="(305) 555-0142 or +49 …" aria-describedby="ci2PhoneHint"><span class="ci2-ok" id="ci2PhoneOk">Valid</span></div><div class="ci2-hint" id="ci2PhoneHint">US number, or + country code. It can be a companion’s phone.</div></div></div>'
+  +   '<div class="ci2-np"><div class="ci2-f"><label for="ci2Name">Name</label><div class="ci2-acw"><input id="ci2Name" class="ci2-inp" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" enterkeyhint="next" placeholder="First and last name"><div class="ci2-ac" id="ci2Ac" hidden></div></div><div class="ci2-hint" id="ci2Freq" hidden></div></div>'
+  +   '<div class="ci2-f"><label for="ci2Phone">Phone</label><div class="ci2-pw"><input id="ci2Phone" class="ci2-inp" type="tel" inputmode="tel" autocomplete="off" enterkeyhint="next" maxlength="18" placeholder="(305) 555-0142 or +49 …" aria-describedby="ci2PhoneHint"><span class="ci2-ok" id="ci2PhoneOk">Valid</span></div><div class="ci2-hint" id="ci2PhoneHint">US number, or + country code. It can be a companion’s phone.</div></div></div>'
   +   '<div class="gx-ci" id="gxCi2" hidden></div>'
   +   '<div class="ci2-er" id="ci2Er" hidden>⚠️ This passenger had an Early Return before. Confirm the return date carefully.</div>'
   +   '<div class="ci2-f"><div class="ci2-lr"><span class="ci2-lab" id="ci2RetLbl">Return date</span><span class="ci2-opt">Optional</span></div><div class="ci2-retpick" data-n="1"></div>'
