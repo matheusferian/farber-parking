@@ -3430,3 +3430,6 @@ body.av-kiosk .ci2-wide .ci2-script{font-size:17px;line-height:1.5}
 .ci2-mkret .ci2-mk-ask{color:var(--tx-ok);font-weight:600;}
 .ci2-mkret.ok{border-color:#9DC7B0;color:var(--tx-ok);font-weight:600;}
 .ci2-mk-wait{color:var(--mu);}
+
+/* Owner 2026-11-19: one Take photo button; the car AI says front or rear. */
+.ci2-take{width:100%;margin-bottom:8px;min-height:52px;font-size:16px;}

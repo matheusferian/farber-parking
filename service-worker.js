@@ -127,7 +127,8 @@
 // v206: Staff Dashboard/Kiosk — 'Leaving Today/Tomorrow' renamed 'Coming back today/tomorrow' (owner 11/19 step 5). TV and reports unchanged.
 // v207: New check-in — 'Fill car from photos' (car AI = the FarberOS / Funky Buddha AI, Farber OpenAI account) (owner 11/19 step 6).
 // v208: New check-in — picking a Makers name shows that guest's return from Makers; staff confirm it with the guest (owner 11/19 step 7).
-var CACHE_VERSION = 'v208';
+// v209: Check-in photos — a front photo goes on the Valet Pass when there is no rear yet (owner 11/19, DIEGO FRANZ 1119-7).
+var CACHE_VERSION = 'v209';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 var SHELL_FILES = [

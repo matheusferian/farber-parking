@@ -19,7 +19,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 const ALLOWED_ORIGINS = ['https://airvalet.farberos.com'];
 const OPS = ['ADMIN', 'MANAGER', 'IPAD_OPS', 'IPHONE_OPS'];
 const MAX_IMAGES = 2, MAX_B64 = 900_000, CALLS_PER_DAY = 200, TIMEOUT_MS = 40_000;
-const ANGLES = ['front', 'rear'];
+const ANGLES = ['front', 'rear', 'auto'];   // auto (owner 11/19): ONE photo, FarberOS also says front / rear
 const FARBEROS_URL = Deno.env.get('FARBEROS_VEHICLE_AI_URL') || 'https://farberos.com/api/airvalet/vehicle-ai';
 
 // Placeholder words the model sometimes returns instead of null (FarberOS vehicle-update-rules).
@@ -58,6 +58,7 @@ Deno.serve(async (req) => {
   if (!images.every((x) => x && ANGLES.includes(x.angle) && typeof x.b64 === 'string' && x.b64.startsWith('/9j/') && x.b64.length <= MAX_B64)) {
     return json(400, { ok: false, error: { code: 'BAD_IMAGE' } });
   }
+  if (images.some((x) => x.angle === 'auto') && images.length !== 1) return json(400, { ok: false, error: { code: 'BAD_IMAGE' } });
   const passengerId = Number.isSafeInteger(payload.passenger_id) ? payload.passenger_id as number : null;
 
   const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
@@ -105,6 +106,7 @@ Deno.serve(async (req) => {
     color: clean(raw.color), make: clean(raw.make), model: clean(raw.model),
     raw_color_description: clean(raw.raw_color_description),
     confidence: { color: conf(raw.confidence?.color), make: conf(raw.confidence?.make), model: conf(raw.confidence?.model) },
+    view: ['front', 'rear', 'side'].includes(raw.view) ? raw.view : null,
   };
 
   await admin.from('activity_log').insert({
