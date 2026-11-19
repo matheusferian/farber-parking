@@ -198,16 +198,16 @@
     <p class="dtp-note" id="dtpNote">Cash shows only what the team recorded. Some tips may not be recorded.</p>
   </section>
   <div class="dsec">
-    <div class="dtitle" style="color:var(--ok)" id="titleArrived">&#128663; Arrived Today <span class="tbadge" style="background:var(--ok);color:#000">0</span></div>
+    <div class="dtitle" style="color:var(--tx-ok)" id="titleArrived">&#128663; Arrived Today <span class="tbadge" style="background:var(--ok);color:#000">0</span></div>
     <div class="dsub">Registered today</div>
     <div class="dcards" id="dArrived"></div>
-    <div class="dtitle" style="color:var(--acc)" id="titleToday">&#128276; Leaving Today <span class="tbadge" style="background:var(--acc);color:#000">0</span></div>
+    <div class="dtitle" style="color:var(--tx-gold)" id="titleToday">&#128276; Leaving Today <span class="tbadge" style="background:var(--acc);color:#000">0</span></div>
     <div class="dsub">Return Date = today</div>
     <div class="dcards" id="dToday"></div>
-    <div class="dtitle" style="color:var(--pur)" id="titleTomorrow">&#128198; Leaving Tomorrow <span class="tbadge" style="background:var(--pur);color:#fff">0</span></div>
+    <div class="dtitle" style="color:var(--tx-pur)" id="titleTomorrow">&#128198; Leaving Tomorrow <span class="tbadge" style="background:var(--pur);color:#fff">0</span></div>
     <div class="dsub">Return Date = tomorrow</div>
     <div class="dcards" id="dTomorrow"></div>
-    <div class="dtitle" style="color:#e86030" id="titleSunday">&#128197; Returning Sunday <span class="tbadge" style="background:#e86030;color:#fff">0</span></div>
+    <div class="dtitle" style="color:var(--tx-sun)" id="titleSunday">&#128197; Returning Sunday <span class="tbadge" style="background:#e86030;color:#fff">0</span></div>
     <div class="dsub" id="subSunday">Return Date = next Sunday</div>
     <div class="dcards" id="dSunday"></div>
   </div>
@@ -3140,7 +3140,7 @@ function renderDay() {
           '<div class="dc-qd" onclick="event.stopPropagation()">'+
             '<button class="qd-btn '+(btnCls||'')+'" onclick="quickDeliver('+r.id+',\'NORMAL\')">✓ Deliver</button>'+
             (showCustoms?'<button class="qd-btn customs" onclick="quickDeliver('+r.id+',\'CUSTOMS\')">Customs</button>':'')+
-            '<button class="qd-btn lockbox" onclick="quickDeliver('+r.id+',\'LOCKBOX\')" style="background:rgba(201,168,76,0.15);border-color:rgba(201,168,76,0.5);color:var(--gold)">🔒 Lockbox</button>'+
+            '<button class="qd-btn lockbox" onclick="quickDeliver('+r.id+',\'LOCKBOX\')" style="background:rgba(201,168,76,0.15);border-color:rgba(201,168,76,0.5);color:var(--tx-gold)">🔒 Lockbox</button>'+
             h19Btn+
             (showFlightPrint?'<button class="qd-btn fbprint" title="Print flight tag" onclick="printFlightBagOne('+r.id+')">🖨</button>':'')+
             (showWelcomeBack?welcomeBackButtonHtml(r):'')+
@@ -3168,7 +3168,7 @@ function renderDay() {
       return '<div class="dcard '+cls+(isApprox?' approx-card':'')+(r.status==='DELIVERED'&&showDeliver?' delivered-today-card':'')+'" onclick="showDet('+r.id+')">'+
         '<div class="dc-top">'+
           '<div class="dc-body">'+
-            '<div class="dc-n">'+(r.status==='DELIVERED'&&showDeliver?'<span style="text-decoration:line-through;opacity:0.6">'+(isAscend(r)?'[A] ':'')+escapeHTML(r.name)+'</span>':(isAscend(r)?'[A] ':'')+escapeHTML(r.name))+(isApprox?' <span style="font-size:9px;background:rgba(201,168,76,0.2);color:var(--gold);border-radius:4px;padding:2px 5px;margin-left:4px">~APPROX</span>':'')+(isAscend(r)?'<span style="font-size:9px;background:rgba(99,179,237,0.18);color:#63b3ed;border-radius:4px;padding:2px 5px;margin-left:4px;font-family:\'JetBrains Mono\',monospace">✈ ASCEND</span>':'')+(r.not_returning_with_makers_air?' '+OTHER_BOAT_DASH_ICON_HTML:'')+(r.isOfflinePending?'<span style="font-size:9px;background:rgba(232,160,48,.22);color:#e8a030;border-radius:4px;padding:2px 5px;margin-left:4px;font-weight:800;font-family:\'JetBrains Mono\',monospace" title="Saved locally, not yet on the server">🟠 PENDING SYNC</span>':'')+(showCarwashBadge?carwashBadgeHtml(r):'')+'</div>'+
+            '<div class="dc-n">'+(r.status==='DELIVERED'&&showDeliver?'<span style="text-decoration:line-through;opacity:0.6">'+(isAscend(r)?'[A] ':'')+escapeHTML(r.name)+'</span>':(isAscend(r)?'[A] ':'')+escapeHTML(r.name))+(isApprox?' <span style="font-size:9px;background:rgba(201,168,76,0.2);color:var(--tx-gold);border-radius:4px;padding:2px 5px;margin-left:4px">~APPROX</span>':'')+(isAscend(r)?'<span style="font-size:9px;background:rgba(99,179,237,0.18);color:#1E5FA8;border-radius:4px;padding:2px 5px;margin-left:4px;font-family:\'JetBrains Mono\',monospace">✈ ASCEND</span>':'')+(r.not_returning_with_makers_air?' '+OTHER_BOAT_DASH_ICON_HTML:'')+(r.isOfflinePending?'<span style="font-size:9px;background:rgba(232,160,48,.22);color:#e8a030;border-radius:4px;padding:2px 5px;margin-left:4px;font-weight:800;font-family:\'JetBrains Mono\',monospace" title="Saved locally, not yet on the server">🟠 PENDING SYNC</span>':'')+(showCarwashBadge?carwashBadgeHtml(r):'')+'</div>'+
             '<div class="dc-c">'+escapeHTML(r.car)+' · '+escapeHTML(fmtP(r.phone))+'</div>'+
             // Day trip (owner 2026-11-06): say it on the card, and whether the guest already has the key.
             (isDayTripRow(r)&&r.status!=='DELIVERED'&&r.status!=='ARCHIVED'?'<div class="dc-dt"><span class="dc-dt-chip">✈ DAY TRIP</span>'+(r.key_with_guest?'<span class="dc-dt-chip key">🔑 KEY WITH PASSENGER</span>':'')+'</div>':'')+
