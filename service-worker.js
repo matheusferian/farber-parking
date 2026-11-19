@@ -131,7 +131,8 @@
 // v210: Car AI also reads the plate; staff confirm with Looks right; Plate on the car card (owner 11/19).
 // v211: New check-in — Cancel is a full-width button (owner 11/19).
 // v212: Finish on the phone — today's cars without a rear photo blink at the top; Take photo there (owner 11/19).
-var CACHE_VERSION = 'v212';
+// v213: Finish-on-phone strip starts with check-ins from 11/20 (owner 11/19).
+var CACHE_VERSION = 'v213';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 var SHELL_FILES = [

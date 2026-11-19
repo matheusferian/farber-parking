@@ -3102,7 +3102,11 @@ function renderTable() {
 // that ticket (car AI checks it is the rear and reads the plate), puts it on the pass, and the strip clears
 // everywhere. Who has a photo: airvalet_tv_pass_photos (ids only). Hidden on the TV.
 var _fin = { have: {}, at: 0, busy: false, ids: '', pid: null };
+// Owner 2026-11-19: "só de amanhã em diante, senão vai ficar piscando tudo" — starts with check-ins on 11/20.
+var FIN_START = '2026-11-20';
 function finCands(arrived){
+  var d = new Date(), today = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  if (today < FIN_START) return [];
   return (arrived || []).filter(function(r){ return (r.status === 'PENDING' || r.status === 'NO DATE') && !r.isOfflinePending && typeof r.id === 'number'; });
 }
 async function finPoll(ids){
