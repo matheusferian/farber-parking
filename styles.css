@@ -3433,3 +3433,7 @@ body.av-kiosk .ci2-wide .ci2-script{font-size:17px;line-height:1.5}
 
 /* Owner 2026-11-19: one Take photo button; the car AI says front or rear. */
 .ci2-take{width:100%;margin-bottom:8px;min-height:52px;font-size:16px;}
+
+/* Owner 2026-11-19: "esse cancel tá muito pequeno" — a real button, full width, easy to hit. */
+.ci2-cancel{width:100%;min-height:52px;border:1.5px solid var(--b);border-radius:14px;background:#fff;color:var(--tx);font:700 16px 'Inter',sans-serif;cursor:pointer;}
+.ci2-cancel:active{background:var(--s2);}

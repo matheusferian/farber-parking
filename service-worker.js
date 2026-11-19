@@ -129,7 +129,8 @@
 // v208: New check-in — picking a Makers name shows that guest's return from Makers; staff confirm it with the guest (owner 11/19 step 7).
 // v209: Check-in photos — a front photo goes on the Valet Pass when there is no rear yet (owner 11/19, DIEGO FRANZ 1119-7).
 // v210: Car AI also reads the plate; staff confirm with Looks right; Plate on the car card (owner 11/19).
-var CACHE_VERSION = 'v210';
+// v211: New check-in — Cancel is a full-width button (owner 11/19).
+var CACHE_VERSION = 'v211';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 var SHELL_FILES = [
