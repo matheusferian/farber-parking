@@ -120,7 +120,8 @@
 // v199: TV — ARRIVAL ORDER alert (owner 11/19): which flight with our cars lands first, by live ETA, with its cars.
 // v200: TV — ARRIVAL ORDER simplified: only tails + times (owner 11/19).
 // v201: TV — WHO LANDS FIRST: only aircraft already flying back to FXE (live ETA), never the schedule.
-var CACHE_VERSION = 'v201';
+// v202: Staff UI — stronger text contrast (titles, Lockbox, ~APPROX/ASCEND chips) + printer/time messages in English (owner 11/19 step 1).
+var CACHE_VERSION = 'v202';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 var SHELL_FILES = [
