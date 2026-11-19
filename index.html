@@ -3160,6 +3160,7 @@ async function finUpload(pid, file){
     var out = await vpRpc('airvalet_pass_photo_set', { p_passenger_id: pid, p_image_b64: b64 });
     if (!out || out.result !== 'OK') { showMsg('Photo not saved (' + ((out && out.result) || 'error') + ').', true); return; }
     sbLog('EDITED', r.name || '', r.ticket || '', r.loc || '', 'Car photo added to the valet pass (finish on phone)', { passenger_id: pid });
+    carPhotosAdd(pid, 'rear', p.blob);
     // Plate from the same answer, only when the AI is sure and the ticket has none yet.
     if (ai && ai.plate && (ai.confidence && ai.confidence.plate >= 0.85) && !r.plate) {
       try { await sbUpdate(pid, { plate: ai.plate, plate_state: ai.plate_state || null }); r.plate = ai.plate; r.plate_state = ai.plate_state || ''; } catch(e) {}
@@ -8352,6 +8353,7 @@ async function ci2ShotStore(key, p){
     if (_ci.shots[key]) URL.revokeObjectURL(_ci.shots[key].url);
     _ci.shots[key] = { url: URL.createObjectURL(p.blob), at: at, bytes: p.blob.size, blob: p.blob };
     ci2RenderShots();
+    if (_ci.created && !ci2LocalOnly()) carPhotosAdd(_ci.id, key, p.blob);   // kept on the server (30 days after the car leaves)
     // Owner 2026-11-19: "prioridade é apenas traseira" — only the REAR photo goes on the Valet Pass.
     if (key === 'rear') ci2PassPhoto(p.blob, key);
     else { var e = ci2El('ci2PassSt'); if (e && !_ci.passPhoto) e.textContent = 'This is the front. The valet pass shows the rear — take a rear photo too.'; }
@@ -8667,6 +8669,79 @@ async function ackReturnReview(id,resolution){
   }catch(e){ showMsg('Could not update Needs Review: '+e.message,true); }
 }
 
+// ── Car photos on the server (owner 2026-11-19: "onde conseguimos ver as fotos", kept until 30 days after the
+// car leaves). car-photos Edge Function: add / list (signed links, 1 hour). Check-in and the finish strip upload
+// here too, so every device sees the same photos. The REAR photo also goes on the valet pass.
+function carPhotoB64(blob){
+  return new Promise(function(res, rej){ var fr = new FileReader(); fr.onload = function(){ res(String(fr.result).split(',')[1]); }; fr.onerror = rej; fr.readAsDataURL(blob); });
+}
+async function carPhotosAdd(pid, angle, blob){
+  try {
+    if (!pid || typeof pid !== 'number' || navigator.onLine === false) return null;
+    var res = await smsApi('/functions/v1/car-photos', { method: 'POST', headers: sbHeaders(), body: JSON.stringify({ action: 'add', passenger_id: pid, angle: angle, b64: await carPhotoB64(blob) }) });
+    return res && res.ok ? res.photo : null;
+  } catch(e) { console.warn('car photo upload', e); return null; }
+}
+async function carPhotosLoad(r){
+  var box = document.getElementById('detPhotos'); if (!box || !r) return;
+  var res = null;
+  try { res = await smsApi('/functions/v1/car-photos', { method: 'POST', headers: sbHeaders(), body: JSON.stringify({ action: 'list', passenger_id: r.id }) }); } catch(e) { res = null; }
+  box = document.getElementById('detPhotos'); if (!box || +box.dataset.pid !== r.id) return;
+  var photos = (res && res.ok && res.photos) || [], last = {};
+  photos.forEach(function(ph){ if (!last[ph.angle]) last[ph.angle] = ph; });
+  var tile = function(angle, label){
+    var ph = last[angle];
+    if (!ph) return '<div class="cp-tile empty"><b>' + label + '</b><small>No photo</small></div>';
+    var when = new Date(ph.taken_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+    return '<button type="button" class="cp-tile" data-cpurl="' + escapeHTML(ph.url || '') + '"><img src="' + escapeHTML(ph.url || '') + '" alt="' + label + ' photo"><b>' + label + '</b><small>' + escapeHTML(when) + '</small></button>';
+  };
+  box.innerHTML = (res && res.ok ? '' : '<p class="cp-note">Could not load photos.</p>')
+    + '<div class="cp-row">' + tile('front', 'Front') + tile('rear', 'Rear') + '</div>'
+    + (r.status !== 'DELIVERED' ? '<button type="button" class="cp-take" id="cpTake">Take photo</button><input type="file" id="cpIn" accept="image/*" capture="environment" hidden>' : '')
+    + '<p class="cp-note" id="cpSt">Kept until 30 days after the car leaves. The rear photo shows on the valet pass.</p>';
+  box.querySelectorAll('[data-cpurl]').forEach(function(b){ b.onclick = function(){ carPhotoFull(b.getAttribute('data-cpurl')); }; });
+  var take = document.getElementById('cpTake'), inp = document.getElementById('cpIn');
+  if (take && inp) {
+    take.onclick = function(){ inp.click(); };
+    inp.onchange = function(){ var f = inp.files && inp.files[0]; inp.value = ''; if (f) carPhotoTake(r, f); };
+  }
+}
+function carPhotoFull(url){
+  if (!url) return;
+  var ov = document.createElement('div'); ov.className = 'cp-full'; ov.setAttribute('role', 'dialog'); ov.setAttribute('aria-label', 'Photo');
+  ov.innerHTML = '<img src="' + escapeHTML(url) + '" alt=""><button type="button" class="cp-x" aria-label="Close">✕</button>';
+  ov.onclick = function(){ ov.remove(); };
+  document.body.appendChild(ov);
+}
+async function carPhotoTake(r, file){
+  var st = function(t){ var e = document.getElementById('cpSt'); if (e) e.textContent = t; };
+  st('Reading the photo…');
+  try {
+    var p = await avShotPrep(file), ai = null;
+    try {
+      var ctl = new AbortController(), t = setTimeout(function(){ ctl.abort(); }, 30000);
+      var res = await smsApi('/functions/v1/vehicle-ai', { method: 'POST', headers: sbHeaders(), body: JSON.stringify({ images: [{ angle: 'auto', b64: await ci2AiB64(p.blob) }], passenger_id: r.id }), signal: ctl.signal });
+      clearTimeout(t); ai = res && res.ok ? res.result : null;
+    } catch(e) { ai = null; }
+    var angle = ai && (ai.view === 'front' || ai.view === 'rear') ? ai.view : (confirm('Is this the REAR of the car?\n\nOK = Rear   ·   Cancel = Front') ? 'rear' : 'front');
+    st('Saving the ' + angle + ' photo…');
+    var saved = await carPhotosAdd(r.id, angle, p.blob);
+    if (!saved) { st('Photo not saved. Try again.'); return; }
+    sbLog('EDITED', r.name || '', r.ticket || '', r.loc || '', 'Car photo saved (' + angle + ')', { passenger_id: r.id });
+    if (angle === 'rear') {
+      var img = await createImageBitmap(p.blob), k = Math.min(1, 1200 / Math.max(img.width, img.height)), c = document.createElement('canvas');
+      c.width = Math.round(img.width * k); c.height = Math.round(img.height * k); c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      var q = 0.8, b64 = c.toDataURL('image/jpeg', q).split(',')[1];
+      while (b64.length > 650000 && q > 0.4) { q -= 0.1; b64 = c.toDataURL('image/jpeg', q).split(',')[1]; }
+      try { await vpRpc('airvalet_pass_photo_set', { p_passenger_id: r.id, p_image_b64: b64 }); if (typeof _fin !== 'undefined') _fin.have[r.id] = true; } catch(e) {}
+    }
+    if (ai && ai.plate && ai.confidence && ai.confidence.plate >= 0.85 && !r.plate) {
+      try { await sbUpdate(r.id, { plate: ai.plate, plate_state: ai.plate_state || null }); r.plate = ai.plate; r.plate_state = ai.plate_state || ''; } catch(e) {}
+    }
+    carPhotosLoad(r);
+    if (typeof finRender === 'function') finRender(null);
+  } catch(e) { st('Photo not saved. Try again.'); }
+}
 function showDet(id){
   _editChanges={};
   var r=null;for(var i=0;i<data.length;i++){if(data[i].id===id){r=data[i];break;}}
@@ -8705,6 +8780,7 @@ function showDet(id){
       '<div class="di editable" style="grid-column:1/-1" data-field="phone"><div class="di-l">Phone ✎</div><div class="di-v">'+escapeHTML(fmtP(r.phone))+'</div></div>'+
       '<div class="di editable" style="grid-column:1/-1" data-field="car"><div class="di-l">Car ✎</div><div class="di-v">'+escapeHTML(r.car||'')+'</div></div>'+
       (r.plate ? '<div class="di" style="grid-column:1/-1"><div class="di-l">Plate</div><div class="di-v">'+escapeHTML(r.plate+(r.plate_state?' · '+r.plate_state:''))+'</div></div>' : '')+
+      '<div class="di cp-wrap" style="grid-column:1/-1"><div class="di-l">Photos</div><div id="detPhotos" class="cp-box" data-pid="'+r.id+'"><span class="cp-wait">Loading photos…</span></div></div>'+
       '<div class="di editable" style="grid-column:1/-1" data-field="color" onclick="makeEditable(this,\'color\')" ><div class="di-l">Color ✎</div><div class="di-v">'+escapeHTML(r.color||'—')+'</div></div>'+
       '<div class="di editable" style="grid-column:1/-1" data-field="loc" data-raw="'+escapeHTML(r.loc||'')+'"><div class="di-l">Location ✎</div><div class="di-v">'+escapeHTML(r.loc||'—')+'</div></div>'+
       '<div class="di editable" style="grid-column:1/-1" data-field="obs"><div class="di-l">Notes ✎</div><div class="di-v" style="font-size:12px">'+escapeHTML(r.obs||'—')+'</div></div>'+
@@ -8755,6 +8831,7 @@ function showDet(id){
     if(sb) sb.addEventListener('click',function(){saveEdits(parseInt(sb.dataset.rid));});
   },50);
   document.getElementById('detOv').classList.add('on');
+  carPhotosLoad(r);
   loadPassengerChangeHistory(r);
   vpLoadStaff(r);
   tipsLoad(r);
