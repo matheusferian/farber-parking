@@ -2037,7 +2037,7 @@ async function testPrint() {
 // ── EPSON SHARED SEND ──────────────────────────────────────────
 async function epsonSend(xml, label) {
   try {
-    showMsg('🖨 Imprimindo ' + label + '...', false);
+    showMsg('Printing ' + label + '…', false);
     var res = await epsonFetch(xml);
     var txt = await res.text();
     var epsonSuccess = (txt.match(/success="([^"]*)"/) || [])[1] || 'unknown';
@@ -2048,9 +2048,9 @@ async function epsonSend(xml, label) {
     console.log('EPSON [' + label + '] STATUS: ', epsonStatus);
     console.log('EPSON [' + label + '] FULL:   ', txt);
     if (epsonSuccess === 'true') {
-      showMsg('✅ ' + label + ' impresso!', false);
+      showMsg(label + ' printed.', false);
     } else {
-      showMsg('❌ Epson rejeitou ' + label + '. Veja o console.', true);
+      showMsg('The printer did not print ' + label + '. Check paper and try again.', true);
       console.error('EPSON REJECTED [' + label + ']:', txt);
     }
     return epsonSuccess === 'true';
@@ -2424,7 +2424,7 @@ function commitDepTime(input, id) {
   if (/^\d{4}$/.test(val)) val = val.slice(0,2) + ':' + val.slice(2);
   if (!isValidDepTime(val)) {
     input.classList.add('dep-time-invalid');
-    showMsg('Horário inválido — use HH:MM (ex: 17:30)', true);
+    showMsg('Time not valid. Use HH:MM, for example 17:30.', true);
     return;
   }
   input.value = val;
