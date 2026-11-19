@@ -8489,12 +8489,14 @@ function openTipModal(id, deliveryType){
   var vehEl=document.getElementById('tipVehicleLine');
   vehEl.textContent=vehLine;
   vehEl.style.display=vehLine?'':'none';
-  // 2026-11-18 proposal: Deliver, Customs and Lockbox sit side by side on the card; the modal says
+  // Owner 2026-11-19 (step 3): Deliver, Customs and Lockbox sit side by side on the card; the modal says
   // which one was tapped and shows the ticket + where the car is, so a wrong tap is caught here.
   var dt=TIP_DTYPE_TEXT[deliveryType]||TIP_DTYPE_TEXT.NORMAL;
   document.getElementById('tipTitle').textContent=dt[0];
   document.getElementById('tipYesBtn').textContent=dt[1];
-  document.getElementById('tipWhere').textContent=[r.ticket?'Ticket '+r.ticket:'', r.loc?'Car at '+String(r.loc).toUpperCase():''].filter(Boolean).join('  ·  ');
+  var locNow=r.loc?String(r.loc).toUpperCase():'';
+  var where=deliveryType==='CUSTOMS'&&locNow&&locNow!=='CUSTOMS'?locNow+' → CUSTOMS':(locNow?'Car at '+locNow:'');
+  document.getElementById('tipWhere').textContent=[r.ticket?'Ticket '+r.ticket:'', where].filter(Boolean).join('  ·  ');
   setTipButtonsDisabled(false);
   tipInPersonReset();
   pickupReleaseRender(r);
