@@ -7441,7 +7441,7 @@ function ci2Html(){
   + '</div></div>'
   + '<div id="ci2Details" class="ci2-details" hidden><div class="ci2-col">'
   +   ci2Sec('ci2SHangar', 'Hangar', 'Not set', '<div class="ci2-chipset" id="ci2Hangars"></div>')
-  +   (avPhotosOn() ? ci2Sec('ci2SPhotos', 'Photos', 'Optional', '<div class="ci2-shots" id="ci2Shots"></div><input type="file" id="ci2ShotIn" accept="image/*" capture="environment" hidden><div id="ci2Ai"></div><p class="ci2-hint">Prototype: photos stay on this device.</p>') : '')
+  +   (avPhotosOn() ? ci2Sec('ci2SPhotos', 'Photos', 'Optional', '<div class="ci2-shots" id="ci2Shots"></div><input type="file" id="ci2ShotIn" accept="image/*" capture="environment" hidden><div id="ci2Ai"></div><p class="ci2-hint" id="ci2PassSt" role="status">Optional. The rear photo shows on the passenger\'s valet pass.</p>') : '')
   +   ci2Sec('ci2SVeh', 'Vehicle', 'Not set', '<p class="ci2-sub">Make</p><input class="ci2-search" id="ci2MakeQ" placeholder="Search or type any make" autocomplete="off"><div class="ci2-chipset ci2-logos" id="ci2Makes"></div>'
   +     '<div id="ci2ModelBox" hidden><p class="ci2-sub">Model</p><input class="ci2-search" id="ci2ModelQ" placeholder="Search or type any model" autocomplete="off"><div class="ci2-chipset" id="ci2Models"></div></div>'
   +     '<p class="ci2-sub">Color</p><div class="ci2-chipset" id="ci2Colors"></div><div id="ci2OtherColorBox" hidden><input class="ci2-search" id="ci2OtherColor" placeholder="Type the color" style="margin-top:8px"></div>')
@@ -8200,9 +8200,29 @@ function ci2ShotsInit(){
       if (_ci.shots[key]) URL.revokeObjectURL(_ci.shots[key].url);
       _ci.shots[key] = { url: URL.createObjectURL(p.blob), at: at, bytes: p.blob.size };
       ci2RenderShots();
+      if (key === 'rear') ci2PassPhoto(p.blob);
     } catch (e) { ci2Toast('Photo not saved. Try again.', true); }
   });
   ci2RenderShots();
+}
+// Owner 2026-11-19: the REAR photo goes on the passenger's Valet Pass ("Your car today"), through the
+// same RPC as the Valet Pass panel's "Add photo" (airvalet_pass_photo_set, already in prod: one photo per
+// ticket, replaced on retake, hidden after delivery). No photo taken = the pass shows no photo at all. Front stays on this device (plate / car AI).
+async function ci2PassPhoto(blob){
+  var pid = _ci.id, st = function(t){ var e = ci2El('ci2PassSt'); if (e) e.textContent = t; };
+  var rec = data.find(function(x){ return x.id === pid; });
+  if (!pid || !_ci.created || !rec || rec.isOfflinePending) { st('Rear photo goes on the valet pass once the ticket is saved online.'); return; }
+  st('Adding the rear photo to the valet pass…');
+  try {
+    var img = await createImageBitmap(blob), k = Math.min(1, 1200 / Math.max(img.width, img.height)), c = document.createElement('canvas');
+    c.width = Math.round(img.width * k); c.height = Math.round(img.height * k); c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    var q = 0.8, b64 = c.toDataURL('image/jpeg', q).split(',')[1];
+    while (b64.length > 650000 && q > 0.4) { q -= 0.1; b64 = c.toDataURL('image/jpeg', q).split(',')[1]; }
+    var out = await vpRpc('airvalet_pass_photo_set', { p_passenger_id: pid, p_image_b64: b64 });
+    if (!out || out.result !== 'OK') { st('Rear photo not on the valet pass (' + ((out && out.result) || 'error') + '). Add it from Valet Pass.'); return; }
+    sbLog('EDITED', rec.name || '', rec.ticket || _ci.ticket || '', rec.loc || '', 'Car photo added to the valet pass (check-in rear photo)', { passenger_id: pid });
+    _ci.passPhoto = true; st('✓ Rear photo is on the passenger\'s valet pass.');
+  } catch (e) { st('Rear photo not on the valet pass. Add it from Valet Pass.'); }
 }
 function ci2ShotTake(key){ _ci.shotKey = key; ci2El('ci2ShotIn').click(); }
 function ci2RenderShots(){
