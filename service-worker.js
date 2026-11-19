@@ -124,7 +124,8 @@
 // v203: Kiosk check-in — Next says what is missing (name / phone) and stays off until both are valid; Return moves name → phone → date (owner 11/19 step 2).
 // v204: Delivery modal names the action (Deliver / Deliver at Customs / Leave in lockbox) and shows ticket + where the car is (owner 11/19 step 3).
 // v205: New check-in — optional Front/Rear photos (kept 30 days on the device); the rear photo goes on the Valet Pass (owner 11/19 step 4).
-var CACHE_VERSION = 'v205';
+// v206: Staff Dashboard/Kiosk — 'Leaving Today/Tomorrow' renamed 'Coming back today/tomorrow' (owner 11/19 step 5). TV and reports unchanged.
+var CACHE_VERSION = 'v206';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 var SHELL_FILES = [

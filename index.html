@@ -201,10 +201,10 @@
     <div class="dtitle" style="color:var(--tx-ok)" id="titleArrived">&#128663; Arrived Today <span class="tbadge" style="background:var(--ok);color:#000">0</span></div>
     <div class="dsub">Registered today</div>
     <div class="dcards" id="dArrived"></div>
-    <div class="dtitle" style="color:var(--tx-gold)" id="titleToday">&#128276; Leaving Today <span class="tbadge" style="background:var(--acc);color:#000">0</span></div>
+    <div class="dtitle" style="color:var(--tx-gold)" id="titleToday">&#128276; Coming back today <span class="tbadge" style="background:var(--acc);color:#000">0</span></div>
     <div class="dsub">Return Date = today</div>
     <div class="dcards" id="dToday"></div>
-    <div class="dtitle" style="color:var(--tx-pur)" id="titleTomorrow">&#128198; Leaving Tomorrow <span class="tbadge" style="background:var(--pur);color:#fff">0</span></div>
+    <div class="dtitle" style="color:var(--tx-pur)" id="titleTomorrow">&#128198; Coming back tomorrow <span class="tbadge" style="background:var(--pur);color:#fff">0</span></div>
     <div class="dsub">Return Date = tomorrow</div>
     <div class="dcards" id="dTomorrow"></div>
     <div class="dtitle" style="color:var(--tx-sun)" id="titleSunday">&#128197; Returning Sunday <span class="tbadge" style="background:#e86030;color:#fff">0</span></div>
@@ -2388,8 +2388,8 @@ async function printFlightBagOne(id) {
 async function printFlightBagAll(type) {
   var rows;
   var typeLabel;
-  if (type === 'today') { rows = sortByDepartureTime(data.filter(function(r){return isToday(r.ret)&&r.status!=='DELIVERED'&&r.status!=='ARCHIVED';})); typeLabel = 'Leaving Today'; }
-  else if (type === 'tomorrow') { rows = sortByDepartureTime(data.filter(function(r){return isTmrw(r.ret)&&r.status!=='DELIVERED'&&r.status!=='ARCHIVED';})); typeLabel = 'Leaving Tomorrow'; }
+  if (type === 'today') { rows = sortByDepartureTime(data.filter(function(r){return isToday(r.ret)&&r.status!=='DELIVERED'&&r.status!=='ARCHIVED';})); typeLabel = 'Coming back today'; }
+  else if (type === 'tomorrow') { rows = sortByDepartureTime(data.filter(function(r){return isTmrw(r.ret)&&r.status!=='DELIVERED'&&r.status!=='ARCHIVED';})); typeLabel = 'Coming back tomorrow'; }
   else { showMsg('Unknown print group', true); return; }
   if (!rows.length) { showMsg('Nothing to print', true); return; }
   if (!confirm('Print all flight tags for ' + typeLabel + '? Total: ' + rows.length)) return;
@@ -3229,7 +3229,7 @@ function renderDay() {
   var custBadgeAttrs=custReminderDue
     ? ' onclick="event.stopPropagation();openCustomsReminderSummary()" style="cursor:pointer;background:var(--red);color:#fff;margin-left:4px" title="Open gratuity reminders" aria-label="Open gratuity reminders"'
     : ' style="background:var(--red);color:#fff;display:none;margin-left:4px" title="Open gratuity reminders" aria-label="Open gratuity reminders"';
-  titleTodayEl.innerHTML='<span>🔔 Leaving Today <span class="tbadge" style="background:var(--acc);color:#000">'+ltPending+'</span>'+
+  titleTodayEl.innerHTML='<span>🔔 Coming back today <span class="tbadge" style="background:var(--acc);color:#000">'+ltPending+'</span>'+
     '<span class="tbadge" id="custReminderBadge"'+custBadgeAttrs+'>⏰ '+custReminderDue+'</span></span>'+
     // Both header actions live in ONE flex group (mirrors Leaving
     // Tomorrow's header below) so they stay adjacent — titleTodayEl has
@@ -3243,7 +3243,7 @@ function renderDay() {
     '</span>':'');
   var titleTomorrowEl=document.getElementById('titleTomorrow');
   titleTomorrowEl.style.display='flex';titleTomorrowEl.style.alignItems='center';titleTomorrowEl.style.justifyContent='space-between';
-  titleTomorrowEl.innerHTML='<span>📆 Leaving Tomorrow <span class="tbadge" style="background:var(--pur);color:#fff">'+lm.length+'</span></span>'+
+  titleTomorrowEl.innerHTML='<span>📆 Coming back tomorrow <span class="tbadge" style="background:var(--pur);color:#fff">'+lm.length+'</span></span>'+
     (lm.length?'<span style="display:flex;gap:4px;align-items:center;flex-wrap:nowrap">'+
       '<button class="fb-print-all-btn lt-toolbar-btn" onclick="event.stopPropagation();printFlightBagAll(\'tomorrow\')">🖨 All</button>'+
       '<button id="ltShareImageBtn" class="fb-print-all-btn lt-toolbar-btn-icon" title="Share Image" aria-label="Share Image" style="background:rgba(37,211,102,0.12);border-color:rgba(37,211,102,0.45);color:#25d366" onclick="event.stopPropagation();shareLeavingTomorrowImage()">📲</button>'+
@@ -3278,7 +3278,7 @@ function renderDay() {
 
 // ── iPad KIOSK VIEW (owner 2026-11-12, opt-in per device) ──────────
 // Same Dashboard laid out as a board: rides / tips / counts on top, then
-// Leaving Today | Leaving Tomorrow | Arrived + Sunday + Return passed.
+// Coming back today | Coming back tomorrow | Arrived + Sunday + Return passed (owner 11/19 step 5: was 'Leaving').
 // It only MOVES the existing nodes (renderDay keeps filling them by id) and
 // puts them back when turned off, so no card or button logic is duplicated.
 // On/off per device: the button on the Dashboard, or ?kiosk=1 / ?kiosk=0.
@@ -3324,8 +3324,8 @@ function kioskGlance(arrived,lt,lm,forgot,ls){
   var tile=function(col,n,label,cls){ return '<button type="button" class="kv-g '+cls+'" onclick="kioskJump(\''+col+'\')"><b>'+n+'</b><span>'+label+'</span></button>'; };
   el.innerHTML='<div class="kv-gh"><span>Today at a glance</span><button type="button" class="kv-classic" onclick="kioskSet(false)">Classic view</button></div><div class="kv-gg">'+
     tile('kvColArrived',arrived.length,'Arrived'+(miss?' · <em>'+miss+' no hangar</em>':''),'g-arr')+
-    tile('kvColToday',lt.filter(function(r){return r.status!=='DELIVERED';}).length,'Leaving today','g-today')+
-    tile('kvColTomorrow',lm.length,'Leaving tomorrow','g-tmrw')+
+    tile('kvColToday',lt.filter(function(r){return r.status!=='DELIVERED';}).length,'Coming back today','g-today')+
+    tile('kvColTomorrow',lm.length,'Coming back tomorrow','g-tmrw')+
     tile('kvColLate',forgot.length,'Return passed','g-late')+'</div>';
   // iPhone (owner 2026-11-12): the columns become tabs, one list at a time.
   var tabs=document.getElementById('kvTabs'); if(!tabs) return;
@@ -10135,12 +10135,12 @@ async function bulkMoveLeavingTodayToH19(){
   }
   var eligible = leavingTodayEligibleForBulkH19();
   if(!eligible.length){
-    showMsg('No eligible Leaving Today vehicles to move.', false);
+    showMsg('No eligible Coming back today cars to move.', false);
     return;
   }
   var preview = eligible.slice(0,4).map(function(r){ return r.name+' ('+r.ticket+')'; }).join(', ');
   if(eligible.length>4) preview += ', +'+(eligible.length-4)+' more';
-  if(!confirm('Move '+eligible.length+' Leaving Today vehicle'+(eligible.length===1?'':'s')+' to Hangar 19?\n\n'+preview)) return;
+  if(!confirm('Move '+eligible.length+' Coming back today car'+(eligible.length===1?'':'s')+' to Hangar 19?\n\n'+preview)) return;
 
   loading(true);
   var succeeded=[], failed=[];
@@ -10512,7 +10512,7 @@ function genReport(type,mode){
   var rows, typeLabel;
   if(type==='all'){rows=data;typeLabel='All Passengers';}
   else if(type==='active'){rows=data.filter(function(r){return r.status!=='DELIVERED';});typeLabel='Active (Non-Delivered)';}
-  else if(type==='today'){rows=data.filter(function(r){return isToday(r.ret)&&r.status!=='DELIVERED';});typeLabel='Leaving Today';}
+  else if(type==='today'){rows=data.filter(function(r){return isToday(r.ret)&&r.status!=='DELIVERED';});typeLabel='Coming back today';}
   else if(type==='delivered'){rows=data.filter(function(r){return r.status==='DELIVERED';});typeLabel='Delivered';}
   else if(type==='late'){rows=data.filter(function(r){return isLate(r.ret)&&r.status!=='DELIVERED';});typeLabel='Overdue';}
   else{rows=data;typeLabel='All Passengers';}
@@ -11494,7 +11494,7 @@ function generatePDF(mode) {
 
   var typeLabels = {
     'all_pending':'All Pending','arriving_tomorrow':'Arriving Tomorrow',
-    'no_date':'No Date','today':'Leaving Today','overdue':'Overdue'
+    'no_date':'No Date','today':'Coming back today','overdue':'Overdue'
   };
   genReport(type==='all_pending'?'active':type==='arriving_tomorrow'?'today':type, mode);
 }
