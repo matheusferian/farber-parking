@@ -7356,12 +7356,13 @@ function kioskNeSteps(){
   var nav=document.createElement('div'); nav.className='kne-nav'; nav.id='kneNav'; step.insertBefore(nav,step.querySelector('.ci2-foot'));
   ['ci2SHangar','ci2SVeh'].forEach(function(id){ var s=ci2El(id); if(s&&!s.classList.contains('open')) ci2Toggle(id); });
   var rd=step.querySelector('.ci2-consent details'); if(rd) rd.open=true;
-  // 2026-11-18 proposal: Next stays off until name + phone are valid and says what is missing;
-  // Return on the keyboard moves name → phone → Texts.
+  // Owner 2026-11-19 (step 2): Next stays off until name + phone are valid and says what is missing;
+  // Return on the keyboard moves name → phone → return date.
   var nm=ci2El('ci2Name'), ph=ci2El('ci2Phone');
   [nm,ph].forEach(function(el){ if(el) el.addEventListener('input', kioskNeSyncNext); });
   if(nm) nm.addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); if(ph) ph.focus(); } });
-  if(ph) ph.addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); if(kioskNeGuestOk()) kioskNeGo('texts'); } });
+  // Return on the phone closes the keyboard and shows the return date (same screen, asked next) — never skips it.
+  if(ph) ph.addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); ph.blur(); var rp=step.querySelector('.ci2-retpick[data-n="1"]'); if(rp) rp.scrollIntoView({block:'center',behavior:'smooth'}); } });
   kioskNeGo('guest');
 }
 function kioskNeSyncNext(){
