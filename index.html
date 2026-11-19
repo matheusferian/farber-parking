@@ -707,9 +707,10 @@
 <!-- TIP CONFIRMATION OVERLAY -->
 <div class="ov" id="tipOv">
   <div class="modal" style="max-width:340px;text-align:center">
-    <div style="font-family:'Sora',sans-serif;font-size:18px;font-weight:800;color:var(--tx);margin-bottom:4px">Confirm delivery?</div>
+    <div id="tipTitle" style="font-family:'Sora',sans-serif;font-size:18px;font-weight:800;color:var(--tx);margin-bottom:4px">Confirm delivery?</div>
     <div id="tipPassName" style="font-size:16px;font-weight:800;color:var(--tx);margin-top:8px;font-family:'Sora',sans-serif"></div>
     <div id="tipVehicleLine" style="font-size:12px;color:var(--mu);margin-top:2px;font-family:'JetBrains Mono',monospace"></div>
+    <div id="tipWhere" style="font-size:15px;font-weight:700;color:var(--tx);margin-top:8px"></div>
     <div id="tipPickup" class="ci2-release" hidden></div>
     <!-- Smart Tips (owner 2026-10-27): optional, nothing pre-selected, never blocks Deliver.
          A cash amount goes to the audited tip ledger (airvalet_tip_record) after the delivery. -->
@@ -8473,6 +8474,7 @@ function formatVehicleLine(r){
   if(!car) return '';
   return color ? (color+' '+car) : car;
 }
+var TIP_DTYPE_TEXT={NORMAL:['Deliver this car?','Deliver'],CUSTOMS:['Deliver at Customs?','Deliver at Customs'],LOCKBOX:['Leave in the lockbox?','Leave in lockbox']};
 function openTipModal(id, deliveryType){
   deliveryType = deliveryType || 'NORMAL';
   var r=null; for(var i=0;i<data.length;i++){if(data[i].id===id){r=data[i];break;}}
@@ -8487,6 +8489,12 @@ function openTipModal(id, deliveryType){
   var vehEl=document.getElementById('tipVehicleLine');
   vehEl.textContent=vehLine;
   vehEl.style.display=vehLine?'':'none';
+  // 2026-11-18 proposal: Deliver, Customs and Lockbox sit side by side on the card; the modal says
+  // which one was tapped and shows the ticket + where the car is, so a wrong tap is caught here.
+  var dt=TIP_DTYPE_TEXT[deliveryType]||TIP_DTYPE_TEXT.NORMAL;
+  document.getElementById('tipTitle').textContent=dt[0];
+  document.getElementById('tipYesBtn').textContent=dt[1];
+  document.getElementById('tipWhere').textContent=[r.ticket?'Ticket '+r.ticket:'', r.loc?'Car at '+String(r.loc).toUpperCase():''].filter(Boolean).join('  ·  ');
   setTipButtonsDisabled(false);
   tipInPersonReset();
   pickupReleaseRender(r);
