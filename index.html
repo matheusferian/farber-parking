@@ -17483,16 +17483,12 @@ function tv4CheckArrivalOrder(){
   if(key === _tv4Al.orderKey && _tv4Al.orderAt && now - _tv4Al.orderAt < TV4_ORDER_EVERY_MS) return;
   if(_tv4Al.q.some(function(a){ return a.type === 'order'; })) return;
   _tv4Al.orderKey = key; _tv4Al.orderAt = now;
-  var hm = function(ms){ return new Date(ms).toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit'}); };
-  var line = function(x, i){
-    var names = x.cars.map(function(r){ var n = String(r.name || '').trim().split(/\s+/).pop();
-      return n + (typeof pickupLocation === 'function' && pickupLocation(r) === 'CUSTOMS' ? ' (Customs)' : ''); });
-    return (i + 1) + ') ' + x.L.tail + ' (' + x.L.flight + ' ' + x.L.code + ') ~' + hm(x.at) + (x.live ? '' : ' sched') +
-      ' — ' + x.cars.length + ' car' + (x.cars.length === 1 ? '' : 's') + (names.length ? ': ' + names.slice(0, 5).join(', ') + (names.length > 5 ? ' +' + (names.length - 5) : '') : '');
-  };
-  var f = list[0];
-  tv4AlertPush({type:'order', who: f.L.tail + ' LANDS FIRST', sub: f.L.flight + ' from ' + f.L.place + ' · ~' + hm(f.at) + (f.live ? ' live ETA' : ' scheduled'),
-    text: 'Order: ' + list.map(function(x){ return x.L.tail; }).join(' → ') + '  |  ' + list.slice(0, 6).map(line).join('  |  ')});
+  var hm = function(ms){ return new Date(ms).toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit'}).replace(/ [AP]M$/, ''); };
+  // Owner 2026-11-19: only the basics — the order of the tails and the time. Flights landing more than 2 h after the
+  // first one are not part of this wave.
+  var wave = list.filter(function(x){ return x.at - list[0].at <= 2 * 3600000; });
+  tv4AlertPush({type:'order', who: wave[0].L.tail + ' FIRST', sub: '',
+    text: wave.map(function(x){ return x.L.tail + ' ' + hm(x.at); }).join('  →  ')});
 }
 // Owner 2026-11-18 (David Hocher's flight moved to the next day): a car that is NOT delivered but still
 // sits at CUSTOMS must be brought back. The TV repeats the alert every 3 minutes until staff set the car's
