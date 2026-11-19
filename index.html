@@ -17467,7 +17467,9 @@ var TV4_PICK_EVERY_MS = 3 * 60 * 1000;
 function tv4CheckCustomsPickups(){
   if(!_tv4Al.pickTimer) _tv4Al.pickTimer = setInterval(function(){ try { tv4CheckCustomsPickups(); } catch(e) {} }, 60000);
   var cars = (typeof data !== 'undefined' && data ? data : []).filter(function(r){
-    return r && r.status !== 'DELIVERED' && !r.archived_at && String(r.loc || '').toUpperCase() === 'CUSTOMS';
+    // Ascend returns and Makers "deliver at Customs" cars are SUPPOSED to wait at Customs (utils.js pickupLocation).
+    return r && r.status !== 'DELIVERED' && !r.archived_at && String(r.loc || '').toUpperCase() === 'CUSTOMS' &&
+      (typeof pickupLocation !== 'function' || pickupLocation(r) !== 'CUSTOMS');
   });
   if(!cars.length){ _tv4Al.pickAt = 0; return; }
   var now = Date.now();

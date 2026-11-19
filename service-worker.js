@@ -116,7 +116,8 @@
 // v195: New check-in — car make picked from brand logo tiles (24 local logos assets/make-*.png, precached).
 // v197: TV — a car not delivered but still at CUSTOMS shows 'PICK UP CAR AT CUSTOMS' every 3 min until moved to a hangar.
 // v196: Inbox — smart quotes (’) typed on iPhone/iPad become plain ' so a normal message is not 'too long'.
-var CACHE_VERSION = 'v197';
+// v198: TV — no PICK UP CAR AT CUSTOMS alert for a car that should wait at Customs (Ascend / Makers deliver-at-Customs).
+var CACHE_VERSION = 'v198';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 var SHELL_FILES = [
