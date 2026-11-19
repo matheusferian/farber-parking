@@ -130,7 +130,8 @@
 // v209: Check-in photos — a front photo goes on the Valet Pass when there is no rear yet (owner 11/19, DIEGO FRANZ 1119-7).
 // v210: Car AI also reads the plate; staff confirm with Looks right; Plate on the car card (owner 11/19).
 // v211: New check-in — Cancel is a full-width button (owner 11/19).
-var CACHE_VERSION = 'v211';
+// v212: Finish on the phone — today's cars without a rear photo blink at the top; Take photo there (owner 11/19).
+var CACHE_VERSION = 'v212';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 var SHELL_FILES = [

@@ -3437,3 +3437,15 @@ body.av-kiosk .ci2-wide .ci2-script{font-size:17px;line-height:1.5}
 /* Owner 2026-11-19: "esse cancel tá muito pequeno" — a real button, full width, easy to hit. */
 .ci2-cancel{width:100%;min-height:52px;border:1.5px solid var(--b);border-radius:14px;background:#fff;color:var(--tx);font:700 16px 'Inter',sans-serif;cursor:pointer;}
 .ci2-cancel:active{background:var(--s2);}
+
+/* Owner 2026-11-19: finish check-in on the phone — the car blinks at the top until the rear photo is taken. */
+.fin-strip{position:sticky;top:0;z-index:40;display:flex;flex-direction:column;gap:8px;margin:0 0 12px;}
+.fin{display:flex;align-items:center;gap:12px;border-radius:16px;background:#FFF4D6;border:2px solid #E8A93B;padding:10px 12px;animation:finp 1.6s ease-in-out infinite;}
+@keyframes finp{0%,100%{box-shadow:0 0 0 0 rgba(232,169,59,.55)}50%{box-shadow:0 0 0 8px rgba(232,169,59,0)}}
+@media (prefers-reduced-motion:reduce){.fin{animation:none}}
+.fin-ic{width:44px;height:44px;border-radius:12px;background:var(--navy);display:grid;place-items:center;font-size:20px;flex:none;}
+.fin-t{flex:1;min-width:0}
+.fin-t b{display:block;font:800 15px 'Inter',sans-serif;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.fin-t span{display:block;font:600 13px 'Inter',sans-serif;color:var(--tx-gold);}
+.fin-go{flex:none;min-height:44px;padding:0 16px;border:0;border-radius:12px;background:var(--navy);color:#fff;font:700 15px 'Inter',sans-serif;cursor:pointer;}
+.fin-more{margin:0;font:600 13px 'Inter',sans-serif;color:var(--tx-gold);text-align:center;}

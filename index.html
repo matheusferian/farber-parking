@@ -3096,6 +3096,74 @@ function renderTable() {
 }
 
 // ── RENDER DAY ─────────────────────────────────────────────────
+// ── Finish on the phone (owner 2026-11-19): "depois que imprimir a tag o carro já fica piscando logo de cara
+// para quem entrar pelo celular". A car checked in TODAY, not delivered, with no rear photo on its valet pass
+// blinks at the top of the Dashboard / Kiosk on every device; "Take photo" there takes the rear photo for
+// that ticket (car AI checks it is the rear and reads the plate), puts it on the pass, and the strip clears
+// everywhere. Who has a photo: airvalet_tv_pass_photos (ids only). Hidden on the TV.
+var _fin = { have: {}, at: 0, busy: false, ids: '', pid: null };
+function finCands(arrived){
+  return (arrived || []).filter(function(r){ return (r.status === 'PENDING' || r.status === 'NO DATE') && !r.isOfflinePending && typeof r.id === 'number'; });
+}
+async function finPoll(ids){
+  var key = ids.join(','); if (_fin.busy || (key === _fin.ids && Date.now() - _fin.at < 60000)) return;
+  _fin.busy = true;
+  try {
+    var r = await fetch(SUPABASE_URL + '/rest/v1/rpc/airvalet_tv_pass_photos', { method: 'POST', headers: sbHeaders(), body: JSON.stringify({ p_ids: ids.slice(0, 60), p_with_image: false }) });
+    if (r.ok) { var l = await r.json(); var h = {}; (l || []).forEach(function(x){ h[x.passenger_id] = true; }); _fin.have = h; _fin.ids = key; _fin.at = Date.now(); }
+  } catch(e) {}
+  _fin.busy = false;
+  finRender(null);
+}
+var _finLast = [];
+function finRender(arrived){
+  if (isTvMode && isTvMode()) return;
+  if (arrived) _finLast = finCands(arrived);
+  var pane = document.getElementById('pane-day'); if (!pane) return;
+  var box = document.getElementById('finStrip');
+  if (!box) { box = document.createElement('div'); box.id = 'finStrip'; box.className = 'fin-strip'; box.setAttribute('role', 'status'); }
+  if (pane.firstChild !== box) pane.insertBefore(box, pane.firstChild);
+  var ids = _finLast.map(function(r){ return r.id; });
+  if (ids.length) finPoll(ids);
+  var miss = _fin.at ? _finLast.filter(function(r){ return !_fin.have[r.id]; }) : [];
+  if (!miss.length) { box.hidden = true; box.innerHTML = ''; return; }
+  box.hidden = false;
+  box.innerHTML = miss.slice(0, 3).map(function(r){
+    return '<div class="fin"><div class="fin-ic" aria-hidden="true">&#128247;</div><div class="fin-t"><b>' + escapeHTML((r.ticket || '') + ' · ' + (r.name || '')) + '</b><span>Finish check-in: rear photo missing</span></div>'
+      + '<button type="button" class="fin-go" onclick="finTake(' + r.id + ')">Take photo</button></div>';
+  }).join('') + (miss.length > 3 ? '<p class="fin-more">+' + (miss.length - 3) + ' more without a rear photo</p>' : '')
+    + '<input type="file" id="finIn" accept="image/*" capture="environment" hidden>';
+  var inp = document.getElementById('finIn');
+  inp.onchange = function(){ var f = inp.files && inp.files[0]; inp.value = ''; if (f && _fin.pid) finUpload(_fin.pid, f); };
+}
+function finTake(pid){ _fin.pid = pid; var i = document.getElementById('finIn'); if (i) i.click(); }
+async function finUpload(pid, file){
+  var r = data.find(function(x){ return x.id === pid; }) || {};
+  showMsg('Reading the photo…', false);
+  try {
+    var p = await avShotPrep(file), res = null;
+    try {
+      var ctl = new AbortController(), t = setTimeout(function(){ ctl.abort(); }, 30000);
+      res = await smsApi('/functions/v1/vehicle-ai', { method: 'POST', headers: sbHeaders(), body: JSON.stringify({ images: [{ angle: 'auto', b64: await ci2AiB64(p.blob) }], passenger_id: pid }), signal: ctl.signal });
+      clearTimeout(t);
+    } catch(e) { res = null; }
+    var ai = res && res.ok && res.result;
+    if (ai && ai.view === 'front' && !confirm('This looks like the FRONT of the car. The valet pass shows the rear. Use this photo anyway?')) { showMsg('Take a photo of the rear, please.', true); return; }
+    var img = await createImageBitmap(p.blob), k = Math.min(1, 1200 / Math.max(img.width, img.height)), c = document.createElement('canvas');
+    c.width = Math.round(img.width * k); c.height = Math.round(img.height * k); c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    var q = 0.8, b64 = c.toDataURL('image/jpeg', q).split(',')[1];
+    while (b64.length > 650000 && q > 0.4) { q -= 0.1; b64 = c.toDataURL('image/jpeg', q).split(',')[1]; }
+    var out = await vpRpc('airvalet_pass_photo_set', { p_passenger_id: pid, p_image_b64: b64 });
+    if (!out || out.result !== 'OK') { showMsg('Photo not saved (' + ((out && out.result) || 'error') + ').', true); return; }
+    sbLog('EDITED', r.name || '', r.ticket || '', r.loc || '', 'Car photo added to the valet pass (finish on phone)', { passenger_id: pid });
+    // Plate from the same answer, only when the AI is sure and the ticket has none yet.
+    if (ai && ai.plate && (ai.confidence && ai.confidence.plate >= 0.85) && !r.plate) {
+      try { await sbUpdate(pid, { plate: ai.plate, plate_state: ai.plate_state || null }); r.plate = ai.plate; r.plate_state = ai.plate_state || ''; } catch(e) {}
+    }
+    _fin.have[pid] = true; finRender(null);
+    showMsg('✓ Rear photo is on ' + (r.name || 'the guest') + '’s valet pass.', false);
+  } catch(e) { showMsg('Photo not saved. Try again.', true); }
+}
 function renderDay() {
   var arrived=data
     .filter(function(r){return isArrToday(r.ts)&&r.status!=='ARCHIVED';})
@@ -3222,6 +3290,7 @@ function renderDay() {
   document.getElementById('dSunday').innerHTML=mkCards(ls,'cm','',false,true,false,true,false,false,false);
   var _mhc=arrived.filter(function(r){return !r.loc||!String(r.loc).trim();}).length;
   var _mhAlert=_mhc>0?'<span class="hangar-missing-alert">🔴 '+_mhc+' MISSING HANGAR'+(_mhc===1?'':'S')+'</span>':'';
+  try { finRender(arrived); } catch(e) { console.warn('finRender', e); }
   document.getElementById('titleArrived').innerHTML='🚗 Arrived Today <span class="tbadge" style="background:var(--ok);color:#000">'+arrived.length+'</span>'+_mhAlert;
   var titleTodayEl=document.getElementById('titleToday');
   titleTodayEl.style.display='flex';titleTodayEl.style.alignItems='center';titleTodayEl.style.justifyContent='space-between';titleTodayEl.style.flexWrap='wrap';titleTodayEl.style.rowGap='6px';
