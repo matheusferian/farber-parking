@@ -8149,23 +8149,30 @@ function ci2Need(){
   b.innerHTML = _ci.printing ? 'Printing…' : (_ci.printed ? 'Reprint <span aria-hidden="true">▾</span>' : 'Print Tags');
   if (_ci.printed) b.setAttribute('aria-expanded', String(!ci2El('ci2Reprint').hidden)); else b.removeAttribute('aria-expanded');
 }
-// ── Arrival photos — PROTOTYPE (2026-11-18, not approved, off by default) ──
-// On only with ?photos=1 (remembered per device; ?photos=0 turns it off). ?photos=demo also shows a
-// sample AI suggestion so the flow can be seen without any server. Photos are resized to 1600 px
-// JPEG (the canvas re-encode drops EXIF/GPS), fingerprinted (SHA-256) and kept in this device's
-// IndexedDB. Nothing is uploaded. "Looks right" only fills make/model/color through the normal
-// Vehicle chips (same save as a staff tap); plate and marks are not stored anywhere yet.
-// Owner 2026-11-19: only front and rear, both optional (never block the check-in).
+// ── Arrival photos (owner 2026-11-19, step 4) ──
+// New check-in has an optional Photos section: Front and Rear, never required. On by default;
+// ?photos=0 turns it off on a device (?photos=1 back on). Photos are resized to 1600 px JPEG (the canvas
+// re-encode drops EXIF/GPS), fingerprinted (SHA-256) and kept in this device's IndexedDB for 30 days.
+// The REAR photo also goes on the passenger's Valet Pass (ci2PassPhoto). No car AI yet (step 6);
+// ?photos=demo shows a sample AI answer for demos only.
 var CI2_SHOTS = [['front', 'Front', 'Plate in frame'], ['rear', 'Rear', 'Plate in frame']];
 function avPhotosMode(){
   try {
     var q = new URLSearchParams(location.search).get('photos');
-    if (q === '1' || q === 'demo') localStorage.setItem('av_photos', q);
-    if (q === '0') localStorage.removeItem('av_photos');
-    return localStorage.getItem('av_photos') || '';
-  } catch (e) { return ''; }
+    if (q === '0' || q === 'demo') localStorage.setItem('av_photos', q);
+    if (q === '1') localStorage.removeItem('av_photos');
+    return localStorage.getItem('av_photos') || 'on';
+  } catch (e) { return 'on'; }
 }
-function avPhotosOn(){ return !!avPhotosMode(); }
+function avPhotosOn(){ return avPhotosMode() !== '0'; }
+// Local copies older than 30 days are removed (the iPad must not fill up).
+async function avShotCleanup(){
+  try {
+    var db = await avShotDb(), cut = new Date(Date.now() - 30 * 864e5).toISOString();
+    var t = db.transaction('shots', 'readwrite'), st = t.objectStore('shots');
+    st.openCursor().onsuccess = function(e){ var c = e.target.result; if (!c) return; if (!c.value.taken_at || c.value.taken_at < cut) c.delete(); c.continue(); };
+  } catch (e) {}
+}
 function avShotDb(){
   return new Promise(function(res, rej){
     var r = indexedDB.open('airvalet-photos', 1);
@@ -8189,7 +8196,7 @@ async function avShotPrep(file){
   return { blob: blob, w: c.width, h: c.height, sha256: Array.prototype.map.call(hash, function(b){ return b.toString(16).padStart(2, '0'); }).join('') };
 }
 function ci2ShotsInit(){
-  _ci.shots = {}; _ci.shotKey = '';
+  _ci.shots = {}; _ci.shotKey = ''; avShotCleanup();
   var inp = ci2El('ci2ShotIn'); if (!inp) return;
   inp.addEventListener('change', async function(){
     var f = inp.files && inp.files[0], key = _ci.shotKey; inp.value = '';
@@ -8236,14 +8243,14 @@ function ci2RenderShots(){
   var n = CI2_SHOTS.filter(function(s){ return _ci.shots[s[0]]; }).length, v = ci2El('ci2SPhotosV');
   if (v) { v.textContent = n ? n + ' of 2' : 'Optional'; v.className = 'v' + (n === 2 ? ' done' : ''); }
   var ai = ci2El('ci2Ai');
-  if (ai) ai.innerHTML = ((_ci.shots.front || _ci.shots.rear) && !_ci.aiDone)
+  if (ai) ai.innerHTML = (avPhotosMode() === 'demo' && (_ci.shots.front || _ci.shots.rear) && !_ci.aiDone)
     ? '<button type="button" class="ci2-btn" onclick="ci2AiSuggest()">Fill car from photos</button>' : '';
 }
 // Vehicle AI: the real call would go to an Edge Function (draft in docs/proposals/car-photos/).
-// In this prototype only ?photos=demo answers, with a fixed sample, so the confirm step can be seen.
+// Only ?photos=demo answers (demo, no server), with a fixed sample, so the confirm step can be seen.
 async function ci2AiSuggest(){
   var ai = ci2El('ci2Ai'); if (!ai) return;
-  if (avPhotosMode() !== 'demo') { ai.innerHTML = '<p class="ci2-hint">Car AI is not connected in this prototype.</p>'; return; }
+  if (avPhotosMode() !== 'demo') { ai.innerHTML = '<p class="ci2-hint">Car AI is not on yet.</p>'; return; }
   var r = { make: 'Jeep', model: 'Wrangler', color: 'White', plate: 'QHR 4821', state: 'FL', marks: 'Scratch, rear bumper right', conf: { make: .93, model: .81, color: .95, plate: .62 } };
   var row = function(k, v, c){ return '<div class="ci2-airow"><span>' + k + '</span><b>' + escapeHTML(v) + '</b><i class="' + (c >= .8 ? 'ok' : 'chk') + '">' + (c >= .8 ? 'Sure' : 'Check') + '</i></div>'; };
   ai.innerHTML = '<div class="ci2-aibox">' + row('Car', r.make + ' ' + r.model, Math.min(r.conf.make, r.conf.model)) + row('Color', r.color, r.conf.color)
@@ -8252,7 +8259,7 @@ async function ci2AiSuggest(){
   ci2El('ci2AiUse').onclick = function(){
     _ci.aiDone = true; _ci.make = r.make; _ci.model = r.model; _ci.vehText = '';
     ci2RenderMakes(); ci2El('ci2ModelBox').hidden = false; ci2RenderModels(); ci2SetColor(r.color);
-    ai.innerHTML = '<p class="ci2-hint">Filled from photos. Plate and marks are not saved yet (prototype).</p>';
+    ai.innerHTML = '<p class="ci2-hint">Filled from photos. Plate and marks are not saved yet (demo).</p>';
   };
   ci2El('ci2AiNo').onclick = function(){ _ci.aiDone = true; ai.innerHTML = ''; ci2OpenSec('ci2SVeh'); };
 }
