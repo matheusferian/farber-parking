@@ -2094,7 +2094,7 @@ body.tv-stale .tv-stale-banner{display:block;}
 .ci2-saved.on{opacity:1;}
 .ci2-sub{margin:9px 0 6px;font:600 13px 'Inter',sans-serif;color:var(--mu);}
 /* Arrival photos — prototype (?photos=1). 4 guided angles + optional close-up. */
-.ci2-shots{display:grid;grid-template-columns:repeat(auto-fill,minmax(128px,1fr));gap:8px;}
+.ci2-shots{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;}
 .ci2-shot{position:relative;aspect-ratio:4/3;border:1.5px dashed #9AA8C0;border-radius:12px;background:var(--s2);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;overflow:hidden;font-family:'Inter',sans-serif;color:var(--tx);}
 .ci2-shot b{font-size:15px;font-weight:600;position:relative;}
 .ci2-shot small{font-size:13px;color:var(--mu);position:relative;}

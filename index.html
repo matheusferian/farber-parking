@@ -7356,7 +7356,7 @@ function kioskNeSteps(){
   ['ci2Dup','ci2SaveErr','ci2NoText','ci2Cd','ci2Saving'].forEach(function(id){ tag(ci2El(id),'texts'); });
   var bar=document.createElement('div'); bar.className='kne-steps'; bar.id='kneSteps'; step.insertBefore(bar,step.firstChild);
   var nav=document.createElement('div'); nav.className='kne-nav'; nav.id='kneNav'; step.insertBefore(nav,step.querySelector('.ci2-foot'));
-  ['ci2SPhotos','ci2SHangar','ci2SVeh'].forEach(function(id){ var s=ci2El(id); if(s&&!s.classList.contains('open')) ci2Toggle(id); });
+  ['ci2SHangar','ci2SVeh'].forEach(function(id){ var s=ci2El(id); if(s&&!s.classList.contains('open')) ci2Toggle(id); });
   var rd=step.querySelector('.ci2-consent details'); if(rd) rd.open=true;
   // Owner 2026-11-19 (step 2): Next stays off until name + phone are valid and says what is missing;
   // Return on the keyboard moves name → phone → return date.
@@ -7441,7 +7441,7 @@ function ci2Html(){
   + '</div></div>'
   + '<div id="ci2Details" class="ci2-details" hidden><div class="ci2-col">'
   +   ci2Sec('ci2SHangar', 'Hangar', 'Not set', '<div class="ci2-chipset" id="ci2Hangars"></div>')
-  +   (avPhotosOn() ? ci2Sec('ci2SPhotos', 'Photos', '0 of 4', '<div class="ci2-shots" id="ci2Shots"></div><input type="file" id="ci2ShotIn" accept="image/*" capture="environment" hidden><div id="ci2Ai"></div><p class="ci2-hint">Prototype: photos stay on this device.</p>') : '')
+  +   (avPhotosOn() ? ci2Sec('ci2SPhotos', 'Photos', 'Optional', '<div class="ci2-shots" id="ci2Shots"></div><input type="file" id="ci2ShotIn" accept="image/*" capture="environment" hidden><div id="ci2Ai"></div><p class="ci2-hint">Prototype: photos stay on this device.</p>') : '')
   +   ci2Sec('ci2SVeh', 'Vehicle', 'Not set', '<p class="ci2-sub">Make</p><input class="ci2-search" id="ci2MakeQ" placeholder="Search or type any make" autocomplete="off"><div class="ci2-chipset ci2-logos" id="ci2Makes"></div>'
   +     '<div id="ci2ModelBox" hidden><p class="ci2-sub">Model</p><input class="ci2-search" id="ci2ModelQ" placeholder="Search or type any model" autocomplete="off"><div class="ci2-chipset" id="ci2Models"></div></div>'
   +     '<p class="ci2-sub">Color</p><div class="ci2-chipset" id="ci2Colors"></div><div id="ci2OtherColorBox" hidden><input class="ci2-search" id="ci2OtherColor" placeholder="Type the color" style="margin-top:8px"></div>')
@@ -8155,7 +8155,8 @@ function ci2Need(){
 // JPEG (the canvas re-encode drops EXIF/GPS), fingerprinted (SHA-256) and kept in this device's
 // IndexedDB. Nothing is uploaded. "Looks right" only fills make/model/color through the normal
 // Vehicle chips (same save as a staff tap); plate and marks are not stored anywhere yet.
-var CI2_SHOTS = [['driver', 'Driver side', 'Whole side'], ['front', 'Front', 'Plate in frame'], ['passenger', 'Passenger side', 'Whole side'], ['rear', 'Rear', 'Plate in frame'], ['close', 'Close-up', 'Optional']];
+// Owner 2026-11-19: only front and rear, both optional (never block the check-in).
+var CI2_SHOTS = [['front', 'Front', 'Plate in frame'], ['rear', 'Rear', 'Plate in frame']];
 function avPhotosMode(){
   try {
     var q = new URLSearchParams(location.search).get('photos');
@@ -8212,10 +8213,10 @@ function ci2RenderShots(){
       + (have ? '<img src="' + have.url + '" alt="">' : '')
       + '<b>' + s[1] + '</b><small>' + (have ? new Date(have.at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : s[2]) + '</small></button>';
   }).join('');
-  var n = CI2_SHOTS.slice(0, 4).filter(function(s){ return _ci.shots[s[0]]; }).length, v = ci2El('ci2SPhotosV');
-  if (v) { v.textContent = n + ' of 4'; v.className = 'v' + (n === 4 ? ' done' : ''); }
+  var n = CI2_SHOTS.filter(function(s){ return _ci.shots[s[0]]; }).length, v = ci2El('ci2SPhotosV');
+  if (v) { v.textContent = n ? n + ' of 2' : 'Optional'; v.className = 'v' + (n === 2 ? ' done' : ''); }
   var ai = ci2El('ci2Ai');
-  if (ai) ai.innerHTML = (_ci.shots.front && (_ci.shots.driver || _ci.shots.passenger) && !_ci.aiDone)
+  if (ai) ai.innerHTML = ((_ci.shots.front || _ci.shots.rear) && !_ci.aiDone)
     ? '<button type="button" class="ci2-btn" onclick="ci2AiSuggest()">Fill car from photos</button>' : '';
 }
 // Vehicle AI: the real call would go to an Edge Function (draft in docs/proposals/car-photos/).
