@@ -22,6 +22,12 @@ export const seenOf = (ms: Match[]): Seen[] => ms.filter((m) => m.state !== 'del
   passenger_id: m.passenger_id, ticket: m.ticket, system_name: m.system_name, flight_number: String(m.flight_number || ''),
   arrival_time: normT(m.arrival_time), registration: m.registration || '', kind: m.kind, state: m.state,
 }));
+// Owner 2026-11-18 (TV still showed 4 afternoon flights cancelled after the 11 AM reading): the quick check
+// also keeps what the TV board needs — every guest on today's arrivals (delivered too), surname-only skipped.
+export const boardOf = (ms: Match[]) => ms.filter((m) => m.kind !== 'surname_only').map((m) => ({
+  passenger_id: m.passenger_id, flight_number: String(m.flight_number || ''), route: m.route || '', registration: m.registration || '',
+  arrival_time: m.arrival_time || '', ascend: !!m.ascend, kind: m.kind,
+}));
 export const normT = (t: unknown) => { const m = /^(\d{1,2}):(\d{2})/.exec(String(t || '').trim()); return m ? `${m[1].padStart(2, '0')}:${m[2]}` : ''; };
 
 // prev: the previous reading's matches (any shape with these fields; surname-only and delivered are skipped).

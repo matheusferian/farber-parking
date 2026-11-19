@@ -22,7 +22,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { MakersSuite, MakersSuiteError } from '../_shared/makers/suite.ts';
 import { HeldCar, runSync, runWatch, SyncResult } from '../_shared/makers/sync.ts';
-import { carUpdate, diffMoves, type Move, moveLine, normT, seenOf } from '../_shared/makers/moves.ts';
+import { carUpdate, diffMoves, type Move, moveLine, normT, seenOf, boardOf } from '../_shared/makers/moves.ts';
 import { Feedback, parseDate } from '../_shared/manifest/match.ts';
 import { notifyCategory } from '../_shared/notify/staff.ts';
 import { changeLine, diffDepartures, KEY_VERSION, type DepChange, type DepFlight } from '../_shared/makers/changes.ts';
@@ -261,7 +261,7 @@ Deno.serve(async (req) => {
       const w = await runWatch(suite, { date: today, pool, feedback: (fb || []) as Feedback[] });
       const moves = prev ? diffMoves(prev, w.match.matches, new Set(pool.map((c) => c.id))) : [];
       const updated = moves.length ? await applyMoves(moves, pool) : 0;
-      await admin.from('airvalet_manifest_scans').insert({ created_by: userId, service_date: today, result: { kv: KEY_VERSION, date: today, matches: seenOf(w.match.matches), moves },
+      await admin.from('airvalet_manifest_scans').insert({ created_by: userId, service_date: today, result: { kv: KEY_VERSION, date: today, matches: seenOf(w.match.matches), moves, inbound: w.inbound, board: boardOf(w.match.matches) },
         usage: { mode: 'makers_watch', ok: true, cron: isCron, secs: Math.round((Date.now() - t0) / 1000) } });
       await admin.from('airvalet_manifest_scans').delete().eq('usage->>mode', 'makers_watch').lt('created_at', new Date(Date.now() - 3 * 864e5).toISOString());
       await pushMoves(moves, today);

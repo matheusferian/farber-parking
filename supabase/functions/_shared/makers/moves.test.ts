@@ -72,3 +72,12 @@ Deno.test('quick check: only today\'s arrivals at FXE (2 searches), pets out, sa
   assertEquals(w.inbound.map((f) => [f.flight, f.time, f.pax]), [['1538', '17:00', 1]]);
   assertEquals(w.match.matches.map((m) => [m.system_name, m.flight_number, m.arrival_time, m.registration]), [['DAVID HOCHER', '1538', '17:00', 'N146WM']]);
 });
+
+Deno.test('boardOf: TV board keeps delivered guests, skips surname-only', async () => {
+  const { boardOf } = await import('./moves.ts');
+  // deno-lint-ignore no-explicit-any
+  const m = (o: any) => ({ passenger_id: 1, flight_number: '517', route: 'COX-FXE', registration: 'N512DH', arrival_time: '11:00', ascend: false, kind: 'exact', state: 'ok', ...o });
+  const b = boardOf([m({}), m({ passenger_id: 2, state: 'delivered' }), m({ passenger_id: 3, kind: 'surname_only' })] as never);
+  assertEquals(b.map((x) => x.passenger_id), [1, 2]);
+  assertEquals(b[0], { passenger_id: 1, flight_number: '517', route: 'COX-FXE', registration: 'N512DH', arrival_time: '11:00', ascend: false, kind: 'exact' });
+});
