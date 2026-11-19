@@ -466,11 +466,33 @@
     drawSheet();
     if (kind === 'chat') { loadChat(); chatTimer = setInterval(function () { if (!document.hidden) loadChat(); }, 15000); }  // ~40 calls/10 min, well under the server brake
     sheetBg.hidden = false;
+    document.documentElement.classList.add('sheet-open');   // the page behind does not scroll
+    fitSheet();
     var f = sheet.querySelector('button, input, a'); if (f) f.focus();
   }
   function closeSheet() {
     if (chatTimer) { clearInterval(chatTimer); chatTimer = null; }
+    document.documentElement.classList.remove('sheet-open');
+    sheetBg.style.top = ''; sheetBg.style.height = '';
     sheetBg.hidden = true; sheet.innerHTML = ''; if (lastFocus && lastFocus.focus) lastFocus.focus();
+  }
+  // Owner 2026-11-18 ("o chat no iPhone não fecha"): position:fixed and vh follow the LAYOUT viewport, so
+  // with Safari's bars or the keyboard up the top of the sheet (the ✕) and the dimmed backdrop were off screen.
+  // Fit the sheet to what is really visible, and keep the focused message box in view.
+  function fitSheet() {
+    var vv = window.visualViewport;
+    if (!vv || sheetBg.hidden) return;
+    sheetBg.style.top = Math.max(0, vv.offsetTop) + 'px';
+    sheetBg.style.height = vv.height + 'px';
+    var a = document.activeElement;
+    if (a && a !== sheet && sheet.contains(a)) {
+      var sr = sheet.getBoundingClientRect(), ar = a.getBoundingClientRect();
+      if (ar.bottom > sr.bottom) sheet.scrollTop += ar.bottom - sr.bottom + 12;
+    }
+  }
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', fitSheet);
+    window.visualViewport.addEventListener('scroll', fitSheet);
   }
   sheetBg.addEventListener('click', function (e) { if (e.target === sheetBg) closeSheet(); });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !sheetBg.hidden) closeSheet(); });

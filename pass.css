@@ -191,9 +191,11 @@ footer a{color:var(--mu)}
 /* Bottom sheet */
 .sheet-bg{position:fixed;top:0;right:0;bottom:0;left:0;inset:0;background:rgba(1,21,50,.45);display:flex;align-items:flex-end;justify-content:center;z-index:20}
 .sheet-bg[hidden]{display:none}
-.sheet{width:100%;max-width:30rem;max-height:92vh;overflow:auto;background:#fff;border-radius:1.5rem 1.5rem 0 0;padding:1.3rem 1.2rem calc(1.6rem + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:.85rem;animation:up .22s ease-out}
+/* 2026-11-18: sheet sized to the visible area (pass.js fitSheet), ✕ header pinned, page behind locked */
+html.sheet-open{overflow:hidden}
+.sheet{width:100%;max-width:30rem;max-height:92%;overflow:auto;overscroll-behavior:contain;background:#fff;border-radius:1.5rem 1.5rem 0 0;padding:1.3rem 1.2rem calc(1.6rem + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:.85rem;animation:up .22s ease-out}
 @keyframes up{from{transform:translateY(24px);opacity:.6}to{transform:none;opacity:1}}
-.sheet .head{display:flex;align-items:center;justify-content:space-between;gap:.8rem}
+.sheet .head{display:flex;align-items:center;justify-content:space-between;gap:.8rem;position:sticky;top:-1.3rem;z-index:1;margin-top:-1.3rem;padding-top:1.3rem;background:#fff}
 .sheet h2{margin:0;font-size:1.3rem}
 .x{width:2.75rem;height:2.75rem;border-radius:50%;border:0;background:var(--soft);color:var(--navy);font-size:1.05rem;cursor:pointer;flex:none}
 .choice{min-height:3.3rem;border-radius:.9rem;border:1.5px solid var(--line);background:#fff;text-align:left;padding:0 1rem;font-weight:600;font-size:1rem;color:var(--ink);cursor:pointer}
