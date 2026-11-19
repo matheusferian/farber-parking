@@ -17460,7 +17460,7 @@ var TV4_AL = {
   chg:{cls:'tv4-al-chg', ic:'&#9888;&#65039;', k:'FLIGHT CHANGE', s:'Resend the updated departures picture'},
   h19:{cls:'tv4-al-land', ic:'&#9992;&#65039;', k:'LEFT CUSTOMS \u2192 HANGAR 19', s:'Have their cars ready at Hangar 19'},
   pick:{cls:'tv4-al-chg', ic:'&#128663;', k:'PICK UP CAR AT CUSTOMS', s:'Bring it to Hangar 19, then set the location on the iPad'},
-  order:{cls:'tv4-al-land', ic:'&#128747;', k:'ARRIVAL ORDER', s:'Bring the cars out in this order'}};
+  order:{cls:'tv4-al-land', ic:'&#128747;', k:'WHO LANDS FIRST', s:'Bring the cars out in this order'}};
 // Owner 2026-11-19 ("só hoje"): around 11 AM many flights land at once — which lands FIRST, by the live
 // satellite ETA (scheduled time when there is no fix), with its cars. Every 5 min, and at once when the order
 // changes, while 2+ flights with our cars are still to land and the first one is within 90 min. Days listed only.
@@ -17477,8 +17477,9 @@ function tv4ArrivalOrder(){
 function tv4CheckArrivalOrder(){
   if(TV4_ORDER_DAYS.indexOf(tvDayKeyOffset(0)) < 0) return;
   if(!_tv4Al.orderTimer) _tv4Al.orderTimer = setInterval(function(){ try { tv4CheckArrivalOrder(); } catch(e) {} }, 60000);
-  var list = tv4ArrivalOrder(), now = Date.now();
-  if(list.length < 2 || list[0].at - now > 90 * 60000){ _tv4Al.orderKey = ''; return; }
+  // Owner 2026-11-19: only aircraft that already took off back to FXE (live satellite ETA) — never the schedule.
+  var list = tv4ArrivalOrder().filter(function(x){ return x.live; }), now = Date.now();
+  if(!list.length){ _tv4Al.orderKey = ''; return; }
   var key = list.map(function(x){ return x.L.flight; }).join('>');
   if(key === _tv4Al.orderKey && _tv4Al.orderAt && now - _tv4Al.orderAt < TV4_ORDER_EVERY_MS) return;
   if(_tv4Al.q.some(function(a){ return a.type === 'order'; })) return;
@@ -17486,8 +17487,8 @@ function tv4CheckArrivalOrder(){
   var hm = function(ms){ return new Date(ms).toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit'}).replace(/ [AP]M$/, ''); };
   // Owner 2026-11-19: only the basics — the order of the tails and the time. Flights landing more than 2 h after the
   // first one are not part of this wave.
-  var wave = list.filter(function(x){ return x.at - list[0].at <= 2 * 3600000; });
-  tv4AlertPush({type:'order', who: wave[0].L.tail + ' FIRST', sub: '',
+  var wave = list;
+  tv4AlertPush({type:'order', who: wave[0].L.tail + ' FIRST', sub: 'In the air · live ETA',
     text: wave.map(function(x){ return x.L.tail + ' ' + hm(x.at); }).join('  →  ')});
 }
 // Owner 2026-11-18 (David Hocher's flight moved to the next day): a car that is NOT delivered but still
