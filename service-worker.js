@@ -125,7 +125,8 @@
 // v204: Delivery modal names the action (Deliver / Deliver at Customs / Leave in lockbox) and shows ticket + where the car is (owner 11/19 step 3).
 // v205: New check-in — optional Front/Rear photos (kept 30 days on the device); the rear photo goes on the Valet Pass (owner 11/19 step 4).
 // v206: Staff Dashboard/Kiosk — 'Leaving Today/Tomorrow' renamed 'Coming back today/tomorrow' (owner 11/19 step 5). TV and reports unchanged.
-var CACHE_VERSION = 'v206';
+// v207: New check-in — 'Fill car from photos' (car AI = the FarberOS / Funky Buddha AI, Farber OpenAI account) (owner 11/19 step 6).
+var CACHE_VERSION = 'v207';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 var SHELL_FILES = [

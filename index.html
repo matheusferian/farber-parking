@@ -8205,7 +8205,7 @@ function ci2ShotsInit(){
       var p = await avShotPrep(f), at = new Date().toISOString(), ref = _ci.ticket || _ci.id || 'new';
       await avShotPut({ key: ref + ':' + key + ':' + at, ticket: ref, angle: key, taken_at: at, w: p.w, h: p.h, bytes: p.blob.size, sha256: p.sha256, blob: p.blob });
       if (_ci.shots[key]) URL.revokeObjectURL(_ci.shots[key].url);
-      _ci.shots[key] = { url: URL.createObjectURL(p.blob), at: at, bytes: p.blob.size };
+      _ci.shots[key] = { url: URL.createObjectURL(p.blob), at: at, bytes: p.blob.size, blob: p.blob };
       ci2RenderShots();
       if (key === 'rear') ci2PassPhoto(p.blob);
     } catch (e) { ci2Toast('Photo not saved. Try again.', true); }
@@ -8243,25 +8243,62 @@ function ci2RenderShots(){
   var n = CI2_SHOTS.filter(function(s){ return _ci.shots[s[0]]; }).length, v = ci2El('ci2SPhotosV');
   if (v) { v.textContent = n ? n + ' of 2' : 'Optional'; v.className = 'v' + (n === 2 ? ' done' : ''); }
   var ai = ci2El('ci2Ai');
-  if (ai) ai.innerHTML = (avPhotosMode() === 'demo' && (_ci.shots.front || _ci.shots.rear) && !_ci.aiDone)
+  if (ai && !_ci.aiBusy) ai.innerHTML = ((_ci.shots.front || _ci.shots.rear) && !_ci.aiDone)
     ? '<button type="button" class="ci2-btn" onclick="ci2AiSuggest()">Fill car from photos</button>' : '';
 }
-// Vehicle AI: the real call would go to an Edge Function (draft in docs/proposals/car-photos/).
-// Only ?photos=demo answers (demo, no server), with a fixed sample, so the confirm step can be seen.
+// Car AI (owner 2026-11-19, step 6): the same AI as FarberOS / Funky Buddha (OpenAI, Farber's account),
+// through the vehicle-ai Edge Function. It suggests make, model and color from the Front/Rear photos;
+// staff tap "Looks right" and only the lines the AI is sure enough about are filled (FarberOS thresholds:
+// color 0.60, make 0.60, model 0.50; a model only with its make). ?photos=demo answers with a fixed sample.
+var CI2_AI_MIN = { color: 0.60, make: 0.60, model: 0.50 };
+var CI2_AI_ERR = { NOT_CONFIGURED: 'Car AI is not on yet.', DAILY_LIMIT: 'Car AI daily limit reached. Choose the car below.', AI_BUSY: 'Car AI is busy. Try again in a minute.',
+  AI_KEY_INVALID: 'Car AI is not working (key). Choose the car below.', UNAUTHENTICATED: 'Sign in again to use car AI.', FORBIDDEN: 'This login cannot use car AI.', NETWORK: 'No connection. Choose the car below.' };
+async function ci2AiB64(blob){
+  var img = await createImageBitmap(blob), k = Math.min(1, 1024 / Math.max(img.width, img.height)), c = document.createElement('canvas');
+  c.width = Math.round(img.width * k); c.height = Math.round(img.height * k); c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+  return c.toDataURL('image/jpeg', 0.75).split(',')[1];
+}
 async function ci2AiSuggest(){
-  var ai = ci2El('ci2Ai'); if (!ai) return;
-  if (avPhotosMode() !== 'demo') { ai.innerHTML = '<p class="ci2-hint">Car AI is not on yet.</p>'; return; }
-  var r = { make: 'Jeep', model: 'Wrangler', color: 'White', plate: 'QHR 4821', state: 'FL', marks: 'Scratch, rear bumper right', conf: { make: .93, model: .81, color: .95, plate: .62 } };
-  var row = function(k, v, c){ return '<div class="ci2-airow"><span>' + k + '</span><b>' + escapeHTML(v) + '</b><i class="' + (c >= .8 ? 'ok' : 'chk') + '">' + (c >= .8 ? 'Sure' : 'Check') + '</i></div>'; };
-  ai.innerHTML = '<div class="ci2-aibox">' + row('Car', r.make + ' ' + r.model, Math.min(r.conf.make, r.conf.model)) + row('Color', r.color, r.conf.color)
-    + row('Plate', r.plate + ' · ' + r.state, r.conf.plate) + row('Marks', r.marks, 0)
-    + '<div class="ci2-btnrow"><button type="button" class="ci2-btn" id="ci2AiUse">Looks right</button><button type="button" class="ci2-btn line" id="ci2AiNo">Not right</button></div></div>';
-  ci2El('ci2AiUse').onclick = function(){
-    _ci.aiDone = true; _ci.make = r.make; _ci.model = r.model; _ci.vehText = '';
-    ci2RenderMakes(); ci2El('ci2ModelBox').hidden = false; ci2RenderModels(); ci2SetColor(r.color);
-    ai.innerHTML = '<p class="ci2-hint">Filled from photos. Plate and marks are not saved yet (demo).</p>';
+  var ai = ci2El('ci2Ai'); if (!ai || _ci.aiBusy) return;
+  var r;
+  if (avPhotosMode() === 'demo') {
+    r = { vehicle_visible: true, make: 'Jeep', model: 'Wrangler', color: 'White', confidence: { make: .93, model: .81, color: .95 } };
+  } else {
+    if (navigator.onLine === false) { ai.innerHTML = '<p class="ci2-hint">' + CI2_AI_ERR.NETWORK + '</p>'; return; }
+    _ci.aiBusy = true; ai.innerHTML = '<p class="ci2-hint" role="status">Reading the photos…</p>';
+    var res;
+    try {
+      var imgs = [];
+      for (var i = 0; i < CI2_SHOTS.length; i++) { var s = _ci.shots[CI2_SHOTS[i][0]]; if (s && s.blob) imgs.push({ angle: CI2_SHOTS[i][0], b64: await ci2AiB64(s.blob) }); }
+      var ctl = new AbortController(), t = setTimeout(function(){ ctl.abort(); }, 30000);
+      res = await smsApi('/functions/v1/vehicle-ai', { method: 'POST', headers: sbHeaders(), body: JSON.stringify({ images: imgs, passenger_id: typeof _ci.id === 'number' ? _ci.id : undefined }), signal: ctl.signal });
+      clearTimeout(t);
+    } catch (e) { res = { ok: false, error: { code: e && e.status === 401 ? 'UNAUTHENTICATED' : e && e.status === 403 ? 'FORBIDDEN' : 'NETWORK' } }; }
+    _ci.aiBusy = false;
+    if (!res || !res.ok || !res.result) {
+      var code = (res && res.error && res.error.code) || 'AI_FAILED';
+      ai.innerHTML = '<p class="ci2-hint">' + escapeHTML(CI2_AI_ERR[code] || 'Car AI could not read the photos. Choose the car below.') + '</p>';
+      return;
+    }
+    r = res.result;
+  }
+  if (!r.vehicle_visible || (!r.make && !r.color)) { _ci.aiDone = true; ai.innerHTML = '<p class="ci2-hint">No car found in the photos. Choose the car below.</p>'; ci2OpenSec('ci2SVeh'); return; }
+  var cf = r.confidence || {}, knownColor = CI2_COLORS.some(function(c){ return c[0] === r.color; });
+  var useMake = !!r.make && cf.make >= CI2_AI_MIN.make, useModel = useMake && !!r.model && cf.model >= CI2_AI_MIN.model;
+  var useColor = !!r.color && knownColor && cf.color >= CI2_AI_MIN.color;
+  var row = function(k, v, sure){ return '<div class="ci2-airow"><span>' + k + '</span><b>' + escapeHTML(v || '—') + '</b><i class="' + (sure ? 'ok' : 'chk') + '">' + (sure ? 'Sure' : 'Check') + '</i></div>'; };
+  ai.innerHTML = '<div class="ci2-aibox">' + row('Make', r.make, useMake) + row('Model', r.model, useModel) + row('Color', r.color, useColor)
+    + ((useMake || useColor) ? '<div class="ci2-btnrow"><button type="button" class="ci2-btn" id="ci2AiUse">Looks right</button><button type="button" class="ci2-btn line" id="ci2AiNo">Not right</button></div>'
+                            : '<p class="ci2-hint">Not sure enough. Choose the car below.</p>') + '</div>';
+  var no = ci2El('ci2AiNo'), use = ci2El('ci2AiUse');
+  if (no) no.onclick = function(){ _ci.aiDone = true; ai.innerHTML = ''; ci2OpenSec('ci2SVeh'); };
+  if (use) use.onclick = function(){
+    _ci.aiDone = true;
+    if (useMake) { _ci.make = r.make; _ci.model = useModel ? r.model : ''; _ci.vehText = ''; ci2RenderMakes(); var mb = ci2El('ci2ModelBox'); if (mb) mb.hidden = false; ci2RenderModels(); }
+    if (useColor) ci2SetColor(r.color); else ci2VehSum(true);
+    ai.innerHTML = '<p class="ci2-hint">Filled from photos' + ((useMake && useColor && useModel) ? '' : ' — check the empty lines below') + '.</p>';
   };
-  ci2El('ci2AiNo').onclick = function(){ _ci.aiDone = true; ai.innerHTML = ''; ci2OpenSec('ci2SVeh'); };
+  if (!useMake && !useColor) ci2OpenSec('ci2SVeh');
 }
 function ci2PrintTap(){
   if (!_ci || _ci.printing) return;
