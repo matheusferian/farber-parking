@@ -105,8 +105,11 @@ Deno.serve(async (req) => {
     vehicle_visible: !!raw.vehicle_visible,
     color: clean(raw.color), make: clean(raw.make), model: clean(raw.model),
     raw_color_description: clean(raw.raw_color_description),
-    confidence: { color: conf(raw.confidence?.color), make: conf(raw.confidence?.make), model: conf(raw.confidence?.model) },
+    confidence: { color: conf(raw.confidence?.color), make: conf(raw.confidence?.make), model: conf(raw.confidence?.model), plate: conf(raw.confidence?.plate) },
     view: ['front', 'rear', 'side'].includes(raw.view) ? raw.view : null,
+    // Owner 2026-11-19: the plate as printed (upper case, letters/digits), null when the AI was not sure.
+    plate: typeof raw.plate === 'string' && /^[A-Z0-9]{2,10}$/.test(raw.plate.toUpperCase().replace(/[\s-]/g, '')) ? raw.plate.toUpperCase().replace(/[\s-]/g, '') : null,
+    plate_state: typeof raw.plate_state === 'string' && raw.plate_state.trim().length >= 2 ? raw.plate_state.trim().toUpperCase().slice(0, 20) : null,
   };
 
   await admin.from('activity_log').insert({
@@ -114,7 +117,7 @@ Deno.serve(async (req) => {
     action: 'VEHICLE_AI', passenger_id: passengerId, ticket: '', passenger: '', location: '',
     detail: JSON.stringify({
       via: 'farberos', model: String(data.model || ''), photos: images.map((i) => i.angle), by: userData.user.id,
-      make: result.make, model_name: result.model, color: result.color, confidence: result.confidence,
+      make: result.make, model_name: result.model, color: result.color, plate_read: !!result.plate, confidence: result.confidence,
     }).slice(0, 1900),
   });
 

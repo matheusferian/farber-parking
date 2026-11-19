@@ -2713,6 +2713,7 @@ function mapPassengerRow(r) {
     id: r.id, ri: r.id,
     ts: r.ts||'', name: r.name||'', phone: r.phone||'',
     ticket: r.ticket||'', ret: r.ret||'', car: r.car||'', color: r.color||'',
+    plate: r.plate||'', plate_state: r.plate_state||'',   // owner 2026-11-19: plate from the car AI (staff confirmed)
     loc: r.loc||'', status: r.status||'PENDING',
     block: r.block||'', obs: r.obs||'', deldate: r.deldate||'',
     delivery_type: r.delivery_type||'',
@@ -8331,7 +8332,7 @@ function ci2RenderShots(){
 // through the vehicle-ai Edge Function. It suggests make, model and color from the Front/Rear photos;
 // staff tap "Looks right" and only the lines the AI is sure enough about are filled (FarberOS thresholds:
 // color 0.60, make 0.60, model 0.50; a model only with its make). ?photos=demo answers with a fixed sample.
-var CI2_AI_MIN = { color: 0.60, make: 0.60, model: 0.50 };
+var CI2_AI_MIN = { color: 0.60, make: 0.60, model: 0.50, plate: 0.85 };   // plate: stricter (owner 11/19: never a wrong plate)
 var CI2_AI_ERR = { NOT_CONFIGURED: 'Car AI is not on yet.', DAILY_LIMIT: 'Car AI daily limit reached. Choose the car below.', AI_BUSY: 'Car AI is busy. Try again in a minute.',
   AI_KEY_INVALID: 'Car AI is not working (key). Choose the car below.', UNAUTHENTICATED: 'Sign in again to use car AI.', FORBIDDEN: 'This login cannot use car AI.', NETWORK: 'No connection. Choose the car below.' };
 async function ci2AiB64(blob){
@@ -8371,9 +8372,12 @@ function ci2AiShow(r){
   var cf = r.confidence || {}, knownColor = CI2_COLORS.some(function(c){ return c[0] === r.color; });
   var useMake = !!r.make && cf.make >= CI2_AI_MIN.make, useModel = useMake && !!r.model && cf.model >= CI2_AI_MIN.model;
   var useColor = !!r.color && knownColor && cf.color >= CI2_AI_MIN.color;
+  // Owner 2026-11-19: the plate too, only when the AI read every character (null otherwise) and is sure.
+  var usePlate = !!r.plate && (cf.plate || 0) >= CI2_AI_MIN.plate && !ci2LocalOnly();
   var row = function(k, v, sure){ return '<div class="ci2-airow"><span>' + k + '</span><b>' + escapeHTML(v || '—') + '</b><i class="' + (sure ? 'ok' : 'chk') + '">' + (sure ? 'Sure' : 'Check') + '</i></div>'; };
   ai.innerHTML = '<div class="ci2-aibox">' + row('Make', r.make, useMake) + row('Model', r.model, useModel) + row('Color', r.color, useColor)
-    + ((useMake || useColor) ? '<div class="ci2-btnrow"><button type="button" class="ci2-btn" id="ci2AiUse">Looks right</button><button type="button" class="ci2-btn line" id="ci2AiNo">Not right</button></div>'
+    + (r.plate ? row('Plate', r.plate + (r.plate_state ? ' · ' + r.plate_state : ''), usePlate) : '')
+    + ((useMake || useColor || usePlate) ? '<div class="ci2-btnrow"><button type="button" class="ci2-btn" id="ci2AiUse">Looks right</button><button type="button" class="ci2-btn line" id="ci2AiNo">Not right</button></div>'
                             : '<p class="ci2-hint">Not sure enough. Choose the car below.</p>') + '</div>';
   var no = ci2El('ci2AiNo'), use = ci2El('ci2AiUse');
   if (no) no.onclick = function(){ _ci.aiDone = true; ai.innerHTML = ''; ci2OpenSec('ci2SVeh'); };
@@ -8381,9 +8385,10 @@ function ci2AiShow(r){
     _ci.aiDone = true;
     if (useMake) { _ci.make = r.make; _ci.model = useModel ? r.model : ''; _ci.vehText = ''; ci2RenderMakes(); var mb = ci2El('ci2ModelBox'); if (mb) mb.hidden = false; ci2RenderModels(); }
     if (useColor) ci2SetColor(r.color); else ci2VehSum(true);
+    if (usePlate) ci2Save({ plate: r.plate, plate_state: r.plate_state || null }, 'ci2SVeh', 'Plate → ' + r.plate + (r.plate_state ? ' ' + r.plate_state : ''));
     ai.innerHTML = '<p class="ci2-hint">Filled from photos' + ((useMake && useColor && useModel) ? '' : ' — check the empty lines below') + '.</p>';
   };
-  if (!useMake && !useColor) ci2OpenSec('ci2SVeh');
+  if (!useMake && !useColor && !usePlate) ci2OpenSec('ci2SVeh');
 }
 function ci2PrintTap(){
   if (!_ci || _ci.printing) return;
@@ -8626,6 +8631,7 @@ function showDet(id){
       '<div class="di editable" style="grid-column:1/-1" data-field="name"><div class="di-l">Name ✎</div><div class="di-v">'+escapeHTML(r.name)+'</div></div>'+
       '<div class="di editable" style="grid-column:1/-1" data-field="phone"><div class="di-l">Phone ✎</div><div class="di-v">'+escapeHTML(fmtP(r.phone))+'</div></div>'+
       '<div class="di editable" style="grid-column:1/-1" data-field="car"><div class="di-l">Car ✎</div><div class="di-v">'+escapeHTML(r.car||'')+'</div></div>'+
+      (r.plate ? '<div class="di" style="grid-column:1/-1"><div class="di-l">Plate</div><div class="di-v">'+escapeHTML(r.plate+(r.plate_state?' · '+r.plate_state:''))+'</div></div>' : '')+
       '<div class="di editable" style="grid-column:1/-1" data-field="color" onclick="makeEditable(this,\'color\')" ><div class="di-l">Color ✎</div><div class="di-v">'+escapeHTML(r.color||'—')+'</div></div>'+
       '<div class="di editable" style="grid-column:1/-1" data-field="loc" data-raw="'+escapeHTML(r.loc||'')+'"><div class="di-l">Location ✎</div><div class="di-v">'+escapeHTML(r.loc||'—')+'</div></div>'+
       '<div class="di editable" style="grid-column:1/-1" data-field="obs"><div class="di-l">Notes ✎</div><div class="di-v" style="font-size:12px">'+escapeHTML(r.obs||'—')+'</div></div>'+
