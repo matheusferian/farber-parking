@@ -7524,7 +7524,7 @@ var KNE_STEPS=[['guest','Guest'],['texts','Texts']];
 function kioskNeSteps(){
   var step=ci2El('ci2Step'); if(!step||!document.body.classList.contains('av-kiosk')) return;
   var tag=function(el,k){ if(el) el.setAttribute('data-ks',k); };
-  tag(step.querySelector('.ci2-fly'),'guest'); tag(step.querySelector('.ci2-np'),'guest'); tag(ci2El('gxCi2'),'guest');
+  tag(step.querySelector('.ci2-fly'),'guest'); tag(step.querySelector('.ci2-np'),'guest'); tag(ci2El('gxCi2'),'guest'); tag(ci2El('gxCi2N'),'guest');
   // Owner 2026-11-12: name, phone and the return date are what the team asks first — one screen.
   tag(ci2El('ci2Er'),'guest');
   var rp=step.querySelector('.ci2-retpick[data-n="1"]'); tag(rp&&rp.closest('.ci2-f'),'guest');
@@ -7590,7 +7590,7 @@ function ci2Html(){
   +   '<div class="ci2-fly" role="group" aria-label="Flying with"><button type="button" data-op="MAKERS" aria-pressed="true">Makers Air</button><button type="button" data-op="ASCEND" aria-pressed="false"><span aria-hidden="true">✈ </span>Ascend</button></div>'
   +   '<div class="ci2-np"><div class="ci2-f"><label for="ci2Name">Name</label><div class="ci2-acw"><input id="ci2Name" class="ci2-inp" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" enterkeyhint="next" placeholder="First and last name"><div class="ci2-ac" id="ci2Ac" hidden></div></div><div class="ci2-hint" id="ci2Freq" hidden></div></div>'
   +   '<div class="ci2-f"><label for="ci2Phone">Phone</label><div class="ci2-pw"><input id="ci2Phone" class="ci2-inp" type="tel" inputmode="tel" autocomplete="off" enterkeyhint="next" maxlength="18" placeholder="(305) 555-0142 or +49 …" aria-describedby="ci2PhoneHint"><span class="ci2-ok" id="ci2PhoneOk">Valid</span></div><div class="ci2-hint" id="ci2PhoneHint">US number, or + country code. It can be a companion’s phone.</div></div></div>'
-  +   '<div class="gx-ci" id="gxCi2" hidden></div>'
+  +   '<div class="gx-ci" id="gxCi2" hidden></div><div class="gx-ci" id="gxCi2N" hidden></div>'
   +   '<div class="ci2-er" id="ci2Er" hidden>⚠️ This passenger had an Early Return before. Confirm the return date carefully.</div>'
   +   '<div class="ci2-f"><div class="ci2-lr"><span class="ci2-lab" id="ci2RetLbl">Return date</span><span class="ci2-opt">Optional</span></div><div class="ci2-retpick" data-n="1"></div><div class="ci2-mkret" id="ci2MkRet" role="status" hidden></div>'
   +     '<label class="ci2-check"><input type="checkbox" class="ci2-other"><span>Returning with another airline<small>No automatic pickup instructions; staff set the pickup place</small></span></label></div>'
@@ -7676,7 +7676,10 @@ function ci2Bind(){
   ci2El('ci2No').addEventListener('click', function(){ ci2SetConsent(false); });
   ci2El('ci2NoText').addEventListener('click', function(){ ci2Create(false); });
   ci2El('ci2Undo').addEventListener('click', function(){ ci2Undo(); });
-  box.querySelectorAll('.ci2-other').forEach(function(c){ c.addEventListener('change', function(){ ci2SetOther(c.checked); }); });
+  // Owner 2026-11-20: the box gets tapped by accident (1120-5 went to Other) — turning it ON asks first.
+  box.querySelectorAll('.ci2-other').forEach(function(c){ c.addEventListener('change', function(){
+    if (c.checked && !confirm('Returning with ANOTHER airline — not ' + (_ci && _ci.op === 'ASCEND' ? 'Ascend' : 'Makers Air') + '?\n\nNo automatic pickup texts for this guest.')) { c.checked = false; return; }
+    ci2SetOther(c.checked); }); });
   box.querySelectorAll('.ci2-sec-h').forEach(function(h){ h.addEventListener('click', function(){ ci2Toggle(h.parentNode.id); }); });
   box.querySelectorAll('#ci2Created [data-open]').forEach(function(r){ r.addEventListener('click', function(){ ci2OpenSec(r.dataset.open); }); });
   ci2El('ci2MakeQ').addEventListener('input', ci2RenderMakes);
@@ -7819,6 +7822,37 @@ function ci2MirrorChecks(){
   if (m.length) { var last = m[m.length - 1]; f.textContent = m.length + ' previous visit' + (m.length > 1 ? 's' : '') + '. Last: ' + (last.ticket || '') + (last.car ? ' · ' + formatVehicleLine(last) : ''); f.hidden = false; }
   else f.hidden = true;
   gxCheckinHint();
+  ci2NameHistory(name);
+}
+// Owner 2026-11-20: "o sobrenome Edwards já tinha vindo aqui antes, mas tive que pedir o número dele de novo".
+// The name list on the iPad only holds recent tickets, and Makers robot names carry no phone. With a full name
+// typed or picked and no phone yet, the whole passenger history (merged guests, airvalet_guest_search) is
+// asked once; past guests with a phone show here and "Use phone" fills phone + car. Staff confirm with the guest.
+var _gxN = { t: null, seq: 0 };
+function ci2NameHistory(name){
+  var box = ci2El('gxCi2N'); if (!box) return;
+  clearTimeout(_gxN.t); ++_gxN.seq;
+  var q = String(name || '').trim().toUpperCase().replace(/\s+/g, ' '), w = q.split(' '), ph = ci2El('ci2Phone');
+  if (!_ci || _ci.created || w.length < 2 || w[w.length - 1].length < 2 || q.length < 5 || (ph && ci2Digits(ph.value).length)) { box.hidden = true; box.innerHTML = ''; return; }
+  _gxN.t = setTimeout(async function(){
+    var my = _gxN.seq, r;
+    try { r = await gxRpc('airvalet_guest_search', { p_q: q, p_limit: 4, p_offset: 0 }); } catch(e) { return; }   // never in the way of a check-in
+    var ph2 = ci2El('ci2Phone');
+    if (my !== _gxN.seq || !_ci || _ci.created || (ph2 && ci2Digits(ph2.value).length)) return;
+    var g = ((r && r.rows) || []).filter(function(x){ var d = ci2Digits(x.phone); return ci2PhoneValid(x.phone) && !/^(\d)\1+$/.test(d.slice(-4)); });
+    if (!g.length) { box.hidden = true; box.innerHTML = ''; return; }
+    box.hidden = false;
+    box.innerHTML = '<div class="gx-ci-h">Been here before' + (g.length > 1 ? ' — ' + g.length + ' with this name' : '') + '</div>' + g.map(function(x, i){
+      return '<div class="gx-ci-r"><span><b>' + escapeHTML(gxName(x.name)) + ' · •••-' + escapeHTML(ci2Digits(x.phone).slice(-4)) + '</b><small>' + escapeHTML([x.visits + (x.visits == 1 ? ' visit' : ' visits'), x.last_visit ? 'last ' + gxDate(x.last_visit) : '', x.vehicle ? niceVehicleText(x.vehicle) : ''].filter(Boolean).join(' · ')) + '</small></span>'
+        + '<button type="button" class="gx-btn line" data-usep="' + i + '">Use phone</button></div>';
+    }).join('') + '<div class="gx-fine">Confirm the number with the passenger.</div>';
+    box.querySelectorAll('[data-usep]').forEach(function(b){ b.onclick = function(){
+      var x = g[+b.dataset.usep], p = ci2El('ci2Phone'); if (!p || !_ci || _ci.created) return;
+      p.value = x.phone; p.dispatchEvent(new Event('input'));
+      box.hidden = true; box.innerHTML = '';
+      showMsg('Phone filled from the last visit — confirm it with the passenger.', false);
+    }; });
+  }, 500);
 }
 function ci2SetConsent(v){
   if (_ci.created || _ci.busy) return;
