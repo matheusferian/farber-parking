@@ -710,7 +710,7 @@
     <div id="tipTitle" style="font-family:'Sora',sans-serif;font-size:18px;font-weight:800;color:var(--tx);margin-bottom:4px">Confirm delivery?</div>
     <div id="tipPassName" style="font-size:16px;font-weight:800;color:var(--tx);margin-top:8px;font-family:'Sora',sans-serif"></div>
     <div id="tipVehicleLine" style="font-size:12px;color:var(--mu);margin-top:2px;font-family:'JetBrains Mono',monospace"></div>
-    <div id="tipWhere" style="font-size:15px;font-weight:700;color:var(--tx);margin-top:8px"></div>
+    <div id="tipWhere" style="font-size:15px;font-weight:700;color:var(--tx);margin-top:8px"></div><div id="tipPhoto" class="tp-photo" hidden></div>
     <div id="tipPickup" class="ci2-release" hidden></div>
     <!-- Smart Tips (owner 2026-10-27): optional, nothing pre-selected, never blocks Deliver.
          A cash amount goes to the audited tip ledger (airvalet_tip_record) after the delivery. -->
@@ -8894,7 +8894,23 @@ function openTipModal(id, deliveryType){
   setTipButtonsDisabled(false);
   tipInPersonReset();
   pickupReleaseRender(r);
+  tipPhotoLoad(r);
   ov.classList.add('on');
+}
+// Owner 2026-11-19: the arrival photo at delivery — staff check the car leaves as it came. Rear first, else front.
+async function tipPhotoLoad(r){
+  var box = document.getElementById('tipPhoto'); if (!box) return;
+  box.hidden = true; box.innerHTML = ''; box.dataset.pid = r.id;
+  var res = null;
+  try { res = await smsApi('/functions/v1/car-photos', { method: 'POST', headers: sbHeaders(), body: JSON.stringify({ action: 'list', passenger_id: r.id }) }); } catch(e) { return; }
+  if (+box.dataset.pid !== r.id || !res || !res.ok || !res.photos || !res.photos.length) return;
+  var ph = res.photos.find(function(x){ return x.angle === 'rear'; }) || res.photos[0];
+  if (!ph || !ph.url) return;
+  var when = new Date(ph.taken_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  box.innerHTML = '<button type="button" class="tp-btn" aria-label="Open the arrival photo"><img src="' + escapeHTML(ph.url) + '" alt="Arrival photo"></button>'
+    + '<span>At arrival · ' + escapeHTML(ph.angle === 'rear' ? 'Rear' : 'Front') + ' · ' + escapeHTML(when) + '</span>';
+  box.querySelector('.tp-btn').onclick = function(){ carPhotoFull(ph.url); };
+  box.hidden = false;
 }
 // ── SMART TIPS: in-person tip at delivery (owner 2026-10-27) ────
 // Yes / No / nothing (the default). Yes may carry a cash amount and who on

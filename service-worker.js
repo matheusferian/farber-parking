@@ -133,7 +133,8 @@
 // v212: Finish on the phone — today's cars without a rear photo blink at the top; Take photo there (owner 11/19).
 // v213: Finish-on-phone strip starts with check-ins from 11/20 (owner 11/19).
 // v214: Car photos kept on the server (30 days after the car leaves) and shown on the car card on every device (owner 11/19).
-var CACHE_VERSION = 'v214';
+// v215: Delivery confirm shows the arrival photo (owner 11/19).
+var CACHE_VERSION = 'v215';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 var SHELL_FILES = [

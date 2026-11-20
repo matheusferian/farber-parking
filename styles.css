@@ -3465,3 +3465,9 @@ body.av-kiosk .ci2-wide .ci2-script{font-size:17px;line-height:1.5}
 .cp-full{position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.92);display:flex;align-items:center;justify-content:center;}
 .cp-full img{max-width:100%;max-height:100%;object-fit:contain;}
 .cp-x{position:absolute;top:calc(12px + env(safe-area-inset-top));right:12px;width:48px;height:48px;border-radius:50%;border:0;background:rgba(255,255,255,.18);color:#fff;font-size:20px;}
+
+/* Owner 2026-11-19: arrival photo in the delivery confirm. */
+.tp-photo{margin:10px auto 2px;display:flex;flex-direction:column;align-items:center;gap:4px;}
+.tp-btn{padding:0;border:1px solid var(--b);border-radius:12px;overflow:hidden;background:var(--s2);width:100%;max-width:320px;aspect-ratio:16/10;cursor:zoom-in;}
+.tp-btn img{width:100%;height:100%;object-fit:cover;display:block;}
+.tp-photo span{font:600 12px 'Inter',sans-serif;color:var(--mu);}
