@@ -7431,7 +7431,7 @@ function kioskNeSteps(){
   ['ci2Dup','ci2SaveErr','ci2NoText','ci2Cd','ci2Saving'].forEach(function(id){ tag(ci2El(id),'texts'); });
   var bar=document.createElement('div'); bar.className='kne-steps'; bar.id='kneSteps'; step.insertBefore(bar,step.firstChild);
   var nav=document.createElement('div'); nav.className='kne-nav'; nav.id='kneNav'; step.insertBefore(nav,step.querySelector('.ci2-foot'));
-  ['ci2SHangar','ci2SVeh'].forEach(function(id){ var s=ci2El(id); if(s&&!s.classList.contains('open')) ci2Toggle(id); });
+  ['ci2SPhotos','ci2SHangar'].forEach(function(id){ var s=ci2El(id); if(s&&!s.classList.contains('open')) ci2Toggle(id); });   // owner 11/19: photo first, the AI fills the car
   var rd=step.querySelector('.ci2-consent details'); if(rd) rd.open=true;
   // Owner 2026-11-19 (step 2): Next stays off until name + phone are valid and says what is missing;
   // Return on the keyboard moves name → phone → return date.
@@ -7515,9 +7515,9 @@ function ci2Html(){
   +   '<p class="ci2-passup" id="ci2Pass" hidden></p>'
   + '</div></div>'
   + '<div id="ci2Details" class="ci2-details" hidden><div class="ci2-col">'
+  +   (avPhotosOn() ? ci2Sec('ci2SPhotos', 'Photo of the car', 'Take it first', '<button type="button" class="ci2-btn ci2-take" onclick="ci2ShotTake(\'auto\')">Take photo</button><div class="ci2-shots" id="ci2Shots"></div><input type="file" id="ci2ShotIn" accept="image/*" capture="environment" hidden><div id="ci2Ai"></div><p class="ci2-hint" id="ci2PassSt" role="status">Optional. The rear photo shows on the passenger\'s valet pass.</p>') : '')
   +   ci2Sec('ci2SHangar', 'Hangar', 'Not set', '<div class="ci2-chipset" id="ci2Hangars"></div>')
-  +   (avPhotosOn() ? ci2Sec('ci2SPhotos', 'Photos', 'Optional', '<button type="button" class="ci2-btn ci2-take" onclick="ci2ShotTake(\'auto\')">Take photo</button><div class="ci2-shots" id="ci2Shots"></div><input type="file" id="ci2ShotIn" accept="image/*" capture="environment" hidden><div id="ci2Ai"></div><p class="ci2-hint" id="ci2PassSt" role="status">Optional. The rear photo shows on the passenger\'s valet pass.</p>') : '')
-  +   ci2Sec('ci2SVeh', 'Vehicle', 'Not set', '<p class="ci2-sub">Make</p><input class="ci2-search" id="ci2MakeQ" placeholder="Search or type any make" autocomplete="off"><div class="ci2-chipset ci2-logos" id="ci2Makes"></div>'
+  +   ci2Sec('ci2SVeh', 'Vehicle', 'From the photo', '<p class="ci2-sub">Make</p><input class="ci2-search" id="ci2MakeQ" placeholder="Search or type any make" autocomplete="off"><div class="ci2-chipset ci2-logos" id="ci2Makes"></div>'
   +     '<div id="ci2ModelBox" hidden><p class="ci2-sub">Model</p><input class="ci2-search" id="ci2ModelQ" placeholder="Search or type any model" autocomplete="off"><div class="ci2-chipset" id="ci2Models"></div></div>'
   +     '<p class="ci2-sub">Color</p><div class="ci2-chipset" id="ci2Colors"></div><div id="ci2OtherColorBox" hidden><input class="ci2-search" id="ci2OtherColor" placeholder="Type the color" style="margin-top:8px"></div>')
   +   ci2Sec('ci2SRet', 'Return', 'No date yet', '<div class="ci2-retpick" data-n="2"></div><label class="ci2-check"><input type="checkbox" class="ci2-other"><span>Returning with another airline</span></label>'
@@ -7534,7 +7534,7 @@ function ci2Html(){
   +   ci2Sec('ci2STip', 'Tip', '+ Add tip', '<p class="ci2-hint" style="margin-top:0">Cash received now, if any. Optional — skip it and nothing is recorded.</p>' + tipQuickHtml('ci2Tip')
   +     '<div class="ci2-btnrow"><button type="button" class="ci2-btn" id="ci2TipSave">Save tip</button></div><p class="ci2-hint" id="ci2TipMsg" aria-live="polite"></p>')
   + '</div></div>'
-  + '<div class="ci2-dock" id="ci2Dock" hidden><div class="ci2-need"><span id="ci2NH">Hangar</span><span id="ci2NM">Make or model</span><span id="ci2NC">Color</span></div>'
+  + '<div class="ci2-dock" id="ci2Dock" hidden><div class="ci2-need"><span id="ci2NH">Hangar</span><span id="ci2NM">Car (photo)</span><span id="ci2NC">Color (photo)</span></div>'
   +   '<button type="button" class="ci2-btn line" onclick="ci2Done()">Done</button>'
   +   '<div class="ci2-printw"><button type="button" class="ci2-print" id="ci2Print" disabled aria-controls="ci2Reprint">Print Tags</button>'
   +     '<div class="ci2-rpm" id="ci2Reprint" hidden><button type="button" data-print="both">Print both<small>Key + dashboard</small></button>'
@@ -7810,6 +7810,7 @@ async function ci2Create(withText){
   }
   _ci.created = true; _ci.id = res.id || null; _ci.ticket = res.ticket || ''; _ci.offline = !!res.offline; _ci.syncId = res.syncId || null;
   ci2El('ci2Step').hidden = true; ci2El('ci2Created').hidden = false; ci2El('ci2Details').hidden = false; ci2El('ci2Dock').hidden = false;
+  var phs = ci2El('ci2SPhotos'); if (phs && !phs.classList.contains('open')) ci2Toggle('ci2SPhotos');   // owner 11/19: photo first
   ci2El('ci2Who').textContent = name + (ci2Digits(phone) ? ' · •••-' + ci2Digits(phone).slice(-4) : '');
   ci2El('ci2Num').textContent = _ci.ticket;
   var nm = ci2El('ci2Num'); nm.tabIndex = -1; nm.setAttribute('aria-label', 'Ticket ' + _ci.ticket + ' created'); nm.focus();
@@ -8171,7 +8172,7 @@ function ci2SetColor(c){ _ci.color = c; ci2RenderColors(); ci2VehSum(true); }
 function ci2VehCar(){ return (_ci.vehText || [_ci.make, _ci.model].filter(Boolean).join(' ')).toUpperCase(); }
 function ci2VehLine(){ return [_ci.color, ci2VehCar()].filter(Boolean).join(' '); }
 function ci2VehSum(save){
-  var s = ci2VehLine(), v = ci2El('ci2SVehV'); v.textContent = s || 'Not set'; v.className = 'v' + (s ? ' done' : '');
+  var s = ci2VehLine(), v = ci2El('ci2SVehV'); v.textContent = s || 'From the photo'; v.className = 'v' + (s ? ' done' : '');
   ci2RenderCard(); ci2Need();
   if (save && _ci.created && ci2LocalOnly()) { ci2OfflinePatch({ car: ci2VehCar(), color: _ci.color || null }); return; }
   if (save && _ci.created) ci2Save({ car: ci2VehCar(), color: _ci.color || null }, 'ci2SVeh', 'Vehicle → ' + (s || '—'));
@@ -8450,19 +8451,23 @@ function ci2AiShow(r){
   // Owner 2026-11-19: the plate too, only when the AI read every character (null otherwise) and is sure.
   var usePlate = !!r.plate && (cf.plate || 0) >= CI2_AI_MIN.plate && !ci2LocalOnly();
   var row = function(k, v, sure){ return '<div class="ci2-airow"><span>' + k + '</span><b>' + escapeHTML(v || '—') + '</b><i class="' + (sure ? 'ok' : 'chk') + '">' + (sure ? 'Sure' : 'Check') + '</i></div>'; };
-  ai.innerHTML = '<div class="ci2-aibox">' + row('Make', r.make, useMake) + row('Model', r.model, useModel) + row('Color', r.color, useColor)
-    + (r.plate ? row('Plate', r.plate + (r.plate_state ? ' · ' + r.plate_state : ''), usePlate) : '')
-    + ((useMake || useColor || usePlate) ? '<div class="ci2-btnrow"><button type="button" class="ci2-btn" id="ci2AiUse">Looks right</button><button type="button" class="ci2-btn line" id="ci2AiNo">Not right</button></div>'
-                            : '<p class="ci2-hint">Not sure enough. Choose the car below.</p>') + '</div>';
-  var no = ci2El('ci2AiNo'), use = ci2El('ci2AiUse');
-  if (no) no.onclick = function(){ _ci.aiDone = true; ai.innerHTML = ''; ci2OpenSec('ci2SVeh'); };
-  if (use) use.onclick = function(){
+  // Owner 2026-11-19 ("se a marca e a cor vai identificar na foto, por que preencher antes?"): what the AI is
+  // sure of is filled at once; staff only see it and tap Change to fix. Unsure lines are shown as Check.
+  if (useMake || useColor || usePlate) {
     _ci.aiDone = true;
     if (useMake) { _ci.make = r.make; _ci.model = useModel ? r.model : ''; _ci.vehText = ''; ci2RenderMakes(); var mb = ci2El('ci2ModelBox'); if (mb) mb.hidden = false; ci2RenderModels(); }
     if (useColor) ci2SetColor(r.color); else ci2VehSum(true);
     if (usePlate) ci2Save({ plate: r.plate, plate_state: r.plate_state || null }, 'ci2SVeh', 'Plate → ' + r.plate + (r.plate_state ? ' ' + r.plate_state : ''));
-    ai.innerHTML = '<p class="ci2-hint">Filled from photos' + ((useMake && useColor && useModel) ? '' : ' — check the empty lines below') + '.</p>';
-  };
+  }
+  var filled = [useColor ? r.color : '', useMake ? r.make : '', useModel ? r.model : ''].filter(Boolean).join(' ');
+  var checks = (!useMake && r.make ? row('Make', r.make, false) : '') + (useMake && !useModel && r.model ? row('Model', r.model, false) : '')
+    + (!useColor && r.color ? row('Color', r.color, false) : '') + (r.plate && !usePlate ? row('Plate', r.plate + (r.plate_state ? ' · ' + r.plate_state : ''), false) : '');
+  ai.innerHTML = '<div class="ci2-aibox">'
+    + (filled || usePlate ? '<p class="ci2-aifill">✓ From the photo: <b>' + escapeHTML(filled || '') + '</b>' + (usePlate ? ' · Plate <b>' + escapeHTML(r.plate + (r.plate_state ? ' ' + r.plate_state : '')) + '</b>' : '') + '</p>' : '')
+    + checks
+    + '<div class="ci2-btnrow"><button type="button" class="ci2-btn line" id="ci2AiNo">' + (filled ? 'Change' : 'Choose the car') + '</button></div></div>';
+  var no = ci2El('ci2AiNo');
+  if (no) no.onclick = function(){ _ci.aiDone = true; ci2OpenSec('ci2SVeh'); };
   if (!useMake && !useColor && !usePlate) ci2OpenSec('ci2SVeh');
 }
 function ci2PrintTap(){

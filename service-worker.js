@@ -134,7 +134,8 @@
 // v213: Finish-on-phone strip starts with check-ins from 11/20 (owner 11/19).
 // v214: Car photos kept on the server (30 days after the car leaves) and shown on the car card on every device (owner 11/19).
 // v215: Delivery confirm shows the arrival photo (owner 11/19).
-var CACHE_VERSION = 'v215';
+// v216: Check-in photo first — the car AI fills make/model/color/plate; staff only confirm or Change (owner 11/19).
+var CACHE_VERSION = 'v216';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 var SHELL_FILES = [
