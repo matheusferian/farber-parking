@@ -72,7 +72,8 @@ export type Template = {
 };
 
 const OPS: Role[] = ['ADMIN', 'MANAGER', 'IPAD_OPS', 'IPHONE_OPS'];
-export const SENDER = 'Makers Air Valet';
+// Owner 2026-11-20 (Twilio support, ticket 30424766): texts must name the registered brand, Farber Parking LLC.
+export const SENDER = 'Farber Parking';
 export const FREE_TEXT_MAX = 480; // ≈ 3 GSM-7 segments
 export const FREE_TEXT_MAX_SEGMENTS = 3; // also enforced in SQL (settings)
 // Links in free text: only our own domains (carrier filtering + safety).
@@ -130,7 +131,7 @@ export const TEMPLATES: Record<MessageType, Template> = {
   // reply PASS; twilio-inbound answers PASS with the valet pass link (link-fallback.ts). Previous text with the
   // link: welcomeBody() (still used by pass-share's device share).
   CHECK_IN: {
-    type: 'CHECK_IN', status: 'APPROVED', version: 'checkin-2026-11-17-ask-pass', freeText: false, allowedRoles: OPS,
+    type: 'CHECK_IN', status: 'APPROVED', version: 'checkin-2026-11-20-farber', freeText: false, allowedRoles: OPS,
     needsPassLink: false,
     // Owner 2026-11-07: one welcome per phone number. A corrected phone (typo at check-in) gets its own
     // welcome from any ops login; the same number can never get it twice.
@@ -155,7 +156,7 @@ export const TEMPLATES: Record<MessageType, Template> = {
   // HANGAR19_WELCOME_BACK / CUSTOMS_WELCOME_*: chosen by the RETURN flight.
   // Manual only (staff button) — never automatic.
   VEHICLE_READY: {
-    type: 'VEHICLE_READY', status: 'APPROVED', version: 'ready-2026-11-12', freeText: false, allowedRoles: OPS,
+    type: 'VEHICLE_READY', status: 'APPROVED', version: 'ready-2026-11-20-farber', freeText: false, allowedRoles: OPS,
     defaultEventRef: (_now, p) => 'ready:' + readyVariant(p),
     guard: (p) => {
       // A car left at Customs is marked DELIVERED (delivery_type CUSTOMS) before
@@ -175,7 +176,7 @@ export const TEMPLATES: Record<MessageType, Template> = {
         // Makers return, Customs approved case by case. Owner 2026-10-25 (final):
         // never states where the key is; the guest replies on arrival and the
         // valet team helps with the key. 154 GSM-7 chars = 1 segment.
-        return { variant: 'CUSTOMS_EXCEPTION', body: 'Welcome back to Makers Air!\nYour vehicle is ready at Customs. Please reply to this message when you arrive so our valet team can assist you with your key.' };
+        return { variant: 'CUSTOMS_EXCEPTION', body: 'Farber Parking: Welcome back!\nYour vehicle is ready at Customs. Please reply to this message when you arrive so our valet team can assist you with your key.' };
       }
       if (pickupPlace(p) === 'HANGAR_19') {
         return {
@@ -194,7 +195,7 @@ export const TEMPLATES: Record<MessageType, Template> = {
     // Owner 2026-10-25: one text for everyone (tip or not), sent at delivery,
     // with the valet pass link (a thank-you note + Gratuity button). That
     // link ends 7 days after delivery. 156 GSM-7 chars with the link = 1 segment.
-    type: 'VEHICLE_DELIVERED', status: 'APPROVED', version: 'delivered-2026-10-25', freeText: false, allowedRoles: OPS,
+    type: 'VEHICLE_DELIVERED', status: 'APPROVED', version: 'delivered-2026-11-20-farber', freeText: false, allowedRoles: OPS,
     needsPassLink: true,
     defaultEventRef: () => 'delivered',
     guard: (p) => (p.status !== 'DELIVERED' ? 'NOT_DELIVERED' : null),
@@ -286,18 +287,18 @@ export function estimateCostUsd(segments: number): number {
   return Math.round(segments * (SMS_PRICE_PER_SEGMENT_USD + SMS_CARRIER_FEE_EST_USD) * 10000) / 10000;
 }
 
-export const CHECK_IN_ASK_PASS_BODY = 'Welcome to Makers Air Valet! Your car is checked in. Reply PASS to get your valet pass link. Msg & data rates may apply. Reply HELP for help, STOP to opt out.';
+export const CHECK_IN_ASK_PASS_BODY = 'Farber Parking at Makers Air: your car is checked in. Reply PASS to get your valet pass link. Msg & data rates may apply. Reply HELP for help, STOP to opt out.';
 
 // Owner's go-live welcome (single line breaks keep it at 160 chars = 1 segment).
 export function welcomeBody(link: string): string {
   // Owner 2026-11-06 (A2P opt-in confirmation): HELP + message & data rates added → 2 GSM-7 segments.
   // Owner 2026-11-06: final check-in wording (applied) — invites the guest to open the pass; rates + HELP + STOP (A2P).
-  return `Welcome to Makers Air Valet! Your car is checked in.\nTap to see your car's live status, your return details and a direct line to our team:\n${link}\nMsg & data rates may apply. Reply HELP for help, STOP to opt out.`;
+  return `Farber Parking at Makers Air: your car is checked in.\nTap to see your car's live status, your return details and a direct line to our team:\n${link}\nMsg & data rates may apply. Reply HELP for help, STOP to opt out.`;
 }
 // Same welcome, shared by staff from the device (WhatsApp / iMessage) for an
 // international number: no STOP line (it is not an AirValet SMS).
 export function shareWelcomeBody(link: string): string {
-  return `Welcome to Makers Air Valet!\nYour vehicle has been checked in.\nYour digital valet pass:\n${link}`;
+  return `Farber Parking at Makers Air\nYour vehicle has been checked in.\nYour digital valet pass:\n${link}`;
 }
 
 // "10/31/2026" + "18:00" → "Fri, Oct 31, 6:00 PM" (time only when set).

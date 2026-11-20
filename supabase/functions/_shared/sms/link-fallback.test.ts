@@ -107,7 +107,7 @@ Deno.test('reply PASS after a blocked link → fresh /p/ link, PASS stored as re
   const sent: string[] = [];
   assertEquals(await passReply(f.admin, '+15615550100', 'SMin1', BASE, okSend(sent)), true);
   assertEquals(sent, [passReplyBody(BASE + 'Ab3dE6gH9jK2mN4pQ')]);
-  assertEquals(sent[0], 'Makers Air Valet: Here is your valet pass: https://airvalet.farberos.com/p/Ab3dE6gH9jK2mN4pQ');
+  assertEquals(sent[0], 'Farber Parking: Here is your valet pass: https://airvalet.farberos.com/p/Ab3dE6gH9jK2mN4pQ');
   assertEquals(f.inserted.map((r) => [r.direction, r.template_key ?? r.body]), [['outbound', 'PASS_REPLY'], ['inbound', 'PASS']]);
   assertEquals(String(f.inserted[0].body).includes('Ab3dE6'), false);           // the token never stored in clear
   assertEquals(f.rpcs.map((r) => r[0]), ['airvalet_pass_mint', 'airvalet_sms_mark_result']);

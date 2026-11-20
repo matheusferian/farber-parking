@@ -70,16 +70,16 @@ Deno.test('templates: REPLY, CHECK_IN (D1), VEHICLE_READY and VEHICLE_DELIVERED 
   assertEquals(Object.keys(TEMPLATES).sort(), ['AFTER_HOURS_CONFIRMED', 'CHECK_IN', 'CUSTOM_OPERATIONAL', 'REPLY', 'RETURN_CONFIRMATION', 'RETURN_UPDATED', 'VEHICLE_DELIVERED', 'VEHICLE_READY']);
   for (const t of Object.values(TEMPLATES)) {
     if (t.type === 'REPLY') { assertEquals(t.status, 'APPROVED'); assert(t.freeText); continue; }
-    if (t.type === 'CHECK_IN') { assertEquals(t.status, 'APPROVED'); assertEquals(t.version, 'checkin-2026-11-17-ask-pass'); continue; }
-    if (t.type === 'VEHICLE_READY') { assertEquals(t.status, 'APPROVED'); assertEquals(t.version, 'ready-2026-11-12'); continue; }
-    if (t.type === 'VEHICLE_DELIVERED') { assertEquals(t.status, 'APPROVED'); assertEquals(t.version, 'delivered-2026-10-25'); continue; }
+    if (t.type === 'CHECK_IN') { assertEquals(t.status, 'APPROVED'); assertEquals(t.version, 'checkin-2026-11-20-farber'); continue; }
+    if (t.type === 'VEHICLE_READY') { assertEquals(t.status, 'APPROVED'); assertEquals(t.version, 'ready-2026-11-20-farber'); continue; }
+    if (t.type === 'VEHICLE_DELIVERED') { assertEquals(t.status, 'APPROVED'); assertEquals(t.version, 'delivered-2026-11-20-farber'); continue; }
     assertEquals(t.status, 'PENDING_APPROVAL');
     assertEquals(codeOf(() => renderMessage(t, P({ status: 'DELIVERED', delivery_type: 'CUSTOMS', customs_welcome_sent: true, return_operator: 'MAKERS' }), ENV, 'x')), 'TEMPLATE_NOT_APPROVED');
   }
 });
 Deno.test('identity: every templated SMS names Makers Air (CHECK_IN D1 = "welcome to Makers Air!", others "Makers Air Valet:"), Ascend included', () => {
   const ci = renderMessage(A.CHECK_IN, P({ ticket: 'A-0714-1' }), ENV).body;
-  assertStringIncludes(ci, 'Welcome to Makers Air Valet!'); assertFalse(ci.includes('Ascend'));
+  assertStringIncludes(ci, 'Farber Parking at Makers Air'); assertFalse(ci.includes('Ascend'));
   const cases: Array<[string, PassengerCtx]> = [
     ['RETURN_CONFIRMATION', P({ ticket: 'A-1' })], ['RETURN_UPDATED', P({ ticket: 'A-1', ret: '10/31/2026', ret_time: '18:00' })], ['AFTER_HOURS_CONFIRMED', P({ ticket: 'A-1' })],
     ['VEHICLE_READY', P({ ticket: 'A-1', return_operator: 'ASCEND' })], ['VEHICLE_READY', P({ ticket: 'A-1', return_operator: 'MAKERS' })],
@@ -87,14 +87,14 @@ Deno.test('identity: every templated SMS names Makers Air (CHECK_IN D1 = "welcom
   ];
   for (const [t, p] of cases) {
     const b = renderMessage(A[t], p, ENV).body;
-    assert(b.startsWith('Makers Air Valet: '), t);
+    assert(b.startsWith('Farber Parking: '), t);
     assertFalse(b.includes('Ascend Valet'), t);
   }
 });
 Deno.test('CHECK_IN (2026-11-17, option 2): no link, asks to reply PASS, rates + HELP + STOP, ONE GSM-7 segment', () => {
   for (const n of ['ANA SILVA', 'JOÃO 😀', 'Wolfeschlegelsteinhausen', null]) {
     const b = renderMessage(A.CHECK_IN, P({ name: n }), {}).body;
-    assertEquals(b, 'Welcome to Makers Air Valet! Your car is checked in. Reply PASS to get your valet pass link. Msg & data rates may apply. Reply HELP for help, STOP to opt out.');
+    assertEquals(b, 'Farber Parking at Makers Air: your car is checked in. Reply PASS to get your valet pass link. Msg & data rates may apply. Reply HELP for help, STOP to opt out.');
     assertEquals(b, CHECK_IN_ASK_PASS_BODY);
     assertEquals(seg(b), 1);
     assert(Array.from(b).every((ch) => isGsm7(ch)));
@@ -106,8 +106,8 @@ Deno.test('CHECK_IN (2026-11-17, option 2): no link, asks to reply PASS, rates +
 Deno.test('RETURN_UPDATED / AFTER_HOURS_CONFIRMED: one segment, no lockbox code, pending approval', () => {
   const tpl = { ...A.RETURN_UPDATED, status: 'APPROVED' as const, version: 't' };
   const b = renderMessage(tpl, P({ ret: '10/31/2026', ret_time: '18:00' }), ENV).body;
-  assertEquals(b, 'Makers Air Valet: Your return is updated to Sat, Oct 31, 6:00 PM. Reply here if anything changes.');
-  assertEquals(renderMessage(tpl, P({ ret: '10/31/2026', ret_time: null }), ENV).body, 'Makers Air Valet: Your return is updated to Sat, Oct 31. Reply here if anything changes.');
+  assertEquals(b, 'Farber Parking: Your return is updated to Sat, Oct 31, 6:00 PM. Reply here if anything changes.');
+  assertEquals(renderMessage(tpl, P({ ret: '10/31/2026', ret_time: null }), ENV).body, 'Farber Parking: Your return is updated to Sat, Oct 31. Reply here if anything changes.');
   const ah = renderMessage({ ...A.AFTER_HOURS_CONFIRMED, status: 'APPROVED' as const, version: 't' }, P(), ENV).body;
   assertEquals(seg(b), 1); assertEquals(seg(ah), 1); assertFalse(/\d{3,}/.test(ah));
   assertEquals(TEMPLATES.RETURN_UPDATED.status, 'PENDING_APPROVAL'); assertEquals(TEMPLATES.AFTER_HOURS_CONFIRMED.status, 'PENDING_APPROVAL');
@@ -144,7 +144,7 @@ Deno.test('Makers Customs exception: 8 owner scenarios (template + pickup rules)
   const ok = ready({ return_operator: 'MAKERS', delivery_at_customs: true });
   assertEquals(pickupPlace(P({ return_operator: 'MAKERS', delivery_at_customs: true })), 'CUSTOMS');
   assertEquals(ok.variant, 'CUSTOMS_EXCEPTION');
-  assertEquals(ok.body, 'Welcome back to Makers Air!\nYour vehicle is ready at Customs. Please reply to this message when you arrive so our valet team can assist you with your key.');
+  assertEquals(ok.body, 'Farber Parking: Welcome back!\nYour vehicle is ready at Customs. Please reply to this message when you arrive so our valet team can assist you with your key.');
   assertFalse(/tire|key is|driver/i.test(ok.body));
   assertEquals(seg(ok.body), 1);
   // 4 approved then revoked → Hangar 19
@@ -167,7 +167,7 @@ Deno.test('Welcome Back: a car left at Customs (DELIVERED, CUSTOMS) can still ge
   assertEquals(r({ return_operator: 'MAKERS', delivery_at_customs: false, status: 'DELIVERED', delivery_type: 'CUSTOMS' }), 'CUSTOMS_LEFT');
   assertEquals(r({ return_operator: 'MAKERS', customs_exception_requested_at: 'x', status: 'DELIVERED', delivery_type: 'CUSTOMS' }), 'CUSTOMS_LEFT');
   const left = renderMessage(A.VEHICLE_READY, P({ return_operator: 'MAKERS', status: 'DELIVERED', delivery_type: 'CUSTOMS' }), ENV).body;
-  assertEquals(left, "Makers Air Valet: Welcome back! Your car is parked at U.S. Customs. The key is on the front tire, driver's side. Questions? Reply here or call (954) 352-1010.");
+  assertEquals(left, "Farber Parking: Welcome back! Your car is parked at U.S. Customs. The key is on the front tire, driver's side. Questions? Reply here or call (954) 352-1010.");
   assertEquals(seg(left), 1);
   assertFalse(/Hangar 19/.test(left));
   assertEquals(r({ return_operator: 'ASCEND', status: 'DELIVERED', delivery_type: 'CUSTOMS' }), 'CUSTOMS_WELCOME');
@@ -435,7 +435,7 @@ Deno.test('service: happy path → one provider call, queued, SID + staff name s
   assertEquals(r.ok, true); assertEquals(r.status, 'queued'); assert(r.sid?.startsWith('SMMOCK'));
   assertEquals(provider.calls.length, 1);
   assertEquals(provider.calls[0].to, '+13055550101');
-  assert(provider.calls[0].body.startsWith('Welcome to Makers Air Valet! Your car is checked in.\nTap to see your car\'s live status, your return details and a direct line to our team:\nhttps://airvalet.farberos.com/a#'));
+  assert(provider.calls[0].body.startsWith('Farber Parking at Makers Air: your car is checked in.\nTap to see your car\'s live status, your return details and a direct line to our team:\nhttps://airvalet.farberos.com/a#'));
   assertEquals(countSegments(provider.calls[0].body), 2); // owner 2026-11-06: rates + HELP + STOP → two GSM-7 segments
   const tok = store.passLinks.get(1001)!;
   assertEquals(tok.length, 17);
@@ -455,7 +455,7 @@ Deno.test('service: Ascend departure still identified as Makers Air Valet; a res
   await sendAirValetSms(deps, { passengerId: 1002, type: 'CHECK_IN', actor: ops });
   const first = store.passLinks.get(1002)!;
   await sendAirValetSms(deps, { passengerId: 1002, type: 'CHECK_IN', eventRef: 'resend:7f1c0a2b', actor: mgr });
-  assertStringIncludes(provider.calls[0].body, 'Welcome to Makers Air Valet!'); assertFalse(provider.calls[0].body.includes('Ascend'));
+  assertStringIncludes(provider.calls[0].body, 'Farber Parking at Makers Air'); assertFalse(provider.calls[0].body.includes('Ascend'));
   assertEquals(store.mints, 2);
   assert(store.passLinks.get(1002) !== first);
   assertStringIncludes(provider.calls[1].body, store.passLinks.get(1002)!);
@@ -791,7 +791,7 @@ Deno.test('service: PENDING_APPROVAL wording runs only in mock mode; allowlist/l
   const r = await sendAirValetSms({ ...deps, mode: 'mock', provider: mock, templates: undefined }, { passengerId: 1001, type: 'RETURN_CONFIRMATION', actor: ops });
   assertEquals(r.ok, true);
   assertEquals(mock.calls.length, 1);
-  assertEquals(mock.calls[0].body.startsWith('Makers Air Valet:'), true);
+  assertEquals(mock.calls[0].body.startsWith('Farber Parking:'), true);
 });
 Deno.test('mock provider: SIDs are unique across instances (one per Edge Function call) and match the Twilio SID shape', async () => {
   const sids = new Set<string>();
@@ -870,7 +870,7 @@ Deno.test('service: an international number is never claimed nor sent through Tw
 });
 Deno.test('share welcome: same words as the SMS welcome, link included, no STOP line', () => {
   const b = shareWelcomeBody('https://airvalet.farberos.com/a#abc');
-  assertStringIncludes(b, 'Welcome to Makers Air Valet!');
+  assertStringIncludes(b, 'Farber Parking at Makers Air');
   assertStringIncludes(b, 'https://airvalet.farberos.com/a#abc');
   assertFalse(b.includes('STOP'));
 });

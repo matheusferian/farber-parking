@@ -7,12 +7,12 @@ export function rideText(kind: RideKind, tipUrl?: string | null): string {
   switch (kind) {
     case 'START':
       // Owner 2026-11-11: reply READY or call our number (155 chars, one segment).
-      return "Makers Air Valet: enjoy Jet Runway Cafe! When you're ready for your ride back to Makers Air, reply READY or call (954) 352-1010. Reply STOP to opt out";
+      return "Farber Parking: enjoy Jet Runway Cafe! When you're ready for your ride back to Makers Air, reply READY or call (954) 352-1010. Reply STOP to opt out";
     case 'ONWAY':
-      return "Makers Air Valet: we're on our way! Please wait outside Jet Runway Cafe, about 5 min.";
+      return "Farber Parking: we're on our way! Please wait outside Jet Runway Cafe, about 5 min.";
     case 'DONE':
       // Owner 2026-11-12: no tip wording in the SMS (A2P campaign); the note page offers the optional tip.
-      return 'Thanks for riding with Makers Air Valet!' + (tipUrl ? ` Your driver left you a note: ${tipUrl}` : '');
+      return 'Farber Parking: thanks for riding with us!' + (tipUrl ? ` Your driver left you a note: ${tipUrl}` : '');
   }
 }
 

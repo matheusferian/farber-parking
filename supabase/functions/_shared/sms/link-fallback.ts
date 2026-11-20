@@ -12,7 +12,7 @@ export const NO_LINK_BODY: Record<string, string> = {
   CHECK_IN_PASS: `${SENDER}: Your car is checked in. Reply PASS to get your valet pass link. Msg & data rates may apply. Reply HELP for help, STOP to opt out.`,
   DELIVERED: `${SENDER}: Your car has been delivered. Thank you for choosing us! Reply PASS to see your valet pass.`,
 };
-export const NO_LINK_VERSION = 'nolink-2026-11-17';
+export const NO_LINK_VERSION = 'nolink-2026-11-20-farber';
 
 export type BlockedRow = {
   id: string; direction: string; template_key: string | null; message_type: string | null; body: string | null;
