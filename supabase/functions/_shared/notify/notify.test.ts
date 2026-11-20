@@ -35,11 +35,11 @@ Deno.test('toGsm7 keeps GSM letters, transliterates the rest, drops emoji', () =
 });
 Deno.test('push payload: lock screen shows no name or text unless the device enabled previews', () => {
   const priv = pushPayload(D(), false);
-  assertEquals(priv.title, 'NEW GUEST MESSAGE');
-  assertEquals(priv.body, 'Ticket #1025-2 · Tap to read');
+  assertEquals(priv.title, 'Message · 1025-2');
+  assertEquals(priv.body, 'Open AirValet to read');
   assertFalse(priv.body.includes('John')); assertFalse(priv.body.includes('delayed'));
   const full = pushPayload(D(), true);
-  assertStringIncludes(full.body, 'John Smith - Ticket #1025-2'); assertStringIncludes(full.body, 'delayed');
+  assertStringIncludes(full.body, 'John Smith: '); assertStringIncludes(full.body, 'delayed');
   assertEquals(full.url, '/#messages');
 });
 
@@ -71,7 +71,7 @@ Deno.test('notifyEvent: push to every target once; admin SMS once; a repeat of t
   const r1 = await notifyEvent(deps, 'GUEST_MESSAGE', 'm1');
   assertEquals(r1, { push: 2, adminSms: 'sent' });
   assertEquals(sms.calls.length, 1); assertEquals(sms.calls[0].to, '+17545550101');
-  assertStringIncludes(pushed[0].body, 'John Smith'); assertEquals(pushed[1].body, 'Ticket #1025-2 · Tap to read');
+  assertStringIncludes(pushed[0].body, 'John Smith'); assertEquals(pushed[1].body, 'Open AirValet to read');
   const r2 = await notifyEvent(deps, 'GUEST_MESSAGE', 'm1');
   assertEquals(r2, { push: 0, adminSms: 'skipped' });
   assertEquals(sms.calls.length, 1);

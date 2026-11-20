@@ -294,7 +294,7 @@ Deno.serve(async (req) => {
   const pushMoves = async (moves: Move[], day: string) => {
     if (!moves.length) return;
     const lines = moves.map((x) => moveLine(x) + ((x as Move & { car_updated?: boolean }).car_updated ? ' Car time updated.' : ''));
-    await notifyCategory(deps, 'DAILY', { title: `Flight changed — ${day === today ? 'today' : 'tomorrow'} ${dayLabel(day)}`,
+    await notifyCategory(deps, 'DAILY', { title: `Flight changed · ${day === today ? 'today' : 'tomorrow'}`,
       body: lines.slice(0, 4).join('\n') + (lines.length > 4 ? `\n+${lines.length - 4} more` : ''), url: '/?mf=1', tag: `makers-moves-${day}-${Date.now()}` });
   };
 
@@ -435,17 +435,17 @@ Deno.serve(async (req) => {
     }
   } catch { /* suggestions are a convenience: never fail the robot */ }
   if (isCron && summaryRun) {
-    await notifyCategory(deps, 'DAILY', { title: `Makers · ${date === today ? 'today' : 'tomorrow'} ${dayLabel(date)}`,
+    await notifyCategory(deps, 'DAILY', { title: `Makers ${date === today ? 'today' : 'tomorrow'} · ${dayLabel(date)}`,
       body: summaryText(result) + (moves.length ? ` Flight changes since last reading: ${moves.length}.` : ''), url: '/?mf=1', tag: `makers-sync-${date}` });
   }
   await pushMoves(moves, date);
   if (no_show.length) {
-    await notifyCategory(deps, 'DAILY', { title: 'Possible no-show — car waiting',
-      body: no_show.map((x) => `${x.system_name} (#${x.ticket}) is no longer on flight ${x.was_flight}${x.was_time ? ' ' + x.was_time : ''}`).join('\n') + '\nCheck with Makers before waiting.',
+    await notifyCategory(deps, 'DAILY', { title: `Possible no-show · ${no_show.map((x) => x.ticket).join(', ')}`.slice(0, 60),
+      body: no_show.map((x) => `${x.system_name} (#${x.ticket}) is no longer on flight ${x.was_flight}${x.was_time ? ' ' + x.was_time : ''}`).join('\n') + '\nCheck with Makers.',
       url: '/?mf=1', tag: `makers-noshow-${date}` });
   }
   if (still_off.length) {
-    await notifyCategory(deps, 'DAILY', { title: `Not on any Makers flight today — ${still_off.length} car${still_off.length === 1 ? '' : 's'} waiting`,
+    await notifyCategory(deps, 'DAILY', { title: `Not on a Makers flight · ${still_off.length} car${still_off.length === 1 ? '' : 's'}`,
       body: still_off.slice(0, 5).map((x) => `${x.system_name} (#${x.ticket})`).join('\n') + (still_off.length > 5 ? `\n+${still_off.length - 5} more` : '') + '\nCheck before the last flights.',
       url: '/?mf=1', tag: `makers-stilloff-${date}` });
   }
@@ -455,13 +455,13 @@ Deno.serve(async (req) => {
     ...result.date_diffs.filter((d) => noDateIds.has(d.passenger_id)).map((d) => `${d.system_name}: return booked ${d.makers} in Makers`),
   ];
   if (fuLines.length) {
-    await notifyCategory(deps, 'DAILY', { title: 'Follow-up guest found in Makers', body: fuLines.slice(0, 4).join('\n') + (fuLines.length > 4 ? `\n+${fuLines.length - 4} more` : ''),
+    await notifyCategory(deps, 'DAILY', { title: 'Follow-up guest found', body: fuLines.slice(0, 4).join('\n') + (fuLines.length > 4 ? `\n+${fuLines.length - 4} more` : ''),
       url: '/?mf=1', tag: `makers-followup-${date}` });
   }
   // Any run (robot or Update button) that finds departures changed tells the phones/iPad: resend the picture.
   if (changes && changes.items.length) {
-    await notifyCategory(deps, 'DAILY', { title: `Makers changes · departures ${date === today ? 'today' : 'tomorrow'} ${dayLabel(date)}`,
-      body: changes.lines.slice(0, 4).join('\n') + (changes.lines.length > 4 ? `\n+${changes.lines.length - 4} more` : '') + '\nOpen Makers Flights to resend the updated picture.',
+    await notifyCategory(deps, 'DAILY', { title: `Departures changed · ${date === today ? 'today' : 'tomorrow'}`,
+      body: changes.lines.slice(0, 4).join('\n') + (changes.lines.length > 4 ? `\n+${changes.lines.length - 4} more` : '') + '\nResend the picture.',
       url: '/?mf=1', tag: `makers-changes-${date}` });
   }
   await unlock();

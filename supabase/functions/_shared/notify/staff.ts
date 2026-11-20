@@ -29,19 +29,24 @@ function money(cents: number | null | undefined): string {
   return '$' + (c / 100).toFixed(2);
 }
 
+// Owner 2026-11-20 ("os push estão bagunçados, confuso no iPhone e no relógio"): one look for every push —
+// title = what + which car (fits the watch), body = one line: who · what to do. Names in Title Case.
+export function pushName(n: unknown): string {
+  return String(n || '').trim().replace(/\s+/g, ' ').toLowerCase().replace(/(^|[\s'-])([a-z])/g, (_m, a, b) => a + b.toUpperCase()).slice(0, 40);
+}
 // What the phone shows. Without "show details" only the ticket / amount, never the guest name.
 export function staffPushPayload(kind: StaffKind, c: StaffClaim, showPreview: boolean): { title: string; body: string; url: string; tag: string } {
-  const ticket = c.ticket ? `Ticket #${c.ticket}` : '';
+  const t = c.ticket ? String(c.ticket) : '';
   if (kind === 'TIP') {
-    const who = showPreview && c.name ? `${String(c.name).slice(0, 40)}${ticket ? ' · ' + ticket : ''}` : (ticket || 'Valet tip');
-    return { title: `NEW TIP · ${money(c.amount_cents)}`, body: `${who} · Stripe`, url: '/', tag: `airvalet-tip-${c.key || 'x'}` };
+    const who = showPreview && c.name ? pushName(c.name) + ' · Stripe' : 'Stripe';
+    return { title: `Tip ${money(c.amount_cents)}${t ? ' · ' + t : ''}`, body: who, url: '/', tag: `airvalet-tip-${c.key || 'x'}` };
   }
   if (c.mode === 'summary') {
-    return { title: 'NEW CHECK-INS', body: 'More check-ins just arrived. Open AirValet to see them.', url: '/', tag: 'airvalet-checkin-batch' };
+    return { title: 'New check-ins', body: 'Open AirValet to see them', url: '/', tag: 'airvalet-checkin-batch' };
   }
-  const where = c.loc ? ` · ${String(c.loc).slice(0, 20)}` : '';
-  const body = showPreview && c.name ? `${String(c.name).slice(0, 40)} · ${ticket || 'New ticket'}${where}` : `${ticket || 'New ticket'}${where}`;
-  return { title: 'NEW CHECK-IN', body, url: '/', tag: `airvalet-checkin-${c.ticket || 'new'}` };
+  const where = c.loc ? pushName(c.loc) : 'No hangar yet';
+  const body = showPreview && c.name ? `${pushName(c.name)} · ${where}` : where;
+  return { title: `Check-in ${t || 'new car'}`, body, url: '/', tag: `airvalet-checkin-${t || 'new'}` };
 }
 
 // One phone at a time: a bad subscription (e.g. a key the encryption rejects) never stops the others or the audit.
@@ -88,23 +93,53 @@ export async function notifyStaff(deps: StaffDeps, kind: string, id: number): Pr
 export type ReminderItem = { code: string; category: string; key: string; ticket: string | null; body: string; grp?: string | null; gtext?: string | null };
 export const REMINDER_BATCH_MAX = 3;   // more than this many alerts for one phone in one run → one summary alert
 
+// Reminder text (written by airvalet_staff_reminders) → title "what · ticket(s)" + one short line.
+// The 30 / 20 / 10 min reminders of the same car share one tag, so the newer one REPLACES the older one on
+// the phone and the watch instead of stacking three cards (owner 2026-11-20).
+const LANDS = /lands (\d{1,2}:\d{2} [AP]M)/i, IN_MIN = /\(in (\d+) min\)/i;
+export function reminderLook(code: string, tickets: string, text: string): { title: string; body: string } {
+  const lands = (LANDS.exec(text) || [])[1] || '', inMin = (IN_MIN.exec(text) || [])[1];
+  const soon = inMin ? ` · in ${inMin} min` : '';
+  const tk = tickets ? ' · ' + tickets : '';
+  switch (code) {
+    case 'H19_WB': return { title: `Lands ${lands}${tk}`, body: `Send Welcome Back${soon}` };
+    case 'DAYTRIP_WB': return { title: `Day trip lands ${lands}${tk}`, body: `Send Welcome Back${soon}` };
+    case 'MOVE': return { title: `${/customs/i.test(text) ? 'Take to Customs' : 'Move to Hangar 19'}${tk}`, body: lands ? `Lands ${lands}` : '' };
+    case 'NO_HANGAR': return { title: `No hangar${tk}`, body: 'Set where the car is' };
+    case 'GRATUITY': return { title: `Gratuity link${tk}`, body: 'Send it (delivered at Customs)' };
+    case 'CUSTOMS_WB': return { title: `Customs Welcome Back${tk}`, body: 'Not sent yet' };
+  }
+  if (/^CW_/.test(code)) {
+    const when = /^CW_D(\d)/.exec(code), day = /\(([A-Z][a-z]{2} [A-Z][a-z]{2} \d{1,2})\)/.exec(text);
+    return { title: `Car wash${tk}`, body: code === 'CW_DAY' ? 'Today · not marked washed yet' : when ? `In ${when[1]} day${when[1] === '1' ? '' : 's'}${day ? ' · ' + day[1] : ''}` : 'Pending' };
+  }
+  // Daily summaries ("3 cars without a return date: 1101-2, …"): the sentence is the title, the tickets the line.
+  const i = text.indexOf(': ');
+  return i > 0 ? { title: text.slice(0, i).trim(), body: text.slice(i + 2).trim() } : { title: 'Reminder', body: text };
+}
 export function reminderPushPayloads(items: ReminderItem[]): { title: string; body: string; url: string; tag: string }[] {
-  const groups: { tag: string; body: string }[] = [], byGrp = new Map<string, ReminderItem[]>();
+  const groups: { tag: string; code: string; tickets: string; text: string }[] = [], byGrp = new Map<string, ReminderItem[]>();
   for (const i of items) {
-    if (!i.grp || !i.gtext) { groups.push({ tag: i.key, body: i.body }); continue; }
+    if (!i.grp || !i.gtext) { groups.push({ tag: i.key, code: i.code, tickets: i.ticket || '', text: i.body }); continue; }
     const g = byGrp.get(i.grp);
     if (g) { g.push(i); continue; }
-    byGrp.set(i.grp, [i]); groups.push({ tag: i.grp, body: '' });
+    byGrp.set(i.grp, [i]); groups.push({ tag: i.grp, code: i.code, tickets: '', text: '' });
   }
   for (const g of groups) {
     const members = byGrp.get(g.tag); if (!members) continue;
-    g.body = members.length === 1 ? members[0].body : members[0].gtext!.replace('{t}', members.map((m) => m.ticket || '?').join(', '));
+    g.tickets = members.map((m) => m.ticket || '?').join(', ');
+    g.text = members.length === 1 ? members[0].body : members[0].gtext!.replace('{t}', g.tickets);
   }
+  // The flight's group text carries the landing time too (a lone car of a flight keeps its own sentence).
+  const gtextOf = (g: { tag: string }) => (byGrp.get(g.tag) || [])[0]?.gtext || '';
+  const looks = groups.map((g) => ({ g, l: reminderLook(g.code, g.tickets, LANDS.test(g.text) || !gtextOf(g) ? g.text : g.text + ' ' + gtextOf(g)) }));
   if (groups.length > REMINDER_BATCH_MAX) {
-    const list = groups.slice(0, 4).map((g) => g.body).join(' · ');
-    return [{ title: `${groups.length} AIRVALET REMINDERS`, body: (list + (groups.length > 4 ? ' · …' : '')).slice(0, 200), url: '/', tag: 'airvalet-reminders' }];
+    const list = looks.slice(0, 4).map((x) => x.l.title).join(' · ');
+    return [{ title: `${groups.length} reminders`, body: (list + (groups.length > 4 ? ' · …' : '')).slice(0, 200), url: '/', tag: 'airvalet-reminders' }];
   }
-  return groups.map((g) => ({ title: 'AIRVALET REMINDER', body: g.body.slice(0, 200), url: '/', tag: `airvalet-${g.tag}`.slice(0, 120) }));
+  // Same car, same kind → same tag (the minutes and the ETA are left out), so the newest replaces the older card.
+  const series = (g: { tag: string; code: string; tickets: string }) => /^(H19_WB|DAYTRIP_WB|MOVE|CW_DAY)$/.test(g.code) && g.tickets ? `${g.code}-${g.tickets}` : g.tag;
+  return looks.map(({ g, l }) => ({ title: l.title.slice(0, 60), body: l.body.slice(0, 200), url: '/', tag: `airvalet-${series(g)}`.replace(/\s+/g, '').slice(0, 120) }));
 }
 
 export async function notifyReminders(deps: StaffDeps): Promise<{ kind: string; items: number; push: number }> {

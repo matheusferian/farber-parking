@@ -28,20 +28,19 @@ function fakePush() {
 Deno.test('check-in alert: name only on phones that show details; ticket and place always', () => {
   const c = { mode: 'single' as const, key: 'k', name: 'JOHN SMITH', ticket: '1026-3', loc: 'HANGAR 19' };
   const a = staffPushPayload('CHECK_IN', c, true), b = staffPushPayload('CHECK_IN', c, false);
-  assertEquals(a.title, 'NEW CHECK-IN');
-  assertStringIncludes(a.body, 'JOHN SMITH'); assertStringIncludes(a.body, '1026-3'); assertStringIncludes(a.body, 'HANGAR 19');
-  assertFalse(b.body.includes('JOHN')); assertStringIncludes(b.body, '1026-3');
+  assertEquals(a.title, 'Check-in 1026-3'); assertEquals(a.body, 'John Smith · Hangar 19');
+  assertEquals(b.title, 'Check-in 1026-3'); assertEquals(b.body, 'Hangar 19');
 });
 Deno.test('check-in burst: one summary alert', () => {
   const p = staffPushPayload('CHECK_IN', { mode: 'summary', key: 'k' }, true);
-  assertEquals(p.title, 'NEW CHECK-INS'); assertEquals(p.tag, 'airvalet-checkin-batch');
+  assertEquals(p.title, 'New check-ins'); assertEquals(p.tag, 'airvalet-checkin-batch');
 });
 Deno.test('tip alert: amount in the title; name only with details on', () => {
   const c = { mode: 'single' as const, key: 'push:TIP:9', amount_cents: 1500, ticket: '1026-2', name: 'ANA LIMA' };
   const a = staffPushPayload('TIP', c, true), b = staffPushPayload('TIP', c, false);
-  assertEquals(a.title, 'NEW TIP · $15.00'); assertStringIncludes(a.body, 'ANA LIMA'); assertStringIncludes(a.body, 'Stripe');
-  assertFalse(b.body.includes('ANA')); assertStringIncludes(b.body, '1026-2');
-  assertEquals(staffPushPayload('TIP', { mode: 'single', key: 'k', amount_cents: 500 }, false).body, 'Valet tip · Stripe');
+  assertEquals(a.title, 'Tip $15.00 · 1026-2'); assertEquals(a.body, 'Ana Lima · Stripe');
+  assertEquals(b.body, 'Stripe');
+  assertEquals(staffPushPayload('TIP', { mode: 'single', key: 'k', amount_cents: 500 }, false).title, 'Tip $5.00');
 });
 Deno.test('notifyStaff: claim → every opted-in phone → result and log closed', async () => {
   const db = fakeDb({ mode: 'single', key: 'push:CHECK_IN:5', name: 'JOHN', ticket: '1026-3', loc: '' });
@@ -49,7 +48,7 @@ Deno.test('notifyStaff: claim → every opted-in phone → result and log closed
   const r = await notifyStaff({ db, vapid: VAPID, pushImpl: p.impl }, 'CHECK_IN', 5);
   assertEquals(r, { kind: 'CHECK_IN', mode: 'single', push: 2 });
   assertEquals(p.sent.length, 2);
-  assertStringIncludes(p.sent[0].data.body, 'JOHN'); assertFalse(p.sent[1].data.body.includes('JOHN'));
+  assertStringIncludes(p.sent[0].data.body, 'John'); assertFalse(p.sent[1].data.body.includes('John'));
   assertEquals(db.calls.filter((c) => c.fn === 'airvalet_push_result').length, 2);
   const fin = db.calls.find((c) => c.fn === 'airvalet_notify_finish')!;
   assertEquals(fin.args.p_status, 'sent'); assertEquals(fin.args.p_dedupe_key, 'push:CHECK_IN:5');
@@ -106,7 +105,7 @@ function remDb(items: unknown[], targets: unknown[]) {
 Deno.test('reminders: up to 3 → one alert each; more → one summary', () => {
   assertEquals(reminderPushPayloads([RI('H19_WB', 'WELCOME_BACK', 1), RI('MOVE', 'POSITION', 2)]).length, 2);
   const five = reminderPushPayloads([1, 2, 3, 4, 5].map((n) => RI('CW_DAY', 'CARWASH', n)));
-  assertEquals(five.length, 1); assertEquals(five[0].title, '5 AIRVALET REMINDERS'); assertStringIncludes(five[0].body, '…');
+  assertEquals(five.length, 1); assertEquals(five[0].title, '5 reminders'); assertStringIncludes(five[0].body, '…');
 });
 Deno.test('reminders: each phone gets only its categories; audit closed per reminder', async () => {
   const items = [RI('CW_D3', 'CARWASH', 1), RI('NODATE_ADMIN', 'NODATE_ADMIN', 2), RI('H19_WB', 'WELCOME_BACK', 3)];
@@ -171,17 +170,17 @@ Deno.test('same flight: three cars landing together → one alert listing the ti
   const wb = (n: number) => ({ ...RI('H19_WB', 'WELCOME_BACK', n), grp: 'H19_WB:2026-10-26:1022', gtext: 'Send Welcome Back, lands 5:02 PM: {t}' });
   const p = reminderPushPayloads([wb(1), wb(2), wb(3)]);
   assertEquals(p.length, 1);
-  assertEquals(p[0].body, 'Send Welcome Back, lands 5:02 PM: T-1, T-2, T-3'); assertEquals(p[0].title, 'AIRVALET REMINDER');
+  assertEquals(p[0].title, 'Lands 5:02 PM · T-1, T-2, T-3'); assertEquals(p[0].body, 'Send Welcome Back');
   // another flight stays apart; one car alone keeps its own text
   const other = { ...RI('H19_WB', 'WELCOME_BACK', 9), grp: 'H19_WB:2026-10-26:1110', gtext: 'Send Welcome Back, lands 6:30 PM: {t}' };
   const q = reminderPushPayloads([wb(1), wb(2), other]);
-  assertEquals(q.length, 2); assertEquals(q[1].body, 'H19_WB for T-9');
+  assertEquals(q.length, 2); assertEquals(q[1].title, 'Lands 6:30 PM · T-9');
 });
 Deno.test('grouping counts as one alert for the "more than 3 → summary" rule', () => {
   const g = (code: string, n: number, grp: string) => ({ ...RI(code, 'POSITION', n), grp, gtext: `${code}: {t}` });
   const items = [g('NO_HANGAR', 1, 'NO_HANGAR'), g('NO_HANGAR', 2, 'NO_HANGAR'), g('NO_HANGAR', 3, 'NO_HANGAR'), g('NO_HANGAR', 4, 'NO_HANGAR'), RI('OVERDUE', 'DAILY', 5)];
   const p = reminderPushPayloads(items);
-  assertEquals(p.length, 2); assertEquals(p[0].body, 'NO_HANGAR: T-1, T-2, T-3, T-4');
+  assertEquals(p.length, 2); assertEquals(p[0].title, 'No hangar · T-1, T-2, T-3, T-4');
 });
 Deno.test('grouped reminders: each one still audited on its own', async () => {
   const wb = (n: number) => ({ ...RI('H19_WB', 'WELCOME_BACK', n), grp: 'H19_WB:x', gtext: 'WB: {t}' });
@@ -191,4 +190,16 @@ Deno.test('grouped reminders: each one still audited on its own', async () => {
   assertEquals(p.sent.length, 1); assertEquals(r.push, 1);
   const fin = db.calls.filter((c) => c.fn === 'airvalet_notify_finish');
   assertEquals(fin.length, 3); assert(fin.every((f) => f.args.p_status === 'sent' && f.args.p_detail === 'H19_WB: 1 device(s)'));
+});
+
+// Owner 2026-11-20: one look for every reminder; the 30/20/10 min reminders of one car share one tag (replace, not stack).
+Deno.test('reminder look: short title with the ticket, one line, same tag for the same car', () => {
+  const r = (m: number) => ({ code: 'H19_WB', category: 'WELCOME_BACK', key: `REM:H19_WB:1:2026-11-20:1061:${m}`, ticket: '1117-7',
+    body: `Send Welcome Back: 1117-7 lands 5:41 PM (in ${m} min)`, grp: `H19_WB:2026-11-20:1061:${m}`, gtext: `Send Welcome Back, lands 5:41 PM (in ${m} min): {t}` });
+  const a = reminderPushPayloads([r(30)])[0], b = reminderPushPayloads([r(10)])[0];
+  assertEquals([a.title, a.body], ['Lands 5:41 PM · 1117-7', 'Send Welcome Back · in 30 min']);
+  assertEquals(b.body, 'Send Welcome Back · in 10 min');
+  assertEquals(a.tag, b.tag);
+  const n = reminderPushPayloads([{ code: 'NODATE_ADMIN', category: 'NODATE_ADMIN', key: 'REM:NODATE_ADMIN:2026-11-20', ticket: null, body: '3 cars without a return date: 1101-2, 1105-1, 1107-5' }])[0];
+  assertEquals([n.title, n.body], ['3 cars without a return date', '1101-2, 1105-1, 1107-5']);
 });

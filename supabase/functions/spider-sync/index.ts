@@ -95,7 +95,7 @@ async function planeEvents(admin: any, positions: Pos[], day: string): Promise<s
     if (kt >= 40 && dist > 1 && (sp.inbound || closing)) {
       const eta = dist / kt * 60;
       if (eta <= 6 && inWin(now + eta * 60000) && closest(L.reg, L.flight, now + eta * 60000) && await once(k, 'LANDING_SOON')) {
-        await notifyCategory(deps, 'DAILY', { title: `${tail} landing in ~${Math.max(1, Math.round(eta))} min`, body: `${from} → FXE · flight ${L.flight}\n${who}`, url: '/', tag: `plane-${k}-soon` });
+        await notifyCategory(deps, 'DAILY', { title: `Landing in ${Math.max(1, Math.round(eta))} min · ${tail}`, body: `${who} · from ${from}`, url: '/', tag: `plane-${k}-soon` });
         sent.push(`${k}:LANDING_SOON`);
       }
     }
@@ -104,7 +104,7 @@ async function planeEvents(admin: any, positions: Pos[], day: string): Promise<s
     const flew = sp.departed_at ? last - Date.parse(sp.departed_at) > 20 * 60000 : true;
     const stopped = dist <= 3 && sp.track_status === 'POWER_OFF' && flew && (!dep || last >= dep - 10 * 60000);
     if (stopped && inWin(last) && closest(L.reg, L.flight, last) && await once(k, 'LANDED')) {
-      await notifyCategory(deps, 'DAILY', { title: `${tail} landed · at Customs`, body: `${from} → FXE · flight ${L.flight}\n${who}`, url: '/', tag: `plane-${k}-landed` });
+      await notifyCategory(deps, 'DAILY', { title: `Landed at Customs · ${tail}`, body: `${who} · from ${from}`, url: '/', tag: `plane-${k}-landed` });
       sent.push(`${k}:LANDED`);
     }
     if (dist <= 3 && sp.track_status !== 'POWER_OFF' && kt < 40) {
@@ -115,7 +115,7 @@ async function planeEvents(admin: any, positions: Pos[], day: string): Promise<s
       // (or the next departure), not the Customs → Hangar 19 hop.
       const recent = landed && last - Date.parse(landed.at) <= 60 * 60000;
       if (landed && onAgain && recent && last > Date.parse(landed.at) && await once(k, 'LEFT_CUSTOMS')) {
-        await notifyCategory(deps, 'DAILY', { title: `${tail} left Customs → Hangar 19`, body: `Flight ${L.flight} from ${from}\n${who}`, url: '/', tag: `plane-${k}-h19` });
+        await notifyCategory(deps, 'DAILY', { title: `Going to Hangar 19 · ${tail}`, body: `${who} · from ${from}`, url: '/', tag: `plane-${k}-h19` });
         sent.push(`${k}:LEFT_CUSTOMS`);
       }
     }

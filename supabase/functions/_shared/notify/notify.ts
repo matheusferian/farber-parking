@@ -49,9 +49,10 @@ export function adminSmsBody(d: Details, appUrl: string): string {
 }
 
 export function pushPayload(d: Details, showPreview: boolean): { title: string; body: string; url: string; tag: string } {
-  const title = d.kind === 'GUEST_MESSAGE' ? 'NEW GUEST MESSAGE' : 'NEW PASSENGER REQUEST';
-  const ticket = d.ticket ? `Ticket #${d.ticket}` : 'Ticket not matched';
-  const body = showPreview ? `${d.name} - ${ticket}\n"${d.text.slice(0, 120)}"` : `${ticket} · Tap to read`;
+  // Owner 2026-11-20: same look as every push — "Message · 1120-3", one line "Roderick Ciferri: text".
+  const title = `${d.kind === 'GUEST_MESSAGE' ? 'Message' : 'Request'} · ${d.ticket || 'no ticket'}`;
+  const nm = String(d.name || '').trim().replace(/\s+/g, ' ').toLowerCase().replace(/(^|[\s'-])([a-z])/g, (_m, a, b) => a + b.toUpperCase());
+  const body = showPreview ? `${nm ? nm + ': ' : ''}${d.text.replace(/\s+/g, ' ').slice(0, 120)}` : 'Open AirValet to read';
   return { title, body, url: '/#messages', tag: `airvalet-${d.kind.toLowerCase()}` };
 }
 

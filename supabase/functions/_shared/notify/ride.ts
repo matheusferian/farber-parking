@@ -9,7 +9,7 @@ import type { Vapid } from './notify.ts';
 type Db = { rpc(fn: string, args: Record<string, unknown>): PromiseLike<{ data: any; error: any }> };
 
 export function ridePushPayload(last4: string) {
-  return { title: 'JET RUNWAY · READY', body: `…${last4} is ready for the ride back`, url: '/#rides', tag: 'airvalet-ride' };
+  return { title: 'Jet Runway ride ready', body: `Guest …${last4} is ready for the ride back`, url: '/#rides', tag: 'airvalet-ride' };
 }
 
 export async function notifyRideReady(db: Db, vapid: Vapid | null, rideId: string, last4: string,
