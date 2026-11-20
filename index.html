@@ -17205,7 +17205,12 @@ function maybeFetchTvPhotos(){
   if(_tv.photosLastFetchAt !== null && (Date.now() - _tv.photosLastFetchAt) < 120000) return;
   fetchTvPhotos();
 }
-function tv4PhotoHtml(r){ var p = _tv.photos && _tv.photos[r.id]; return p ? '<img class="tv4-ph" src="'+p.url+'" alt="Car photo">' : ''; }
+// A card without a photo keeps an empty slot while any car has one, so the status pills stay in one column.
+function tv4PhotoHtml(r){
+  var p = _tv.photos && _tv.photos[r.id];
+  if(p) return '<img class="tv4-ph" src="'+p.url+'" alt="Car photo">';
+  return _tv.photos && Object.keys(_tv.photos).length ? '<span class="tv4-ph tv4-ph-none" aria-hidden="true"></span>' : '';
+}
 // Spidertracks (satellite) positions of the Makers fleet, written every minute by spider-sync.
 async function fetchTvSpider(){
   _tv.spiderLastFetchAt = Date.now();

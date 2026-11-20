@@ -3478,3 +3478,13 @@ body.av-kiosk .ci2-wide .ci2-script{font-size:17px;line-height:1.5}
 
 /* Owner 2026-11-19: photo before printing; fallback when there is no photo. */
 .ci2-nophoto{width:100%;min-height:44px;margin:0 0 8px;border:1.5px solid var(--b);border-radius:12px;background:#fff;color:var(--tx);font:600 14px 'Inter',sans-serif;cursor:pointer;}
+/* TV car photo V2 (owner 11/20 "ficou feio"): landscape photo on the right, same card height, no white ring */
+.tv4-has-ph,.tv4-multi .tv4-has-ph{grid-template-columns:4.3em minmax(0,1fr) auto;}
+.tv4-multi .tv4-has-ph{grid-template-columns:3.9em minmax(0,1fr) auto;}
+.tv4-has-ph .tv4-tm,.tv4-multi .tv4-has-ph .tv4-tm{grid-column:1;grid-row:1;align-self:center;}
+.tv4-multi .tv4-has-ph .tv4-tm{align-self:start;}
+.tv4-has-ph .tv4-main,.tv4-multi .tv4-has-ph .tv4-main{grid-column:2;grid-row:1;}
+.tv4-has-ph .tv4-ph,.tv4-multi .tv4-has-ph .tv4-ph{grid-column:3;grid-row:1;align-self:center;margin:0;
+  width:4.6em;height:3em;border-radius:.35em;object-fit:cover;box-shadow:0 0 0 1px rgba(255,255,255,.14),0 2px 6px rgba(0,0,0,.35);}
+.tv4-multi .tv4-has-ph .tv4-ph{width:3.9em;height:2.6em;}
+.tv4-ph-none{visibility:hidden;}
