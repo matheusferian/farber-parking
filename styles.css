@@ -3475,3 +3475,6 @@ body.av-kiosk .ci2-wide .ci2-script{font-size:17px;line-height:1.5}
 /* Owner 2026-11-19: photo first — what the AI filled. */
 .ci2-aifill{margin:10px 0 4px;font:600 15px 'Inter',sans-serif;color:var(--tx-ok);}
 .ci2-aifill b{color:var(--tx);}
+
+/* Owner 2026-11-19: photo before printing; fallback when there is no photo. */
+.ci2-nophoto{width:100%;min-height:44px;margin:0 0 8px;border:1.5px solid var(--b);border-radius:12px;background:#fff;color:var(--tx);font:600 14px 'Inter',sans-serif;cursor:pointer;}

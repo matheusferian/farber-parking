@@ -3160,13 +3160,11 @@ async function finUpload(pid, file){
     var out = await vpRpc('airvalet_pass_photo_set', { p_passenger_id: pid, p_image_b64: b64 });
     if (!out || out.result !== 'OK') { showMsg('Photo not saved (' + ((out && out.result) || 'error') + ').', true); return; }
     sbLog('EDITED', r.name || '', r.ticket || '', r.loc || '', 'Car photo added to the valet pass (finish on phone)', { passenger_id: pid });
-    carPhotosAdd(pid, 'rear', p.blob);
-    // Plate from the same answer, only when the AI is sure and the ticket has none yet.
-    if (ai && ai.plate && (ai.confidence && ai.confidence.plate >= 0.85) && !r.plate) {
-      try { await sbUpdate(pid, { plate: ai.plate, plate_state: ai.plate_state || null }); r.plate = ai.plate; r.plate_state = ai.plate_state || ''; } catch(e) {}
-    }
+    var savedT = await carPhotosAdd(pid, 'rear', p.blob, r);
+    await carAiFill(r, ai);   // color / car / plate the AI is sure of, when the ticket has none
     _fin.have[pid] = true; finRender(null);
-    showMsg('✓ Rear photo is on ' + (r.name || 'the guest') + '’s valet pass.', false);
+    if (savedT) showMsg('✓ Rear photo saved on ticket ' + (r.ticket || '') + ' and on the valet pass.', false);
+    else showMsg('Rear photo is on the valet pass but NOT on ticket ' + (r.ticket || '') + '. Open the ticket and tap Take photo again.', true);
   } catch(e) { showMsg('Photo not saved. Try again.', true); }
 }
 function renderDay() {
@@ -7515,7 +7513,7 @@ function ci2Html(){
   +   '<p class="ci2-passup" id="ci2Pass" hidden></p>'
   + '</div></div>'
   + '<div id="ci2Details" class="ci2-details" hidden><div class="ci2-col">'
-  +   (avPhotosOn() ? ci2Sec('ci2SPhotos', 'Photo of the car', 'Take it first', '<button type="button" class="ci2-btn ci2-take" onclick="ci2ShotTake(\'auto\')">Take photo</button><div class="ci2-shots" id="ci2Shots"></div><input type="file" id="ci2ShotIn" accept="image/*" capture="environment" hidden><div id="ci2Ai"></div><p class="ci2-hint" id="ci2PassSt" role="status">Optional. The rear photo shows on the passenger\'s valet pass.</p>') : '')
+  +   (avPhotosOn() ? ci2Sec('ci2SPhotos', 'Photo of the car', 'Take it first', '<button type="button" class="ci2-btn ci2-take" onclick="ci2ShotTake(\'auto\')">Take photo</button><button type="button" class="ci2-nophoto" id="ci2NoPhoto" onclick="ci2NoPhoto()">No photo — type the car</button><div class="ci2-shots" id="ci2Shots"></div><input type="file" id="ci2ShotIn" accept="image/*" capture="environment" hidden><div id="ci2Ai"></div><p class="ci2-hint" id="ci2PassSt" role="status">Optional. The rear photo shows on the passenger\'s valet pass.</p>') : '')
   +   ci2Sec('ci2SHangar', 'Hangar', 'Not set', '<div class="ci2-chipset" id="ci2Hangars"></div>')
   +   ci2Sec('ci2SVeh', 'Vehicle', 'From the photo', '<p class="ci2-sub">Make</p><input class="ci2-search" id="ci2MakeQ" placeholder="Search or type any make" autocomplete="off"><div class="ci2-chipset ci2-logos" id="ci2Makes"></div>'
   +     '<div id="ci2ModelBox" hidden><p class="ci2-sub">Model</p><input class="ci2-search" id="ci2ModelQ" placeholder="Search or type any model" autocomplete="off"><div class="ci2-chipset" id="ci2Models"></div></div>'
@@ -7534,7 +7532,7 @@ function ci2Html(){
   +   ci2Sec('ci2STip', 'Tip', '+ Add tip', '<p class="ci2-hint" style="margin-top:0">Cash received now, if any. Optional — skip it and nothing is recorded.</p>' + tipQuickHtml('ci2Tip')
   +     '<div class="ci2-btnrow"><button type="button" class="ci2-btn" id="ci2TipSave">Save tip</button></div><p class="ci2-hint" id="ci2TipMsg" aria-live="polite"></p>')
   + '</div></div>'
-  + '<div class="ci2-dock" id="ci2Dock" hidden><div class="ci2-need"><span id="ci2NH">Hangar</span><span id="ci2NM">Car (photo)</span><span id="ci2NC">Color (photo)</span></div>'
+  + '<div class="ci2-dock" id="ci2Dock" hidden><div class="ci2-need"><span id="ci2NP">Photo</span><span id="ci2NH">Hangar</span><span id="ci2NM">Car</span><span id="ci2NC">Color</span></div>'
   +   '<button type="button" class="ci2-btn line" onclick="ci2Done()">Done</button>'
   +   '<div class="ci2-printw"><button type="button" class="ci2-print" id="ci2Print" disabled aria-controls="ci2Reprint">Print Tags</button>'
   +     '<div class="ci2-rpm" id="ci2Reprint" hidden><button type="button" data-print="both">Print both<small>Key + dashboard</small></button>'
@@ -8260,9 +8258,13 @@ async function ci2PickRevoke(){
 function ci2Need(){
   if (!_ci) return;
   var h = !!_ci.hangar, m = !!ci2VehCar(), c = !!_ci.color;
+  // Owner 2026-11-19: "quero tirar foto antes de imprimir as tags" — the photo comes first (the AI fills the car,
+  // so the tag prints the right make and color). "No photo" is the fallback (then staff type the car).
+  var ph = !avPhotosOn() || !!(_ci.shots && (_ci.shots.rear || _ci.shots.front)) || !!_ci.noPhoto;
+  var np = ci2El('ci2NP'); if (np) { np.className = ph ? 'ok' : ''; np.hidden = !avPhotosOn(); }
   ci2El('ci2NH').className = h ? 'ok' : ''; ci2El('ci2NM').className = m ? 'ok' : ''; ci2El('ci2NC').className = c ? 'ok' : '';
   var b = ci2El('ci2Print');
-  b.disabled = !!_ci.printing || !(h && m && c && _ci.created);
+  b.disabled = !!_ci.printing || !(ph && h && m && c && _ci.created);
   b.innerHTML = _ci.printing ? 'Printing…' : (_ci.printed ? 'Reprint <span aria-hidden="true">▾</span>' : 'Print Tags');
   if (_ci.printed) b.setAttribute('aria-expanded', String(!ci2El('ci2Reprint').hidden)); else b.removeAttribute('aria-expanded');
 }
@@ -8353,7 +8355,7 @@ async function ci2ShotStore(key, p){
     await avShotPut({ key: ref + ':' + key + ':' + at, ticket: ref, angle: key, taken_at: at, w: p.w, h: p.h, bytes: p.blob.size, sha256: p.sha256, blob: p.blob });
     if (_ci.shots[key]) URL.revokeObjectURL(_ci.shots[key].url);
     _ci.shots[key] = { url: URL.createObjectURL(p.blob), at: at, bytes: p.blob.size, blob: p.blob };
-    ci2RenderShots();
+    ci2RenderShots(); ci2Need(); var nb = ci2El('ci2NoPhoto'); if (nb) nb.hidden = true;
     if (_ci.created && !ci2LocalOnly()) carPhotosAdd(_ci.id, key, p.blob);   // kept on the server (30 days after the car leaves)
     // Owner 2026-11-19: "prioridade é apenas traseira" — only the REAR photo goes on the Valet Pass.
     if (key === 'rear') ci2PassPhoto(p.blob, key);
@@ -8389,6 +8391,7 @@ async function ci2ShotAuto(p){
   ci2El('ci2SideRear').onclick = function(){ done('rear'); };
   ci2El('ci2SideFront').onclick = function(){ done('front'); };
 }
+function ci2NoPhoto(){ _ci.noPhoto = true; var b = ci2El('ci2NoPhoto'); if (b) b.hidden = true; ci2Need(); ci2OpenSec('ci2SVeh'); }
 function ci2ShotTake(key){ _ci.shotKey = key; ci2El('ci2ShotIn').click(); }
 function ci2RenderShots(){
   var box = ci2El('ci2Shots'); if (!box) return;
@@ -8680,12 +8683,48 @@ async function ackReturnReview(id,resolution){
 function carPhotoB64(blob){
   return new Promise(function(res, rej){ var fr = new FileReader(); fr.onload = function(){ res(String(fr.result).split(',')[1]); }; fr.onerror = rej; fr.readAsDataURL(blob); });
 }
-async function carPhotosAdd(pid, angle, blob){
+// Owner 2026-11-20 (1120-3 RODERICK CIFERRI: the photo reached the pass but not the ticket): the upload is
+// awaited, a heavy photo is made smaller first (bucket limit 1 MB), it is tried twice, and a failure is said
+// on screen and logged — never silent.
+async function carPhotoSmall(blob){
+  if (blob.size <= 900000) return blob;
+  var img = await createImageBitmap(blob), k = Math.min(1, 1280 / Math.max(img.width, img.height)), c = document.createElement('canvas');
+  c.width = Math.round(img.width * k); c.height = Math.round(img.height * k); c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+  var q = 0.7, out = blob;
+  while (q >= 0.4) { out = await new Promise(function(res){ c.toBlob(res, 'image/jpeg', q); }); if (out && out.size <= 900000) break; q -= 0.1; }
+  return out || blob;
+}
+async function carPhotosAdd(pid, angle, blob, who){
+  if (!pid || typeof pid !== 'number') return null;
+  var b64 = null;
+  try { b64 = await carPhotoB64(await carPhotoSmall(blob)); } catch(e) { b64 = null; }
+  for (var tryN = 0; b64 && tryN < 2; tryN++) {
+    try {
+      var res = await smsApi('/functions/v1/car-photos', { method: 'POST', headers: sbHeaders(), body: JSON.stringify({ action: 'add', passenger_id: pid, angle: angle, b64: b64 }) });
+      if (res && res.ok) return res.photo;
+    } catch(e) { console.warn('car photo upload', e); }
+    await new Promise(function(r){ setTimeout(r, 1500); });
+  }
+  var r0 = data.find(function(x){ return x.id === pid; }) || who || {};
+  try { sbLog('EDITED', r0.name || '', r0.ticket || '', r0.loc || '', 'Car photo NOT saved on the ticket (' + angle + ') — take it again from the car card', { passenger_id: pid }); } catch(e) {}
+  showMsg('The ' + angle + ' photo was not saved on ticket ' + (r0.ticket || '') + '. Open the ticket and tap Take photo again.', true);
+  return null;
+}
+// What the AI is sure of goes on the ticket when the ticket does not have it yet (owner 2026-11-20: the color
+// the AI read was never saved from the finish strip / car card).
+async function carAiFill(r, ai){
+  if (!r || !ai || !ai.vehicle_visible) return;
+  var cf = ai.confidence || {}, patch = {};
+  var knownColor = CI2_COLORS.some(function(c){ return c[0] === ai.color; });
+  if (!r.color && ai.color && knownColor && cf.color >= CI2_AI_MIN.color) patch.color = ai.color;
+  if (!r.car && ai.make && cf.make >= CI2_AI_MIN.make) patch.car = (ai.make + (ai.model && cf.model >= CI2_AI_MIN.model ? ' ' + ai.model : '')).toUpperCase();
+  if (!r.plate && ai.plate && cf.plate >= CI2_AI_MIN.plate) { patch.plate = ai.plate; patch.plate_state = ai.plate_state || null; }
+  if (!Object.keys(patch).length) return;
   try {
-    if (!pid || typeof pid !== 'number' || navigator.onLine === false) return null;
-    var res = await smsApi('/functions/v1/car-photos', { method: 'POST', headers: sbHeaders(), body: JSON.stringify({ action: 'add', passenger_id: pid, angle: angle, b64: await carPhotoB64(blob) }) });
-    return res && res.ok ? res.photo : null;
-  } catch(e) { console.warn('car photo upload', e); return null; }
+    await sbUpdate(r.id, patch); Object.keys(patch).forEach(function(k){ r[k] = patch[k]; });
+    sbLog('EDITED', r.name || '', r.ticket || '', r.loc || '', 'From the car photo: ' + Object.keys(patch).map(function(k){ return k + ' → ' + patch[k]; }).join(', '), { passenger_id: r.id });
+    if (typeof render === 'function') render();
+  } catch(e) {}
 }
 async function carPhotosLoad(r){
   var box = document.getElementById('detPhotos'); if (!box || !r) return;
@@ -8730,7 +8769,7 @@ async function carPhotoTake(r, file){
     } catch(e) { ai = null; }
     var angle = ai && (ai.view === 'front' || ai.view === 'rear') ? ai.view : (confirm('Is this the REAR of the car?\n\nOK = Rear   ·   Cancel = Front') ? 'rear' : 'front');
     st('Saving the ' + angle + ' photo…');
-    var saved = await carPhotosAdd(r.id, angle, p.blob);
+    var saved = await carPhotosAdd(r.id, angle, p.blob, r);
     if (!saved) { st('Photo not saved. Try again.'); return; }
     sbLog('EDITED', r.name || '', r.ticket || '', r.loc || '', 'Car photo saved (' + angle + ')', { passenger_id: r.id });
     if (angle === 'rear') {
@@ -8740,9 +8779,7 @@ async function carPhotoTake(r, file){
       while (b64.length > 650000 && q > 0.4) { q -= 0.1; b64 = c.toDataURL('image/jpeg', q).split(',')[1]; }
       try { await vpRpc('airvalet_pass_photo_set', { p_passenger_id: r.id, p_image_b64: b64 }); if (typeof _fin !== 'undefined') _fin.have[r.id] = true; } catch(e) {}
     }
-    if (ai && ai.plate && ai.confidence && ai.confidence.plate >= 0.85 && !r.plate) {
-      try { await sbUpdate(r.id, { plate: ai.plate, plate_state: ai.plate_state || null }); r.plate = ai.plate; r.plate_state = ai.plate_state || ''; } catch(e) {}
-    }
+    await carAiFill(r, ai);
     carPhotosLoad(r);
     if (typeof finRender === 'function') finRender(null);
   } catch(e) { st('Photo not saved. Try again.'); }
