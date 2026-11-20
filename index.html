@@ -9501,8 +9501,9 @@ function gxCanReview(){ return _currentUserRole === 'ADMIN' || _currentUserRole 
 async function gxReviewCount(){
   var b = document.getElementById('gxReviewBtn'); if (!b) return;
   if (!gxCanReview()) { b.hidden = true; return; }
-  try { var r = await gxRpc('airvalet_guest_review', { p_limit: 1, p_offset: 0 }); b.hidden = !r.total;
-        b.innerHTML = '<i class="fa-solid fa-code-merge" aria-hidden="true"></i><span><b>' + r.total + ' possible duplicate' + (r.total === 1 ? '' : 's') + ' to review</b><small>Never merged automatically. Review each one.</small></span><i class="fa-solid fa-chevron-right" aria-hidden="true"></i>'; }
+  try { var all = await gxRvFetchAll(), n = gxRvCounts(all), check = n.family + n.check; b.hidden = !all.length;
+        b.innerHTML = '<i class="fa-solid fa-user-group" aria-hidden="true"></i><span><b>' + (n.typo ? n.typo + ' typo' + (n.typo === 1 ? '' : 's') + ' to fix' : check + ' possible duplicate' + (check === 1 ? '' : 's')) + '</b>' +
+          (n.typo && check ? '<small>+ ' + check + ' to check</small>' : '') + '</span><i class="fa-solid fa-chevron-right" aria-hidden="true"></i>'; }
   catch(e) { b.hidden = true; }
 }
 function guestsOpenTab(){
@@ -9924,19 +9925,52 @@ function gxMove(pid){
 async function gxOpenAfter(key, msg){ if (msg) showMsg(msg, false); await gxOpen(key); }
 
 // ── Review of possible duplicates (ADMIN / MANAGER). Nothing is merged without a decision. ──
-var _gxRv = { rows: [], off: 0, total: 0 };
+// Owner 11/20: one pair at a time, 2 big buttons. Pairs are sorted into
+// typo (same person, typed differently) · family (same phone, other name) · check (same name, other phone).
+var _gxRv = { all: [], group: 'typo', i: 0, skip: {}, busy: false };
+var _gxRvCache = { at: 0, rows: null };
 var GX_WHY = { SAME_PHONE_SIMILAR_NAME: 'Same phone · similar name', SAME_NAME_OTHER_PHONE: 'Same name · different phone' };
+var GX_RV_GROUPS = [['typo', 'Typos'], ['family', 'Same phone'], ['check', 'Same name']];
+var GX_NICK = 'BOB ROBERT|ROB ROBERT|BILL WILLIAM|WILL WILLIAM|MIKE MICHAEL|JIM JAMES|TOM THOMAS|DAVE DAVID|CHRIS CHRISTOPHER|MATT MATTHEW|DAN DANIEL|JOE JOSEPH|STEVE STEVEN|STEVE STEPHEN|TONY ANTHONY|NICK NICHOLAS|KATIE KATHERINE|KATE KATHERINE|BETH ELIZABETH|LIZ ELIZABETH|GREG GREGORY|RICK RICHARD|ED EDWARD|ANDY ANDREW|DREW ANDREW|SAM SAMUEL|BEN BENJAMIN|JON JONATHAN|PAT PATRICK|TIM TIMOTHY|JEFF JEFFREY|KEN KENNETH|RON RONALD|DON DONALD|LARRY LAWRENCE|JERRY GERALD|CHUCK CHARLES|CHARLIE CHARLES|ALEX ALEXANDER|LES LESLIE|ABBY ABIGAIL|JENNY JENNIFER|JEN JENNIFER|SUE SUSAN|PEGGY MARGARET|MEG MARGARET'.split('|');
+function gxRvKey(r){ return r.a + '|' + r.b; }
+async function gxRvFetchAll(force){
+  if (!force && _gxRvCache.rows && Date.now() - _gxRvCache.at < 60000) return _gxRvCache.rows;
+  var rows = [], off = 0, r;
+  do { r = await gxRpc('airvalet_guest_review', { p_limit: 50, p_offset: off }); rows = rows.concat(r.rows || []); off += (r.rows || []).length; }
+  while (r.has_more && (r.rows || []).length && rows.length < 600);
+  rows.forEach(function(x){ x.cls = gxRvClass(x); });
+  _gxRvCache = { at: Date.now(), rows: rows };
+  return rows;
+}
+function gxRvCounts(all){ var n = { typo: 0, family: 0, check: 0 }; all.forEach(function(r){ n[r.cls]++; }); return n; }
+function gxRvFirst(n){ return String(n || '').toUpperCase().replace(/[^A-Z ]/g, '').trim().split(/\s+/)[0] || ''; }
+function gxRvLev(a, b){ var p = [], i, j; for (j = 0; j <= b.length; j++) p[j] = j;
+  for (i = 1; i <= a.length; i++) { var c = [i]; for (j = 1; j <= b.length; j++) c[j] = Math.min(p[j] + 1, c[j - 1] + 1, p[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)); p = c; } return p[b.length]; }
+function gxRvPh(p){ var d = String(p || '').replace(/\D/g, ''); return d.length === 11 && d.charAt(0) === '1' ? d.slice(1) : d; }
+function gxRvClass(r){
+  var g = r.guests || [], a = g[0] || {}, b = g[1] || {};
+  if (r.why === 'SAME_PHONE_SIMILAR_NAME') {
+    var x = gxRvFirst(a.name), y = gxRvFirst(b.name);
+    var same = x && y && (x.indexOf(y) === 0 || y.indexOf(x) === 0 || gxRvLev(x, y) <= 2 || (x.slice(0, 3) === y.slice(0, 3) && x.length > 2) ||
+      GX_NICK.indexOf(x + ' ' + y) >= 0 || GX_NICK.indexOf(y + ' ' + x) >= 0);
+    return same ? 'typo' : 'family';
+  }
+  var pa = gxRvPh(a.phone), pb = gxRvPh(b.phone);
+  if (!gxPhoneOk(a.phone) || !gxPhoneOk(b.phone) || pa.length !== 10 || pb.length !== 10) return 'typo';
+  var d = 0; for (var i = 0; i < 10; i++) if (pa.charAt(i) !== pb.charAt(i)) d++;
+  return d <= 2 ? 'typo' : 'check';
+}
+function gxRvList(){ return _gxRv.all.filter(function(r){ return r.cls === _gxRv.group; }); }
 async function gxReviewOpen(){
-  _gx.key = null; _gx.prof = null; _gxRv = { rows: [], off: 0, total: 0 };
+  _gx.key = null; _gx.prof = null; _gxRv = { all: [], group: _gxRv.group || 'typo', i: 0, skip: {}, busy: false };
   var ov = document.getElementById('gxOv'); ov.classList.add('on'); ov.setAttribute('aria-hidden', 'false');
   document.getElementById('gxPanel').innerHTML = gxReviewHead() + '<div class="gx-scroll"><div class="gx-content"><div class="gx-empty" role="status">Loading possible duplicates…</div></div></div>';
-  await gxReviewLoad();
+  await gxReviewLoad(true);
 }
-async function gxReviewLoad(){
-  try {
-    var r = await gxRpc('airvalet_guest_review', { p_limit: 20, p_offset: _gxRv.off });
-    _gxRv.rows = _gxRv.rows.concat(r.rows || []); _gxRv.off += (r.rows || []).length; _gxRv.total = r.total; _gxRv.more = r.has_more;
-  } catch(e) { _gxRv.error = e.message; }
+async function gxReviewLoad(force){
+  try { _gxRv.all = (await gxRvFetchAll(force)).slice(); _gxRv.error = null; } catch(e) { _gxRv.error = e.message; }
+  var n = gxRvCounts(_gxRv.all);
+  if (!n[_gxRv.group]) _gxRv.group = ['typo', 'family', 'check'].filter(function(k){ return n[k]; })[0] || 'typo';
   gxReviewRender();
 }
 function gxNoteAdd(){
@@ -10139,35 +10173,71 @@ function gxDiffName(a, b){
 function gxReviewHead(){
   return '<div class="gx-top"><button type="button" class="gx-back" onclick="gxClose();gxReviewCount()" aria-label="Back to Passengers">' + gxIcon('chevron-left') + '<span>Passengers</span></button><span class="gx-top-t">Possible duplicates</span><span></span></div>';
 }
+function gxDiffPhone(a, b){
+  var fa = gxPhone(a), da = gxRvPh(a), db = gxRvPh(b);
+  if (!fa) return '—';
+  if (da.length !== 10 || db.length !== 10 || da === db) return escapeHTML(fa);
+  var k = 10 - fa.replace(/\D/g, '').length;   // a leading +1 shifts the digits
+  return fa.split('').map(function(ch){ if (!/\d/.test(ch)) return escapeHTML(ch); var i = k++; return i >= 0 && da.charAt(i) !== db.charAt(i) ? '<mark>' + ch + '</mark>' : ch; }).join('');
+}
 function gxReviewRender(){
-  var h = '<div class="gx-scroll"><section class="gx-pass gx-pass-rv"><p class="gx-eyebrow">' + gxIcon('code-merge') + 'Review</p><h2>Possible duplicates</h2><p class="gx-pass-ph">' +
-    (_gxRv.total ? _gxRv.total + ' to review · ' : '') + 'Suggested from the records. Nothing is merged without your decision.</p></section><div class="gx-content">';
+  var n = gxRvCounts(_gxRv.all), list = gxRvList(), left = list.filter(function(r){ return !_gxRv.skip[gxRvKey(r)]; });
+  var h = '<div class="gx-scroll"><div class="gx-content gx-qr">';
   if (_gxRv.error) h += '<div class="gx-empty bad" role="alert"><b>Could not load the review.</b><span>' + escapeHTML(_gxRv.error) + '</span></div>';
-  else if (!_gxRv.rows.length) h += '<div class="gx-empty">' + gxIcon('circle-check') + '<b>Nothing to review</b><span>No possible duplicates right now.</span></div>';
-  else h += _gxRv.rows.map(function(r, i){
-    var g = r.guests || [], a = g[0] || {}, b = g[1] || {};
-    var cell = function(x, y, f, fmt){ var va = fmt(x[f]), vb = fmt(y[f]); return '<td' + (va !== vb ? ' class="diff"' : '') + '>' + (f === 'name' ? gxDiffName(x.name, y.name) : escapeHTML(va || '—')) + '</td>'; };
-    var fmts = { phone: gxPhone, visits: function(v){ return v == null ? '' : String(v); }, last_visit: function(v){ return gxDate(v); }, vehicle: function(v){ return v ? niceVehicleText(v) : ''; }, name: function(v){ return gxName(v); } };
-    var rows = [['name', 'Name'], ['phone', 'Phone'], ['visits', 'Visits'], ['last_visit', 'Last visit'], ['vehicle', 'Vehicle']];
-    return '<section class="gx-card gx-rv"><div class="gx-rvh"><span class="gx-pill gold">' + escapeHTML(GX_WHY[r.why] || r.why) + '</span></div>' +
-      '<table class="gx-cmp"><caption class="gx-sr">Passenger A and passenger B, differences marked</caption><thead><tr><th scope="col"><span class="gx-sr">Field</span></th>' +
-        '<th scope="col"><button type="button" class="gx-link" data-open="' + escapeHTML(a.key) + '">Passenger A ›</button></th><th scope="col"><button type="button" class="gx-link" data-open="' + escapeHTML(b.key) + '">Passenger B ›</button></th></tr></thead><tbody>' +
-        rows.map(function(f){ return '<tr><th scope="row">' + f[1] + '</th>' + cell(a, b, f[0], fmts[f[0]]) + cell(b, a, f[0], fmts[f[0]]) + '</tr>'; }).join('') + '</tbody></table>' +
-      '<div class="gx-rvf"><button type="button" class="gx-btn" data-rvmerge="' + i + '">' + gxIcon('code-merge') + 'Merge…</button><button type="button" class="gx-btn line" data-rvdistinct="' + i + '">Not the same person…</button></div></section>';
-  }).join('') + (_gxRv.more ? '<button type="button" class="gx-more" id="gxRvMore">Show more</button>' : '');
+  else if (!_gxRv.all.length) h += '<div class="gx-empty">' + gxIcon('circle-check') + '<b>Nothing to review</b><span>No possible duplicates right now.</span></div>';
+  else {
+    h += '<div class="gx-qr-seg" role="tablist">' + GX_RV_GROUPS.map(function(g){
+      return '<button type="button" role="tab" aria-selected="' + (_gxRv.group === g[0]) + '" data-grp="' + g[0] + '"' + (n[g[0]] ? '' : ' disabled') + '>' + g[1] + ' <b>' + n[g[0]] + '</b></button>'; }).join('') + '</div>';
+    if (!left.length) h += '<div class="gx-empty">' + gxIcon('circle-check') + '<b>' + (list.length ? 'Only skipped ones left' : 'Done here') + '</b><span>' + (list.length ? '<button type="button" class="gx-link-btn" id="gxQrAgain">Show the ' + list.length + ' skipped again</button>' : 'Pick another group above.') + '</span></div>';
+    else {
+      var r = left[0], g = r.guests || [], a = g[0] || {}, b = g[1] || {}, pos = list.length - left.length + 1;
+      var keep = (+b.visits > +a.visits || (+b.visits === +a.visits && String(b.last_visit || '') > String(a.last_visit || ''))) ? b : a;
+      var row = function(x, y){ var v = x.vehicle ? niceVehicleText(x.vehicle) : '';
+        return '<button type="button" class="gx-qr-p" data-open="' + escapeHTML(x.key) + '"><b>' + gxDiffName(x.name, y.name) + '</b>' +
+          '<span class="gx-qr-ph">' + gxDiffPhone(x.phone, y.phone) + '</span>' +
+          '<small>' + escapeHTML([(x.visits || 0) + (+x.visits === 1 ? ' visit' : ' visits'), x.last_visit ? 'last ' + gxDate(x.last_visit) : '', v].filter(Boolean).join(' · ')) + '</small>' +
+          gxIcon('chevron-right') + '</button>'; };
+      h += '<section class="gx-card gx-qr-card" aria-live="polite"><p class="gx-qr-n">' + pos + ' of ' + list.length + ' · ' + escapeHTML(GX_WHY[r.why] || r.why) + '</p>' +
+        row(a, b) + row(b, a) +
+        '<p class="gx-qr-hint">Same person keeps ' + escapeHTML(gxName(keep.name)) + '. Tickets are not changed. Undo any time in the passenger’s history.</p>' +
+        '<div class="gx-qr-btns"><button type="button" class="gx-btn gx-qr-yes" id="gxQrYes">' + gxIcon('check') + 'Same person</button>' +
+        '<button type="button" class="gx-btn line gx-qr-no" id="gxQrNo">Not the same</button></div>' +
+        '<button type="button" class="gx-link-btn gx-qr-skip" id="gxQrSkip">Skip</button>' +
+        '<p class="gx-act-err" id="gxQrErr" role="alert" hidden></p></section>';
+      _gxRv.cur = { r: r, keep: keep, away: keep === a ? b : a };
+    }
+  }
   document.getElementById('gxPanel').innerHTML = gxReviewHead() + h + '</div></div>';
   var panel = document.getElementById('gxPanel');
-  panel.querySelectorAll('[data-open]').forEach(function(b){ b.onclick = function(){ gxOpen(b.dataset.open); }; });
-  panel.querySelectorAll('[data-rvmerge]').forEach(function(b){ b.onclick = function(){
-    var g = _gxRv.rows[+b.dataset.rvmerge].guests || [], a = g[0], c = g[1];
-    var keep = (+c.visits > +a.visits || (+c.visits === +a.visits && String(c.last_visit || '') > String(a.last_visit || ''))) ? c : a, away = keep === a ? c : a;
-    gxMergeSheet(keep, away, function(){ showMsg('✓ Passengers merged. You can undo it in Identity history.', false); gxReviewOpen(); });
-  }; });
-  panel.querySelectorAll('[data-rvdistinct]').forEach(function(b){ b.onclick = function(){
-    var g = _gxRv.rows[+b.dataset.rvdistinct].guests || [];
-    gxDistinct(g[0], g[1], function(){ showMsg('✓ Marked as different people.', false); gxReviewOpen(); });
-  }; });
-  var more = document.getElementById('gxRvMore'); if (more) more.onclick = gxReviewLoad;
+  panel.querySelectorAll('[data-open]').forEach(function(x){ x.onclick = function(){ gxOpen(x.dataset.open); }; });
+  panel.querySelectorAll('[data-grp]').forEach(function(x){ x.onclick = function(){ _gxRv.group = x.dataset.grp; gxReviewRender(); }; });
+  var again = document.getElementById('gxQrAgain'); if (again) again.onclick = function(){ gxRvList().forEach(function(r){ delete _gxRv.skip[gxRvKey(r)]; }); gxReviewRender(); };
+  var yes = document.getElementById('gxQrYes'); if (!yes) return;
+  yes.onclick = function(){ gxRvDecide('same'); };
+  document.getElementById('gxQrNo').onclick = function(){ gxRvDecide('diff'); };
+  document.getElementById('gxQrSkip').onclick = function(){ _gxRv.skip[gxRvKey(_gxRv.cur.r)] = 1; gxReviewRender(); };
+}
+async function gxRvDecide(what){
+  var c = _gxRv.cur; if (!c || _gxRv.busy) return;
+  _gxRv.busy = true; document.querySelectorAll('.gx-qr-btns button,.gx-qr-skip').forEach(function(x){ x.disabled = true; });
+  var label = { typo: 'typo', family: 'same phone, other name', check: 'same name, other phone' }[c.r.cls] || c.r.cls, out;
+  try {
+    out = what === 'same'
+      ? await gxRpc('airvalet_guest_merge', { p_from_key: c.away.key, p_into_key: c.keep.key, p_reason: 'Quick review (' + label + '): same person', p_client_key: gxKey() })
+      : await gxRpc('airvalet_guest_mark_distinct', { p_key_a: c.r.a, p_key_b: c.r.b, p_reason: 'Quick review (' + label + '): not the same person', p_client_key: gxKey() });
+  } catch(e) { out = { result: e.status === 403 || /ADMIN or MANAGER/.test(e.message) ? 'FORBIDDEN' : 'ERROR', message: e.message }; }
+  _gxRv.busy = false;
+  if (!out || (out.result !== 'OK' && out.result !== 'SAME_GUEST')) {
+    gxReviewRender(); var err = document.getElementById('gxQrErr');
+    if (err) { err.textContent = out && out.result === 'FORBIDDEN' ? 'Only an ADMIN or MANAGER can do this.' : (GX_TEXT[out && out.result] || ('Not saved: ' + ((out && (out.message || out.result)) || 'error'))); err.hidden = false; }
+    return;
+  }
+  // Drop this pair; after a merge the other pairs that named the merged-away passenger are stale too.
+  var gone = c.away.key;
+  _gxRv.all = _gxRv.all.filter(function(r){ return r !== c.r && (what !== 'same' || (r.a !== gone && r.b !== gone)); });
+  _gxRvCache.at = 0;
+  showMsg(what === 'same' ? '✓ Same person: merged.' : '✓ Kept apart.', false);
+  gxReviewRender();
 }
 
 // ── check-in: returning guest on this phone (never fills return date or consent) ──
