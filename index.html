@@ -7761,7 +7761,7 @@ function ci2Suggest(q){
   drop.querySelectorAll('.ci2-ac-i[data-i]').forEach(function(b){
     b.addEventListener('mousedown', function(e){ e.preventDefault(); }); // keep focus so the list does not close first
     b.addEventListener('click', function(){
-      var r = matches[parseInt(b.dataset.i, 10)];
+      var r = ci2Latest(matches[parseInt(b.dataset.i, 10)]);
       ci2El('ci2Name').value = r.name;
       if (r.phone) { var p = ci2El('ci2Phone'); p.value = r.phone; fmtGuestPhoneInput(p); ci2PhoneBadge(p.value); ci2El('ci2PhoneHint').textContent = ci2PhoneHintText(p.value); }
       if (r.car) { _ci.vehText = String(r.car).toUpperCase(); _ci.make = ''; _ci.model = ''; }
@@ -7819,13 +7819,24 @@ function ci2MirrorChecks(){
   var er = document.getElementById('erWarn'); ci2El('ci2Er').hidden = !(er && er.style.display === 'block');
   var m = name.length > 2 ? data.filter(function(r){ return String(r.name || '').toLowerCase() === name.toLowerCase(); }) : [];
   var f = ci2El('ci2Freq');
-  if (m.length) { var last = m[m.length - 1]; f.textContent = m.length + ' previous visit' + (m.length > 1 ? 's' : '') + '. Last: ' + (last.ticket || '') + (last.car ? ' · ' + formatVehicleLine(last) : ''); f.hidden = false; }
+  if (m.length) { var last = m.slice().sort(function(a, b){ return b.id - a.id; })[0]; f.textContent = m.length + ' previous visit' + (m.length > 1 ? 's' : '') + '. Last: ' + (last.ticket || '') + (last.car ? ' · ' + formatVehicleLine(last) : ''); f.hidden = false; }
   else f.hidden = true;
   gxCheckinHint();
   ci2NameHistory(name);
   // Owner 2026-11-20 (iPad photo): a name picked from the list fills the phone without typing, so the kiosk
   // Next button kept saying "Phone: 10 digits" until a digit was retyped — it re-checks here too.
   if (typeof kioskNeSyncNext === 'function') kioskNeSyncNext();
+}
+// Owner 2026-11-20: "sempre que um cliente antigo vier, pegar as informações mais recentes dele" (ex.: trocou de
+// carro). Same name on several tickets → the newest valid phone, the newest car and color (a fake 0000/11111
+// phone on the last ticket never wins over a real one from before).
+function ci2PhoneReal(v){ var d = ci2Digits(v); return ci2PhoneValid(v) && !/^(\d)\1+$/.test(d.slice(-4)) && !/(0000000|1234567)/.test(d); }
+function ci2Latest(r){
+  var key = String(r.name || '').trim().toUpperCase().replace(/\s+/g, ' ');
+  var same = data.filter(function(x){ return !x.isOfflinePending && String(x.name || '').trim().toUpperCase().replace(/\s+/g, ' ') === key; }).sort(function(a, b){ return b.id - a.id; });
+  var pick = function(f){ for (var i = 0; i < same.length; i++) if (f(same[i])) return same[i]; return null; };
+  var ph = pick(function(x){ return ci2PhoneReal(x.phone); }), car = pick(function(x){ return String(x.car || '').trim(); });
+  return { name: (same[0] || r).name, phone: ph ? ph.phone : '', car: car ? car.car : '', color: car ? (car.color || '') : '' };
 }
 // Owner 2026-11-20: "o sobrenome Edwards já tinha vindo aqui antes, mas tive que pedir o número dele de novo".
 // The name list on the iPad only holds recent tickets, and Makers robot names carry no phone. With a full name
@@ -7854,6 +7865,15 @@ function ci2NameHistory(name){
       p.value = x.phone; p.dispatchEvent(new Event('input'));
       box.hidden = true; box.innerHTML = '';
       showMsg('Phone filled from the last visit — confirm it with the passenger.', false);
+      // The newest car and color of that guest too (the photo AI still replaces them if the car changed).
+      gxRpc('airvalet_guest_lookup_phone', { p_phone: x.phone }).then(function(lr){
+        var gs = (lr && lr.guests) || [], nm = gxName(x.name);
+        var gg = gs.filter(function(y){ return gxName(y.name) === nm; })[0] || (gs.length === 1 ? gs[0] : null);
+        if (!gg || !gg.car || !_ci || _ci.created || _ci.make || _ci.vehText) return;
+        _ci.vehText = String(gg.car).toUpperCase(); _ci.make = ''; _ci.model = '';
+        if (gg.color) _ci.color = gg.color;
+        ci2VehSum(false); ci2MirrorChecks();
+      }).catch(function(){});
     }; });
   }, 500);
 }
@@ -8901,6 +8921,13 @@ async function carAiFill(r, ai){
   var knownColor = CI2_COLORS.some(function(c){ return c[0] === ai.color; });
   if (!r.color && ai.color && knownColor && cf.color >= CI2_AI_MIN.color) patch.color = ai.color;
   if (!r.car && ai.make && cf.make >= CI2_AI_MIN.make) patch.car = (ai.make + (ai.model && cf.model >= CI2_AI_MIN.model ? ' ' + ai.model : '')).toUpperCase();
+  // Owner 2026-11-20 ("a pessoa trocou de carro"): the car filled from the last visit is replaced when the photo
+  // shows another make and the AI is very sure (0.90); the color follows the new car.
+  var CAR_SWAP_MIN = 0.90, aiMake = String(ai.make || '').toUpperCase();
+  if (r.car && aiMake && (cf.make || 0) >= CAR_SWAP_MIN && String(r.car).toUpperCase().split(/\s+/)[0] !== aiMake.split(/\s+/)[0]) {
+    patch.car = (ai.make + (ai.model && cf.model >= CI2_AI_MIN.model ? ' ' + ai.model : '')).toUpperCase();
+    if (ai.color && knownColor && cf.color >= CI2_AI_MIN.color) patch.color = ai.color;
+  }
   if (!r.plate && ai.plate && cf.plate >= CI2_AI_MIN.plate) { patch.plate = ai.plate; patch.plate_state = ai.plate_state || null; }
   if (!Object.keys(patch).length) return;
   try {
