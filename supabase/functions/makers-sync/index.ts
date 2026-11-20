@@ -283,7 +283,8 @@ Deno.serve(async (req) => {
       n++; (x as Move & { car_updated?: boolean }).car_updated = true;
       const logs = Object.entries(upd).map(([field, v]) => ({
         ts: etStamp(), action: 'FLIGHT_NOTE', passenger: car.name, ticket: String(car.ticket || ''), location: car.loc || '',
-        detail: `Makers robot: flight changed ${x.was_flight} ${x.was_time} → ${x.flight} ${x.time}. ${field === 'departure_time' ? 'Departure time' : 'Return flight'} set to ${v}`,
+        detail: x.what === 'swap' ? `Makers robot: plane changed on flight ${x.flight} ${x.time} (${x.was_registration} → ${x.registration}). Return flight set to ${v}`
+          : `Makers robot: flight changed ${x.was_flight} ${x.was_time} → ${x.flight} ${x.time}. ${field === 'departure_time' ? 'Departure time' : 'Return flight'} set to ${v}`,
         passenger_id: car.id, changed_by: 'Makers robot', field_name: field,
         old_value: field === 'departure_time' ? (car.departure_time || '') : (car.return_flight || ''), new_value: v,
       }));
@@ -293,7 +294,7 @@ Deno.serve(async (req) => {
   };
   const pushMoves = async (moves: Move[], day: string) => {
     if (!moves.length) return;
-    const lines = moves.map((x) => moveLine(x) + ((x as Move & { car_updated?: boolean }).car_updated ? ' Car time updated.' : ''));
+    const lines = moves.map((x) => moveLine(x) + ((x as Move & { car_updated?: boolean }).car_updated ? (x.what === 'swap' ? ' Car tail updated — reprint the key tag.' : ' Car time updated.') : ''));
     await notifyCategory(deps, 'DAILY', { title: `Flight changed · ${day === today ? 'today' : 'tomorrow'}`,
       body: lines.slice(0, 4).join('\n') + (lines.length > 4 ? `\n+${lines.length - 4} more` : ''), url: '/?mf=1', tag: `makers-moves-${day}-${Date.now()}` });
   };

@@ -3,7 +3,9 @@
 // previous one of the same day, and a guest WITH A CAR here who changed flight is reported:
 //   • moved — still coming that day, other flight or other time (later / earlier);
 //   • off   — was on a flight, now on none (and the car is still here);
-//   • on    — now on a flight that day, was on none in the previous reading.
+//   • on    — now on a flight that day, was on none in the previous reading;
+//   • swap  — same flight and time, other aircraft (owner 11/20: 3 PM COX went on DD, not JR — the car still said JR
+//             and the key tag was printed with the wrong tail).
 // Surname-only pairs and delivered cars never count. Pure functions: tested without Makers.
 
 import { flightValueFor, normRegistration, TAIL_SUFFIX_TO_REGISTRATION, type Match } from '../manifest/match.ts';
@@ -12,7 +14,7 @@ import { flightValueFor, normRegistration, TAIL_SUFFIX_TO_REGISTRATION, type Mat
 // kept (marked) so a pair confirmed later is not reported as "now on a flight".
 export type Seen = { passenger_id: number; ticket: string; system_name: string; flight_number: string; arrival_time: string; registration: string; kind: string; state: string };
 export type Move = {
-  passenger_id: number; ticket: string; system_name: string; what: 'moved' | 'off' | 'on';
+  passenger_id: number; ticket: string; system_name: string; what: 'moved' | 'off' | 'on' | 'swap';
   was_flight?: string; was_time?: string; was_registration?: string;
   flight?: string; time?: string; registration?: string; state?: string;
 };
@@ -51,6 +53,9 @@ export function diffMoves(prev: Partial<Seen>[], cur: Match[], held: Set<number>
     if (String(p.flight_number || '') !== now.flight || normT(p.arrival_time) !== now.time) {
       out.push({ passenger_id: id, ticket: m.ticket, system_name: m.system_name, what: 'moved',
         was_flight: String(p.flight_number || ''), was_time: normT(p.arrival_time), was_registration: p.registration || '', ...now });
+    } else if (p.registration && now.registration && p.registration !== now.registration) {
+      out.push({ passenger_id: id, ticket: m.ticket, system_name: m.system_name, what: 'swap',
+        was_flight: String(p.flight_number || ''), was_time: normT(p.arrival_time), was_registration: p.registration || '', ...now });
     }
   }
   for (const [id, p] of P) {
@@ -67,9 +72,11 @@ export const t12 = (t?: string) => {
   const h = +m[1]; return `${h % 12 || 12}:${m[2]} ${h < 12 ? 'AM' : 'PM'}`;
 };
 // One line per guest for the push (staff app language: English).
+const tailOf = (r?: string) => (r ? flightValueFor(r) || r : '?');
 export function moveLine(x: Move): string {
   const who = `${x.system_name} (#${x.ticket})`;
   if (x.what === 'off') return `${who}: no longer on flight ${x.was_flight}${x.was_time ? ' ' + t12(x.was_time) : ''}. Check with Makers before waiting.`;
+  if (x.what === 'swap') return `${who}: plane changed ${tailOf(x.was_registration)} → ${tailOf(x.registration)} (flight ${x.flight}, ${t12(x.time)}). Check the key tag.`;
   if (x.what === 'on') return `${who}: now on flight ${x.flight} landing ${t12(x.time)}${x.state === 'early' ? ' — earlier than our return date' : ''}.`;
   const later = (x.time || '') > (x.was_time || '');
   return `${who}: was ${t12(x.was_time)} (flight ${x.was_flight}), now ${t12(x.time)} (flight ${x.flight}).` +
@@ -79,12 +86,16 @@ export function moveLine(x: Move): string {
 // The car's own arrival time (and tail) follow a move ONLY when they still show the old flight — a value
 // staff typed by hand is never overwritten, and an empty one stays for staff (tail/time are filled the day before).
 export function carUpdate(x: Move, car: { departure_time?: string | null; return_flight?: string | null }): { departure_time?: string; return_flight?: string } | null {
-  if (x.what !== 'moved' || x.state !== 'ok' || !x.time) return null;
-  const upd: { departure_time?: string; return_flight?: string } = {};
-  if (normT(car.departure_time) && normT(car.departure_time) === x.was_time && x.time !== x.was_time) upd.departure_time = x.time;
   const curF = String(car.return_flight || '').trim().toUpperCase().split(/\s+/)[0] || '';
   const curReg = TAIL_SUFFIX_TO_REGISTRATION[curF] || normRegistration(curF);
   const newVal = x.registration ? flightValueFor(x.registration) : '';
+  if (x.what === 'swap') {   // tail only, and only while the car still shows the old aircraft
+    if (x.state !== 'ok' || !curF || !x.was_registration || curReg !== x.was_registration || !newVal) return null;
+    return { return_flight: newVal };
+  }
+  if (x.what !== 'moved' || x.state !== 'ok' || !x.time) return null;
+  const upd: { departure_time?: string; return_flight?: string } = {};
+  if (normT(car.departure_time) && normT(car.departure_time) === x.was_time && x.time !== x.was_time) upd.departure_time = x.time;
   if (upd.departure_time && curF && x.was_registration && curReg === x.was_registration && x.registration !== x.was_registration && newVal) upd.return_flight = newVal;
   return Object.keys(upd).length ? upd : null;
 }

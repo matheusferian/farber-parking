@@ -81,3 +81,17 @@ Deno.test('boardOf: TV board keeps delivered guests, skips surname-only', async 
   assertEquals(b.map((x) => x.passenger_id), [1, 2]);
   assertEquals(b[0], { passenger_id: 1, flight_number: '517', route: 'COX-FXE', registration: 'N512DH', arrival_time: '11:00', ascend: false, kind: 'exact' });
 });
+
+// Owner 2026-11-20: flight 26/27 COX went on DD instead of JR — same flight number and time, other aircraft.
+Deno.test('plane swap: same flight and time, other aircraft → alert + car tail follows only when it still shows the old one', () => {
+  const prev = seenOf([mk(1, 'AUSTIN SWAP', '27', '08:30', 'N624JR'), mk(2, 'KEEP SAME', '27', '08:30', 'N624JR'), mk(3, 'NO REG', '27', '08:30', '')]);
+  const cur = [mk(1, 'AUSTIN SWAP', '27', '08:30', 'N821DD'), mk(2, 'KEEP SAME', '27', '08:30', 'N624JR'), mk(3, 'NO REG', '27', '08:30', 'N821DD')];
+  const mv = diffMoves(prev, cur, new Set([1, 2, 3]));
+  assertEquals(mv.map((x) => [x.system_name, x.what]), [['AUSTIN SWAP', 'swap']]);
+  assertEquals(moveLine(mv[0]), 'AUSTIN SWAP (#1110-1): plane changed JR → DD (flight 27, 8:30 AM). Check the key tag.');
+  assertEquals(carUpdate(mv[0], { departure_time: '08:30', return_flight: 'JR' }), { return_flight: 'DD' });
+  assertEquals(carUpdate(mv[0], { departure_time: '08:30', return_flight: 'DD' }), null);   // already right
+  assertEquals(carUpdate(mv[0], { departure_time: '08:30', return_flight: 'RV' }), null);   // typed by hand: never overwritten
+  assertEquals(carUpdate(mv[0], { departure_time: '08:30', return_flight: '' }), null);     // empty stays for staff
+  assertEquals(carUpdate({ ...mv[0], state: 'early' }, { departure_time: '08:30', return_flight: 'JR' }), null);
+});
