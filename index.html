@@ -7823,6 +7823,9 @@ function ci2MirrorChecks(){
   else f.hidden = true;
   gxCheckinHint();
   ci2NameHistory(name);
+  // Owner 2026-11-20 (iPad photo): a name picked from the list fills the phone without typing, so the kiosk
+  // Next button kept saying "Phone: 10 digits" until a digit was retyped — it re-checks here too.
+  if (typeof kioskNeSyncNext === 'function') kioskNeSyncNext();
 }
 // Owner 2026-11-20: "o sobrenome Edwards já tinha vindo aqui antes, mas tive que pedir o número dele de novo".
 // The name list on the iPad only holds recent tickets, and Makers robot names carry no phone. With a full name
