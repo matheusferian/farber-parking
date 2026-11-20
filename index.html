@@ -3095,6 +3095,61 @@ function renderTable() {
   if(tbodyCards) tbodyCards.innerHTML=hc;
 }
 
+// ── Car photo thumbnail on the iPad Kiosk cards (owner 2026-11-20). The rear photo on the valet pass, small,
+// left of the name; iPad only (on the iPhone it would squeeze the name). Fetched once per photo version,
+// kept as blob URLs, re-checked at most every 60 s.
+var _thumb = { url: {}, at: {}, ids: '', when: 0, busy: false };
+function thumbOn(){ return document.body.classList.contains('av-kiosk') && window.matchMedia('(min-width:768px)').matches && !(typeof isTvMode === 'function' && isTvMode()); }
+function thumbHtml(r){
+  if (typeof r.id !== 'number') return '';
+  var u = _thumb.url[r.id];
+  return '<span class="dc-ph' + (u ? ' on' : '') + '" data-thumb="' + r.id + '"' + (u ? ' style="background-image:url(' + u + ')"' : '') + ' aria-hidden="true"></span>';
+}
+function thumbPaint(){
+  Array.prototype.forEach.call(document.querySelectorAll('.dc-ph[data-thumb]'), function(el){
+    var u = _thumb.url[el.getAttribute('data-thumb')];
+    el.classList.toggle('on', !!u); el.style.backgroundImage = u ? 'url(' + u + ')' : '';
+  });
+}
+async function thumbKick(){
+  if (!thumbOn() || _thumb.busy) return;
+  var ids = []; Array.prototype.forEach.call(document.querySelectorAll('.dc-ph[data-thumb]'), function(el){ var n = Number(el.getAttribute('data-thumb')); if (n > 0 && ids.indexOf(n) < 0) ids.push(n); });
+  ids = ids.slice(0, 60); var key = ids.join(',');
+  if (!ids.length || (key === _thumb.ids && Date.now() - _thumb.when < 60000)) { thumbPaint(); return; }
+  _thumb.busy = true;
+  try {
+    var call = function(body){ return fetch(SUPABASE_URL + '/rest/v1/rpc/airvalet_tv_pass_photos', { method: 'POST', headers: sbHeaders(), body: JSON.stringify(body) })
+      .then(function(r){ if (!r.ok) throw new Error('thumbs ' + r.status); return r.json(); }); };
+    var list = await call({ p_ids: ids, p_with_image: false }), have = {};
+    (list || []).forEach(function(x){ have[x.passenger_id] = x.at; });
+    ids.forEach(function(id){ if (!have[id] && _thumb.url[id]) { try { URL.revokeObjectURL(_thumb.url[id]); } catch(e) {} delete _thumb.url[id]; delete _thumb.at[id]; } });
+    var need = Object.keys(have).filter(function(id){ return !_thumb.url[id] || _thumb.at[id] !== have[id]; }).map(Number);
+    for (var i = 0; i < need.length; i += 10) {
+      var imgs = await call({ p_ids: need.slice(i, i + 10), p_with_image: true });
+      for (var j = 0; j < (imgs || []).length; j++) {
+        var x = imgs[j], bin = atob(x.image_b64), u8 = new Uint8Array(bin.length);
+        for (var k = 0; k < bin.length; k++) u8[k] = bin.charCodeAt(k);
+        var small = await thumbShrink(new Blob([u8], { type: x.mime || 'image/jpeg' }));
+        if (_thumb.url[x.passenger_id]) { try { URL.revokeObjectURL(_thumb.url[x.passenger_id]); } catch(e) {} }
+        _thumb.url[x.passenger_id] = URL.createObjectURL(small); _thumb.at[x.passenger_id] = x.at;
+      }
+      thumbPaint();
+    }
+    _thumb.ids = key; _thumb.when = Date.now();
+  } catch(e) { console.warn('Kiosk thumbnails unavailable (keeping the last ones):', e); }
+  _thumb.busy = false;
+  thumbPaint();
+}
+// 240 px wide is plenty for a 72 px tile on a Retina iPad; keeps memory low with 40+ cars.
+async function thumbShrink(blob){
+  try {
+    var img = await createImageBitmap(blob), k = Math.min(1, 240 / img.width), c = document.createElement('canvas');
+    c.width = Math.round(img.width * k); c.height = Math.round(img.height * k); c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    if (img.close) img.close();
+    return await new Promise(function(res){ c.toBlob(function(b){ res(b || blob); }, 'image/jpeg', 0.8); });
+  } catch(e) { return blob; }
+}
+
 // ── RENDER DAY ─────────────────────────────────────────────────
 // ── Finish on the phone (owner 2026-11-19): "depois que imprimir a tag o carro já fica piscando logo de cara
 // para quem entrar pelo celular". A car checked in TODAY, not delivered, with no rear photo on its valet pass
@@ -3239,7 +3294,7 @@ function renderDay() {
           '</div>';
       }
       return '<div class="dcard '+cls+(isApprox?' approx-card':'')+(r.status==='DELIVERED'&&showDeliver?' delivered-today-card':'')+'" onclick="showDet('+r.id+')">'+
-        '<div class="dc-top">'+
+        '<div class="dc-top">'+thumbHtml(r)+
           '<div class="dc-body">'+
             '<div class="dc-n">'+(r.status==='DELIVERED'&&showDeliver?'<span style="text-decoration:line-through;opacity:0.6">'+(isAscend(r)?'[A] ':'')+escapeHTML(r.name)+'</span>':(isAscend(r)?'[A] ':'')+escapeHTML(r.name))+(isApprox?' <span style="font-size:9px;background:rgba(201,168,76,0.2);color:var(--tx-gold);border-radius:4px;padding:2px 5px;margin-left:4px">~APPROX</span>':'')+(isAscend(r)?'<span style="font-size:9px;background:rgba(99,179,237,0.18);color:#1E5FA8;border-radius:4px;padding:2px 5px;margin-left:4px;font-family:\'JetBrains Mono\',monospace">✈ ASCEND</span>':'')+(r.not_returning_with_makers_air?' '+OTHER_BOAT_DASH_ICON_HTML:'')+(r.isOfflinePending?'<span style="font-size:9px;background:rgba(232,160,48,.22);color:#e8a030;border-radius:4px;padding:2px 5px;margin-left:4px;font-weight:800;font-family:\'JetBrains Mono\',monospace" title="Saved locally, not yet on the server">🟠 PENDING SYNC</span>':'')+(showCarwashBadge?carwashBadgeHtml(r):'')+'</div>'+
             '<div class="dc-c">'+escapeHTML(r.car)+' · '+escapeHTML(fmtP(r.phone))+'</div>'+
@@ -3347,6 +3402,7 @@ function renderDay() {
     document.getElementById('forgotSection').style.display='none';
   }
   kioskGlance(arrived,lt,lm,forgot,ls);
+  thumbKick();
 }
 
 // ── iPad KIOSK VIEW (owner 2026-11-12, opt-in per device) ──────────
