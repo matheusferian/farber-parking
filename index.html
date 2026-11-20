@@ -7532,7 +7532,8 @@ function kioskNeSteps(){
   ['ci2Dup','ci2SaveErr','ci2NoText','ci2Cd','ci2Saving'].forEach(function(id){ tag(ci2El(id),'texts'); });
   var bar=document.createElement('div'); bar.className='kne-steps'; bar.id='kneSteps'; step.insertBefore(bar,step.firstChild);
   var nav=document.createElement('div'); nav.className='kne-nav'; nav.id='kneNav'; step.insertBefore(nav,step.querySelector('.ci2-foot'));
-  ['ci2SPhotos','ci2SHangar'].forEach(function(id){ var s=ci2El(id); if(s&&!s.classList.contains('open')) ci2Toggle(id); });   // owner 11/19: photo first, the AI fills the car
+  // Owner 11/20: "assim que enviar o text, já colocar o hangar e imprimir" — Hangar opens first; the photo is taken on the iPhone after (the car blinks there).
+  ['ci2SHangar'].forEach(function(id){ var s=ci2El(id); if(s&&!s.classList.contains('open')) ci2Toggle(id); });
   var rd=step.querySelector('.ci2-consent details'); if(rd) rd.open=true;
   // Owner 2026-11-19 (step 2): Next stays off until name + phone are valid and says what is missing;
   // Return on the keyboard moves name → phone → return date.
@@ -7616,8 +7617,8 @@ function ci2Html(){
   +   '<p class="ci2-passup" id="ci2Pass" hidden></p>'
   + '</div></div>'
   + '<div id="ci2Details" class="ci2-details" hidden><div class="ci2-col">'
-  +   (avPhotosOn() ? ci2Sec('ci2SPhotos', 'Photo of the car', 'Take it first', '<button type="button" class="ci2-btn ci2-take" onclick="ci2ShotTake(\'auto\')">Take photo</button><button type="button" class="ci2-nophoto" id="ci2NoPhoto" onclick="ci2NoPhoto()">No photo — type the car</button><div class="ci2-shots" id="ci2Shots"></div><input type="file" id="ci2ShotIn" accept="image/*" capture="environment" hidden><div id="ci2Ai"></div><p class="ci2-hint" id="ci2PassSt" role="status">Take it here, or on the iPhone (the car blinks at the top there). The rear photo shows on the valet pass.</p>') : '')
   +   ci2Sec('ci2SHangar', 'Hangar', 'Not set', '<div class="ci2-chipset" id="ci2Hangars"></div>')
+  +   (avPhotosOn() ? ci2Sec('ci2SPhotos', 'Photo of the car', 'Later on the iPhone', '<button type="button" class="ci2-btn ci2-take" onclick="ci2ShotTake(\'auto\')">Take photo</button><button type="button" class="ci2-nophoto" id="ci2NoPhoto" onclick="ci2NoPhoto()">No photo — type the car</button><div class="ci2-shots" id="ci2Shots"></div><input type="file" id="ci2ShotIn" accept="image/*" capture="environment" hidden><div id="ci2Ai"></div><p class="ci2-hint" id="ci2PassSt" role="status">Take it here, or on the iPhone (the car blinks at the top there). The rear photo shows on the valet pass.</p>') : '')
   +   ci2Sec('ci2SVeh', 'Vehicle', 'From the photo', '<p class="ci2-sub">Make</p><input class="ci2-search" id="ci2MakeQ" placeholder="Search or type any make" autocomplete="off"><div class="ci2-chipset ci2-logos" id="ci2Makes"></div>'
   +     '<div id="ci2ModelBox" hidden><p class="ci2-sub">Model</p><input class="ci2-search" id="ci2ModelQ" placeholder="Search or type any model" autocomplete="off"><div class="ci2-chipset" id="ci2Models"></div></div>'
   +     '<p class="ci2-sub">Color</p><div class="ci2-chipset" id="ci2Colors"></div><div id="ci2OtherColorBox" hidden><input class="ci2-search" id="ci2OtherColor" placeholder="Type the color" style="margin-top:8px"></div>')
@@ -7635,7 +7636,7 @@ function ci2Html(){
   +   ci2Sec('ci2STip', 'Tip', '+ Add tip', '<p class="ci2-hint" style="margin-top:0">Cash received now, if any. Optional — skip it and nothing is recorded.</p>' + tipQuickHtml('ci2Tip')
   +     '<div class="ci2-btnrow"><button type="button" class="ci2-btn" id="ci2TipSave">Save tip</button></div><p class="ci2-hint" id="ci2TipMsg" aria-live="polite"></p>')
   + '</div></div>'
-  + '<div class="ci2-dock" id="ci2Dock" hidden><div class="ci2-need"><span id="ci2NP">Photo</span><span id="ci2NH">Hangar</span><span id="ci2NM">Car</span><span id="ci2NC">Color</span></div>'
+  + '<div class="ci2-dock" id="ci2Dock" hidden><div class="ci2-need"><span id="ci2NP" hidden>Photo</span><span id="ci2NH">Hangar</span><span id="ci2NM" hidden>Car</span><span id="ci2NC" hidden>Color</span></div>'
   +   '<button type="button" class="ci2-btn line" onclick="ci2Done()">Done</button>'
   +   '<div class="ci2-printw"><button type="button" class="ci2-print" id="ci2Print" disabled aria-controls="ci2Reprint">Print Tags</button>'
   +     '<div class="ci2-rpm" id="ci2Reprint" hidden><button type="button" data-print="both">Print both<small>Key + dashboard</small></button>'
@@ -7911,7 +7912,7 @@ async function ci2Create(withText){
   }
   _ci.created = true; _ci.id = res.id || null; _ci.ticket = res.ticket || ''; _ci.offline = !!res.offline; _ci.syncId = res.syncId || null;
   ci2El('ci2Step').hidden = true; ci2El('ci2Created').hidden = false; ci2El('ci2Details').hidden = false; ci2El('ci2Dock').hidden = false;
-  var phs = ci2El('ci2SPhotos'); if (phs && !phs.classList.contains('open')) ci2Toggle('ci2SPhotos');   // owner 11/19: photo first
+  var hgs = ci2El('ci2SHangar'); if (hgs && !hgs.classList.contains('open')) ci2Toggle('ci2SHangar');   // owner 11/20: hangar → print → photo on the iPhone
   // Owner 2026-11-20: "posso fazer o check-in pelo iPad e tirar a foto pelo iPhone (o iPad fica fixo na mesa)".
   if (avPhotosOn() && !ci2LocalOnly()) { if (_ci.photoPoll) clearInterval(_ci.photoPoll); _ci.photoPoll = setInterval(ci2RemotePhotoCheck, 5000); }
   ci2El('ci2Who').textContent = name + (ci2Digits(phone) ? ' · •••-' + ci2Digits(phone).slice(-4) : '');
@@ -8355,7 +8356,7 @@ async function ci2PickRevoke(){
   ci2RenderPickLoc(); ci2RenderCard(); ci2Toast('Authorization revoked.' + (_ci.printed ? ' Reprint the key tag.' : ''));
 }
 
-// ── Print Tags: manual, only with Hangar + Make/Model + Color ──
+// ── Print Tags: manual, only with the Hangar (owner 11/20) ──
 // First tap prints both operational tags: the Key tag (keys) and the
 // Dashboard tag (the car's dashboard, how valets find the car). After that the
 // button offers Reprint: both, key only or dashboard only. One job at a time:
@@ -8366,10 +8367,13 @@ function ci2Need(){
   // Owner 2026-11-19: "quero tirar foto antes de imprimir as tags" — the photo comes first (the AI fills the car,
   // so the tag prints the right make and color). "No photo" is the fallback (then staff type the car).
   var ph = !avPhotosOn() || !!(_ci.shots && (_ci.shots.rear || _ci.shots.front)) || !!_ci.noPhoto;
-  var np = ci2El('ci2NP'); if (np) { np.className = ph ? 'ok' : ''; np.hidden = !avPhotosOn(); }
-  ci2El('ci2NH').className = h ? 'ok' : ''; ci2El('ci2NM').className = m ? 'ok' : ''; ci2El('ci2NC').className = c ? 'ok' : '';
+  // Owner 2026-11-20: "colocar o hangar e já imprimir … sem a cor e o modelo; a foto eu tiro com o celular" —
+  // Print needs only the hangar. Car, color and photo come later (iPhone photo → AI fills them); the key tag
+  // simply leaves the car line out when it is empty, and Reprint is on the ticket.
+  void ph; void m; void c;
+  ci2El('ci2NH').className = h ? 'ok' : '';
   var b = ci2El('ci2Print');
-  b.disabled = !!_ci.printing || !(ph && h && m && c && _ci.created);
+  b.disabled = !!_ci.printing || !(h && _ci.created);
   b.innerHTML = _ci.printing ? 'Printing…' : (_ci.printed ? 'Reprint <span aria-hidden="true">▾</span>' : 'Print Tags');
   if (_ci.printed) b.setAttribute('aria-expanded', String(!ci2El('ci2Reprint').hidden)); else b.removeAttribute('aria-expanded');
 }
@@ -8544,7 +8548,7 @@ function ci2RenderShots(){
       + '<b>' + s[1] + '</b><small>' + (have ? new Date(have.at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : s[2]) + '</small></button>';
   }).join('');
   var n = CI2_SHOTS.filter(function(s){ return _ci.shots[s[0]]; }).length, v = ci2El('ci2SPhotosV');
-  if (v) { v.textContent = n ? n + ' of 2' : 'Optional'; v.className = 'v' + (n === 2 ? ' done' : ''); }
+  if (v) { v.textContent = n ? n + ' of 2' : 'Later on the iPhone'; v.className = 'v' + (n === 2 ? ' done' : ''); }
   var ai = ci2El('ci2Ai');
   if (ai && !_ci.aiBusy) ai.innerHTML = ((_ci.shots.front || _ci.shots.rear) && !_ci.aiDone)
     ? '<button type="button" class="ci2-btn" onclick="ci2AiSuggest()">Fill car from photos</button>' : '';
