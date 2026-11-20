@@ -7548,7 +7548,8 @@ function kioskNeSyncNext(){
   var st=ci2El('ci2Step'), b=document.querySelector('#kneNav .kne-next'); if(!st||!b||st.getAttribute('data-kstep')!=='guest') return;
   var n=ci2El('ci2Name'), p=ci2El('ci2Phone'), hasN=!!(n&&n.value.trim()), hasP=!!(p&&ci2PhoneValid(p.value));
   b.disabled=!(hasN&&hasP);
-  b.textContent=hasN&&hasP?'Next · Texts ›':!hasN&&!hasP?'Add name and phone':!hasN?'Add the name':'Phone: 10 digits, or + country code';
+  var pd=p?ci2Digits(p.value):'';
+  b.textContent=hasN&&hasP?'Next · Texts ›':!hasN&&!hasP?'Add name and phone':!hasN?'Add the name':(pd.length===10&&!ci2AreaOk(pd)?'Area code '+pd.slice(0,3)+' does not exist':'Phone: 10 digits, or + country code');
 }
 function kioskNeGuestOk(){ var n=ci2El('ci2Name'), p=ci2El('ci2Phone'); return !!(n&&n.value.trim())&&!!p&&ci2PhoneValid(p.value); }
 function kioskNeGo(k){
@@ -7661,7 +7662,8 @@ function ci2Bind(){
   ph.addEventListener('blur', function(){
     var d = ci2Digits(this.value), bad = d.length > 0 && !ci2PhoneValid(this.value), h = ci2El('ci2PhoneHint');
     this.setAttribute('aria-invalid', String(bad)); h.classList.toggle('bad', bad);
-    h.textContent = bad ? (/^\+/.test(this.value) ? 'Check the number: + country code and number.' : 'US number needs 10 digits (' + this.value.replace(/\D/g, '').length + ' typed). International: start with +.') : ci2PhoneHintText(this.value);
+    var d10 = ci2Digits(this.value);
+    h.textContent = bad ? (d10.length === 10 && !ci2AreaOk(d10) ? 'Area code ' + d10.slice(0, 3) + ' does not exist. Check the number.' : /^\+/.test(this.value) ? 'Check the number: + country code and number.' : 'US number needs 10 digits (' + this.value.replace(/\D/g, '').length + ' typed). International: start with +.') : ci2PhoneHintText(this.value);
   });
   ph.addEventListener('input', function(){
     fmtGuestPhoneInput(this);
@@ -7701,11 +7703,15 @@ function ci2Bind(){
   ci2El('ci2Native').hidden = smsProgramOpen();
 }
 function ci2Digits(v){ return String(v || '').replace(/\D/g, '').replace(/^1(?=\d{10}$)/, ''); }
+// Owner 2026-11-20 (BALOCCO 1120-9: "(554)" typed for "(954)" on 5/1, text failed 30006): a +1 number must use an
+// area code that exists (US, Canada, Caribbean — libphonenumber 9.0.44 list, 460 codes).
+var NANP_NPA = new Set('201,202,203,204,205,206,207,208,209,210,212,213,214,215,216,217,218,219,220,223,224,225,226,227,228,229,231,234,235,236,239,240,242,246,248,249,250,251,252,253,254,256,257,260,262,263,267,269,270,272,273,274,276,279,281,283,289,301,302,303,304,305,306,307,308,309,310,312,313,314,315,316,317,318,319,320,321,323,324,325,326,327,329,330,331,332,334,336,337,339,340,341,343,346,347,350,351,352,353,354,360,361,363,364,365,367,368,369,380,382,385,386,401,402,403,404,405,406,407,408,409,410,412,413,414,415,416,417,418,419,423,424,425,428,430,431,432,434,435,437,438,440,441,442,443,445,447,448,450,458,463,464,468,469,470,472,473,474,475,478,479,480,484,500,501,502,503,504,505,506,507,508,509,510,512,513,514,515,516,517,518,519,520,521,522,523,524,525,526,527,528,529,530,531,532,533,534,539,540,541,544,548,551,557,559,561,562,563,564,566,567,570,571,572,573,574,575,577,579,580,581,582,584,585,586,587,588,600,601,602,603,604,605,606,607,608,609,610,612,613,614,615,616,617,618,619,620,622,623,626,628,629,630,631,633,636,639,640,641,645,646,647,649,650,651,656,657,658,659,660,661,662,667,669,670,671,672,678,680,681,682,683,686,689,701,702,703,704,705,706,707,708,709,712,713,714,715,716,717,718,719,720,724,725,726,727,728,730,731,732,734,737,738,740,742,743,747,748,753,754,757,758,760,762,763,765,769,770,771,772,773,774,775,778,779,780,781,782,784,785,786,787,800,801,802,803,804,805,806,807,808,809,810,812,813,814,815,816,817,818,819,820,821,825,826,828,829,830,831,832,833,835,838,839,840,843,844,845,847,848,849,850,854,855,856,857,858,859,860,862,863,864,865,866,867,868,870,872,873,876,877,878,879,888,900,901,902,903,904,905,906,907,908,909,910,912,913,914,915,916,917,918,919,920,925,928,929,930,931,934,936,937,938,939,940,941,942,943,945,947,948,949,951,952,954,956,959,970,971,972,973,975,978,979,980,983,984,985,986,989'.split(','));
+function ci2AreaOk(d10){ return NANP_NPA.has(String(d10 || '').slice(0, 3)); }
 function ci2PhoneValid(v){
   var s = String(v || '').trim(), d = s.replace(/\D/g, '');
   if (guestPhoneIntl(s)) return true;
-  if (/^\+/.test(s)) return /^1\d{10}$/.test(d);
-  return d.length === 10;
+  if (/^\+/.test(s)) return /^1\d{10}$/.test(d) && ci2AreaOk(d.slice(1));
+  return d.length === 10 && ci2AreaOk(d);
 }
 function ci2PhoneHintText(v){
   var c = ci2PhoneValid(v) ? guestPhoneCountry(v) : null, who = c ? c.flag + ' ' + c.name + ' · ' : '';
