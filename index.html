@@ -7369,6 +7369,7 @@ function ci2Close(){
   ci2WideModal(false); ci2ModeRow(true);
   if (_ci && _ci.timer) clearInterval(_ci.timer);
   if (_ci && _ci.pollTimer) clearTimeout(_ci.pollTimer);
+  if (_ci && _ci.photoPoll) clearInterval(_ci.photoPoll);
   document.removeEventListener('click', ci2ReprintOutside, true); document.removeEventListener('keydown', ci2ReprintEsc, true);
   _ci = null;
 }
@@ -7401,6 +7402,7 @@ function ci2Open(){
   mkNamesLoad(false);
   if (_ci && _ci.timer) clearInterval(_ci.timer);
   if (_ci && _ci.pollTimer) clearTimeout(_ci.pollTimer);
+  if (_ci && _ci.photoPoll) clearInterval(_ci.photoPoll);
   _ci = { op:'MAKERS', consent:null, timer:null, busy:false, created:false, id:null, ticket:'', offline:false,
           ret:'', noDate:false, other:false, hangar:'', make:'', model:'', vehText:'', color:'', printed:false,
           pick:null, pickLoc:'', calOpen:{}, calMonth:{}, msgId:null, pollN:0, pollTimer:null, tipKey:null, tipBusy:false, tips:[] };
@@ -7513,7 +7515,7 @@ function ci2Html(){
   +   '<p class="ci2-passup" id="ci2Pass" hidden></p>'
   + '</div></div>'
   + '<div id="ci2Details" class="ci2-details" hidden><div class="ci2-col">'
-  +   (avPhotosOn() ? ci2Sec('ci2SPhotos', 'Photo of the car', 'Take it first', '<button type="button" class="ci2-btn ci2-take" onclick="ci2ShotTake(\'auto\')">Take photo</button><button type="button" class="ci2-nophoto" id="ci2NoPhoto" onclick="ci2NoPhoto()">No photo — type the car</button><div class="ci2-shots" id="ci2Shots"></div><input type="file" id="ci2ShotIn" accept="image/*" capture="environment" hidden><div id="ci2Ai"></div><p class="ci2-hint" id="ci2PassSt" role="status">Optional. The rear photo shows on the passenger\'s valet pass.</p>') : '')
+  +   (avPhotosOn() ? ci2Sec('ci2SPhotos', 'Photo of the car', 'Take it first', '<button type="button" class="ci2-btn ci2-take" onclick="ci2ShotTake(\'auto\')">Take photo</button><button type="button" class="ci2-nophoto" id="ci2NoPhoto" onclick="ci2NoPhoto()">No photo — type the car</button><div class="ci2-shots" id="ci2Shots"></div><input type="file" id="ci2ShotIn" accept="image/*" capture="environment" hidden><div id="ci2Ai"></div><p class="ci2-hint" id="ci2PassSt" role="status">Take it here, or on the iPhone (the car blinks at the top there). The rear photo shows on the valet pass.</p>') : '')
   +   ci2Sec('ci2SHangar', 'Hangar', 'Not set', '<div class="ci2-chipset" id="ci2Hangars"></div>')
   +   ci2Sec('ci2SVeh', 'Vehicle', 'From the photo', '<p class="ci2-sub">Make</p><input class="ci2-search" id="ci2MakeQ" placeholder="Search or type any make" autocomplete="off"><div class="ci2-chipset ci2-logos" id="ci2Makes"></div>'
   +     '<div id="ci2ModelBox" hidden><p class="ci2-sub">Model</p><input class="ci2-search" id="ci2ModelQ" placeholder="Search or type any model" autocomplete="off"><div class="ci2-chipset" id="ci2Models"></div></div>'
@@ -7809,6 +7811,8 @@ async function ci2Create(withText){
   _ci.created = true; _ci.id = res.id || null; _ci.ticket = res.ticket || ''; _ci.offline = !!res.offline; _ci.syncId = res.syncId || null;
   ci2El('ci2Step').hidden = true; ci2El('ci2Created').hidden = false; ci2El('ci2Details').hidden = false; ci2El('ci2Dock').hidden = false;
   var phs = ci2El('ci2SPhotos'); if (phs && !phs.classList.contains('open')) ci2Toggle('ci2SPhotos');   // owner 11/19: photo first
+  // Owner 2026-11-20: "posso fazer o check-in pelo iPad e tirar a foto pelo iPhone (o iPad fica fixo na mesa)".
+  if (avPhotosOn() && !ci2LocalOnly()) { if (_ci.photoPoll) clearInterval(_ci.photoPoll); _ci.photoPoll = setInterval(ci2RemotePhotoCheck, 5000); }
   ci2El('ci2Who').textContent = name + (ci2Digits(phone) ? ' · •••-' + ci2Digits(phone).slice(-4) : '');
   ci2El('ci2Num').textContent = _ci.ticket;
   var nm = ci2El('ci2Num'); nm.tabIndex = -1; nm.setAttribute('aria-label', 'Ticket ' + _ci.ticket + ' created'); nm.focus();
@@ -8390,6 +8394,38 @@ async function ci2ShotAuto(p){
     + '<button type="button" class="ci2-btn" id="ci2SideRear">Rear</button><button type="button" class="ci2-btn line" id="ci2SideFront">Front</button></div></div>';
   ci2El('ci2SideRear').onclick = function(){ done('rear'); };
   ci2El('ci2SideFront').onclick = function(){ done('front'); };
+}
+// A photo taken for this ticket on another device (the iPhone: finish strip or car card) — the iPad sees it,
+// shows it, takes the car / color / plate the AI saved there, and Print Tags opens.
+async function ci2RemotePhotoCheck(){
+  var ci = _ci;
+  if (!ci || !ci.created || ci2LocalOnly() || ci.noPhoto || ci.remoteBusy || (ci.shots && (ci.shots.rear || ci.shots.front))) {
+    if (ci && ci.photoPoll && ci.shots && (ci.shots.rear || ci.shots.front || ci.noPhoto)) { clearInterval(ci.photoPoll); ci.photoPoll = null; }
+    return;
+  }
+  ci.remoteBusy = true;
+  try {
+    var res = await smsApi('/functions/v1/car-photos', { method: 'POST', headers: sbHeaders(), body: JSON.stringify({ action: 'list', passenger_id: ci.id }) });
+    if (_ci !== ci || !res || !res.ok || !res.photos || !res.photos.length) return;
+    clearInterval(ci.photoPoll); ci.photoPoll = null;
+    res.photos.slice().reverse().forEach(function(ph){ ci.shots[ph.angle] = { url: ph.url, at: ph.taken_at, remote: true }; });
+    var row = null;
+    try {
+      var r = await fetch(SUPABASE_URL + '/rest/v1/passengers?id=eq.' + ci.id + '&select=car,color,plate,plate_state', { headers: sbHeaders() });
+      if (r.ok) row = (await r.json())[0] || null;
+    } catch(e) {}
+    if (row) {
+      if (row.car && !ci2VehCar()) { ci.vehText = String(row.car).toUpperCase(); ci.make = ''; ci.model = ''; }
+      if (row.color && !ci.color) { ci.color = row.color; if (typeof ci2RenderColors === 'function') ci2RenderColors(); }
+      var rr = data.find(function(x){ return x.id === ci.id; }); if (rr) { rr.car = row.car || rr.car; rr.color = row.color || rr.color; rr.plate = row.plate || rr.plate; }
+      ci2RenderMakes(); ci2VehSum(false);
+    }
+    ci.aiDone = true;
+    ci2RenderShots(); ci2Need(); ci2RenderCard();
+    var nb = ci2El('ci2NoPhoto'); if (nb) nb.hidden = true;
+    var st = ci2El('ci2PassSt'); if (st) st.textContent = '✓ Photo taken on another device' + (row && row.car ? ' — ' + [row.color, row.car].filter(Boolean).join(' ') : '') + '.';
+    var ai = ci2El('ci2Ai'); if (ai) ai.innerHTML = '';
+  } catch(e) {} finally { ci.remoteBusy = false; }
 }
 function ci2NoPhoto(){ _ci.noPhoto = true; var b = ci2El('ci2NoPhoto'); if (b) b.hidden = true; ci2Need(); ci2OpenSec('ci2SVeh'); }
 function ci2ShotTake(key){ _ci.shotKey = key; ci2El('ci2ShotIn').click(); }

@@ -135,7 +135,8 @@
 // v214: Car photos kept on the server (30 days after the car leaves) and shown on the car card on every device (owner 11/19).
 // v215: Delivery confirm shows the arrival photo (owner 11/19).
 // v216: Check-in photo first — the car AI fills make/model/color/plate; staff only confirm or Change (owner 11/19).
-var CACHE_VERSION = 'v216';
+// v217: iPad check-in sees the photo taken on the iPhone (car, color, plate come too) and Print Tags opens (owner 11/20).
+var CACHE_VERSION = 'v217';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 var SHELL_FILES = [
