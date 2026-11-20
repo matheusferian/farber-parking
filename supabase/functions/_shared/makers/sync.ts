@@ -75,6 +75,20 @@ export function isPetRow(r: { last: string; first: string }): boolean {
 
 const mdyToIso = (mdy: string) => { const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(mdy || ''); return m ? `${m[3]}-${m[1].padStart(2, '0')}-${m[2].padStart(2, '0')}` : ''; };
 const samePerson = (name: string, r: PaxRow) => { const s = scoreName(name, { last: r.last, first: r.first, middle: '', pnr: '', first_origin: '' }); return !!s && s.kind !== 'surname_only'; };
+// Owner 2026-11-20 (RODERICK CIFERRI 1120-3): Makers' last-name search is exact — "CIFERRI" finds nothing when
+// the booking says "CIFERRI III". With no row for the plain surname, the same search is tried with the usual
+// suffixes (read-only, at most 5 more searches; `budget` caps them per robot run).
+export const LAST_SUFFIXES = ['JR', 'III', 'II', 'SR', 'IV'];
+export async function byLastAnySuffix(suite: SuiteLike, last: string, fromMdy: string, toMdy: string, budget?: { n: number }): Promise<PaxRow[]> {
+  const rows = await suite.passengersByLast!(last, fromMdy, toMdy);
+  if (rows.some((r) => !isPetRow(r))) return rows;
+  for (const suf of LAST_SUFFIXES) {
+    if (budget) { if (budget.n <= 0) break; budget.n--; }
+    const more = await suite.passengersByLast!(`${last} ${suf}`, fromMdy, toMdy);
+    if (more.some((r) => !isPetRow(r))) return more;
+  }
+  return rows;
+}
 const leg1 = (r: PaxRow): Leg1 => ({ date: mdyToIso(r.date), flight: r.flight, route: `${r.from}-${r.to}` });
 
 // Our guest: the flight out of FXE nearest our check-in day (±4 days), then the first flight back to FXE after it.
@@ -196,7 +210,7 @@ export async function runSync(suite: SuiteLike, o: { date: string; today: string
 
   // 2. Every Makers car we hold: Makers return date vs ours.
   const date_diffs: DateDiff[] = [], no_return: NoReturn[] = [], not_found_list: NotFound[] = [];
-  let checked = 0, not_found = 0, fallbacks = 0;
+  let checked = 0, not_found = 0, fallbacks = 0; const suffixBudget = { n: 15 };
   const held = o.pool.filter((c) => (c.status === 'PENDING' || c.status === 'NO DATE') && String(c.return_operator || 'MAKERS').toUpperCase() !== 'ASCEND' && !settled.has(c.id));
   for (const car of held.slice(0, o.maxLookups ?? 100)) {
     const toks = normTokens(car.name);
@@ -215,7 +229,7 @@ export async function runSync(suite: SuiteLike, o: { date: string; today: string
       fallbacks++;
       const ci = car.checkin || null;
       try {
-        const rows = await suite.passengersByLast(toks[toks.length - 1], isoToMdy(addDays(ci && ci < o.today ? ci : addDays(o.today, -120), -5)), isoToMdy(addDays(o.today, 120)));
+        const rows = await byLastAnySuffix(suite, toks[toks.length - 1], isoToMdy(addDays(ci && ci < o.today ? ci : addDays(o.today, -120), -5)), isoToMdy(addDays(o.today, 120)), suffixBudget);
         t = tripFromFlights(car, rows, o.today);
       } catch (e) {
         const code = (e as { code?: string })?.code;
@@ -284,7 +298,7 @@ export type ReturnLookup =
 export async function lookupReturn(suite: SuiteLike, name: string, today: string): Promise<ReturnLookup> {
   const toks = normTokens(name);
   if (toks.length < 2 || !suite.passengersByLast) return { state: 'not_found' };
-  const rows = (await suite.passengersByLast(toks[toks.length - 1], isoToMdy(addDays(today, -5)), isoToMdy(addDays(today, 120))))
+  const rows = (await byLastAnySuffix(suite, toks[toks.length - 1], isoToMdy(addDays(today, -5)), isoToMdy(addDays(today, 120))))
     .filter((r) => !isPetRow(r) && mdyToIso(r.date) && samePerson(name, r))
     .sort((a, b) => mdyToIso(a.date).localeCompare(mdyToIso(b.date)));
   // The flight out of FXE: today first, else the nearest day before (a guest who left yesterday and parks today).

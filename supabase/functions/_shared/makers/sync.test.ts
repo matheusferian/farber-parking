@@ -278,3 +278,19 @@ Deno.test('check-in return lookup: a real flight back to FXE, never the Return D
   ] };
   assertEquals((await lookupReturn(acc, 'JOSÉ PÉREZ', '2026-11-19')).state, 'found');
 });
+
+// Owner 2026-11-20 (RODERICK CIFERRI 1120-3): Makers' last-name search is exact; "CIFERRI III" is found by the suffix retry.
+Deno.test('check-in return lookup: surname with JR / III on the booking', async () => {
+  const rows: PaxRow[] = [
+    { date: '11/20/2026', flight: '3225', from: 'FXE', to: 'ELH', last: 'CIFERRI III', first: 'RODERICK', retDate: '11/20/2026' },
+    { date: '11/20/2026', flight: '3225', from: 'ELH', to: 'TYM', last: 'CIFERRI III', first: 'RODERICK', retDate: '' },
+    { date: '11/22/2026', flight: '517', from: 'TYM', to: 'FXE', last: 'CIFERRI III', first: 'RODERICK', retDate: '' },
+  ];
+  const calls: string[] = [];
+  const s: SuiteLike = { ...fake(calls), passengersByLast: async (last) => { calls.push(last); return rows.filter((r) => r.last === last); } };
+  assertEquals(await lookupReturn(s, 'RODERICK CIFERRI', '2026-11-20'), { state: 'found', ret: '2026-11-22', flight: '517', route: 'TYM-FXE', out_date: '2026-11-20' });
+  assertEquals(calls, ['CIFERRI', 'CIFERRI JR', 'CIFERRI III']);
+  calls.length = 0;
+  assertEquals(await lookupReturn(s, 'JOHN NOBODY', '2026-11-20'), { state: 'not_found' });
+  assertEquals(calls.length, 6);   // plain + 5 suffixes, then stops
+});
