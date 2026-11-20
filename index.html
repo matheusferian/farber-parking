@@ -431,6 +431,14 @@
 </div>
 
 <button class="fab" onclick="openAdd()"><i class="fa-solid fa-circle-plus"></i> New Entry</button>
+<!-- iPhone tab bar (owner 2026-11-20): the 4 things the team does all day, one tap, thumb reach. -->
+<nav class="ibar" id="iBar" aria-label="Main" hidden>
+  <button type="button" data-go="day"><i class="fa-solid fa-car" aria-hidden="true"></i><span>Cars</span></button>
+  <button type="button" data-go="all"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><span>Search</span></button>
+  <button type="button" data-go="new" class="ibar-new"><i class="fa-solid fa-plus" aria-hidden="true"></i><span>New</span></button>
+  <button type="button" data-go="messages"><i class="fa-solid fa-message" aria-hidden="true"></i><span>Messages</span><em id="iBarMsg" hidden></em></button>
+  <button type="button" data-go="more"><i class="fa-solid fa-bars" aria-hidden="true"></i><span>More</span></button>
+</nav>
 <!-- JET RUNWAY RIDE (owner 2026-11-11): phone number only → text "reply READY or call"; see ride Edge Function. -->
 <div class="ov" id="rideOv">
   <div class="modal jr-modal">
@@ -3750,6 +3758,43 @@ function toggleSidebarDrawer(){
   if(document.querySelector('.tabs').classList.contains('open')) closeSidebarDrawer();
   else openSidebarDrawer();
 }
+
+// ── iPhone tab bar (owner 2026-11-20) ──────────────────────────
+// Cars · Search · New · Messages · More. Each item clicks the same sidebar tab (role rules stay in one place);
+// More opens the full menu. Phones only (≤700 px), never on the TV or before sign-in.
+function iBarTab(go){ return document.querySelector('.tab[data-t="' + go + '"]'); }
+function iBarSync(){
+  var bar = document.getElementById('iBar'); if (!bar) return;
+  var role = typeof _currentUserRole !== 'undefined' ? _currentUserRole : null;
+  var on = !!role && role !== 'TV_ONLY' && window.matchMedia('(max-width:700px)').matches && !(typeof isTvMode === 'function' && isTvMode());
+  bar.hidden = !on; document.body.classList.toggle('has-ibar', on);
+  if (!on) return;
+  var cur = document.querySelector('.tab.on'), curT = cur && cur.getAttribute('data-t');
+  bar.querySelectorAll('button[data-go]').forEach(function(b){
+    var go = b.getAttribute('data-go'), t = iBarTab(go);
+    if (go === 'day' || go === 'all' || go === 'messages') b.hidden = !t || t.style.display === 'none';
+    if (b.hidden) return;
+    if (curT === go) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+  });
+  var src = document.getElementById('rrTabBadge'), em = document.getElementById('iBarMsg');
+  if (em) { var n = src && src.style.display !== 'none' ? String(src.textContent || '').trim() : ''; em.hidden = !n || n === '0'; em.textContent = n; }
+}
+(function(){
+  var bar = document.getElementById('iBar'); if (!bar) return;
+  bar.addEventListener('click', function(e){
+    var b = e.target.closest('button[data-go]'); if (!b) return;
+    var go = b.getAttribute('data-go');
+    if (go === 'new') { openAdd(); return; }
+    if (go === 'more') { toggleSidebarDrawer(); return; }
+    var t = iBarTab(go); if (!t || t.style.display === 'none') return;
+    t.click(); window.scrollTo(0, 0);
+    if (go === 'all') { var q = document.getElementById('srch'); if (q) setTimeout(function(){ q.focus(); }, 50); }
+    iBarSync();
+  });
+  document.querySelectorAll('.tab').forEach(function(t){ t.addEventListener('click', function(){ setTimeout(iBarSync, 0); }); });
+  window.addEventListener('resize', iBarSync);
+  setInterval(iBarSync, 5000);
+})();
 
 // ── TABS & FILTERS ─────────────────────────────────────────────
 document.querySelectorAll('.tab').forEach(function(t){
@@ -11903,6 +11948,7 @@ async function bootstrapAfterAuth(){
     return;
   }
   applyRoleNavVisibility(_currentUserRole);
+  try { iBarSync(); } catch(e) {}
   if(isTvMode()){
     if(!_tvStarted){ _tvStarted = true; initTvMode(); try { tvAlertsInit(); } catch(e) {} }
     else { tvHideSessionExpired(); refreshTvData(); }

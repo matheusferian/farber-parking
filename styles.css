@@ -3549,3 +3549,19 @@ body.av-kiosk .ci2-wide .ci2-script{font-size:17px;line-height:1.5}
 @media (min-width:768px){
   body.av-kiosk .dc-ph.on{display:block;flex:none;width:76px;align-self:stretch;min-height:56px;margin:8px 0 8px 10px;border-radius:10px;background:#0B1B2E center/cover no-repeat;}
 }
+/* iPhone tab bar (owner 11/20) */
+.ibar{position:fixed;left:0;right:0;bottom:0;z-index:150;display:grid;grid-template-columns:repeat(auto-fit,minmax(0,1fr));
+  background:var(--s,#fff);border-top:1px solid var(--b);box-shadow:0 -4px 16px rgba(11,27,46,.06);
+  padding:6px 4px calc(6px + env(safe-area-inset-bottom));}
+.ibar[hidden]{display:none;}
+.ibar button{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-height:50px;border:0;background:none;
+  color:var(--mu);font:600 11px 'Inter',sans-serif;cursor:pointer;-webkit-tap-highlight-color:transparent;}
+.ibar button[hidden]{display:none;}
+.ibar button i{font-size:20px;}
+.ibar button[aria-current="page"]{color:var(--navy);}
+.ibar .ibar-new i{display:flex;align-items:center;justify-content:center;width:40px;height:30px;border-radius:10px;background:var(--navy);color:#fff;font-size:16px;}
+.ibar .ibar-new{color:var(--navy);}
+.ibar em{position:absolute;top:2px;left:calc(50% + 6px);min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:#E5484D;color:#fff;font:700 11px/18px 'Inter',sans-serif;font-style:normal;text-align:center;box-sizing:border-box;}
+.ibar em[hidden]{display:none;}
+body.has-ibar{padding-bottom:calc(70px + env(safe-area-inset-bottom));}
+body.has-ibar .fab{display:none!important;}
