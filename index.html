@@ -3110,7 +3110,7 @@ function finCands(arrived){
   return (arrived || []).filter(function(r){ return (r.status === 'PENDING' || r.status === 'NO DATE') && !r.isOfflinePending && typeof r.id === 'number'; });
 }
 async function finPoll(ids){
-  var key = ids.join(','); if (_fin.busy || (key === _fin.ids && Date.now() - _fin.at < 60000)) return;
+  var key = ids.join(','); if (_fin.busy || (key === _fin.ids && Date.now() - _fin.at < 10000)) return;
   _fin.busy = true;
   try {
     var r = await fetch(SUPABASE_URL + '/rest/v1/rpc/airvalet_tv_pass_photos', { method: 'POST', headers: sbHeaders(), body: JSON.stringify({ p_ids: ids.slice(0, 60), p_with_image: false }) });
@@ -8829,6 +8829,7 @@ function showDet(id){
   _editChanges={};
   var r=null;for(var i=0;i<data.length;i++){if(data[i].id===id){r=data[i];break;}}
   if(!r)return;
+  window._detSig = JSON.stringify(r);
   var hist=data.filter(function(d){return d.name.toLowerCase()===r.name.toLowerCase();});
   var rt=isToday(r.ret),rm=isTmrw(r.ret),ro=isLate(r.ret);
   var retDisp=r.ret?fmtD(r.ret):'No date';
@@ -11206,23 +11207,54 @@ async function liveRefreshData(){
     render();
     updateSyncStatus();
     if(typeof updateOfflinePendingPanel==='function') updateOfflinePendingPanel();
+    liveRefreshOpenCard();
   }catch(e){ console.warn('Live refresh skipped:', e && e.message); }
   finally{ _liveData.inFlight = false; }
+}
+// Owner 2026-11-20: "quero que fique tudo em tempo real, sem precisar atualizar — iPad e iPhone". On iPads and
+// iPhones the socket dies when the screen sleeps or the app goes to the background and the channel stayed dead
+// (only the slow poll was left). Now: a watchdog every 15 s rejoins a channel that is not 'joined' (with a fresh
+// token), coming back to the app rejoins + refreshes at once, changes land in ~0.6 s, and the safety poll is 30 s.
+function liveSubscribe(){
+  try{
+    if(_liveData.channel){ try{ _supaClient.removeChannel(_liveData.channel); }catch(e){} _liveData.channel = null; }
+    if(_supaClient.realtime && typeof _supaClient.realtime.setAuth === 'function' && _authToken) _supaClient.realtime.setAuth(_authToken);
+    _liveData.channel = _supaClient.channel('ops-passengers-' + Date.now())
+      .on('postgres_changes', {event:'*', schema:'public', table:'passengers'}, function(){
+        if(_liveData.debounce) clearTimeout(_liveData.debounce);
+        _liveData.debounce = setTimeout(liveRefreshData, 600);
+      })
+      .subscribe(function(status){ _liveData.status = status; });
+  }catch(e){ console.warn('Live list realtime unavailable, polling only:', e); }
+}
+function liveWatch(){
+  if(document.visibilityState === 'hidden' || !_authToken) return;
+  var ch = _liveData.channel, st = ch && ch.state;
+  if(!ch || (st !== 'joined' && st !== 'joining')) liveSubscribe();
+}
+// An open car card follows changes made on another device (not while someone is editing it here).
+function liveRefreshOpenCard(){
+  try{
+    var ov = document.getElementById('detOv'); if(!ov || !ov.classList.contains('on')) return;
+    if(typeof _editChanges !== 'undefined' && _editChanges && Object.keys(_editChanges).length) return;
+    var a = document.activeElement; if(a && /INPUT|TEXTAREA|SELECT/.test(a.tagName) && ov.contains(a)) return;
+    var dp = document.getElementById('detPhotos'), id = dp ? +dp.dataset.pid : null; if(!id) return;
+    var rr = data.find(function(x){ return x.id === id; }); if(!rr) return;
+    var sig = JSON.stringify(rr); if(sig === window._detSig) return;   // only when this car changed
+    var panel = document.getElementById('detPanel'), top = panel ? panel.scrollTop : 0;
+    showDet(id); if(panel) panel.scrollTop = top;
+  }catch(e){}
 }
 function startLiveData(){
   if(_liveData.started || isTvMode()) return;
   _liveData.started = true;
-  try{
-    if(_supaClient.realtime && typeof _supaClient.realtime.setAuth === 'function') _supaClient.realtime.setAuth(_authToken);
-    _liveData.channel = _supaClient.channel('ops-passengers')
-      .on('postgres_changes', {event:'*', schema:'public', table:'passengers'}, function(){
-        if(_liveData.debounce) clearTimeout(_liveData.debounce);
-        _liveData.debounce = setTimeout(liveRefreshData, 1500);
-      })
-      .subscribe();
-  }catch(e){ console.warn('Live list realtime unavailable, polling only:', e); }
-  setInterval(liveRefreshData, 60000);
-  document.addEventListener('visibilitychange', function(){ if(document.visibilityState === 'visible') liveRefreshData(); });
+  liveSubscribe();
+  setInterval(liveRefreshData, 30000);
+  setInterval(liveWatch, 15000);
+  var back = function(){ if(document.visibilityState === 'visible'){ liveWatch(); liveRefreshData(); if(typeof _fin !== 'undefined') _fin.at = 0; } };
+  document.addEventListener('visibilitychange', back);
+  window.addEventListener('focus', back);
+  window.addEventListener('online', function(){ liveSubscribe(); liveRefreshData(); });
 }
 
 function showApp() {

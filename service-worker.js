@@ -136,7 +136,8 @@
 // v215: Delivery confirm shows the arrival photo (owner 11/19).
 // v216: Check-in photo first — the car AI fills make/model/color/plate; staff only confirm or Change (owner 11/19).
 // v217: iPad check-in sees the photo taken on the iPhone (car, color, plate come too) and Print Tags opens (owner 11/20).
-var CACHE_VERSION = 'v217';
+// v218: Live sync iPad/iPhone — channel watchdog + rejoin on wake, ~0.6 s updates, open car card follows (owner 11/20).
+var CACHE_VERSION = 'v218';
 var CACHE_NAME = 'airvalet-shell-' + CACHE_VERSION;
 
 var SHELL_FILES = [
