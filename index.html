@@ -8780,6 +8780,17 @@ async function carPhotosLoad(r){
     var when = new Date(ph.taken_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
     return '<button type="button" class="cp-tile" data-cpurl="' + escapeHTML(ph.url || '') + '"><img src="' + escapeHTML(ph.url || '') + '" alt="' + label + ' photo"><b>' + label + '</b><small>' + escapeHTML(when) + '</small></button>';
   };
+  // New car card (owner 11/20): the arrival photo big at the top (rear first, the one on the pass) + the count.
+  var hero = document.getElementById('detHero'), hp = last.rear || last.front, nEl = document.getElementById('dxPhN'), nPh = Object.keys(last).length;
+  if (nEl) nEl.textContent = res && res.ok ? (nPh ? nPh + (nPh === 1 ? ' photo' : ' photos') : 'No photo') : '—';
+  if (hero) {
+    if (hp && hp.url) {
+      var hw = new Date(hp.taken_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+      hero.innerHTML = '<button type="button" aria-label="Open the arrival photo"><img src="' + escapeHTML(hp.url) + '" alt="Arrival photo"><span>' + (hp.angle === 'rear' ? 'Rear' : 'Front') + ' · ' + escapeHTML(hw) + '</span></button>';
+      hero.querySelector('button').onclick = function(){ carPhotoFull(hp.url); };
+      hero.hidden = false;
+    } else { hero.hidden = true; hero.innerHTML = ''; }
+  }
   box.innerHTML = (res && res.ok ? '' : '<p class="cp-note">Could not load photos.</p>')
     + '<div class="cp-row">' + tile('front', 'Front') + tile('rear', 'Rear') + '</div>'
     + (r.status !== 'DELIVERED' ? '<button type="button" class="cp-take" id="cpTake">Take photo</button><input type="file" id="cpIn" accept="image/*" capture="environment" hidden>' : '')
@@ -8825,6 +8836,12 @@ async function carPhotoTake(r, file){
     if (typeof finRender === 'function') finRender(null);
   } catch(e) { st('Photo not saved. Try again.'); }
 }
+// Opens one section of the car card and brings it into view (header Edit, Move).
+function dxOpen(id){
+  var d = document.getElementById(id); if (!d) return;
+  d.open = true;
+  try { d.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch(e) { d.scrollIntoView(); }
+}
 function showDet(id){
   _editChanges={};
   var r=null;for(var i=0;i<data.length;i++){if(data[i].id===id){r=data[i];break;}}
@@ -8840,22 +8857,51 @@ function showDet(id){
   var histH='';
   if(hist.length>1){histH='<div class="htitle">Visit History ('+hist.length+' visit'+(hist.length>1?'s':'')+' - all contacts)</div><div class="hlist">'+hist.map(function(h){return '<div class="hi" style="flex-direction:column;gap:3px;align-items:flex-start"><div style="display:flex;justify-content:space-between;width:100%"><span class="h-tk">'+escapeHTML(h.ticket)+'</span><span class="h-dt">'+escapeHTML(fmtA(h.ts))+'</span></div><div style="font-size:11px;color:var(--mu)">'+escapeHTML(h.car)+(h.phone?' · '+escapeHTML(fmtP(h.phone)):'')+'</div><div style="font-size:10px;color:'+(h.status==='DELIVERED'?'var(--ok)':'var(--acc)')+'">'+escapeHTML(h.status)+'</div></div>';}).join('')+'</div>';}
   setTimeout(function(){ loadReturnReviews().then(function(){ refreshReturnReviewBanner(id); }); },0);
-  document.getElementById('detPanel').innerHTML=
+  // Owner 2026-11-20 ("quando clica no nome do passageiro aparece tudo na versão antiga"): new car card, same
+  // look as the check-in tag. Every old action stays — the rarely used ones sit in sections that open on tap.
+  var dp=document.getElementById('detPanel');
+  var openSecs={}; if(dp&&+dp.dataset.rid===r.id) dp.querySelectorAll('details.dx-sec[open]').forEach(function(d){ openSecs[d.id]=1; });
+  var active=r.status!=='DELIVERED'&&r.status!=='ARCHIVED';
+  var stTxt=r.status==='DELIVERED'?'Delivered':r.status==='ARCHIVED'?'Archived':String(r.loc||'').toUpperCase()==='CUSTOMS'?'At Customs':'Parked';
+  var stCls=r.status==='DELIVERED'?'dx-st-del':r.status==='ARCHIVED'?'dx-st-arc':'dx-st-on';
+  var ph4=String(r.phone||'').replace(/\D/g,'').slice(-4);
+  var carLine=[formatVehicleLine(r), r.plate?(r.plate+(r.plate_state?' '+r.plate_state:'')):''].filter(Boolean).join(' · ');
+  var depT=getDepartureTime(r), fl=String(r.return_flight||'').trim().toUpperCase();
+  var retLine=String(retDisp).replace(/, \d{4}/,'')+(fl||depT?' · '+[fl,depT].filter(Boolean).join(' '):'');
+  var telHref=r.phone?(guestPhoneIntl(r.phone)?'+'+guestPhoneIntl(r.phone):r.phone.replace(/\D/g,'')):'';
+  var sec=function(id,title,val,body){
+    return '<details class="dx-sec" id="'+id+'"'+(openSecs[id]?' open':'')+'><summary><b>'+title+'</b><span class="dx-sv"'+(id==='dxPh'?' id="dxPhN"':'')+'>'+val+'</span><i class="dx-chev" aria-hidden="true"></i></summary><div class="dx-body">'+body+'</div></details>';
+  };
+  var printBtn=function(fn,label){ return '<button type="button" class="dx-pb" onclick="panelPrintOnce(this,'+fn+','+r.id+')">'+label+'</button>'; };
+  dp.dataset.rid=r.id;
+  dp.classList.add('dx');
+  dp.innerHTML=
     '<div id="returnReviewBanner"></div>'+
-    (isAscend(r)?'<div style="background:rgba(99,179,237,0.12);border:1px solid rgba(99,179,237,0.4);border-radius:10px;padding:10px 14px;margin-bottom:12px;display:flex;align-items:center;gap:8px"><span style="font-size:13px;font-weight:800;font-family:\'JetBrains Mono\',monospace;color:#63b3ed;letter-spacing:.5px">✈ ASCEND / PRIVATE FLIGHT</span></div>':'')+
-    '<div class="dname">'+escapeHTML(r.name)+'</div>'+
-    '<div class="dphone" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'+escapeHTML(fmtP(r.phone))+
-      (r.phone?'<a href="tel:'+(guestPhoneIntl(r.phone)?'+'+guestPhoneIntl(r.phone):r.phone.replace(/\D/g,''))+'" style="background:var(--ok);color:#000;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;text-decoration:none;font-family:Sora,sans-serif;">📞 CALL</a>':'')+
-      (r.phone?'<button type="button" onclick="sendGenericTextSms('+r.id+')" style="background:var(--pur);color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;cursor:pointer;font-family:Sora,sans-serif;">💬 TEXT</button>':'')+
-      (r.phone?'<button onclick="sendWelcomeSms('+r.id+')" style="background:linear-gradient(135deg,#1a5c3a,#1a9e6a);color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;font-family:Sora,sans-serif;cursor:pointer;">💬 Welcome</button>':'')+
-      '<button onclick="panelPrintOnce(this,printCustomerCopyForRecord,'+r.id+')" style="background:var(--navy);color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;font-family:Sora,sans-serif;cursor:pointer;">🧾 Customer Copy</button>'+
-      '<button onclick="panelPrintOnce(this,printKeyTicket,'+r.id+')" style="background:var(--navy);color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;font-family:Sora,sans-serif;cursor:pointer;">🔑 Key Copy</button>'+
-      '<button onclick="panelPrintOnce(this,printDashboardTicket,'+r.id+')" style="background:var(--navy);color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;font-family:Sora,sans-serif;cursor:pointer;">🚗 Dashboard</button>'+
-      '<button onclick="panelPrintOnce(this,printAllTickets,'+r.id+')" style="background:var(--navy);color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;font-family:Sora,sans-serif;cursor:pointer;">🖨 Print All</button>'+
-      '<button type="button" class="gx-tk-btn" onclick="gxOpenForPassenger('+r.id+')"><i class="fa-solid fa-address-book"></i> Passenger Profile</button>'+
+    (isAscend(r)?'<div class="dx-note dx-note-asc">Ascend passenger — car goes to Customs</div>':'')+
+    '<div class="dx-head">'+
+      '<div class="dx-top"><span class="dx-who">'+escapeHTML(r.name)+(ph4?' · •••-'+ph4:'')+'</span><span class="dx-st '+stCls+'">'+stTxt+'</span></div>'+
+      '<div class="dx-tk">'+escapeHTML(r.ticket||'—')+'</div>'+
+      '<div class="dx-carrow"><span class="dx-car">'+(carLine?escapeHTML(carLine):'<span class="dx-empty">No car yet</span>')+'</span>'+
+        '<button type="button" class="dx-edit" onclick="dxOpen(\'dxEd\')">Edit</button></div>'+
+      '<div class="dx-meta"><span class="dx-hg">'+escapeHTML(r.loc||'No location')+'</span>'+
+        '<span class="dx-ret"><small>Return</small> <b style="'+retC+'">'+escapeHTML(retLine)+'</b></span></div>'+
     '</div>'+
-    '<div id="saveEditsWrap"><button class="save-edits-btn" id="saveEditsBtn" data-rid="'+r.id+'">💾 Save Changes</button></div>'+
-    '<div class="dgrid">'+
+    (active?
+      '<button type="button" class="dx-deliver" onclick="quickDeliver('+r.id+',\'NORMAL\')">Deliver</button>'+
+      '<div class="dx-3"><button type="button" class="dx-b dx-b-navy" onclick="quickDeliver('+r.id+',\'CUSTOMS\')">Customs</button>'+
+        '<button type="button" class="dx-b" onclick="quickDeliver('+r.id+',\'LOCKBOX\')">Lockbox</button>'+
+        '<button type="button" class="dx-b" onclick="dxOpen(\'dxMove\')">Move</button></div>'
+    :(r.status==='DELIVERED'?'<div class="dx-done"><b>Delivered</b>'+deliveryMethodHtml(r.delivery_type)+(r.previous_delivery_location?'<small>From '+escapeHTML(r.previous_delivery_location)+'</small>':'')+'</div>':''))+
+    (r.phone?'<div class="dx-2"><button type="button" class="dx-b dx-b-link" onclick="sendGenericTextSms('+r.id+')">Text guest</button>'+
+      '<a class="dx-b dx-b-link" href="tel:'+telHref+'">Call</a></div>':'')+
+    '<div id="detHero" class="dx-hero" hidden></div>'+
+    (r.archived_by?'<div class="dx-note">Archived by <b>'+escapeHTML(r.archived_by)+'</b> · '+escapeHTML(r.archived_at||'')+'</div>':'')+
+    (isApproxRecord(r)&&r.status!=='DELIVERED'?
+      '<div class="dx-note dx-note-gold"><b>Approximate return date</b> — confirm with the guest.'+
+        (r.phone?' <button type="button" class="dx-lnk" onclick="sendReturnDateConfirmationSms('+r.id+')">Send confirmation</button>':'')+'</div>':'')+
+    '<div class="dx-secs">'+
+    sec('dxEd','Details','Edit',
+      '<div class="dgrid">'+
       '<div class="di editable" data-field="ticket"><div class="di-l">Ticket ✎</div><div class="di-v" style="color:var(--acc)">'+escapeHTML(r.ticket||'—')+'</div></div>'+
       '<div class="di editable" data-field="status"><div class="di-l">Status ✎</div><div class="di-v">'+escapeHTML(r.status||'—')+'</div></div>'+
       '<div class="di editable" data-field="ret" data-raw="'+escapeHTML(tsToDateInput(r.ret))+'"><div class="di-l">Return ✎</div><div class="di-v" style="font-size:12px;'+retC+'">'+escapeHTML(retDisp)+'</div></div>'+
@@ -8863,50 +8909,40 @@ function showDet(id){
       '<div class="di editable" style="grid-column:1/-1" data-field="name"><div class="di-l">Name ✎</div><div class="di-v">'+escapeHTML(r.name)+'</div></div>'+
       '<div class="di editable" style="grid-column:1/-1" data-field="phone"><div class="di-l">Phone ✎</div><div class="di-v">'+escapeHTML(fmtP(r.phone))+'</div></div>'+
       '<div class="di editable" style="grid-column:1/-1" data-field="car"><div class="di-l">Car ✎</div><div class="di-v">'+escapeHTML(r.car||'')+'</div></div>'+
-      (r.plate ? '<div class="di" style="grid-column:1/-1"><div class="di-l">Plate</div><div class="di-v">'+escapeHTML(r.plate+(r.plate_state?' · '+r.plate_state:''))+'</div></div>' : '')+
-      '<div class="di cp-wrap" style="grid-column:1/-1"><div class="di-l">Photos</div><div id="detPhotos" class="cp-box" data-pid="'+r.id+'"><span class="cp-wait">Loading photos…</span></div></div>'+
-      '<div class="di editable" style="grid-column:1/-1" data-field="color" onclick="makeEditable(this,\'color\')" ><div class="di-l">Color ✎</div><div class="di-v">'+escapeHTML(r.color||'—')+'</div></div>'+
+      (r.plate?'<div class="di" style="grid-column:1/-1"><div class="di-l">Plate</div><div class="di-v">'+escapeHTML(r.plate+(r.plate_state?' · '+r.plate_state:''))+'</div></div>':'')+
+      '<div class="di editable" style="grid-column:1/-1" data-field="color"><div class="di-l">Color ✎</div><div class="di-v">'+escapeHTML(r.color||'—')+'</div></div>'+
       '<div class="di editable" style="grid-column:1/-1" data-field="loc" data-raw="'+escapeHTML(r.loc||'')+'"><div class="di-l">Location ✎</div><div class="di-v">'+escapeHTML(r.loc||'—')+'</div></div>'+
       '<div class="di editable" style="grid-column:1/-1" data-field="obs"><div class="di-l">Notes ✎</div><div class="di-v" style="font-size:12px">'+escapeHTML(r.obs||'—')+'</div></div>'+
-      returnPickupPanelHtml(r)+
-      pickupAuthPanelHtml(r)+
       '<div class="di" style="grid-column:1/-1"><div class="di-l">Car wash</div>'+
         '<div class="di-v"><div class="lbs" id="editCarwashGroup" data-current="'+(r.carwash_status||'')+'">'+
           '<div class="carwash-btn'+(r.carwash_status==='CARWASH'?' on':'')+'" onclick="editSelCarwash(this,\'CARWASH\')">&#128704; Car wash</div>'+
           '<div class="carwash-btn'+(r.carwash_status==='SEND_PRICE'?' on':'')+'" onclick="editSelCarwash(this,\'SEND_PRICE\')">&#128172; Send Price</div>'+
           '<div class="carwash-btn'+(r.carwash_status==='WASHED'?' on':'')+'" onclick="editSelCarwash(this,\'WASHED\')">&#10003; Washed</div>'+
         '</div></div></div>'+
-      (r.status==='DELIVERED'?
-        '<div class="di" style="grid-column:1/-1"><div class="di-l">Delivery Method</div><div class="di-v">'+deliveryMethodHtml(r.delivery_type)+'</div></div>'+
-        (r.previous_delivery_location?'<div class="di" style="grid-column:1/-1"><div class="di-l">Delivered From</div><div class="di-v" style="font-family:\'JetBrains Mono\',monospace;font-size:13px;color:var(--mu)">'+escapeHTML(r.previous_delivery_location)+'</div></div>':'')+
-        ''
-      :'')+
-    '</div>'+histH+
-    (r.archived_by?
-      '<div style="background:rgba(107,114,128,0.08);border:1px solid rgba(107,114,128,0.25);border-radius:10px;padding:12px 14px;margin-bottom:12px;">'+
-        '<div style="font-size:11px;color:#6B7280;font-weight:700;margin-bottom:4px;font-family:\'JetBrains Mono\',monospace;letter-spacing:.5px">📦 ARCHIVED RECORD</div>'+
-        '<div style="font-size:12px;color:var(--mu)">Archived By: <span style="font-weight:700;color:var(--tx)">'+escapeHTML(r.archived_by)+'</span></div>'+
-        '<div style="font-size:12px;color:var(--mu)">Archived At: <span style="font-weight:700;color:var(--tx)">'+escapeHTML(r.archived_at)+'</span></div>'+
-      '</div>':'')+
-    (isApproxRecord(r)&&r.status!=='DELIVERED'?
-      '<div style="background:rgba(201,168,76,0.1);border:1px solid rgba(201,168,76,0.4);border-radius:10px;padding:12px 14px;margin-bottom:12px">'+
-        '<div style="font-size:11px;color:var(--gold);font-weight:700;margin-bottom:6px">📅 APPROXIMATE DATE — Confirm Return</div>'+
-        (r.phone?'<button type="button" onclick="sendReturnDateConfirmationSms('+r.id+')" style="background:var(--pur);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer;display:inline-block">💬 Send Confirmation Text</button>':'')+
-      '</div>':'')+
-    '<div id="tipsSec"></div>'+
-    '<div id="vpStaffSec"></div>'+
-    '<div class="htitle" style="margin-top:4px">Move Hangar</div>'+
-    '<div class="hgrid">'+hangH+'</div>'+
-    (r.status!=='DELIVERED'?'<button class="delb" onclick="markDel('+r.id+')">Mark as Delivered</button>':'')+
-    (r.status!=='DELIVERED'&&!isToday(r.ret)&&!isLate(r.ret)?
-      '<button onclick="earlyReturn('+r.id+')" style="width:100%;background:linear-gradient(135deg,#7b3fa0,#a855f7);color:#fff;border:none;border-radius:10px;padding:13px;font-family:Sora,sans-serif;font-weight:800;font-size:14px;cursor:pointer;margin-top:8px;display:flex;align-items:center;justify-content:center;gap:8px;">⚡ Early Return — Arrived Today</button>'
-    :'')+
-    '<button class="clsb" style="margin-top:6px;color:var(--red);border-color:var(--red)" onclick="deleteRec('+r.id+')">🗑 Delete Record</button>'+
-    '<button class="clsb" onclick="closeAll()">Close</button>'+
-    '<div style="margin-top:18px">'+
-      '<div class="htitle" style="margin-bottom:10px">Passenger Change History</div>'+
-      '<div id="pchSection" style="max-height:340px;overflow-y:auto;font-size:12px;color:var(--mu)">Loading passenger history...</div>'+
-    '</div>';
+      '</div>')+
+    sec('dxPh','Photos','…','<div id="detPhotos" class="cp-box" data-pid="'+r.id+'"><span class="cp-wait">Loading photos…</span></div>')+
+    sec('dxRet','Return &amp; flight',escapeHTML(retLine),
+      '<div class="dx-fl"><label>Flight / tail<input class="return-flight-input" value="'+escapeHTML(r.return_flight||'')+'" placeholder="Flight" maxlength="20" oninput="this.value=this.value.toUpperCase()" onkeydown="if(event.key===\'Enter\'){this.blur()}" onblur="saveReturnFlight('+r.id+',this.value)"></label>'+
+        '<label>Time<input class="departure-time-input" type="text" inputmode="numeric" value="'+escapeHTML(depT)+'" placeholder="HH:MM" maxlength="5" oninput="applyDepTimeMask(this)" onblur="commitDepTime(this,'+r.id+')" onkeydown="if(event.key===\'Enter\')this.blur()"></label></div>'+
+      '<div class="dgrid">'+returnPickupPanelHtml(r)+'</div>'+
+      (r.status!=='DELIVERED'&&!isToday(r.ret)&&!isLate(r.ret)?'<button type="button" class="dx-b dx-b-pur" onclick="earlyReturn('+r.id+')">Early return — deliver now</button>':''))+
+    sec('dxVp','Valet pass','','<div id="vpStaffSec"></div>')+
+    sec('dxTip','Tip',r.tip_received===true?'Yes':r.tip_received===false?'No':'Not recorded','<div id="tipsSec"></div>')+
+    sec('dxPk','Pickup by',r.released_to_name?'Released':hasPickupAuth(r)?'Authorized person':'Guest','<div class="dgrid">'+pickupAuthPanelHtml(r)+'</div>')+
+    sec('dxMove','Move hangar',escapeHTML(r.loc||'—'),'<div class="hgrid">'+hangH+'</div>')+
+    sec('dxPr','Messages &amp; print','Customer · Key copy',
+      '<div class="dx-pg">'+
+        (r.phone?'<button type="button" class="dx-pb" onclick="sendWelcomeSms('+r.id+')">Welcome text</button>':'')+
+        printBtn('printCustomerCopyForRecord','Customer copy')+printBtn('printKeyTicket','Key copy')+
+        printBtn('printDashboardTicket','Dashboard')+printBtn('printAllTickets','Print all')+
+        '<button type="button" class="dx-pb" onclick="gxOpenForPassenger('+r.id+')">Passenger profile</button>'+
+      '</div>')+
+    (hist.length>1?sec('dxHist','Guest history',hist.length+' visits',histH):'')+
+    sec('dxChg','Changes','','<div id="pchSection" class="dx-chg">Loading passenger history...</div>')+
+    '</div>'+
+    '<div id="saveEditsWrap" class="dx-save"><button class="save-edits-btn" id="saveEditsBtn" data-rid="'+r.id+'">Save changes</button></div>'+
+    '<button type="button" class="dx-del" onclick="deleteRec('+r.id+')">Delete record</button>'+
+    '<button type="button" class="clsb dx-close" onclick="closeAll()">Close</button>';
   setTimeout(function(){
     document.getElementById('detPanel').querySelectorAll('.di.editable').forEach(function(cell){
       cell.addEventListener('click',function(){makeEditable(cell,cell.dataset.field);});
