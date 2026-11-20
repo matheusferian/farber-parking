@@ -73,10 +73,10 @@
 </header>
 <!-- Offline Mode Phase 1 — service-worker update banner. Never shown
      automatically-reloading; requires an explicit tap. See PROJECT.md. -->
-<div id="offlineUpdateBanner" style="display:none;align-items:center;justify-content:space-between;gap:12px;background:#1a3d7c;color:#fff;padding:8px 16px;font-family:'Inter',sans-serif;font-size:12.5px;">
+<div id="offlineUpdateBanner" style="display:none;align-items:center;justify-content:space-between;gap:12px;background:var(--navy2);color:#fff;padding:8px 16px;font-family:'Inter',sans-serif;font-size:12.5px;">
   <span>🔄 A new version of AirValet is available.</span>
   <span style="display:flex;gap:8px;">
-    <button onclick="offlineApplyUpdate()" style="background:var(--gold);color:#1a3d7c;border:none;border-radius:8px;padding:5px 12px;font-weight:700;font-size:11.5px;cursor:pointer;">Reload Now</button>
+    <button onclick="offlineApplyUpdate()" style="background:var(--gold);color:var(--navy2);border:none;border-radius:8px;padding:5px 12px;font-weight:700;font-size:11.5px;cursor:pointer;">Reload Now</button>
     <button onclick="offlineDismissUpdateBanner()" style="background:transparent;border:1px solid rgba(255,255,255,.4);color:#fff;border-radius:8px;padding:5px 12px;font-size:11.5px;cursor:pointer;">Later</button>
   </span>
 </div>
@@ -357,7 +357,7 @@
           <option value="LOCKBOX">Lockbox Only</option>
         </select>
       </div>
-      <button onclick="generateOperationsReport().catch(function(err){console.error(err);alert('Report generation failed: '+err.message);})" style="width:100%;background:linear-gradient(135deg,#1a3d7c,#0f2a56);color:#fff;border:1px solid var(--gold);border-radius:10px;padding:14px;font-family:'Sora',sans-serif;font-weight:800;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;">
+      <button onclick="generateOperationsReport().catch(function(err){console.error(err);alert('Report generation failed: '+err.message);})" style="width:100%;background:linear-gradient(135deg,var(--navy2),var(--navy2));color:#fff;border:1px solid var(--gold);border-radius:10px;padding:14px;font-family:'Sora',sans-serif;font-weight:800;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;">
         📊 Generate Operations PDF
       </button>
     </div>
@@ -366,7 +366,7 @@
     <div style="margin-top:18px;padding-top:16px;border-top:1px solid var(--b);">
       <div style="font-size:10px;color:var(--mu);font-family:'JetBrains Mono',monospace;text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;">Passenger Contacts Export</div>
       <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:10px;">
-        <button onclick="downloadVcfContacts('all')" style="width:100%;background:linear-gradient(135deg,#1a3d7c,#2a5db0);color:#fff;border:1px solid var(--gold);border-radius:10px;padding:13px;font-family:'Sora',sans-serif;font-weight:800;font-size:14px;cursor:pointer;">
+        <button onclick="downloadVcfContacts('all')" style="width:100%;background:linear-gradient(135deg,var(--navy2),var(--blue-tx));color:#fff;border:1px solid var(--gold);border-radius:10px;padding:13px;font-family:'Sora',sans-serif;font-weight:800;font-size:14px;cursor:pointer;">
           📇 Export All Contacts (.vcf)
         </button>
         <button onclick="downloadVcfContacts('new')" style="width:100%;background:var(--s2);color:var(--tx);border:1px solid var(--b);border-radius:10px;padding:13px;font-family:'Sora',sans-serif;font-weight:700;font-size:14px;cursor:pointer;">
@@ -410,7 +410,7 @@
           </div>
         </div>
 
-        <button id="syncPrimaryBtn" onclick="openSyncPreview()" style="width:100%;background:linear-gradient(135deg,#1a3d7c,#2a5db0);color:#fff;border:1px solid var(--gold);border-radius:10px;padding:13px;font-family:'Sora',sans-serif;font-weight:800;font-size:14px;cursor:pointer;margin-bottom:8px;">
+        <button id="syncPrimaryBtn" onclick="openSyncPreview()" style="width:100%;background:linear-gradient(135deg,var(--navy2),var(--blue-tx));color:#fff;border:1px solid var(--gold);border-radius:10px;padding:13px;font-family:'Sora',sans-serif;font-weight:800;font-size:14px;cursor:pointer;margin-bottom:8px;">
           📲 Sync Pending Contacts
         </button>
         <button id="syncPreviewBtn" onclick="openSyncPreview()" style="width:100%;background:var(--s2);color:var(--tx);border:1px solid var(--b);border-radius:10px;padding:11px;font-family:'Sora',sans-serif;font-weight:700;font-size:13px;cursor:pointer;margin-bottom:8px;">
@@ -588,7 +588,7 @@
     </div>
     <div class="mact">
       <button class="btnc" onclick="tryCloseAdd()">Cancel</button>
-      <button class="btnp" id="saveBtnSms" onclick="saveEntry(true)" style="background:linear-gradient(135deg,#1a5c3a,#1a9e6a);border-color:var(--ok);">&#128172; Save + Review SMS</button>
+      <button class="btnp" id="saveBtnSms" onclick="saveEntry(true)" style="background:linear-gradient(135deg,var(--tx-ok),var(--ok));border-color:var(--ok);">&#128172; Save + Review SMS</button>
       <button class="btnp" id="saveBtn" onclick="saveEntry(false)">Save Only</button>
       <button class="btnp" id="saveBtnPrint" onclick="saveEntry(true,'both')" style="background:linear-gradient(135deg,#1a3d7c,#2a5db0);border-color:var(--gold);">🖨 Save + Print + Review SMS</button>
     </div>
@@ -911,7 +911,7 @@
           </div>
           <div class="fg"><label style="font-size:10px;">User (email)</label><input type="text" id="alfUser" placeholder="email..." style="background:var(--s2);border:1px solid var(--b);border-radius:8px;padding:7px 10px;font-size:13px;color:var(--tx);outline:none;width:100%;box-sizing:border-box;"></div>
         </div>
-        <button onclick="searchActivityLogs()" style="width:100%;background:linear-gradient(135deg,var(--navy),#2a5db0);color:#fff;border:1px solid var(--gold);border-radius:10px;padding:10px;font-family:'Sora',sans-serif;font-weight:800;font-size:13px;cursor:pointer;">&#128269; Search Activity Logs</button>
+        <button onclick="searchActivityLogs()" style="width:100%;background:linear-gradient(135deg,var(--navy),var(--blue-tx));color:#fff;border:1px solid var(--gold);border-radius:10px;padding:10px;font-family:'Sora',sans-serif;font-weight:800;font-size:13px;cursor:pointer;">&#128269; Search Activity Logs</button>
       </div>
       <!-- Results -->
       <div id="actLogsContainer" style="padding:0 20px 12px;">
@@ -963,7 +963,7 @@
             </select>
           </div>
         </div>
-        <button onclick="searchRentalLogs()" style="width:100%;background:linear-gradient(135deg,#7a4e00,#c47a00);color:#fff;border:1px solid var(--gold);border-radius:10px;padding:10px;font-family:'Sora',sans-serif;font-weight:800;font-size:13px;cursor:pointer;">&#128273; Search Rental Logs</button>
+        <button onclick="searchRentalLogs()" style="width:100%;background:linear-gradient(135deg,var(--tx-gold),var(--gold));color:#fff;border:1px solid var(--gold);border-radius:10px;padding:10px;font-family:'Sora',sans-serif;font-weight:800;font-size:13px;cursor:pointer;">&#128273; Search Rental Logs</button>
       </div>
       <!-- Results -->
       <div id="rentalLogsContainer" style="padding:0 20px 12px;">
@@ -1018,9 +1018,9 @@
 
   <div style="font-family:'Sora',sans-serif;font-size:16px;font-weight:800;color:#e86030;margin-bottom:4px">&#128295; Connection Diagnostics</div>
   <div style="font-size:11px;color:var(--mu);margin-bottom:16px">Use this tab to test if the Google Apps Script is responding correctly.</div>
-  <button onclick="runDiagnostic()" style="background:linear-gradient(135deg,#1a3d7c,#2a5db0);color:#fff;border:1px solid var(--gold);border-radius:10px;padding:12px 20px;font-family:'Sora',sans-serif;font-weight:700;font-size:13px;cursor:pointer;margin-bottom:12px;">&#9654; Run Connection Test</button>
-  <button onclick="runTestAppend()" style="background:linear-gradient(135deg,#1a5c3a,#1a9e6a);color:#fff;border:none;border-radius:10px;padding:12px 20px;font-family:'Sora',sans-serif;font-weight:700;font-size:13px;cursor:pointer;margin-bottom:12px;margin-left:8px;">&#128196; Test Append (writes TEST row)</button>
-  <div id="diagLog" style="background:#0a0f1e;border:1px solid var(--b);border-radius:10px;padding:14px;font-family:'JetBrains Mono',monospace;font-size:12px;color:#6fc898;min-height:120px;white-space:pre-wrap;word-break:break-all;"></div>
+  <button onclick="runDiagnostic()" style="background:linear-gradient(135deg,var(--navy2),var(--blue-tx));color:#fff;border:1px solid var(--gold);border-radius:10px;padding:12px 20px;font-family:'Sora',sans-serif;font-weight:700;font-size:13px;cursor:pointer;margin-bottom:12px;">&#9654; Run Connection Test</button>
+  <button onclick="runTestAppend()" style="background:linear-gradient(135deg,var(--tx-ok),var(--ok));color:#fff;border:none;border-radius:10px;padding:12px 20px;font-family:'Sora',sans-serif;font-weight:700;font-size:13px;cursor:pointer;margin-bottom:12px;margin-left:8px;">&#128196; Test Append (writes TEST row)</button>
+  <div id="diagLog" style="background:var(--navy);border:1px solid var(--b);border-radius:10px;padding:14px;font-family:'JetBrains Mono',monospace;font-size:12px;color:#6fc898;min-height:120px;white-space:pre-wrap;word-break:break-all;"></div>
   <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--b);">
     <div style="font-family:'Sora',sans-serif;font-size:13px;font-weight:800;color:var(--mu);margin-bottom:8px;">🗄 Data Management</div>
     <button onclick="openArchiveModal('2025')" style="background:rgba(107,114,128,0.08);border:1px solid rgba(107,114,128,0.25);color:#4B5563;border-radius:8px;padding:10px 16px;font-family:'Sora',sans-serif;font-weight:700;font-size:12px;cursor:pointer;">📦 Archive All Pending Records From 2025</button>
@@ -1232,10 +1232,10 @@ https://buy.stripe.com/8x214mccK0uh9TjgIM6Vq00</div>
 <div class="pane" id="pane-useraccess" style="padding:16px 20px 100px">
   <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:4px">
     <div style="font-family:'Sora',sans-serif;font-size:16px;font-weight:800;color:#e86030;">👤 User Access</div>
-    <button onclick="openCreateUserModal()" style="background:linear-gradient(135deg,#1a3d7c,#2a5db0);color:#fff;border:1px solid var(--gold);border-radius:8px;padding:8px 16px;font-family:'Sora',sans-serif;font-weight:700;font-size:12px;cursor:pointer;">＋ Create User</button>
+    <button onclick="openCreateUserModal()" style="background:linear-gradient(135deg,var(--navy2),var(--blue-tx));color:#fff;border:1px solid var(--gold);border-radius:8px;padding:8px 16px;font-family:'Sora',sans-serif;font-weight:700;font-size:12px;cursor:pointer;">＋ Create User</button>
   </div>
   <div style="font-size:11px;color:var(--mu);margin-bottom:16px">AirValet accounts and their fixed roles. Internal login identities (usernames only) — no email is shown here.</div>
-  <div id="uaError" style="display:none;color:#c0392b;background:rgba(192,57,43,0.08);border:1px solid rgba(192,57,43,0.3);border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:12px;"></div>
+  <div id="uaError" style="display:none;color:var(--red);background:rgba(192,57,43,0.08);border:1px solid rgba(192,57,43,0.3);border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:12px;"></div>
   <div style="overflow-x:auto;">
     <table style="width:100%;border-collapse:collapse;font-size:13px;">
       <thead>
@@ -1277,7 +1277,7 @@ https://buy.stripe.com/8x214mccK0uh9TjgIM6Vq00</div>
   <div class="modal">
     <h2>Create User</h2>
     <div class="msub">Fixed role model only — username, display name, password, and one of the 5 roles. The internal login email is derived automatically; it is never shown or typed anywhere.</div>
-    <div id="uaCreateErr" style="display:none;color:#c0392b;background:rgba(192,57,43,0.08);border:1px solid rgba(192,57,43,0.3);border-radius:8px;padding:10px 14px;margin:10px 0;font-size:12px;"></div>
+    <div id="uaCreateErr" style="display:none;color:var(--red);background:rgba(192,57,43,0.08);border:1px solid rgba(192,57,43,0.3);border-radius:8px;padding:10px 14px;margin:10px 0;font-size:12px;"></div>
     <div class="fg" style="margin-top:12px">
       <label>Username</label>
       <input type="text" id="uaCreateUsername" placeholder="e.g. iPhone" autocomplete="off">
@@ -1564,7 +1564,7 @@ https://buy.stripe.com/8x214mccK0uh9TjgIM6Vq00</div>
   <!-- Screen 4: Already exists -->
   <div id="crExistsScreen" class="cr-content" style="display:none">
     <div class="cr-ready-wrap">
-      <div class="cr-ready-icon" style="background:rgba(201,172,84,.12);color:#7A5A00"><i class="fa-solid fa-file-circle-check"></i></div>
+      <div class="cr-ready-icon" style="background:rgba(201,172,84,.12);color:var(--tx-gold)"><i class="fa-solid fa-file-circle-check"></i></div>
       <div class="cr-ready-title">Report Already Created</div>
       <div class="cr-ready-sub" id="crExistsSub">A closing report for this date already exists.</div>
       <div class="cr-ready-thumb" id="crExistsThumb"></div>
@@ -3066,7 +3066,7 @@ function renderTable() {
         (isAscend(r)?'<span class="tag" style="background:rgba(99,179,237,0.15);color:#63b3ed">✈ ASCEND</span>':'')+
         (r.key_with_guest&&r.status!=='DELIVERED'&&isDayTripRow(r)?'<span class="tag" style="background:rgba(201,168,76,0.15);color:var(--gold)" title="Day trip: the passenger already has the key">🔑 KEY WITH PASSENGER</span>':'')+
         (notReturning?OTHER_BOAT_DASH_ICON_HTML:'')+
-        (r.isOfflinePending?'<span class="tag" style="background:rgba(232,160,48,.18);color:#e8a030;font-weight:800" title="Saved locally, not yet on the server">🟠 PENDING SYNC</span>':'');
+        (r.isOfflinePending?'<span class="tag" style="background:rgba(232,160,48,.18);color:var(--gold);font-weight:800" title="Saved locally, not yet on the server">🟠 PENDING SYNC</span>':'');
     // Authorized pickup: a tag in the table row, its own line on the phone card.
     var authOn=hasPickupAuth(r)&&r.status!=='DELIVERED';
     var authTag=authOn?'<span class="tag t-authpk" title="Authorized pickup: '+escapeHTML(r.pickup_auth_name)+'">AUTHORIZED PICKUP</span>':'';
@@ -3276,7 +3276,7 @@ function renderDay() {
           '<div class="dc-qd" onclick="event.stopPropagation()">'+
             '<button class="qd-btn '+(btnCls||'')+'" onclick="quickDeliver('+r.id+',\'NORMAL\')">✓ Deliver</button>'+
             (showCustoms?'<button class="qd-btn customs" onclick="quickDeliver('+r.id+',\'CUSTOMS\')">Customs</button>':'')+
-            '<button class="qd-btn lockbox" onclick="quickDeliver('+r.id+',\'LOCKBOX\')" style="background:rgba(201,168,76,0.15);border-color:rgba(201,168,76,0.5);color:var(--tx-gold)">🔒 Lockbox</button>'+
+            '<button class="qd-btn lockbox" onclick="quickDeliver('+r.id+',\'LOCKBOX\')">🔒 Lockbox</button>'+
             h19Btn+
             (showFlightPrint?'<button class="qd-btn fbprint" title="Print flight tag" onclick="printFlightBagOne('+r.id+')">🖨</button>':'')+
             (showWelcomeBack?welcomeBackButtonHtml(r):'')+
@@ -3304,7 +3304,7 @@ function renderDay() {
       return '<div class="dcard '+cls+(isApprox?' approx-card':'')+(r.status==='DELIVERED'&&showDeliver?' delivered-today-card':'')+'" onclick="showDet('+r.id+')">'+
         '<div class="dc-top">'+thumbHtml(r)+
           '<div class="dc-body">'+
-            '<div class="dc-n">'+(r.status==='DELIVERED'&&showDeliver?'<span style="text-decoration:line-through;opacity:0.6">'+(isAscend(r)?'[A] ':'')+escapeHTML(r.name)+'</span>':(isAscend(r)?'[A] ':'')+escapeHTML(r.name))+(isApprox?' <span style="font-size:9px;background:rgba(201,168,76,0.2);color:var(--tx-gold);border-radius:4px;padding:2px 5px;margin-left:4px">~APPROX</span>':'')+(isAscend(r)?'<span style="font-size:9px;background:rgba(99,179,237,0.18);color:#1E5FA8;border-radius:4px;padding:2px 5px;margin-left:4px;font-family:\'JetBrains Mono\',monospace">✈ ASCEND</span>':'')+(r.not_returning_with_makers_air?' '+OTHER_BOAT_DASH_ICON_HTML:'')+(r.isOfflinePending?'<span style="font-size:9px;background:rgba(232,160,48,.22);color:#e8a030;border-radius:4px;padding:2px 5px;margin-left:4px;font-weight:800;font-family:\'JetBrains Mono\',monospace" title="Saved locally, not yet on the server">🟠 PENDING SYNC</span>':'')+(showCarwashBadge?carwashBadgeHtml(r):'')+'</div>'+
+            '<div class="dc-n">'+(r.status==='DELIVERED'&&showDeliver?'<span style="text-decoration:line-through;opacity:0.6">'+(isAscend(r)?'[A] ':'')+escapeHTML(r.name)+'</span>':(isAscend(r)?'[A] ':'')+escapeHTML(r.name))+(isApprox?' <span style="font-size:9px;background:rgba(201,168,76,0.2);color:var(--tx-gold);border-radius:4px;padding:2px 5px;margin-left:4px">~APPROX</span>':'')+(isAscend(r)?'<span style="font-size:9px;background:rgba(99,179,237,0.18);color:var(--blue-tx);border-radius:4px;padding:2px 5px;margin-left:4px;font-family:\'JetBrains Mono\',monospace">✈ ASCEND</span>':'')+(r.not_returning_with_makers_air?' '+OTHER_BOAT_DASH_ICON_HTML:'')+(r.isOfflinePending?'<span style="font-size:9px;background:rgba(232,160,48,.22);color:var(--gold);border-radius:4px;padding:2px 5px;margin-left:4px;font-weight:800;font-family:\'JetBrains Mono\',monospace" title="Saved locally, not yet on the server">🟠 PENDING SYNC</span>':'')+(showCarwashBadge?carwashBadgeHtml(r):'')+'</div>'+
             '<div class="dc-c">'+escapeHTML(r.car)+' · '+escapeHTML(fmtP(r.phone))+'</div>'+
             // Day trip (owner 2026-11-06): say it on the card, and whether the guest already has the key.
             (isDayTripRow(r)&&r.status!=='DELIVERED'&&r.status!=='ARCHIVED'?'<div class="dc-dt"><span class="dc-dt-chip">✈ DAY TRIP</span>'+(r.key_with_guest?'<span class="dc-dt-chip key">🔑 KEY WITH PASSENGER</span>':'')+'</div>':'')+
@@ -3957,7 +3957,7 @@ function isAscend(r){return !!(r&&String(r.ticket||'').match(/^A-/));}
 // name-badge slot/style as the existing ~APPROX/ASCEND/PENDING SYNC
 // tags, just a new value, never gated by or gating those.
 function carwashBadgeHtml(r){
-  if(r.carwash_status==='CARWASH') return '<span style="font-size:9px;background:rgba(52,152,219,0.18);color:#2E86C1;border-radius:4px;padding:2px 5px;margin-left:4px;font-weight:800;font-family:\'JetBrains Mono\',monospace">&#128704; CAR WASH</span>';
+  if(r.carwash_status==='CARWASH') return '<span style="font-size:9px;background:rgba(52,152,219,0.18);color:var(--blue-tx);border-radius:4px;padding:2px 5px;margin-left:4px;font-weight:800;font-family:\'JetBrains Mono\',monospace">&#128704; CAR WASH</span>';
   if(r.carwash_status==='SEND_PRICE') return '<span style="font-size:9px;background:rgba(140,82,255,0.18);color:#7C4DFF;border-radius:4px;padding:2px 5px;margin-left:4px;font-weight:800;font-family:\'JetBrains Mono\',monospace">&#128172; SEND PRICE</span>';
   if(r.carwash_status==='WASHED') return '<span style="font-size:9px;background:rgba(107,114,128,0.15);color:var(--mu);border-radius:4px;padding:2px 5px;margin-left:4px;font-weight:600;font-family:\'JetBrains Mono\',monospace">&#10003; WASHED</span>';
   return '';
@@ -4363,7 +4363,7 @@ function vsRenderWorking(){
         +'<div class="vs-worker-name">'+escapeHTML(s.valet_name)+'</div>'
         +'<div class="vs-worker-time"><i class="fa-solid fa-right-to-bracket"></i> '+vsFmt12(tin)+'</div>'
         +'</div>'
-        +'<div class="vs-worker-status"><i class="fa-solid fa-circle" style="color:#22c55e;font-size:8px"></i> Active</div>'
+        +'<div class="vs-worker-status"><i class="fa-solid fa-circle" style="color:var(--ok);font-size:8px"></i> Active</div>'
         +'</div>';
     }
   }
@@ -8990,7 +8990,7 @@ function showDet(id){
     (active?
       '<button type="button" class="dx-deliver" onclick="quickDeliver('+r.id+',\'NORMAL\')">Deliver</button>'+
       '<div class="dx-3"><button type="button" class="dx-b dx-b-navy" onclick="quickDeliver('+r.id+',\'CUSTOMS\')">Customs</button>'+
-        '<button type="button" class="dx-b" onclick="quickDeliver('+r.id+',\'LOCKBOX\')">Lockbox</button>'+
+        '<button type="button" class="dx-b dx-b-gold" onclick="quickDeliver('+r.id+',\'LOCKBOX\')">Lockbox</button>'+
         '<button type="button" class="dx-b" onclick="dxOpen(\'dxMove\')">Move</button></div>'
     :(r.status==='DELIVERED'?'<div class="dx-done"><b>Delivered</b>'+deliveryMethodHtml(r.delivery_type)+(r.previous_delivery_location?'<small>From '+escapeHTML(r.previous_delivery_location)+'</small>':'')+'</div>':''))+
     (r.phone?'<div class="dx-2"><button type="button" class="dx-b dx-b-link" onclick="sendGenericTextSms('+r.id+')">Text guest</button>'+
@@ -9986,7 +9986,7 @@ function gxVehFieldsHtml(car, color){
     gxFieldHtml('gxVModel', 'Model', niceVehicleText(pc.model), 'list="gxModels" autocomplete="off" autocapitalize="words" maxlength="30"') + '</div>' +
     '<datalist id="gxMakes">' + makes.map(function(m){ return '<option value="' + escapeHTML(m) + '">'; }).join('') + '</datalist><datalist id="gxModels"></datalist>' +
     gxFieldHtml('gxVColor', 'Color', color || '', 'autocomplete="off" autocapitalize="words" maxlength="30"') +
-    '<div class="gx-swatches" role="group" aria-label="Common colors">' + colors.map(function(c){ return '<button type="button" class="gx-sw" data-color="' + c + '" aria-pressed="' + (String(color || '').toLowerCase() === c.toLowerCase()) + '"><i style="background:' + ({ Black: '#111', White: '#fff', Gray: '#8a8f98', Silver: '#c8ccd2', Blue: '#2457c5', Red: '#c0392e', Green: '#2e7d4f', Brown: '#7a5232' })[c] + '"></i>' + c + '</button>'; }).join('') + '</div>';
+    '<div class="gx-swatches" role="group" aria-label="Common colors">' + colors.map(function(c){ return '<button type="button" class="gx-sw" data-color="' + c + '" aria-pressed="' + (String(color || '').toLowerCase() === c.toLowerCase()) + '"><i style="background:' + ({ Black: '#111', White: '#fff', Gray: '#8a8f98', Silver: '#c8ccd2', Blue: 'var(--blue-tx)', Red: 'var(--red)', Green: 'var(--tx-ok)', Brown: '#7a5232' })[c] + '"></i>' + c + '</button>'; }).join('') + '</div>';
 }
 function gxBindVeh(panel){
   var mk = document.getElementById('gxVMake'), md = document.getElementById('gxModels'), col = document.getElementById('gxVColor');
@@ -10359,11 +10359,11 @@ function customsPhotoPrompt(r){
   var el = document.createElement('div'); el.id = 'cpPrompt';
   el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', 'Photo for the valet pass');
   el.style.cssText = 'position:fixed;left:12px;right:12px;bottom:calc(16px + env(safe-area-inset-bottom));z-index:9000;background:#fff;border:1px solid #CDD6E4;border-radius:14px;box-shadow:0 12px 30px -12px rgba(6,20,51,.45);padding:14px 16px;max-width:520px;margin:0 auto;font-family:Inter,sans-serif';
-  el.innerHTML = '<div style="font-weight:800;color:#0B1A33;font-size:15px">📷 Photo of the car at Customs?</div>' +
-    '<div style="color:#5A6B8C;font-size:13px;margin:4px 0 10px">' + escapeHTML(r.name || '') + ' sees it on the valet pass. Take a photo or pick one from the library.</div>' +
-    '<div style="display:flex;gap:8px"><label style="flex:1;display:flex;align-items:center;justify-content:center;min-height:44px;border-radius:10px;background:#061433;color:#fff;font-weight:800;cursor:pointer">Add photo' +
+  el.innerHTML = '<div style="font-weight:800;color:var(--navy);font-size:15px">📷 Photo of the car at Customs?</div>' +
+    '<div style="color:var(--mu);font-size:13px;margin:4px 0 10px">' + escapeHTML(r.name || '') + ' sees it on the valet pass. Take a photo or pick one from the library.</div>' +
+    '<div style="display:flex;gap:8px"><label style="flex:1;display:flex;align-items:center;justify-content:center;min-height:44px;border-radius:10px;background:var(--navy);color:#fff;font-weight:800;cursor:pointer">Add photo' +
     '<input type="file" accept="image/*" style="display:none"></label>' +
-    '<button type="button" style="min-height:44px;padding:0 16px;border-radius:10px;border:1.5px solid #CDD6E4;background:#fff;font-weight:700;color:#0B1A33">Skip</button></div>';
+    '<button type="button" style="min-height:44px;padding:0 16px;border-radius:10px;border:1.5px solid #CDD6E4;background:#fff;font-weight:700;color:var(--navy)">Skip</button></div>';
   document.body.appendChild(el);
   el.querySelector('button').onclick = function(){ el.remove(); };
   el.querySelector('input').onchange = function(){ var inp = this; vpPhotoPick(r.id, inp).finally(function(){ el.remove(); }); };
@@ -11836,8 +11836,8 @@ function renderUserAccessTable(rows){
     var actionsCell = '';
     if(!u.is_protected){
       actionsCell =
-        '<button onclick="onUserAccessToggleActive(this,\''+u.id+'\','+(u.is_active?'false':'true')+')" style="background:'+(u.is_active?'rgba(192,57,43,0.08)':'rgba(26,158,106,0.1)')+';border:1px solid '+(u.is_active?'rgba(192,57,43,0.3)':'rgba(26,158,106,0.35)')+';color:'+(u.is_active?'#c0392b':'#1a9e6a')+';border-radius:7px;padding:5px 10px;font-size:11px;font-weight:700;font-family:Sora,sans-serif;cursor:pointer;margin-right:6px;">'+(u.is_active?'Disable':'Enable')+'</button>'+
-        '<button onclick="onUserAccessDelete(this,\''+u.id+'\',\''+escapeHTML(u.username||'')+'\')" style="background:rgba(192,57,43,0.08);border:1px solid rgba(192,57,43,0.3);color:#c0392b;border-radius:7px;padding:5px 10px;font-size:11px;font-weight:700;font-family:Sora,sans-serif;cursor:pointer;">Delete</button>';
+        '<button onclick="onUserAccessToggleActive(this,\''+u.id+'\','+(u.is_active?'false':'true')+')" style="background:'+(u.is_active?'rgba(192,57,43,0.08)':'rgba(26,158,106,0.1)')+';border:1px solid '+(u.is_active?'rgba(192,57,43,0.3)':'rgba(26,158,106,0.35)')+';color:'+(u.is_active?'var(--red)':'var(--ok)')+';border-radius:7px;padding:5px 10px;font-size:11px;font-weight:700;font-family:Sora,sans-serif;cursor:pointer;margin-right:6px;">'+(u.is_active?'Disable':'Enable')+'</button>'+
+        '<button onclick="onUserAccessDelete(this,\''+u.id+'\',\''+escapeHTML(u.username||'')+'\')" style="background:rgba(192,57,43,0.08);border:1px solid rgba(192,57,43,0.3);color:var(--red);border-radius:7px;padding:5px 10px;font-size:11px;font-weight:700;font-family:Sora,sans-serif;cursor:pointer;">Delete</button>';
     }
     return '<tr style="border-bottom:1px solid var(--b);">'+
       '<td style="padding:9px 10px;font-weight:700;">'+escapeHTML(u.username||'')+'</td>'+
@@ -12682,10 +12682,10 @@ async function generateOperationsReport(){
   var wdVolRows=wdOrder.map(function(i){
     var isMax=avgOps[i]===maxOpsVal;
     return '<tr'+(isMax?' style="background:#fffbf0"':'')+'>'+
-      '<td'+(isMax?' style="font-weight:700;color:#7a4f00"':'')+'>'+WDAYS[i]+'<\/td>'+
+      '<td'+(isMax?' style="font-weight:700;color:var(--tx-gold)"':'')+'>'+WDAYS[i]+'<\/td>'+
       '<td style="text-align:center">'+wdAvgCI[i].toFixed(1)+'<\/td>'+
       '<td style="text-align:center">'+wdAvgDel[i].toFixed(1)+'<\/td>'+
-      '<td style="text-align:center;font-weight:700;color:#1a3d7c">'+avgOps[i].toFixed(1)+'<\/td>'+
+      '<td style="text-align:center;font-weight:700;color:var(--navy2)">'+avgOps[i].toFixed(1)+'<\/td>'+
       '<td style="text-align:center;font-size:14px">'+(avgOps[i]===maxOpsVal?'🔥':avgOps[i]===secondOpsVal?'⚡':'')+'<\/td>'+
     '<\/tr>';
   }).join('');
@@ -12696,7 +12696,7 @@ async function generateOperationsReport(){
       '<td>'+(i+1)+'<\/td><td>'+d.key+'<\/td><td>'+d.wd+'<\/td>'+
       '<td style="text-align:center">'+d.ci+'<\/td>'+
       '<td style="text-align:center">'+d.del+'<\/td>'+
-      '<td style="text-align:center;font-weight:700;color:#1a3d7c">'+total+'<\/td>'+
+      '<td style="text-align:center;font-weight:700;color:var(--navy2)">'+total+'<\/td>'+
     '<\/tr>';
   }).join('');
 
@@ -12776,7 +12776,7 @@ async function generateOperationsReport(){
 
     '<div class="staff-block">'+
 
-    '<div class="section"><h2>&#128202; Farber Staffing Analysis — '+monthLabel+'<\/h2>'+
+    '<div class="section"><h2>&var(--tx-ok); Farber Staffing Analysis — '+monthLabel+'<\/h2>'+
       '<div class="staff-kpi-grid">'+
         '<div class="kpi gold">'+
           '<div class="num">'+totalCI+'<\/div>'+
@@ -12793,7 +12793,7 @@ async function generateOperationsReport(){
         '<div class="kpi gold">'+
           '<div class="num" style="font-size:13px">'+mostActiveHangar+'<\/div>'+
           '<div class="lbl">Most Active Hangar<\/div>'+
-          '<div style="font-size:10px;color:#a07030;margin-top:3px">'+mostActiveHangarTotal+' check-ins this month<\/div>'+
+          '<div style="font-size:10px;color:var(--gold);margin-top:3px">'+mostActiveHangarTotal+' check-ins this month<\/div>'+
         '<\/div>'+
       '<\/div>'+
     '<\/div>'+
@@ -12875,9 +12875,9 @@ async function sbLog(action, passenger, ticket, location, detail, meta) {
   } catch(e) { console.warn('Log error:', e); return false; }
 }
 // ── TAIL BADGE COLOR ───────────────────────────────────────────
-var _tailBadgePalette=['#1D4ED8','#047857','#B45309','#7C3AED','#BE123C','#0369A1','#4338CA','#15803D','#92400E','#334155','#0F766E','#9D174D'];
+var _tailBadgePalette=['var(--blue-tx)','var(--tx-ok)','#B45309','var(--pur)','var(--red)','var(--blue-tx)','var(--blue)','var(--tx-ok)','#92400E','var(--navy2)','var(--tx-ok)','#9D174D'];
 function getTailBadgeColor(tail){
-  if(!tail)return'#334155';
+  if(!tail)return'var(--navy2)';
   var h=0;for(var i=0;i<tail.length;i++){h=tail.charCodeAt(i)+((h<<5)-h);}
   return _tailBadgePalette[Math.abs(h)%_tailBadgePalette.length];
 }
@@ -13249,7 +13249,7 @@ function createLogTable() {
     "ALTER TABLE activity_log ENABLE ROW LEVEL SECURITY;\n" +
     "CREATE POLICY \"allow_all\" ON activity_log FOR ALL USING (true) WITH CHECK (true);";
   var el = document.getElementById('actLogsContainer');
-  if(el) el.innerHTML = '<div style="background:#0a0f1e;border-radius:10px;padding:16px;font-family:monospace;font-size:12px;color:#6fc898;white-space:pre-wrap">'+
+  if(el) el.innerHTML = '<div style="background:var(--navy);border-radius:10px;padding:16px;font-family:monospace;font-size:12px;color:#6fc898;white-space:pre-wrap">'+
     'Run this SQL in Supabase SQL Editor:\n\n'+sql+'\n\n'+
     '<button onclick="navigator.clipboard.writeText(`'+sql.replace(/`/g,"'"+'`'+"'")+'`).then(function(){alert(\'Copied!\');})" '+
     'style="background:var(--navy);color:#fff;border:none;border-radius:6px;padding:8px 14px;cursor:pointer;font-family:Sora,sans-serif;font-weight:700;">Copy SQL</button>'+
@@ -13312,10 +13312,10 @@ function renderTasks() {
       '<div class="task-header"><div style="width:100%">'+
         '<div class="task-name">' + escapeHTML(r.name) +
           (isDone ? ' <span class="task-sent-badge">&#10003; CONFIRMED</span>' : '') +
-          (isSent&&!isDone ? ' <span class="task-sent-badge">&#128172; TEXT SENT</span>' : '') +
+          (isSent&&!isDone ? ' <span class="task-sent-badge">&var(--tx-ok); TEXT SENT</span>' : '') +
         '</div>'+
         '<div class="task-info">Ticket: <strong style="color:var(--gold2)">' + escapeHTML(r.ticket) + '</strong>' +
-          ' &nbsp;&middot;&nbsp; Est. Return: <strong style="color:#8A6A00">' + escapeHTML(r.ret ? fmtD(r.ret) : 'No date') + '</strong>' +
+          ' &nbsp;&middot;&nbsp; Est. Return: <strong style="color:var(--tx-gold)">' + escapeHTML(r.ret ? fmtD(r.ret) : 'No date') + '</strong>' +
           ' &nbsp;&middot;&nbsp; ' + escapeHTML(r.loc||'-') +
           (r.phone ? ' &nbsp;&middot;&nbsp; ' + escapeHTML(fmtP(r.phone)) : '') +
         '</div>'+
@@ -13326,8 +13326,8 @@ function renderTasks() {
           '</div>' : '') +
       '</div></div>'+
       '<div class="task-actions">'+
-        (r.phone&&!isDone ? '<button type="button" class="task-btn text" onclick="sendTaskConfirmationSms('+r.id+')">&#128172; Send Text</button>' : '') +
-        (!isDone ? '<button class="task-btn" onclick="showDet('+r.id+')">&#128065; View</button>' : '') +
+        (r.phone&&!isDone ? '<button type="button" class="task-btn text" onclick="sendTaskConfirmationSms('+r.id+')">&var(--tx-ok); Send Text</button>' : '') +
+        (!isDone ? '<button class="task-btn" onclick="showDet('+r.id+')">&var(--tx-ok); View</button>' : '') +
         (isDone ? '<button class="task-btn" onclick="undoTask('+r.id+')">&#8634; Undo</button>' : '') +
       '</div>'+
     '</div>';
@@ -15043,30 +15043,30 @@ function ensureDcExportStyle(){
   if(document.getElementById('dcExportStyle')) return;
   var css=
     '#dailyClosingExportHost{position:fixed;top:0;left:-10000px;z-index:-1;pointer-events:none}'+
-    '#dailyClosingExport{width:'+DCR_EXPORT_HOST_WIDTH+'px;box-sizing:border-box;font-family:"Segoe UI",Arial,sans-serif;background:#fff;color:#0D1B2E;font-size:12.5px;padding:14px 14px 10px}'+
+    '#dailyClosingExport{width:'+DCR_EXPORT_HOST_WIDTH+'px;box-sizing:border-box;font-family:"Segoe UI",Arial,sans-serif;background:#fff;color:var(--navy);font-size:12.5px;padding:14px 14px 10px}'+
     '#dailyClosingExport *{box-sizing:border-box}'+
-    '#dailyClosingExport .dcx-hdr{display:flex;align-items:center;justify-content:space-between;gap:8px;border-bottom:2px solid #1B3B6F;padding-bottom:8px;margin-bottom:8px}'+
-    '#dailyClosingExport .dcx-logo{height:30px;width:auto;object-fit:contain;background:#0a0f1e;padding:4px 8px;border-radius:6px}'+
-    '#dailyClosingExport .dcx-hdr-date{font-size:11px;font-weight:700;color:#1B3B6F;flex:1;text-align:right;margin-right:6px}'+
+    '#dailyClosingExport .dcx-hdr{display:flex;align-items:center;justify-content:space-between;gap:8px;border-bottom:2px solid var(--navy2);padding-bottom:8px;margin-bottom:8px}'+
+    '#dailyClosingExport .dcx-logo{height:30px;width:auto;object-fit:contain;background:var(--navy);padding:4px 8px;border-radius:6px}'+
+    '#dailyClosingExport .dcx-hdr-date{font-size:11px;font-weight:700;color:var(--navy2);flex:1;text-align:right;margin-right:6px}'+
     '#dailyClosingExport .dcx-badge{font-size:9px;font-weight:800;padding:3px 8px;border-radius:5px;letter-spacing:.4px;white-space:nowrap}'+
-    '#dailyClosingExport .dcx-badge-draft{background:rgba(201,172,84,.2);color:#7A5A00}'+
-    '#dailyClosingExport .dcx-badge-final{background:#1A9E6A;color:#fff}'+
-    '#dailyClosingExport .dcx-title{font-size:15px;font-weight:800;color:#1B3B6F;margin-bottom:8px}'+
+    '#dailyClosingExport .dcx-badge-draft{background:rgba(201,172,84,.2);color:var(--tx-gold)}'+
+    '#dailyClosingExport .dcx-badge-final{background:var(--ok);color:#fff}'+
+    '#dailyClosingExport .dcx-title{font-size:15px;font-weight:800;color:var(--navy2);margin-bottom:8px}'+
     '#dailyClosingExport .dcx-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:7px}'+
     '#dailyClosingExport .dcx-kpi{background:#F0F3FA;border:1px solid #E8EDF7;border-radius:8px;padding:7px 8px;text-align:center}'+
-    '#dailyClosingExport .dcx-kpi .n{font-size:13px;font-weight:800;color:#1B3B6F;font-family:"JetBrains Mono",monospace}'+
+    '#dailyClosingExport .dcx-kpi .n{font-size:13px;font-weight:800;color:var(--navy2);font-family:"JetBrains Mono",monospace}'+
     '#dailyClosingExport .dcx-kpi .l{font-size:7.5px;color:#888;text-transform:uppercase;letter-spacing:.3px;margin-top:2px}'+
     '#dailyClosingExport .dcx-sec-lbl{font-size:9.5px;font-weight:800;color:#888;text-transform:uppercase;letter-spacing:.5px;margin:10px 0 4px;padding-bottom:2px;border-bottom:1px solid #E8EDF7}'+
     '#dailyClosingExport .dcx-pay-table,#dailyClosingExport .dcx-table{width:100%;border-collapse:collapse;font-size:11.5px}'+
     '#dailyClosingExport .dcx-pay-table td{padding:3px 2px;border-bottom:1px solid #F0F3FA}'+
     '#dailyClosingExport .dcx-pay-table td:last-child{text-align:right;font-weight:700;font-family:"JetBrains Mono",monospace}'+
-    '#dailyClosingExport .dcx-total-row td{border-top:1.5px solid #1B3B6F;border-bottom:none;font-weight:800;color:#1B3B6F;padding-top:5px}'+
+    '#dailyClosingExport .dcx-total-row td{border-top:1.5px solid var(--navy2);border-bottom:none;font-weight:800;color:var(--navy2);padding-top:5px}'+
     '#dailyClosingExport .dcx-table th{text-align:left;font-size:9px;color:#888;text-transform:uppercase;padding:3px 4px;border-bottom:1px solid #C8D3E8}'+
     '#dailyClosingExport .dcx-table td{padding:4px;border-bottom:1px solid #F0F3FA}'+
-    '#dailyClosingExport .dcx-money-left{font-size:16px;font-weight:800;color:#1B3B6F;font-family:"JetBrains Mono",monospace;background:#F0F3FA;border-radius:8px;padding:8px 10px}'+
+    '#dailyClosingExport .dcx-money-left{font-size:16px;font-weight:800;color:var(--navy2);font-family:"JetBrains Mono",monospace;background:#F0F3FA;border-radius:8px;padding:8px 10px}'+
     '#dailyClosingExport .dcx-check{font-size:10.5px;margin-bottom:4px;display:flex;gap:6px;align-items:flex-start}'+
-    '#dailyClosingExport .dcx-check .y{color:#1A9E6A;font-weight:800}'+
-    '#dailyClosingExport .dcx-check .n{color:#CC3333;font-weight:800}'+
+    '#dailyClosingExport .dcx-check .y{color:var(--ok);font-weight:800}'+
+    '#dailyClosingExport .dcx-check .n{color:var(--red);font-weight:800}'+
     '#dailyClosingExport .dcx-notes{font-size:11px;color:#333;background:#F0F3FA;border-radius:8px;padding:8px 10px;white-space:pre-wrap}'+
     '#dailyClosingExport .dcx-footer{text-align:center;color:#bbb;font-size:8.5px;margin-top:10px;padding-top:6px;border-top:1px solid #E8EDF7}';
   var tag=document.createElement('style');
@@ -15491,7 +15491,7 @@ async function crLoadAutoData(){
         +'<button onclick="document.querySelector(\'.tab[data-t=day]\').click()" style="display:block;margin:10px auto 0;background:var(--navy);color:#fff;border:none;border-radius:8px;padding:8px 20px;font:700 12px \'Sora\',sans-serif;cursor:pointer;letter-spacing:.5px"><i class="fa-solid fa-arrow-right"></i> REVIEW</button>';
     }else{
       _crLtIncomplete=false;
-      ltEl.innerHTML='<span style="color:#22c55e"><i class="fa-solid fa-check"></i> All complete</span>';
+      ltEl.innerHTML='<span style="color:var(--ok)"><i class="fa-solid fa-check"></i> All complete</span>';
     }
   }
 
@@ -15515,7 +15515,7 @@ function crRenderValets(){
   for(var i=0;i<_crValets.length;i++){
     var v=_crValets[i];
     var statusDot=v.active
-      ?'<span style="color:#22c55e"><i class="fa-solid fa-circle" style="font-size:8px"></i> Active</span>'
+      ?'<span style="color:var(--ok)"><i class="fa-solid fa-circle" style="font-size:8px"></i> Active</span>'
       :'<span style="color:var(--mu)"><i class="fa-solid fa-check"></i></span>';
     html+='<div class="cr-valet-card">'
       +'<div class="cr-valet-top">'
@@ -15614,7 +15614,7 @@ function crLtAlertsHTML(rows, dark){
   return '<div style="margin:8px 0 4px;padding:7px 10px;border:1.5px solid '+bd+';background:'+bg+';border-radius:8px;font:700 12px \'Inter\',sans-serif;color:'+red+'">\u26A0 MIDDAY RUSH: '+midday+' cars between 11:00 AM and 1:00 PM</div>';
 }
 function crLtMarks(r, dark){
-  var red=dark?'#FF8A80':'var(--crit)', blue=dark?'#7FB2FF':'#2a5db0';
+  var red=dark?'#FF8A80':'var(--crit)', blue=dark?'#7FB2FF':'var(--blue-tx)';
   var m=[];
   if(isAscend(r)) m.push('<span style="color:'+blue+';font-weight:800">ASCEND</span>');
   if(!isAscend(r)&&pickupLocation(r)==='CUSTOMS') m.push('<span style="color:'+blue+';font-weight:700">\u2192 US Customs'+(isCustomsException(r)?' (exception)':'')+'</span>');
@@ -15639,7 +15639,7 @@ function crLtListRowsHTML(rows, dark){
     return rushLbl(r, i)+'<div style="display:flex;gap:8px;align-items:baseline;padding:4px 0;'+rushBar(r)+(i<rows.length-1?'border-bottom:1px solid '+bd+';':'')+'">'
       +'<span style="font:700 12px \'JetBrains Mono\',monospace;min-width:64px;flex:none;'+(t?'':'color:#FF8A80')+'">'+(t?crFmtTime12(t):'No time')+'</span>'
       +'<span style="flex:1;min-width:0;font:700 12px \'Sora\',sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escapeHTML(titleCaseName(r.name||''))+'</span>'
-      +(tag?'<span style="flex:none;font:700 10px \'Inter\',sans-serif;color:'+(dark?'#7FB2FF':'#2a5db0')+'">'+tag+'</span>':'')
+      +(tag?'<span style="flex:none;font:700 10px \'Inter\',sans-serif;color:'+(dark?'#7FB2FF':'var(--blue-tx)')+'">'+tag+'</span>':'')
       +'<span style="flex:none;font:600 11px \'Inter\',sans-serif;color:'+(noLoc?red:mu)+';'+(noLoc?'font-weight:700':'')+'">'+(noLoc?'NO HANGAR':escapeHTML(titleCaseName(r.loc)))+'</span>'
       +'</div>';
   }).join('');
@@ -15835,16 +15835,16 @@ function crBuildExportMarkup(report){
   var mu='rgba(255,255,255,.62)', line='1px solid rgba(255,255,255,.10)';
   var tile=function(n,l,gold){
     return '<div style="background:'+(gold?'rgba(255,197,71,.12)':'rgba(255,255,255,.06)')+';border:1px solid '+(gold?'rgba(255,197,71,.45)':'rgba(255,255,255,.08)')+';border-radius:14px;padding:14px 12px">'
-      +'<div style="'+S+'font-weight:800;font-size:44px;line-height:1;color:'+(gold?'#FFC547':'#fff')+'">'+n+'</div>'
+      +'<div style="'+S+'font-weight:800;font-size:44px;line-height:1;color:'+(gold?'var(--gold)':'#fff')+'">'+n+'</div>'
       +'<div style="'+I+'font-weight:600;font-size:14px;color:'+mu+';margin-top:6px">'+l+'</div></div>';
   };
   var row=function(l,v,c){ return '<div style="display:flex;justify-content:space-between;gap:12px;'+I+'font-size:15px;padding:3px 0;color:'+(c||'rgba(255,255,255,.82)')+'"><span>'+l+'</span><span style="font-weight:700">'+v+'</span></div>'; };
 
-  var h='<div id="crExportRoot" style="width:'+CR_EXPORT_HOST_WIDTH+'px;box-sizing:border-box;'+I+'background:#011532;color:#fff;padding:22px 22px 14px">';
+  var h='<div id="crExportRoot" style="width:'+CR_EXPORT_HOST_WIDTH+'px;box-sizing:border-box;'+I+'background:var(--navy);color:#fff;padding:22px 22px 14px">';
   // Header: who, which day, when it was closed.
   h+='<div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">';
   h+='<img src="assets/logo-icon.png" style="height:34px">';
-  h+='<div style="flex:1;min-width:0"><div style="'+I+'font-weight:600;font-size:13px;color:#32C5E6">Closing report · Makers Air</div>';
+  h+='<div style="flex:1;min-width:0"><div style="'+I+'font-weight:600;font-size:13px;color:var(--blue)">Closing report · Makers Air</div>';
   h+='<div style="'+S+'font-weight:800;font-size:22px;line-height:1.15">'+escapeHTML(dateLabel)+'</div></div>';
   if(closedTime) h+='<div style="text-align:right;'+I+'font-size:12px;color:'+mu+';line-height:1.3">Closed<br><b style="color:#fff;font-size:14px">'+escapeHTML(closedTime)+'</b></div>';
   h+='</div>';
@@ -15853,10 +15853,10 @@ function crBuildExportMarkup(report){
   h+=tile(checkins,'Check-ins')+tile(delivered,'Delivered')+tile(inCustody,'In custody',true);
   h+='</div>';
   // Tips.
-  h+='<div style="border:1.5px solid #FFC547;border-radius:14px;padding:14px 16px;margin-bottom:12px">';
+  h+='<div style="border:1.5px solid var(--gold);border-radius:14px;padding:14px 16px;margin-bottom:12px">';
   h+='<div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:6px">';
-  h+='<span style="'+S+'font-weight:700;font-size:16px;color:#FFC547">Total tips</span>';
-  h+='<span style="'+S+'font-weight:800;font-size:40px;line-height:1;color:#FFC547">'+crFmtMoney(total)+'</span></div>';
+  h+='<span style="'+S+'font-weight:700;font-size:16px;color:var(--gold)">Total tips</span>';
+  h+='<span style="'+S+'font-weight:800;font-size:40px;line-height:1;color:var(--gold)">'+crFmtMoney(total)+'</span></div>';
   if(report.cash_counted_cents!=null){
     // Smart Tips report: cash counted (B) is the cash; Total = Stripe + B.
     var diff=Number(report.cash_difference_cents)||0;
@@ -15905,7 +15905,7 @@ async function crCaptureCanvas(report){
   var canvas=await html2canvas(el,{
     scale:scale,
     useCORS:true,
-    backgroundColor:'#011532',
+    backgroundColor:'var(--navy)',
     logging:false,
     width:CR_EXPORT_HOST_WIDTH,
     windowWidth:CR_EXPORT_HOST_WIDTH
@@ -15927,7 +15927,7 @@ function crBuildThumbHTML(report){
   h+='<div class="rt-numbers">';
   h+='<div class="rt-num"><div class="n">'+checkins+'</div><div class="l">CHECK-INS</div></div>';
   h+='<div class="rt-num"><div class="n">'+delivered+'</div><div class="l">DELIVERED</div></div>';
-  h+='<div class="rt-num"><div class="n" style="color:#FFC547">'+inCustody+'</div><div class="l">CUSTODY</div></div>';
+  h+='<div class="rt-num"><div class="n" style="color:var(--gold)">'+inCustody+'</div><div class="l">CUSTODY</div></div>';
   h+='</div>';
   h+='<div class="rt-tips">TOTAL TIPS '+crFmtMoney(total)+'</div>';
   h+='</div>';
@@ -17872,23 +17872,23 @@ function tv4Plane3d(reg, st){
     '<ellipse class="tv4-prop" cx="860" cy="262" rx="8" ry="76" fill="#E6ECF5" opacity=".2"/></g></svg>';
 }
 function tv4CaravanSvg(reg){
-  var win = ''; for(var i = 0; i < 8; i++) win += '<rect x="'+(168 + i * 16.5)+'" y="'+(60 - i * 0.4)+'" width="10" height="8" rx="2.5" fill="#1A2436"/>';
+  var win = ''; for(var i = 0; i < 8; i++) win += '<rect x="'+(168 + i * 16.5)+'" y="'+(60 - i * 0.4)+'" width="10" height="8" rx="2.5" fill="var(--navy)"/>';
   return '<svg class="tv4-cv" viewBox="10 14 380 120" role="img" aria-label="Makers Air Grand Caravan '+escapeHTML(reg)+'">'+
-   '<path d="M38 80 L20 18 L48 18 L98 66 Z" fill="url(#tv4Tile)"/><path d="M20 18 L48 18 L50 22 L22 22 Z" fill="#0B2350"/>'+
-   '<path d="M18 74 L92 72 L94 77 L20 79 Z" fill="url(#tv4Wing)"/><path d="M18 77 L94 76 L94 77 L20 79 Z" fill="#0B2350"/>'+
+   '<path d="M38 80 L20 18 L48 18 L98 66 Z" fill="url(#tv4Tile)"/><path d="M20 18 L48 18 L50 22 L22 22 Z" fill="var(--navy2)"/>'+
+   '<path d="M18 74 L92 72 L94 77 L20 79 Z" fill="url(#tv4Wing)"/><path d="M18 77 L94 76 L94 77 L20 79 Z" fill="var(--navy2)"/>'+
    '<path d="M38 80 C60 74 100 64 150 54 L300 52 C312 52 322 56 330 61 L346 66 C360 69 370 73 374 78 C370 83 360 87 346 90 L322 96 L150 98 C110 97 70 90 38 84 Z" fill="url(#tv4Skin)"/>'+
    '<g clip-path="url(#tv4Fus)"><path d="M30 82 C120 88 250 88 390 79 L390 120 L30 120 Z" fill="url(#tv4Belly)"/>'+
-   '<path d="M44 81 C140 76 230 71 300 68 C330 67 355 70 376 77" fill="none" stroke="#4FA8E0" stroke-width="2.2"/></g>'+
-   win+'<path d="M303 54 L326 60.5 L326 68 L305 68 Z" fill="#1A2436"/><path d="M307 57 L322 61.5 L322 64 L308 63 Z" fill="#6F93C4" opacity=".7"/>'+
+   '<path d="M44 81 C140 76 230 71 300 68 C330 67 355 70 376 77" fill="none" stroke="var(--blue)" stroke-width="2.2"/></g>'+
+   win+'<path d="M303 54 L326 60.5 L326 68 L305 68 Z" fill="var(--navy)"/><path d="M307 57 L322 61.5 L322 64 L308 63 Z" fill="#6F93C4" opacity=".7"/>'+
    '<text x="84" y="80" font-family="Barlow Condensed,sans-serif" font-weight="700" font-size="13" fill="#123A7A">'+escapeHTML(reg)+'</text>'+
    '<g transform="translate(150,73)"><path d="M0 4 L3 0 L6 4 L9 0 L12 4" fill="none" stroke="#123A7A" stroke-width="1.4"/><text x="15" y="5" font-family="Inter,sans-serif" font-weight="700" font-size="6.5" fill="#123A7A" letter-spacing="1.2">MAKERS AIR</text></g>'+
    '<path d="M150 47 C200 44 260 44 304 46 C309 46.5 309 50.5 304 51 L152 53 C147 52 147 48 150 47 Z" fill="url(#tv4Wing)"/>'+
    '<path d="M262 50 L230 93" stroke="#B9C3D2" stroke-width="3" stroke-linecap="round"/>'+
    '<path d="M148 97 L318 95 L308 108 C260 110 200 110 160 109 Z" fill="url(#tv4Belly)"/>'+
-   '<path d="M240 102 L254 124" stroke="#4A5568" stroke-width="4" stroke-linecap="round"/><circle cx="256" cy="127" r="9" fill="#1B2230"/><circle cx="256" cy="127" r="3.2" fill="#8C96A6"/>'+
-   '<path d="M350 90 L352 120" stroke="#4A5568" stroke-width="3.2" stroke-linecap="round"/><circle cx="352" cy="124" r="7" fill="#1B2230"/><circle cx="352" cy="124" r="2.5" fill="#8C96A6"/>'+
+   '<path d="M240 102 L254 124" stroke="var(--mu)" stroke-width="4" stroke-linecap="round"/><circle cx="256" cy="127" r="9" fill="var(--navy)"/><circle cx="256" cy="127" r="3.2" fill="#8C96A6"/>'+
+   '<path d="M350 90 L352 120" stroke="var(--mu)" stroke-width="3.2" stroke-linecap="round"/><circle cx="352" cy="124" r="7" fill="var(--navy)"/><circle cx="352" cy="124" r="2.5" fill="#8C96A6"/>'+
    '<ellipse class="tv4-prop" cx="379" cy="78" rx="3.5" ry="36" fill="#D5DDE8" opacity=".22"/>'+
-   '<path d="M372 73 C379 74 382 76 383 78 C382 80 379 82 372 83 Z" fill="#123A7A"/></svg>';
+   '<path d="M372 73 C379 74 382 76 383 78 C382 80 379 82 372 83 Z" fill="var(--navy2)"/></svg>';
 }
 function tv4Chip(code, tail){ return '<span class="tv4-mini" style="'+tvMakersTag(code)+'">'+escapeHTML(tail)+'</span>'; }
 // Passengers on board (robot count) for a flight coming to FXE today.
@@ -18644,7 +18644,7 @@ function tvBuildTomorrowPagesV3(vm){
   var pageBodyBox = tvRealPageBodyBox();
   function titleHtmlFor(pageCount, p){
     return '<div class="tv-page-title">'+
-      '<span>&#128198; Leaving Tomorrow</span>'+
+      '<span>&var(--blue-tx); Leaving Tomorrow</span>'+
       '<span class="tv-count-pill">'+vm.leavingTomorrow.length+'</span>'+
       (pageCount>1?'<span class="tv-page-continuation">TOMORROW '+(p+1)+'/'+pageCount+'</span>':'')+
       '<span class="tv-prep-badge"><span class="tv-dot"></span>PREP FOR TOMORROW</span>'+
@@ -19645,9 +19645,9 @@ async function mfVerdict(i, verdict){
 // iPhone Share sheet (WhatsApp → group). Drawn on a canvas: no library, works offline.
 // Makers bag-tag colours (owner's photos of the tags, 2026-11-06): background, text.
 var MF_TAGS = { ASD: ['#9DCB0A', '#FFFFFF'], COX: ['#F37114', '#FFFFFF'], GHC: ['#FFFFFF', '#111111'], NMC: ['#FFFFFF', '#111111'],
-  GHB: ['#78C28E', '#111111'], CCZ: ['#3FC4CC', '#FFFFFF'], ATC: ['#7CC3DF', '#FFFFFF'], SAQ: ['#E53A42', '#FFFFFF'],
-  RSD: ['#ABABAB', '#FFFFFF'], TBI: ['#9A3D9F', '#FFFFFF'], ELH: ['#F48777', '#FFFFFF'], SML: ['#5E98D6', '#FFFFFF'],
-  LGI: ['#5E98D6', '#FFFFFF'], TYM: ['#F3CB03', '#111111'] };
+  GHB: ['#78C28E', '#111111'], CCZ: ['var(--blue)', '#FFFFFF'], ATC: ['#7CC3DF', '#FFFFFF'], SAQ: ['#E53A42', '#FFFFFF'],
+  RSD: ['#ABABAB', '#FFFFFF'], TBI: ['var(--pur)', '#FFFFFF'], ELH: ['#F48777', '#FFFFFF'], SML: ['#5E98D6', '#FFFFFF'],
+  LGI: ['#5E98D6', '#FFFFFF'], TYM: ['var(--gold)', '#111111'] };
 var MF_TAG_CODE = { SML: 'MYLS', LGI: 'MYLS' };   // Long Island tags read MYLS
 var MF_AIRPORTS = { ASD: 'Fresh Creek', COX: 'Congo Town', GHC: 'Great Harbor Cay', GHB: "Governor's Harbour", ATC: "Arthur's Town",
   SAQ: 'San Andros', TYM: 'Staniel Cay', ELH: 'North Eleuthera', TBI: 'Cat Island', RSD: 'Rock Sound', CCZ: 'Chub Cay',
@@ -19698,7 +19698,7 @@ async function mfDeparturesCanvas(r){
   }
   var H = HEAD + BODY + CHG + FOOT;
   var c = document.createElement('canvas'); c.width = W; c.height = H;
-  var g = c.getContext('2d'), NAVY = '#061433', GOLD = '#C9A84C', INK = '#0B1A33', MU = '#5A6B8C', LINE = '#E3E7EE', TINT = '#F4F6FA';
+  var g = c.getContext('2d'), NAVY = 'var(--navy)', GOLD = 'var(--gold)', INK = 'var(--navy)', MU = 'var(--mu)', LINE = '#E3E7EE', TINT = '#F4F6FA';
   var total = list.reduce(function(a, f){ return a + f.pax; }, 0);
   g.textBaseline = 'alphabetic';
   g.fillStyle = '#FFFFFF'; g.fillRect(0, 0, W, H);
@@ -19810,7 +19810,7 @@ async function mfComingBackCanvas(day, res){
   var BODY = rows.reduce(function(a, r, i){ return a + ROW + (label(r, i) ? LBL : 0); }, 0);
   var H = HEAD + MID + BODY + FOOT;
   var c = document.createElement('canvas'); c.width = W; c.height = H;
-  var g = c.getContext('2d'), NAVY = '#061433', GOLD = '#C9A84C', INK = '#0B1A33', MU = '#5A6B8C', LINE = '#E3E7EE', TINT = '#F4F6FA', RED = '#C0392B', BLUE = '#2A5DB0';
+  var g = c.getContext('2d'), NAVY = 'var(--navy)', GOLD = 'var(--gold)', INK = 'var(--navy)', MU = 'var(--mu)', LINE = '#E3E7EE', TINT = '#F4F6FA', RED = 'var(--red)', BLUE = 'var(--blue-tx)';
   var fit = function(text, font, maxW){ g.font = font; if (g.measureText(text).width <= maxW) return text;
     while (text.length > 1 && g.measureText(text + '…').width > maxW) text = text.slice(0, -1); return text + '…'; };
   g.textBaseline = 'alphabetic';
@@ -20023,7 +20023,7 @@ function offlineUpdateNetIndicator(){
     el.style.background = 'rgba(204,51,51,.16)'; el.style.color = '#ffb3b4';
   } else if(_offlineNet.supabaseReachable === false){
     el.textContent = '🟡 NETWORK — NO SERVER';
-    el.style.background = 'rgba(245,166,35,.16)'; el.style.color = '#f5c877';
+    el.style.background = 'rgba(245,166,35,.16)'; el.style.color = 'var(--gold)';
   } else {
     el.textContent = '🟢 ONLINE';
     el.style.background = 'rgba(34,197,94,.14)'; el.style.color = '#8CF0B8';
@@ -20052,12 +20052,12 @@ function updateOfflineModeBanner(){
     var authStatus = (typeof getOfflineAuthStatus==='function') ? getOfflineAuthStatus() : {valid:false};
     if(!authStatus.valid){
       el.style.display='flex';
-      el.style.background='#5a1a1a';
+      el.style.background='var(--red-tx)';
       el.textContent='🔴 OFFLINE ACCESS NOT AVAILABLE — CONNECT TO INTERNET AND SIGN IN'+(pendingCount?(' · '+pendingCount+' check-in'+(pendingCount>1?'s':'')+' kept on this device'):'');
       return;
     }
     el.style.display='flex';
-    el.style.background='#7a4a12';
+    el.style.background='var(--tx-gold)';
     el.textContent='🟠 OFFLINE MODE — New check-ins are saved on this device and upload when the connection is back.'+(pendingCount?(' '+pendingCount+' waiting.'):'');
     return;
   }
@@ -20076,17 +20076,17 @@ function updateOfflineModeBanner(){
     el.style.display='flex';
     var st = (typeof _offlineSync!=='undefined') ? _offlineSync : {};
     if(st.authNeeded){
-      el.style.background='#5a1a1a';
+      el.style.background='var(--red-tx)';
       el.textContent='🔴 Sign in to upload '+pendingCount+' offline check-in'+(pendingCount>1?'s':'')+'. They stay saved on this device.';
     } else if(st.running){
-      el.style.background='#1a3a5a';
+      el.style.background='var(--navy2)';
       el.textContent='🔄 Uploading '+pendingCount+' offline check-in'+(pendingCount>1?'s':'')+'…';
     } else {
       var errs = offlinePendingRecordsInData().filter(function(r){ return r.offlineSyncState==='SYNC_ERROR'; }).length;
-      el.style.background= errs ? '#5a1a1a' : '#1a3a2a';
+      el.style.background= errs ? 'var(--red-tx)' : 'var(--tx-ok)';
       var wait = st.nextAt && st.nextAt>Date.now() ? Math.ceil((st.nextAt-Date.now())/1000) : 0;
       var legacyN = offlinePendingRecordsInData().filter(function(r){ return r.offlineLegacy; }).length;
-      if(legacyN && legacyN===pendingCount){ el.style.background='#7a4a12'; el.textContent='🟠 '+legacyN+' older offline check-in'+(legacyN>1?'s':'')+' on this device — review in Debug → Pending Sync, then tap Sync now.'; return; }
+      if(legacyN && legacyN===pendingCount){ el.style.background='var(--tx-gold)'; el.textContent='🟠 '+legacyN+' older offline check-in'+(legacyN>1?'s':'')+' on this device — review in Debug → Pending Sync, then tap Sync now.'; return; }
       el.textContent= (errs ? ('🔴 '+errs+' offline check-in'+(errs>1?'s':'')+' could not be uploaded — open Debug → Pending Sync. ') : '🟠 ')+
         pendingCount+' offline check-in'+(pendingCount>1?'s':'')+' waiting to upload'+(wait?(' · retry in '+wait+' s'):'')+'.';
     }
