@@ -15980,7 +15980,7 @@ async function crCaptureCanvas(report){
   var canvas=await html2canvas(el,{
     scale:scale,
     useCORS:true,
-    backgroundColor:'var(--navy)',
+    backgroundColor:'#011532',   // html2canvas: hex only
     logging:false,
     width:CR_EXPORT_HOST_WIDTH,
     windowWidth:CR_EXPORT_HOST_WIDTH
@@ -19720,9 +19720,9 @@ async function mfVerdict(i, verdict){
 // iPhone Share sheet (WhatsApp → group). Drawn on a canvas: no library, works offline.
 // Makers bag-tag colours (owner's photos of the tags, 2026-11-06): background, text.
 var MF_TAGS = { ASD: ['#9DCB0A', '#FFFFFF'], COX: ['#F37114', '#FFFFFF'], GHC: ['#FFFFFF', '#111111'], NMC: ['#FFFFFF', '#111111'],
-  GHB: ['#78C28E', '#111111'], CCZ: ['var(--blue)', '#FFFFFF'], ATC: ['#7CC3DF', '#FFFFFF'], SAQ: ['#E53A42', '#FFFFFF'],
-  RSD: ['#ABABAB', '#FFFFFF'], TBI: ['var(--pur)', '#FFFFFF'], ELH: ['#F48777', '#FFFFFF'], SML: ['#5E98D6', '#FFFFFF'],
-  LGI: ['#5E98D6', '#FFFFFF'], TYM: ['var(--gold)', '#111111'] };
+  GHB: ['#78C28E', '#111111'], CCZ: ['#3FC4CC', '#FFFFFF'], ATC: ['#7CC3DF', '#FFFFFF'], SAQ: ['#E53A42', '#FFFFFF'],
+  RSD: ['#ABABAB', '#FFFFFF'], TBI: ['#9A3D9F', '#FFFFFF'], ELH: ['#F48777', '#FFFFFF'], SML: ['#5E98D6', '#FFFFFF'],
+  LGI: ['#5E98D6', '#FFFFFF'], TYM: ['#F3CB03', '#111111'] };
 var MF_TAG_CODE = { SML: 'MYLS', LGI: 'MYLS' };   // Long Island tags read MYLS
 var MF_AIRPORTS = { ASD: 'Fresh Creek', COX: 'Congo Town', GHC: 'Great Harbor Cay', GHB: "Governor's Harbour", ATC: "Arthur's Town",
   SAQ: 'San Andros', TYM: 'Staniel Cay', ELH: 'North Eleuthera', TBI: 'Cat Island', RSD: 'Rock Sound', CCZ: 'Chub Cay',
@@ -19773,7 +19773,8 @@ async function mfDeparturesCanvas(r){
   }
   var H = HEAD + BODY + CHG + FOOT;
   var c = document.createElement('canvas'); c.width = W; c.height = H;
-  var g = c.getContext('2d'), NAVY = 'var(--navy)', GOLD = 'var(--gold)', INK = 'var(--navy)', MU = 'var(--mu)', LINE = '#E3E7EE', TINT = '#F4F6FA';
+  // Canvas cannot read CSS variables: hex only (owner 11/20).
+  var g = c.getContext('2d'), NAVY = '#061433', GOLD = '#C9A84C', INK = '#0B1A33', MU = '#5A6B8C', LINE = '#E3E7EE', TINT = '#F4F6FA';
   var total = list.reduce(function(a, f){ return a + f.pax; }, 0);
   g.textBaseline = 'alphabetic';
   g.fillStyle = '#FFFFFF'; g.fillRect(0, 0, W, H);
@@ -19885,7 +19886,8 @@ async function mfComingBackCanvas(day, res){
   var BODY = rows.reduce(function(a, r, i){ return a + ROW + (label(r, i) ? LBL : 0); }, 0);
   var H = HEAD + MID + BODY + FOOT;
   var c = document.createElement('canvas'); c.width = W; c.height = H;
-  var g = c.getContext('2d'), NAVY = 'var(--navy)', GOLD = 'var(--gold)', INK = 'var(--navy)', MU = 'var(--mu)', LINE = '#E3E7EE', TINT = '#F4F6FA', RED = 'var(--red)', BLUE = 'var(--blue-tx)';
+  // Canvas cannot read CSS variables (var(--…) is ignored → white header, invisible names, owner 11/20): hex only.
+  var g = c.getContext('2d'), NAVY = '#061433', GOLD = '#C9A84C', INK = '#0B1A33', MU = '#5A6B8C', LINE = '#E3E7EE', TINT = '#F4F6FA', RED = '#C0392B', BLUE = '#2A5DB0';
   var fit = function(text, font, maxW){ g.font = font; if (g.measureText(text).width <= maxW) return text;
     while (text.length > 1 && g.measureText(text + '…').width > maxW) text = text.slice(0, -1); return text + '…'; };
   g.textBaseline = 'alphabetic';
