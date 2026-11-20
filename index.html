@@ -7830,7 +7830,8 @@ function ci2MirrorChecks(){
 // Owner 2026-11-20: "sempre que um cliente antigo vier, pegar as informações mais recentes dele" (ex.: trocou de
 // carro). Same name on several tickets → the newest valid phone, the newest car and color (a fake 0000/11111
 // phone on the last ticket never wins over a real one from before).
-function ci2PhoneReal(v){ var d = ci2Digits(v); return ci2PhoneValid(v) && !/^(\d)\1+$/.test(d.slice(-4)) && !/(0000000|1234567)/.test(d); }
+// Fake = the whole number one digit (000 000 0000) or a run (1234567…); a real number may end in 7777 (owner 11/20, RAFAEL RUIZ).
+function ci2PhoneReal(v){ var d = ci2Digits(v); return ci2PhoneValid(v) && !/^(\d)\1+$/.test(d) && !/(\d)\1{6}$/.test(d) && !/(1234567|0123456)/.test(d); }
 function ci2Latest(r){
   var key = String(r.name || '').trim().toUpperCase().replace(/\s+/g, ' ');
   var same = data.filter(function(x){ return !x.isOfflinePending && String(x.name || '').trim().toUpperCase().replace(/\s+/g, ' ') === key; }).sort(function(a, b){ return b.id - a.id; });
@@ -7853,7 +7854,7 @@ function ci2NameHistory(name){
     try { r = await gxRpc('airvalet_guest_search', { p_q: q, p_limit: 4, p_offset: 0 }); } catch(e) { return; }   // never in the way of a check-in
     var ph2 = ci2El('ci2Phone');
     if (my !== _gxN.seq || !_ci || _ci.created || (ph2 && ci2Digits(ph2.value).length)) return;
-    var g = ((r && r.rows) || []).filter(function(x){ var d = ci2Digits(x.phone); return ci2PhoneValid(x.phone) && !/^(\d)\1+$/.test(d.slice(-4)); });
+    var g = ((r && r.rows) || []).filter(function(x){ return ci2PhoneReal(x.phone); });
     if (!g.length) { box.hidden = true; box.innerHTML = ''; return; }
     box.hidden = false;
     box.innerHTML = '<div class="gx-ci-h">Been here before' + (g.length > 1 ? ' — ' + g.length + ' with this name' : '') + '</div>' + g.map(function(x, i){
