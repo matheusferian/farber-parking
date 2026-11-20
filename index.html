@@ -3160,8 +3160,8 @@ async function finUpload(pid, file){
     var out = await vpRpc('airvalet_pass_photo_set', { p_passenger_id: pid, p_image_b64: b64 });
     if (!out || out.result !== 'OK') { showMsg('Photo not saved (' + ((out && out.result) || 'error') + ').', true); return; }
     sbLog('EDITED', r.name || '', r.ticket || '', r.loc || '', 'Car photo added to the valet pass (finish on phone)', { passenger_id: pid });
+    await carAiFill(r, ai);   // color / car / plate first: the iPad that waits for this photo reads them right after
     var savedT = await carPhotosAdd(pid, 'rear', p.blob, r);
-    await carAiFill(r, ai);   // color / car / plate the AI is sure of, when the ticket has none
     _fin.have[pid] = true; finRender(null);
     if (savedT) showMsg('✓ Rear photo saved on ticket ' + (r.ticket || '') + ' and on the valet pass.', false);
     else showMsg('Rear photo is on the valet pass but NOT on ticket ' + (r.ticket || '') + '. Open the ticket and tap Take photo again.', true);
@@ -8410,10 +8410,15 @@ async function ci2RemotePhotoCheck(){
     clearInterval(ci.photoPoll); ci.photoPoll = null;
     res.photos.slice().reverse().forEach(function(ph){ ci.shots[ph.angle] = { url: ph.url, at: ph.taken_at, remote: true }; });
     var row = null;
-    try {
-      var r = await fetch(SUPABASE_URL + '/rest/v1/passengers?id=eq.' + ci.id + '&select=car,color,plate,plate_state', { headers: sbHeaders() });
-      if (r.ok) row = (await r.json())[0] || null;
-    } catch(e) {}
+    for (var t = 0; t < 4; t++) {   // the other device may still be saving the car: read again for a few seconds
+      try {
+        var r = await fetch(SUPABASE_URL + '/rest/v1/passengers?id=eq.' + ci.id + '&select=car,color,plate,plate_state', { headers: sbHeaders() });
+        if (r.ok) row = (await r.json())[0] || null;
+      } catch(e) {}
+      if (row && row.car && row.color) break;
+      await new Promise(function(res){ setTimeout(res, 2000); });
+      if (_ci !== ci) return;
+    }
     if (row) {
       if (row.car && !ci2VehCar()) { ci.vehText = String(row.car).toUpperCase(); ci.make = ''; ci.model = ''; }
       if (row.color && !ci.color) { ci.color = row.color; if (typeof ci2RenderColors === 'function') ci2RenderColors(); }
@@ -8805,6 +8810,7 @@ async function carPhotoTake(r, file){
     } catch(e) { ai = null; }
     var angle = ai && (ai.view === 'front' || ai.view === 'rear') ? ai.view : (confirm('Is this the REAR of the car?\n\nOK = Rear   ·   Cancel = Front') ? 'rear' : 'front');
     st('Saving the ' + angle + ' photo…');
+    await carAiFill(r, ai);   // before the photo, so a waiting iPad reads the car with it
     var saved = await carPhotosAdd(r.id, angle, p.blob, r);
     if (!saved) { st('Photo not saved. Try again.'); return; }
     sbLog('EDITED', r.name || '', r.ticket || '', r.loc || '', 'Car photo saved (' + angle + ')', { passenger_id: r.id });
@@ -8815,7 +8821,6 @@ async function carPhotoTake(r, file){
       while (b64.length > 650000 && q > 0.4) { q -= 0.1; b64 = c.toDataURL('image/jpeg', q).split(',')[1]; }
       try { await vpRpc('airvalet_pass_photo_set', { p_passenger_id: r.id, p_image_b64: b64 }); if (typeof _fin !== 'undefined') _fin.have[r.id] = true; } catch(e) {}
     }
-    await carAiFill(r, ai);
     carPhotosLoad(r);
     if (typeof finRender === 'function') finRender(null);
   } catch(e) { st('Photo not saved. Try again.'); }
