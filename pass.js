@@ -425,7 +425,7 @@
       (c.reservations_phone ? '<p class="fine">Flights: <a href="' + esc(tel(c.reservations_phone)) + '">Makers Air ' + esc(c.reservations_phone) + '</a></p>' : '') + '</section>';
     html += '<footer>' +
       '<div class="operator"><img src="/assets/farber-parking-badge.png" alt="Farber Parking" width="44" height="44">' +
-      '<div><p>Operated by Farber Parking</p><p><a href="tel:+15617740494">(561) 774-0494</a></p></div></div>' +
+      '<div><p>Operated by Farber Parking</p><p><a href="tel:+15617740494">(561) 774-0494</a> \u00b7 <a href="https://farberparking.com" rel="noopener">farberparking.com</a></p></div></div>' +
       '<p>Makers Air Valet, Hangar 19, Fort Lauderdale</p>' +
       '<p class="foot-links"><button class="flink" type="button" data-open="info">Valet information</button>' +
       (p.terms_published && VALET_TERMS_URL ? '<a href="' + esc(VALET_TERMS_URL) + '">Valet Terms</a>' : '') +
