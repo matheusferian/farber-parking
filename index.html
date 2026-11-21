@@ -1919,16 +1919,34 @@ async function sbGetTvModePassengers() {
 }
 
 async function sbInsert(obj) {
-  var res = await fetch(SUPABASE_URL + '/rest/v1/' + TABLE, {
-    method: 'POST',
-    headers: Object.assign({}, sbHeaders(), {'Prefer': 'return=representation'}),
-    body: JSON.stringify(obj)
-  });
+  // Owner 2026-11-21 (BRIAN ROCKWOOD): the database was overloaded for ~20 s and answered 500 after a long
+  // wait. Never wait forever (25 s), and keep the HTTP status on the error so saveEntry() can tell
+  // "server busy / no answer" (save on this device) from a real refusal.
+  var ctl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+  var t = ctl ? setTimeout(function(){ ctl.abort(); }, 25000) : null;
+  var res;
+  try {
+    res = await fetch(SUPABASE_URL + '/rest/v1/' + TABLE, Object.assign({
+      method: 'POST',
+      headers: Object.assign({}, sbHeaders(), {'Prefer': 'return=representation'}),
+      body: JSON.stringify(obj)
+    }, ctl ? { signal: ctl.signal } : {}));
+  } finally { clearTimeout(t); }
   if (!res.ok) {
     var err = await res.text();
-    throw new Error('Insert failed: ' + err);
+    var e = new Error('Insert failed: ' + err); e.status = res.status;
+    throw e;
   }
   return res.json();
+}
+// A check-in that did not reach the database for a reason that is not the check-in itself: no network,
+// no answer in time, server busy / timeout (5xx, 408, 429) or an expired session (401). It is never
+// lost: it goes to this device's upload queue (same client key → never a second ticket).
+function saveIsRetryable(e){
+  if (!e) return false;
+  if (e instanceof TypeError || e.name === 'AbortError') return true;
+  var st = e.status || 0;
+  return st >= 500 || st === 408 || st === 429 || st === 401 || /statement timeout|57014|JWT expired/i.test(String(e.message || ''));
 }
 
 async function sbUpdate(id, obj, opts) {
@@ -7333,7 +7351,17 @@ async function saveEntry(sendSms, printMode, opts){
     // ── ONLINE PATH — byte-for-byte the original saveEntry() behavior ──
     try{
       var _newRows;
-      try { _newRows = await sbInsert(payload); }
+      try {
+        try { _newRows = await sbInsert(payload); }
+        catch(firstErr){
+          // Server busy / no answer (not "no network"): one more try with the same client key after 1.5 s.
+          if(!(firstErr instanceof TypeError) && saveIsRetryable(firstErr) && firstErr.status !== 401){
+            console.warn('saveEntry(): server did not save (' + (firstErr.status || firstErr.name) + '), trying once more.', firstErr);
+            await new Promise(function(r){ setTimeout(r, 1500); });
+            _newRows = await sbInsert(payload);
+          } else throw firstErr;
+        }
+      }
       catch(insErr){
         // Same form saved twice (double tap / retry after a lost answer): the
         // database refuses a second row with this client key → use the first.
@@ -7392,11 +7420,12 @@ async function saveEntry(sendSms, printMode, opts){
       resetSaveButtons();
       return {ok:true, id:_newId, ticket:ticket, consent:!!_smsConsent};
     }catch(e){
-      if(!(e instanceof TypeError)){
-        // A real server-side rejection (validation, RLS, 4xx/5xx — sbInsert()
-        // throws a plain Error for those, never TypeError) — surface it
-        // exactly like before. Never fall through to the offline queue for
-        // an error that has nothing to do with connectivity.
+      if(!saveIsRetryable(e)){
+        // A real refusal of this check-in (validation, permission, bad data —
+        // a 4xx that a retry would not fix) — surface it exactly like before.
+        // Server busy / timeout / no answer / expired session fall through to
+        // the device queue below (owner 2026-11-21: "tem que salvar, mesmo
+        // se tiver offline").
         showMsg('❌ Error: '+e.message, true);
         console.error(e);
         resetSaveButtons();
@@ -7406,7 +7435,7 @@ async function saveEntry(sendSms, printMode, opts){
       // (the connectivity indicator hadn't yet caught up with reality).
       // Fall through to the offline path below instead of reporting a
       // false failure and losing this check-in.
-      console.warn('saveEntry(): online save failed at the network level, falling back to the offline queue.', e);
+      console.warn('saveEntry(): online save did not complete (network / server busy / session), saving on this device.', e);
     }
   }
 
@@ -7714,6 +7743,7 @@ function ci2Html(){
   +   '<div class="ci2-sms" id="ci2Sms" role="status" aria-live="polite"></div>'
   +   '<p class="ci2-passup" id="ci2Pass" hidden></p>'
   + '</div></div>'
+  + (avPhotosOn() ? '<div id="ci2PhoneShot" class="ci2-phshot" hidden><button type="button" class="ci2-phshot-go" onclick="ci2ShotTake(\'auto\')"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8h3l2-3h8l2 3h3v12H3z"/><circle cx="12" cy="13" r="4"/></svg><b>Take car photo</b><small>Rear, plate in frame</small></button><button type="button" class="ci2-phshot-later" onclick="ci2PhoneShotLater()">Later</button></div>' : '')
   + ci2QuickHtml()
   + '<div id="ci2Details" class="ci2-details" hidden><div class="ci2-col">'
   +   ci2Sec('ci2SHangar', 'Hangar', 'Not set', '<div class="ci2-chipset" id="ci2Hangars"></div>')
@@ -8082,7 +8112,7 @@ async function ci2Create(withText){
   var nm = ci2El('ci2Num'); nm.tabIndex = -1; nm.setAttribute('aria-label', 'Ticket ' + _ci.ticket + ' created'); nm.focus();
   ci2ModeRow(false);
   document.getElementById('modalSub').textContent = 'Saved. Add details below — each one saves to this ticket.';
-  ci2RenderCard(); ci2Need(); ci2QuickRender();
+  ci2RenderCard(); ci2Need(); ci2QuickRender(); ci2PhoneShotShow();
   var sc = ci2El('ci2Sms');
   var intlPhone = !!guestPhoneIntl(phone);
   if (_ci.offline) { ci2Sms('notsent', !withText ? 'Saved offline — passenger chose no texts' : intlPhone ? 'Saved offline — after it uploads, open the ticket and tap Send pass link' : 'Saved offline — the welcome text goes out after it uploads'); return; }
@@ -8601,7 +8631,7 @@ function ci2ShotsInit(){
     if (!f || !key) return;
     var p;
     try { p = await avShotPrep(f); } catch (e) { ci2Toast('Photo not saved. Try again.', true); return; }
-    if (key === 'auto') { ci2ShotAuto(p); return; }
+    if (key === 'auto') { if (ci2IsPhone() && ci2El('ci2SPhotos')) ci2OpenSec('ci2SPhotos'); ci2ShotAuto(p); return; }
     ci2ShotStore(key, p);
   });
   ci2RenderShots();
@@ -8634,7 +8664,7 @@ async function ci2ShotStore(key, p){
     await avShotPut({ key: ref + ':' + key + ':' + at, ticket: ref, angle: key, taken_at: at, w: p.w, h: p.h, bytes: p.blob.size, sha256: p.sha256, blob: p.blob });
     if (_ci.shots[key]) URL.revokeObjectURL(_ci.shots[key].url);
     _ci.shots[key] = { url: URL.createObjectURL(p.blob), at: at, bytes: p.blob.size, blob: p.blob };
-    ci2RenderShots(); ci2Need(); var nb = ci2El('ci2NoPhoto'); if (nb) nb.hidden = true;
+    ci2RenderShots(); ci2Need(); ci2PhoneShotShow(); var nb = ci2El('ci2NoPhoto'); if (nb) nb.hidden = true;
     if (_ci.created && !ci2LocalOnly()) carPhotosAdd(_ci.id, key, p.blob);   // kept on the server (30 days after the car leaves)
     // Owner 2026-11-19: "prioridade é apenas traseira" — only the REAR photo goes on the Valet Pass.
     if (key === 'rear') ci2PassPhoto(p.blob, key);
@@ -8707,6 +8737,17 @@ async function ci2RemotePhotoCheck(){
     var ai = ci2El('ci2Ai'); if (ai) ai.innerHTML = '';
   } catch(e) {} finally { ci.remoteBusy = false; }
 }
+// Owner 2026-11-21: on the iPhone the attendant is on the ramp with the car — right after the ticket
+// is created, the next thing on screen is a big "Take car photo" (one tap opens the camera; a browser
+// cannot open the camera by itself without that tap). The iPad keeps its normal order.
+function ci2IsPhone(){ return window.matchMedia('(max-width:700px)').matches; }
+function ci2PhoneShotShow(){
+  var b = ci2El('ci2PhoneShot'); if (!b || !_ci) return;
+  var on = ci2IsPhone() && _ci.created && !_ci.phoneShotLater && !_ci.noPhoto && !(_ci.shots && (_ci.shots.rear || _ci.shots.front));
+  b.hidden = !on;
+  if (on) setTimeout(function(){ if (!b.hidden) { b.scrollIntoView({ block: 'center', behavior: 'smooth' }); var g = b.querySelector('.ci2-phshot-go'); if (g) g.focus({ preventScroll: true }); } }, 250);
+}
+function ci2PhoneShotLater(){ if (_ci) _ci.phoneShotLater = true; ci2PhoneShotShow(); }
 function ci2NoPhoto(){ _ci.noPhoto = true; var b = ci2El('ci2NoPhoto'); if (b) b.hidden = true; ci2Need(); ci2OpenSec('ci2SVeh'); }
 function ci2ShotTake(key){ _ci.shotKey = key; ci2El('ci2ShotIn').click(); }
 function ci2RenderShots(){
@@ -9154,6 +9195,7 @@ async function carPhotosLoad(r){
   // New car card (owner 11/20): the arrival photo big at the top (rear first, the one on the pass) + the count.
   var hero = document.getElementById('detHero'), hp = last.rear || last.front, nEl = document.getElementById('dxPhN'), nPh = Object.keys(last).length;
   if (nEl) nEl.textContent = res && res.ok ? (nPh ? nPh + (nPh === 1 ? ' photo' : ' photos') : 'No photo') : '—';
+  var fq = document.getElementById('dxFqShot'); if (fq) fq.hidden = !!(res && res.ok && nPh);
   if (hero) {
     if (hp && hp.url) {
       var hw = new Date(hp.taken_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
@@ -9181,7 +9223,7 @@ function carPhotoFull(url){
   document.body.appendChild(ov);
 }
 async function carPhotoTake(r, file){
-  var st = function(t){ var e = document.getElementById('cpSt'); if (e) e.textContent = t; };
+  var st = function(t){ var e = document.getElementById('cpSt'); if (e) e.textContent = t; var e2 = document.getElementById('dxFqShotSt'); if (e2) e2.textContent = t; };
   st('Reading the photo…');
   try {
     var p = await avShotPrep(file), ai = null;
@@ -9206,6 +9248,64 @@ async function carPhotoTake(r, file){
     carPhotosLoad(r);
     if (typeof finRender === 'function') finRender(null);
   } catch(e) { st('Photo not saved. Try again.'); }
+}
+// ── Just-arrived quick card (owner 2026-11-21) ──
+function dxJustArrived(r){
+  var t = Date.parse(r.checkin_date || '') || Date.parse(r.created_at || '') || 0;
+  return !!t && Date.now() - t < 3 * 3600 * 1000;
+}
+function dxFreshHtml(r){
+  var id = r.id, cur = r.ret ? tsToDateInput(r.ret) : '';
+  var hg = HANGARS.map(function(h){
+    return '<button type="button" data-h="' + h + '" aria-pressed="' + (r.loc === h) + '" onclick="dxQuickHangar(' + id + ',this.dataset.h)"><b>' + escapeHTML(h === 'HH' ? 'HH' : 'H' + h.slice(7)) + '</b></button>';
+  }).join('');
+  var days = '';
+  for (var n = 0; n < 8; n++) {
+    var iso = ci2Iso(ci2AddDays(n));
+    var lbl = n === 0 ? 'Today' : n === 1 ? 'Tmrw' : ci2Nice(iso, { weekday: 'short' });
+    days += '<button type="button" data-d="' + iso + '" aria-pressed="' + (cur === iso) + '" onclick="dxQuickRet(' + id + ',this.dataset.d)"><b>' + lbl + '</b><small>' + Number(iso.slice(8)) + '</small></button>';
+  }
+  var other = cur && !/aria-pressed="true"/.test(days);
+  return '<div class="dx-fq">'
+    + (avPhotosOn() ? '<div id="dxFqShot"><button type="button" class="dx-fq-shot" onclick="dxQuickShot(' + id + ')"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8h3l2-3h8l2 3h3v12H3z"/><circle cx="12" cy="13" r="4"/></svg><b>Take car photo</b><small>Rear, plate in frame</small></button><input type="file" id="dxFqIn" accept="image/*" capture="environment" hidden><p class="dx-fq-st" id="dxFqShotSt" role="status"></p></div>' : '')
+    + '<h4>Hangar</h4><div class="dx-fq-hg">' + hg + '</div>'
+    + '<h4>Return</h4><div class="dx-fq-days">' + days + '</div>'
+    + '<div class="dx-fq-more"><label class="dx-fq-other' + (other ? ' on' : '') + '">Other date<input type="date" value="' + escapeHTML(other ? cur : '') + '" onchange="if(this.value)dxQuickRet(' + id + ',this.value)"></label>'
+    + '<button type="button" class="dx-fq-nod' + (!cur ? ' on' : '') + '" onclick="dxQuickRet(' + id + ',\'\')">No date</button></div>'
+    + '</div>';
+}
+function dxQuickShot(id){
+  var r = data.find(function(x){ return x.id === id; }), inp = document.getElementById('dxFqIn'); if (!r || !inp) return;
+  inp.onchange = function(){ var f = inp.files && inp.files[0]; inp.value = ''; if (f) carPhotoTake(r, f); };
+  inp.click();
+}
+async function dxQuickHangar(id, h){
+  var r = data.find(function(x){ return x.id === id; }); if (!r || r.loc === h) return;
+  if (r.isOfflinePending) { showMsg(OFFLINE_PENDING_SYNC_MSG, true); return; }
+  var old = r.loc || '';
+  document.querySelectorAll('#detPanel .dx-fq-hg button').forEach(function(b){ b.disabled = true; });
+  try {
+    await moveHangarCore(r, h, 'Quick hangar change on the car card');
+    render(); showDet(id);
+    showMsg('Moved to ' + h + '.', false);
+    // Tags printed with the old hangar: offer new ones (they wait in the print queue off the hangar Wi-Fi).
+    if (old && confirm('Moved ' + old + ' → ' + h + '.\n\nPrint new tags (key + dashboard)?')) { await printKeyTicket(r); await printDashboardTicket(r); }
+  } catch(e) { showMsg('Hangar not changed: ' + e.message, true); showDet(id); }
+}
+async function dxQuickRet(id, iso){
+  var r = data.find(function(x){ return x.id === id; }); if (!r) return;
+  if (r.isOfflinePending) { showMsg(OFFLINE_PENDING_SYNC_MSG, true); return; }
+  if ((r.ret ? tsToDateInput(r.ret) : '') === (iso || '')) return;
+  document.querySelectorAll('#detPanel .dx-fq-days button, #detPanel .dx-fq-nod').forEach(function(b){ b.disabled = true; });
+  try {
+    var row = await changePassengerReturnDate(id, iso ? d2us(iso) : '', 'Changed on the car card right after check-in', false);
+    var r0 = Array.isArray(row) ? row[0] : row;
+    if (r0) { r.ret = r0.ret; r.status = r0.status; r.obs = r0.obs; }
+    if (!iso && r0 && r0.status === 'PENDING') { await sbUpdate(id, { status: 'NO DATE' }); r.status = 'NO DATE'; }
+    if (iso && r.status === 'NO DATE') { await sbUpdate(id, { status: 'PENDING' }); r.status = 'PENDING'; }
+    render(); showDet(id);
+    showMsg(iso ? 'Return: ' + ci2Nice(iso) + '.' : 'Return: no date yet.', false);
+  } catch(e) { showMsg('Return date not saved: ' + e.message, true); showDet(id); }
 }
 // Opens one section of the car card and brings it into view (header Edit, Move).
 function dxOpen(id){
@@ -9244,6 +9344,10 @@ function showDet(id){
     return '<details class="dx-sec" id="'+id+'"'+(openSecs[id]?' open':'')+'><summary><b>'+title+'</b><span class="dx-sv"'+(id==='dxPh'?' id="dxPhN"':'')+'>'+val+'</span><i class="dx-chev" aria-hidden="true"></i></summary><div class="dx-body">'+body+'</div></details>';
   };
   var printBtn=function(fn,label){ return '<button type="button" class="dx-pb" onclick="panelPrintOnce(this,'+fn+','+r.id+')">'+label+'</button>'; };
+  // Owner 2026-11-21: "quando o cara acabar de chegar, deixa essas partes fáceis: tirar foto, trocar o
+  // hangar, trocar a data". For 3 hours after check-in the card leads with Photo, one-tap hangar tiles
+  // and one-tap return dates; Deliver / Customs / Lockbox become a small row lower down.
+  var fresh=active&&!r.isOfflinePending&&dxJustArrived(r);
   dp.dataset.rid=r.id;
   dp.classList.add('dx');
   dp.innerHTML=
@@ -9257,7 +9361,12 @@ function showDet(id){
       '<div class="dx-meta"><span class="dx-hg">'+escapeHTML(r.loc||'No location')+'</span>'+
         '<span class="dx-ret"><small>Return</small> <b style="'+retC+'">'+escapeHTML(retLine)+'</b></span></div>'+
     '</div>'+
-    (active?
+    (fresh?dxFreshHtml(r):'')+
+    (active&&fresh?
+      '<div class="dx-3 dx-3s"><button type="button" class="dx-b" onclick="quickDeliver('+r.id+',\'NORMAL\')">Deliver</button>'+
+        '<button type="button" class="dx-b" onclick="quickDeliver('+r.id+',\'CUSTOMS\')">Customs</button>'+
+        '<button type="button" class="dx-b" onclick="quickDeliver('+r.id+',\'LOCKBOX\')">Lockbox</button></div>'
+    :active?
       '<button type="button" class="dx-deliver" onclick="quickDeliver('+r.id+',\'NORMAL\')">Deliver</button>'+
       '<div class="dx-3"><button type="button" class="dx-b dx-b-navy" onclick="quickDeliver('+r.id+',\'CUSTOMS\')">Customs</button>'+
         '<button type="button" class="dx-b dx-b-gold" onclick="quickDeliver('+r.id+',\'LOCKBOX\')">Lockbox</button>'+
