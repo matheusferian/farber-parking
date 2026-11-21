@@ -14,7 +14,8 @@ import { flightValueFor, normRegistration, TAIL_SUFFIX_TO_REGISTRATION, type Mat
 // kept (marked) so a pair confirmed later is not reported as "now on a flight".
 export type Seen = { passenger_id: number; ticket: string; system_name: string; flight_number: string; arrival_time: string; registration: string; kind: string; state: string };
 export type Move = {
-  passenger_id: number; ticket: string; system_name: string; what: 'moved' | 'off' | 'on' | 'swap';
+  passenger_id: number; ticket: string; system_name: string; what: 'moved' | 'off' | 'on' | 'swap' | 'unsure';
+  route?: string;
   was_flight?: string; was_time?: string; was_registration?: string;
   flight?: string; time?: string; registration?: string; state?: string;
 };
@@ -46,7 +47,14 @@ export function diffMoves(prev: Partial<Seen>[], cur: Match[], held: Set<number>
   for (const [id, m] of C) {
     const p = P.get(id);
     const now = { flight: String(m.flight_number || ''), time: normT(m.arrival_time), registration: m.registration || '', state: m.state };
-    if (!p) {
+    // Owner 11/21: same flight number on two planes — never a "moved" with no time; say it plainly once.
+    if (m.unsure) {
+      if (!p || normT(p.arrival_time) || String(p.flight_number || '') !== now.flight)
+        out.push({ passenger_id: id, ticket: m.ticket, system_name: m.system_name, what: 'unsure', route: m.route || '',
+          was_flight: p ? String(p.flight_number || '') : undefined, was_time: p ? normT(p.arrival_time) : undefined, was_registration: p ? p.registration || '' : undefined, ...now });
+      continue;
+    }
+    if (!p || (!normT(p.arrival_time) && now.time)) {   // a guest who was UNSURE and is now on one plane = "now on"
       if (!prevSurname.has(id)) out.push({ passenger_id: id, ticket: m.ticket, system_name: m.system_name, what: 'on', ...now });
       continue;
     }
@@ -75,6 +83,7 @@ export const t12 = (t?: string) => {
 const tailOf = (r?: string) => (r ? flightValueFor(r) || r : '?');
 export function moveLine(x: Move): string {
   const who = `${x.system_name} (#${x.ticket})`;
+  if (x.what === 'unsure') return `${who}: flight ${x.flight} lands twice today (${x.route || 'two planes'}). Makers' list does not say which one — check in Makers before getting the car ready.`;
   if (x.what === 'off') return `${who}: no longer on flight ${x.was_flight}${x.was_time ? ' ' + t12(x.was_time) : ''}. Check with Makers before waiting.`;
   if (x.what === 'swap') return `${who}: plane changed ${tailOf(x.was_registration)} → ${tailOf(x.registration)} (flight ${x.flight}, ${t12(x.time)}). Check the key tag.`;
   if (x.what === 'on') return `${who}: now on flight ${x.flight} landing ${t12(x.time)}${x.state === 'early' ? ' — earlier than our return date' : ''}.`;

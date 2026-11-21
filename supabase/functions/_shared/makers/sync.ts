@@ -135,19 +135,65 @@ export function tripFromFlights(car: HeldCar, rows: PaxRow[], today: string): Tr
   return { last: out.last, first: out.first, dep: mdyToIso(out.date), depTime: '', ret: retOf(out), retTime: '' };
 }
 
+// Owner 2026-11-21 (AUSTIN HUEBNER 1120-7, JOHN CHEESBOROUGH 1117-9 — "não admito mais esse tipo de erro"):
+// Makers reuses one flight number for two planes the same day (27: DD COX→FXE 8:45 AM and JR GHC→FXE 5:30 PM;
+// 1534: JH GHC→FXE 11:45 AM and JH TYM→FXE 5:00 PM). The Passenger Flight List only says "flight 27", and the
+// robot used to put everyone on the first one: a car was brought out for nothing. Now a passenger goes to a leg
+// only when it is the ONLY leg with that number, or the only one whose route serves the passenger's From (arrivals)
+// / TO (departures) — the same plane's earlier (arrivals) or later (departures) legs under that number count, for a
+// stop on the way. Otherwise the answer is null = UNSURE: no time and no plane are given (never a guess).
+// undefined = no leg with that number in the schedule.
+export function legFor(L: Leg[], r: PaxRow, dir: 'in' | 'out'): Leg | null | undefined {
+  const cands = L.filter((l) => l.flight === r.flight && (dir === 'in' ? l.to === 'FXE' : l.from === 'FXE'));
+  if (cands.length <= 1) return cands[0];
+  // Walk the same plane's connected legs under that number (stops on the way), never past FXE.
+  const serves = (l: Leg) => {
+    const pts = new Set<string>();
+    let cur: Leg | undefined = l;
+    for (let i = 0; cur && i < 6; i++) {
+      const c: Leg = cur;
+      pts.add(dir === 'in' ? c.from : c.to);
+      cur = L.find((x) => x !== c && x.flight === c.flight && x.tail === c.tail && (dir === 'in'
+        ? x.to === c.from && x.to !== 'FXE' && x.from !== 'FXE' && !!x.arr && x.arr <= c.dep
+        : x.from === c.to && x.from !== 'FXE' && x.to !== 'FXE' && !!x.dep && x.dep >= c.arr));
+    }
+    return pts.has(dir === 'in' ? r.from : r.to);
+  };
+  const hit = cands.filter(serves);
+  return hit.length === 1 ? hit[0] : null;
+}
+const legKey = (l: Leg) => `${l.flight}|${l.tail}|${l.dep}|${l.arr}|${l.from}|${l.to}`;
+
 // Flights landing at FXE that day with people on board (same person counted once), earliest first.
 export function inboundOf(L: Leg[], inPax: PaxRow[]): FlightSummary[] {
-  const count = (f: string) => new Set(inPax.filter((r) => r.flight === f).map((r) => `${r.last}|${r.first}`)).size;
-  return L.filter((l) => l.to === 'FXE').map((l) => ({ flight: l.flight, route: `${l.from}-FXE`, tail: l.tail, time: l.arr, dep: l.dep, pax: count(l.flight), ascend: isAscendFlight(l.flight) }))
+  const per = new Map<string, Set<string>>();
+  for (const r of inPax) {
+    const l = legFor(L, r, 'in'); if (!l) continue;
+    const k = legKey(l); if (!per.has(k)) per.set(k, new Set()); per.get(k)!.add(`${r.last}|${r.first}`);
+  }
+  return L.filter((l) => l.to === 'FXE').map((l) => ({ flight: l.flight, route: `${l.from}-FXE`, tail: l.tail, time: l.arr, dep: l.dep, pax: per.get(legKey(l))?.size || 0, ascend: isAscendFlight(l.flight) }))
     .filter((f) => f.pax > 0).sort((a, b) => a.time.localeCompare(b.time));
 }
-export function pagesOf(inbound: FlightSummary[], inPax: PaxRow[], date: string): ManifestPage[] {
-  return inbound.map((f) => ({
-    flight_number: f.flight, manifest_date: isoToMdy(date).split('/').map((x, i) => i < 2 ? x.padStart(2, '0') : x).join('/'),
-    route: f.route, tail_number: f.tail, arrival_time: f.time, total_pax: f.pax, ascend_mark: f.ascend,
-    passengers: inPax.filter((r, i, all) => r.flight === f.flight && all.findIndex((x) => x.flight === r.flight && x.last === r.last && x.first === r.first) === i)
-      .map((r) => ({ last: r.last, first: r.first, middle: '', pnr: '', first_origin: r.from })),
-  }));
+const t12s = (t: string) => { const m = /^(\d{1,2}):(\d{2})/.exec(t || ''); if (!m) return t || ''; const h = +m[1]; return `${h % 12 || 12}:${m[2]} ${h < 12 ? 'AM' : 'PM'}`; };
+export function pagesOf(inbound: FlightSummary[], inPax: PaxRow[], date: string, L: Leg[] = []): ManifestPage[] {
+  const md = isoToMdy(date).split('/').map((x, i) => i < 2 ? x.padStart(2, '0') : x).join('/');
+  const once = (rows: PaxRow[]) => rows.filter((r, i, all) => all.findIndex((x) => x.last === r.last && x.first === r.first) === i)
+    .map((r) => ({ last: r.last, first: r.first, middle: '', pnr: '', first_origin: r.from }));
+  const pages: ManifestPage[] = inbound.map((f) => {
+    const leg = L.find((l) => l.to === 'FXE' && l.flight === f.flight && l.tail === f.tail && l.arr === f.time && `${l.from}-FXE` === f.route);
+    const rows = leg ? inPax.filter((r) => legFor(L, r, 'in') === leg) : inPax.filter((r) => r.flight === f.flight);
+    return { flight_number: f.flight, manifest_date: md, route: f.route, tail_number: f.tail, arrival_time: f.time, total_pax: f.pax, ascend_mark: f.ascend, passengers: once(rows) };
+  });
+  // UNSURE: same flight number on two planes and the passenger's From does not say which → a page with NO time
+  // and NO plane (the match carries unsure: true; nothing is filled on the car; staff check in Makers).
+  const unsure = new Map<string, PaxRow[]>();
+  if (L.length) for (const r of inPax) if (legFor(L, r, 'in') === null) { if (!unsure.has(r.flight)) unsure.set(r.flight, []); unsure.get(r.flight)!.push(r); }
+  for (const [flight, rows] of unsure) {
+    const legs = L.filter((l) => l.flight === flight && l.to === 'FXE').sort((a, b) => a.arr.localeCompare(b.arr));
+    pages.push({ flight_number: flight, manifest_date: md, route: legs.map((l) => `${l.from}-FXE ${t12s(l.arr)} ${l.tail.slice(-2)}`).join(' or '),
+      tail_number: '', arrival_time: '', total_pax: once(rows).length, ascend_mark: isAscendFlight(flight), unsure: true, passengers: once(rows) });
+  }
+  return pages;
 }
 
 // Owner 2026-11-12 (DAVID HOCHER moved from the 11:00 to a 5 PM flight after the 6 AM reading): the quick
@@ -157,7 +203,7 @@ export async function runWatch(suite: SuiteLike, o: { date: string; pool: HeldCa
   const L = await suite.schedule(isoToMdy(o.date));
   const inPax = (await suite.passengers(isoToMdy(o.date), { to: 'FXE' })).filter((r) => !isPetRow(r));
   const inbound = inboundOf(L, inPax);
-  return { inbound, match: matchManifest(pagesOf(inbound, inPax, o.date), o.pool, o.feedback) };
+  return { inbound, match: matchManifest(pagesOf(inbound, inPax, o.date, L), o.pool, o.feedback) };
 }
 
 export async function runSync(suite: SuiteLike, o: { date: string; today: string; pool: HeldCar[]; feedback: Feedback[]; maxLookups?: number; keySecret?: string }): Promise<SyncResult> {
@@ -177,7 +223,7 @@ export async function runSync(suite: SuiteLike, o: { date: string; today: string
   const backToday = new Set(inPax.map((r) => `${r.last}|${r.first}`));
   const outbound: FlightSummary[] = L.filter((l) => l.from === 'FXE').map((l) => {
     const people = new Map<string, PaxRow>();
-    for (const r of outPax) if (r.flight === l.flight) people.set(`${r.last}|${r.first}`, r);
+    for (const r of outPax) if (r.flight === l.flight && legFor(L, r, 'out') === l) people.set(`${r.last}|${r.first}`, r);
     const byDest = new Map<string, number>();
     for (const r of people.values()) if (r.to) byDest.set(r.to, (byDest.get(r.to) || 0) + 1);
     const dests = [...byDest].map(([to, pax]) => ({ to, pax })).sort((a, b) => b.pax - a.pax || a.to.localeCompare(b.to));
@@ -188,10 +234,11 @@ export async function runSync(suite: SuiteLike, o: { date: string; today: string
   }).filter((f) => f.pax > 0).sort((a, b) => a.time.localeCompare(b.time));
   for (const f of outbound) {
     const keys = new Set<string>();
-    for (const r of outPax) if (r.flight === f.flight) keys.add(await paxKey(r.last, r.first, o.keySecret));
+    const leg = L.find((l) => l.from === 'FXE' && l.flight === f.flight && l.tail === f.tail && l.dep === f.time && `FXE-${l.to}` === f.route);
+    for (const r of outPax) if (r.flight === f.flight && (!leg || legFor(L, r, 'out') === leg)) keys.add(await paxKey(r.last, r.first, o.keySecret));
     f.ids = [...keys].sort();
   }
-  const match = matchManifest(pagesOf(inbound, inPax, o.date), o.pool, o.feedback);
+  const match = matchManifest(pagesOf(inbound, inPax, o.date, L), o.pool, o.feedback);
   if (suite.passengersByLast) {
     let n = 0;
     for (const m of match.matches) {

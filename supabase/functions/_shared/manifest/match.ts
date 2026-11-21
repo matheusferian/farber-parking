@@ -12,6 +12,7 @@ export type ManifestPassenger = { last: string; first: string; middle: string; p
 export type ManifestPage = {
   flight_number: string; manifest_date: string; route: string; tail_number: string; arrival_time: string;
   total_pax: number; ascend_mark: boolean; client_name?: string; passengers: ManifestPassenger[];
+  unsure?: boolean;   // owner 11/21: same flight number on two planes, Makers' list cannot tell which → no time, no plane
 };
 export type Candidate = {
   id: number; ticket: string; name: string; ret: string | null; status: string; deldate?: string | null;
@@ -29,6 +30,7 @@ export type Match = {
   suggest_flight: string | null;          // value for return_flight (tail suffix the app uses, e.g. "RV"), when ours differs
   suggest_time: string | null;            // value for departure_time ("HH:MM"), when ours differs
   current_flight: string; current_time: string;
+  unsure?: boolean;
 };
 export type Missing = { passenger_id: number; ticket: string; system_name: string; ret: string | null; operator: string | null };
 export type MatchResult = { manifest_date: string | null; matches: Match[]; missing: Missing[]; manifest_rows: number };
@@ -206,6 +208,7 @@ export function matchManifest(pages: ManifestPage[], candidates: Candidate[], fe
       suggest_flight: fv && curFReg !== reg ? fv : null,
       suggest_time: tv && normTime(curT) !== tv ? tv : null,
       current_flight: curF, current_time: curT,
+      ...(page.unsure ? { unsure: true } : {}),
     });
   }
   const matchedIds = new Set(matches.map((m) => m.passenger_id));
