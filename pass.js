@@ -324,6 +324,26 @@
       (pend.carrier ? ' with ' + esc(pend.carrier) : '') + '. Waiting for our team to confirm.</p>';
     return html + '</div></section>';
   }
+  // Owner 2026-11-21 (Bonutti: father + daughter, 2 cars, one phone): the guest's other cars still with us,
+  // same phone. Facts only (car, pickup, return, flight, ticket); requests and chat stay on this pass.
+  function otherCars(p) {
+    var list = Array.isArray(p.other_cars) ? p.other_cars : [];
+    if (!list.length) return '';
+    var html = '<h2 class="others-h">' + (list.length === 1 ? 'Your other car with us' : 'Your other cars with us') + '</h2>';
+    list.forEach(function (o) {
+      var q = { status: 'PARKED', pickup: o.pickup, return_flight: o.return_flight, arrival_time: o.arrival_time };
+      var st = statusInfo(q), place = pickupText(q), date = fmtDate(o.return_date), arr = fmtTime(o.arrival_time);
+      html += '<section class="bp bp-other tone-' + st.tone + '" aria-label="Your other car">' +
+        '<div class="bp-top"><p class="bp-status">' + esc(st.word) + '</p>' +
+        '<h3 class="bp-car">' + (o.vehicle ? esc(niceVehicle(o.vehicle)) : 'Vehicle details coming soon') + '</h3></div>' +
+        '<div class="bp-perf" aria-hidden="true"></div><div class="bp-stub"><div class="bp-grid">' +
+        stubField('Pickup', place ? esc(place) : 'To be confirmed', !place) +
+        stubField('Return', date ? esc(date) : 'Not set yet', !date) +
+        (o.return_flight || arr ? stubField('Flight', o.return_flight ? esc(o.return_flight) : 'To be confirmed', !o.return_flight) + stubField('Arrives', arr ? esc(arr) : 'To be confirmed', !arr) : '') +
+        stubField('Ticket', esc(o.ticket || '')) + '</div></div></section>';
+    });
+    return html;
+  }
   // The farewell card reuses the hero aircraft drawing (one source of truth).
   function planeSvg() { var s = hero.querySelector('.plane svg'); return s ? s.outerHTML : ''; }
 
@@ -406,6 +426,7 @@
     setHero(p);
     var html = '<main>';
     html += passCard(p);
+    html += otherCars(p);
     if (p.lockbox && !done && p.status !== 'CUSTOMS_CONFIRMED') html += '<button class="btn primary green" type="button" data-open="lockbox">View after-hours pickup instructions</button>';
     // Gratuity (owner 2026-11-06): visible in every state, calm. Amounts only after delivery.
     if (hasGratuity(p) && !p.tip_thanks) {
