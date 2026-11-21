@@ -2044,7 +2044,12 @@ async function testPrint() {
 }
 
 // ── EPSON SHARED SEND ──────────────────────────────────────────
-async function epsonSend(xml, label) {
+// Returns true (printed), false (not printed) or 'queued' (no printer here: it waits in the
+// print queue and prints by itself when this device reaches the printer again — see PRINT QUEUE).
+async function epsonSend(xml, label, meta) {
+  // The printer was out of reach a moment ago and tags are already waiting: queue behind them
+  // (keeps the order) instead of another 20 s wait, and try the whole queue now.
+  if (epqLoad().length && Date.now() - _epqLastFail < 60000) { var qd = epqQueue(xml, label, meta); setTimeout(epqFlush, 300); return qd; }
   try {
     showMsg('Printing ' + label + '…', false);
     var res = await epsonFetch(xml);
@@ -2058,17 +2063,109 @@ async function epsonSend(xml, label) {
     console.log('EPSON [' + label + '] FULL:   ', txt);
     if (epsonSuccess === 'true') {
       showMsg(label + ' printed.', false);
+      if (epqLoad().length) setTimeout(epqFlush, 500);   // the printer answers: print what was waiting
     } else {
       showMsg('The printer did not print ' + label + '. Check paper and try again.', true);
       console.error('EPSON REJECTED [' + label + ']:', txt);
     }
     return epsonSuccess === 'true';
   } catch(e) {
-    showMsg('❌ ' + EPSON_CONN_FAIL_MSG, true);
+    // No answer from the printer (away from the hangar Wi-Fi, printer off, certificate not accepted):
+    // the tag waits on this device and prints by itself later (owner 2026-11-21).
     console.error('epsonSend error:', e);
-    return false;
+    _epqLastFail = Date.now();
+    return epqQueue(xml, label, meta);
   }
 }
+
+// ── PRINT QUEUE (owner 2026-11-21) ─────────────────────────────
+// "quando eu envie para imprimir do celular se não tiver no wifi ele fique preso à impressão,
+//  quando voltar ele imprime automático". A tag that cannot reach the Epson waits in THIS device's
+// localStorage (24 h) and prints by itself when the printer answers again: every 30 s while the app
+// is open, when the app comes back to the screen, when the network comes back, and right after any
+// print that works. Printer refusals (paper, cover) are not queued. One job per ticket + tag kind
+// (a second tap replaces the first). A tag still waiting is rebuilt when the hangar changes.
+var EPQ_KEY = 'av_print_queue_v1', EPQ_MAX_AGE = 24 * 3600 * 1000, _epq = null, _epqBusy = false, _epqLastFail = 0;
+var EPQ_ICON = '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9V3h12v6"/><path d="M6 18H4v-7h16v7h-2"/><path d="M8 14h8v7H8z"/></svg>';
+function epqLoad(){
+  if (!_epq) {
+    try { _epq = JSON.parse(localStorage.getItem(EPQ_KEY) || '[]'); } catch(e) { _epq = []; }
+    if (!Array.isArray(_epq)) _epq = [];
+  }
+  var now = Date.now(), n = _epq.length;
+  for (var i = _epq.length - 1; i >= 0; i--) { var j = _epq[i]; if (!j || !j.xml || !(now - j.at < EPQ_MAX_AGE)) _epq.splice(i, 1); }
+  if (_epq.length !== n) epqSave();
+  return _epq;
+}
+function epqSave(){
+  try { localStorage.setItem(EPQ_KEY, JSON.stringify(_epq || [])); } catch(e) { console.warn('Print queue not saved on this device:', e); }
+  epqRender();
+}
+function epqName(j){ var l = j.label === 'Key' ? 'Key tag' : j.label === 'Dashboard' ? 'Dashboard tag' : j.label; return l + (j.ticket ? ' ' + j.ticket : ''); }
+function epqQueue(xml, label, meta){
+  meta = meta || {};
+  var q = epqLoad(), job = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7), xml: xml, label: label, at: Date.now(),
+    kind: meta.kind || '', pid: meta.pid != null ? meta.pid : null, ticket: meta.ticket || '' };
+  if (job.kind && job.pid != null) for (var i = q.length - 1; i >= 0; i--) if (q[i].kind === job.kind && q[i].pid === job.pid) q.splice(i, 1);
+  q.push(job); epqSave();
+  showMsg(epqName(job) + ' is waiting for the printer. It prints by itself when this device is back on the hangar Wi-Fi.', false);
+  return 'queued';
+}
+// The hangar changed while a tag waits: print the new one, not the old one.
+async function epqRebuild(pid, kind, rec){
+  var q = epqLoad(), j = q.find(function(x){ return x.pid === pid && x.kind === kind; }); if (!j) return;
+  var xml = null;
+  try {
+    if (kind === 'key') xml = tagsV1() ? buildKeyTicketXml(rec) : tagPageXml(tagLayout('key', rec, tagOpts(rec)).rows);
+    else if (kind === 'dash') { try { xml = await buildDashboardTicketXmlV2(rec); } catch(e) { xml = null; } xml = xml || buildDashboardTicketXml(rec); }
+  } catch(e) { console.warn('Print queue: tag not rebuilt', e); }
+  if (xml && q.indexOf(j) >= 0) { j.xml = xml; epqSave(); }
+}
+async function epqFlush(manual){
+  var q = epqLoad(); if (!q.length || _epqBusy) return;
+  _epqBusy = true; epqRender();
+  var printed = [];
+  try {
+    while (q.length) {
+      var j = q[0], txt = '';
+      try { var res = await epsonFetch(j.xml); txt = await res.text(); }
+      catch(e) { _epqLastFail = Date.now(); if (manual) showMsg('The printer is still out of reach. ' + EPSON_CONN_FAIL_MSG, true); break; }
+      if (((txt.match(/success="([^"]*)"/) || [])[1]) !== 'true') {
+        showMsg('The printer did not print ' + epqName(j) + '. Check paper and tap Try now.', true);
+        console.error('EPSON REJECTED [queue ' + j.label + ']:', txt);
+        break;
+      }
+      var at = q.indexOf(j); if (at >= 0) q.splice(at, 1);
+      epqSave(); printed.push(j);
+      if (typeof ci2QueueChanged === 'function') ci2QueueChanged(j, true);
+    }
+  } finally { _epqBusy = false; epqRender(); }
+  if (printed.length) showMsg('Printer back: ' + printed.map(epqName).join(', ') + ' printed.', false);
+}
+function epqCancelAll(){
+  var q = epqLoad(); if (!q.length) return;
+  if (!confirm('Cancel ' + (q.length === 1 ? epqName(q[0]) : q.length + ' waiting tags') + '? ' + (q.length === 1 ? 'It' : 'They') + ' will not print.')) return;
+  var gone = q.splice(0, q.length); epqSave();
+  gone.forEach(function(j){ if (typeof ci2QueueChanged === 'function') ci2QueueChanged(j, false); });
+}
+function epqRender(){
+  var q = _epq || [], el = document.getElementById('epqBar');
+  if (!q.length) { if (el) el.remove(); return; }
+  if (!el) { el = document.createElement('div'); el.id = 'epqBar'; el.className = 'epq-bar'; el.setAttribute('role', 'status'); el.setAttribute('aria-live', 'polite'); document.body.appendChild(el); }
+  var names = q.slice(0, 3).map(epqName).join(', ') + (q.length > 3 ? ' +' + (q.length - 3) : '');
+  el.innerHTML = EPQ_ICON + '<div class="epq-t"><b>' + q.length + (q.length === 1 ? ' tag' : ' tags') + ' waiting for the printer</b>'
+    + '<small>' + escapeHTML(names) + ' · prints by itself on the hangar Wi-Fi</small></div>'
+    + '<button type="button" onclick="epqFlush(true)"' + (_epqBusy ? ' disabled' : '') + '>' + (_epqBusy ? 'Trying…' : 'Try now') + '</button>'
+    + '<button type="button" class="ghost" onclick="epqCancelAll()">Cancel</button>';
+}
+(function epqStart(){
+  var tick = function(){ if (!document.hidden && epqLoad().length) epqFlush(); };
+  setInterval(tick, 30000);
+  window.addEventListener('online', function(){ setTimeout(tick, 1500); });
+  document.addEventListener('visibilitychange', function(){ if (!document.hidden) setTimeout(tick, 800); });
+  var boot = function(){ epqLoad(); epqRender(); setTimeout(tick, 4000); };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
+})();
 
 // EPSON DIAGNOSTICS START
 // ── EPSON DIAGNOSTICS: connection history + status card ────────
@@ -2502,13 +2599,13 @@ function flightTagXml(r){
 }
 
 async function printKeyTicket(r) {
-  return epsonSend(tagsV1() ? buildKeyTicketXml(r) : tagPageXml(tagLayout('key', r, tagOpts(r)).rows), 'Key');
+  return epsonSend(tagsV1() ? buildKeyTicketXml(r) : tagPageXml(tagLayout('key', r, tagOpts(r)).rows), 'Key', { kind: 'key', pid: r && r.id != null ? r.id : null, ticket: r && r.ticket || '' });
 }
 
 async function printDashboardTicket(r) {
   var xml = null;
   try { xml = await buildDashboardTicketXmlV2(r); } catch (e) { xml = null; }
-  return epsonSend(xml || buildDashboardTicketXml(r), 'Dashboard');
+  return epsonSend(xml || buildDashboardTicketXml(r), 'Dashboard', { kind: 'dash', pid: r && r.id != null ? r.id : null, ticket: r && r.ticket || '' });
 }
 
 // ── DASHBOARD TICKET V2 (owner 2026-11-07) ─────────────────────
@@ -7506,7 +7603,7 @@ function ci2Open(){
   if (_ci && _ci.photoPoll) clearInterval(_ci.photoPoll);
   _ci = { op:'MAKERS', consent:null, timer:null, busy:false, created:false, id:null, ticket:'', offline:false,
           ret:'', noDate:false, other:false, hangar:'', make:'', model:'', vehText:'', color:'', printed:false,
-          pick:null, pickLoc:'', calOpen:{}, calMonth:{}, msgId:null, pollN:0, pollTimer:null, tipKey:null, tipBusy:false, tips:[] };
+          pick:null, pickLoc:'', tags:{ key:{at:'',stale:false,queued:false}, dash:{at:'',stale:false,queued:false} }, oldHangar:'', qSaved:'', calOpen:{}, calMonth:{}, msgId:null, pollN:0, pollTimer:null, tipKey:null, tipBusy:false, tips:[] };
   document.getElementById('ciLegacy').hidden = true;
   var box = document.getElementById('ci2'); box.hidden = false; box.innerHTML = ci2Html();
   ci2WideModal(true); ci2ModeRow(true);
@@ -7610,13 +7707,14 @@ function ci2Html(){
   +   '<p class="ci2-who" id="ci2Who"></p><button type="button" class="ci2-fixph" onclick="ci2FixPhone()">Fix phone</button><p class="ci2-num" id="ci2Num"></p>'
   +   '<button type="button" class="ci2-veh" data-open="ci2SVeh"><span id="ci2TVeh"></span><u>Edit</u></button>'
   +   '<div class="ci2-meta">'
-  +     '<button type="button" class="ci2-hgr" data-open="ci2SHangar" id="ci2THangar"></button>'
+  +     '<button type="button" class="ci2-hgr" id="ci2THangar" onclick="ci2QuickFocus()"></button>'
   +     '<button type="button" class="ci2-mi" data-open="ci2SRet"><span>Return</span><b id="ci2TRet"></b></button>'
   +     '<button type="button" class="ci2-mi" data-open="ci2SPick" id="ci2TPickRow" hidden><span>Pickup by</span><b id="ci2TPick"></b></button>'
   +   '</div>'
   +   '<div class="ci2-sms" id="ci2Sms" role="status" aria-live="polite"></div>'
   +   '<p class="ci2-passup" id="ci2Pass" hidden></p>'
   + '</div></div>'
+  + ci2QuickHtml()
   + '<div id="ci2Details" class="ci2-details" hidden><div class="ci2-col">'
   +   ci2Sec('ci2SHangar', 'Hangar', 'Not set', '<div class="ci2-chipset" id="ci2Hangars"></div>')
   +   (avPhotosOn() ? ci2Sec('ci2SPhotos', 'Photo of the car', 'Later on the iPhone', '<button type="button" class="ci2-btn ci2-take" onclick="ci2ShotTake(\'auto\')">Take photo</button><button type="button" class="ci2-nophoto" id="ci2NoPhoto" onclick="ci2NoPhoto()">No photo — type the car</button><div class="ci2-shots" id="ci2Shots"></div><input type="file" id="ci2ShotIn" accept="image/*" capture="environment" hidden><div id="ci2Ai"></div><p class="ci2-hint" id="ci2PassSt" role="status">Take it here, or on the iPhone (the car blinks at the top there). The rear photo shows on the valet pass.</p>') : '')
@@ -7984,7 +8082,7 @@ async function ci2Create(withText){
   var nm = ci2El('ci2Num'); nm.tabIndex = -1; nm.setAttribute('aria-label', 'Ticket ' + _ci.ticket + ' created'); nm.focus();
   ci2ModeRow(false);
   document.getElementById('modalSub').textContent = 'Saved. Add details below — each one saves to this ticket.';
-  ci2RenderCard(); ci2Need();
+  ci2RenderCard(); ci2Need(); ci2QuickRender();
   var sc = ci2El('ci2Sms');
   var intlPhone = !!guestPhoneIntl(phone);
   if (_ci.offline) { ci2Sms('notsent', !withText ? 'Saved offline — passenger chose no texts' : intlPhone ? 'Saved offline — after it uploads, open the ticket and tap Send pass link' : 'Saved offline — the welcome text goes out after it uploads'); return; }
@@ -8099,6 +8197,7 @@ async function ci2FixPhone(){
 }
 function ci2Done(){
   if (_ci && _ci.created && !_ci.printed && !confirm('Tags not printed yet. Close anyway?')) return;
+  if (_ci && _ci.created && (_ci.tags.key.stale || _ci.tags.dash.stale) && !confirm('The printed tags still show the old hangar. Close anyway?')) return;
   closeAll();
 }
 
@@ -8294,11 +8393,18 @@ function ci2ChipSet(el, items, sel, onPick, render){
 }
 function ci2RenderHangars(){
   var counts = computeHangarCounts();
-  ci2ChipSet(ci2El('ci2Hangars'), HANGARS, _ci.hangar, async function(h){
-    var prev = _ci.hangar; _ci.hangar = h; ci2RenderHangars(); ci2HangarSum(); ci2Need(); ci2RenderCard();
-    if (_ci.created && ci2LocalOnly()) { ci2OfflinePatch({ loc: h }); return; }
-    if (_ci.created && !(await ci2Save({ loc: h }, 'ci2SHangar', 'Location ' + (prev || '—') + ' → ' + h))) { _ci.hangar = prev; ci2RenderHangars(); ci2HangarSum(); ci2Need(); }
-  }, function(h){ return escapeHTML(h) + (counts[h] ? '<small>' + counts[h] + '</small>' : ''); });
+  ci2ChipSet(ci2El('ci2Hangars'), HANGARS, _ci.hangar, ci2PickHangar, function(h){ return escapeHTML(h) + (counts[h] ? '<small>' + counts[h] + '</small>' : ''); });
+  ci2QuickRender();
+}
+async function ci2PickHangar(h){
+  if (!_ci || !h || (h === _ci.hangar && _ci.created)) return;
+  var mine = _ci, prev = _ci.hangar; _ci.hangar = h; _ci.qSaved = ''; ci2RenderHangars(); ci2HangarSum(); ci2Need(); ci2RenderCard();
+  if (_ci.created && ci2LocalOnly()) { ci2OfflinePatch({ loc: h }); ci2HangarChanged(prev); return; }
+  if (_ci.created && !(await ci2Save({ loc: h }, 'ci2SHangar', 'Location ' + (prev || '—') + ' → ' + h))) {
+    if (_ci !== mine) return;
+    _ci.hangar = prev; ci2RenderHangars(); ci2HangarSum(); ci2Need(); ci2RenderCard(); return;
+  }
+  if (_ci === mine && _ci.created) ci2HangarChanged(prev);
 }
 function ci2HangarSum(){ var v = ci2El('ci2SHangarV'); v.textContent = _ci.hangar || 'Not set'; v.className = 'v' + (_ci.hangar ? ' done' : ''); }
 // Make = tiles with the brand logo (owner 2026-11-18). Logos are local files (assets/make-*.png).
@@ -8711,16 +8817,105 @@ function ci2PrintRec(){
 }
 async function ci2Print(which){
   if (!_ci || !_ci.created || _ci.printing) return;
-  _ci.printing = true; ci2Need();
-  var rec = ci2PrintRec(), failed = [];
+  if (!_ci.hangar) { ci2Toast('Pick the hangar first — it prints on the tags.', true); ci2QuickFocus(); return; }
+  _ci.printing = true; ci2Need(); ci2QuickRender();
+  var rec = ci2PrintRec(), failed = [], mine = _ci;
   try {
-    if (which !== 'dash' && !(await printKeyTicket(rec))) failed.push('Key tag');
-    if (which !== 'key' && !(await printDashboardTicket(rec))) failed.push('Dashboard tag');
+    // A tag waiting for the hangar Wi-Fi (print queue) counts as sent.
+    if (which !== 'dash') { var k = await printKeyTicket(rec); ci2TagMark(mine, 'key', k); if (!k) failed.push('Key tag'); }
+    if (which !== 'key') { var d = await printDashboardTicket(rec); ci2TagMark(mine, 'dash', d); if (!d) failed.push('Dashboard tag'); }
     // Only a tag that actually printed counts; with nothing printed, Done still warns.
-    if (failed.length < (which === 'both' ? 2 : 1)) _ci.printed = true;
+    if (failed.length < (which === 'both' ? 2 : 1)) mine.printed = true;
   } catch(e) { failed.push(which === 'key' ? 'Key tag' : which === 'dash' ? 'Dashboard tag' : 'Tags'); }
-  finally { _ci.printing = false; ci2Need(); }
+  finally { mine.printing = false; if (_ci === mine) { ci2Need(); ci2QuickRender(); } }
   if (failed.length) ci2Toast(failed.join(' and ') + ' did not print. Check the printer and use Reprint.', true);
+}
+
+// ── Quick hangar + print (owner 2026-11-21) ────────────────────
+// "no check in preciso de um easy way para mudar de hangar rápido, reimprimir tags do painel e chave,
+//  coloca ícones fáceis de visualizar": after the ticket exists the hangars are big tiles (one tap
+// saves) and Key / Dashboard / Both are big buttons that say when they printed. Changing the hangar
+// after printing marks those tags as old and offers Reprint. A tag waiting in the print queue
+// (no hangar Wi-Fi) is rebuilt with the new hangar instead.
+var CI2_QI = {
+  hangar: '<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10l9-6 9 6v10H3z"/><path d="M7 20v-6h10v6"/><path d="M7 17h10"/></svg>',
+  key: '<svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="7.5" cy="15.5" r="4.5"/><path d="M10.7 12.3L20 3"/><path d="M16 7l3 3"/><path d="M14 9l2 2"/></svg>',
+  dash: '<svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 11l1.6-4.2A2 2 0 0 1 8.5 5.5h7a2 2 0 0 1 1.9 1.3L19 11"/><path d="M3 11h18v6H3z"/><path d="M5 17v2"/><path d="M19 17v2"/><circle cx="7" cy="14" r="1"/><circle cx="17" cy="14" r="1"/></svg>',
+  both: '<svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6h12v12H6z"/><path d="M9 3h12v12"/><path d="M9 10h6"/><path d="M9 13h4"/></svg>',
+  warn: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l10 18H2z"/><path d="M12 10v5"/><path d="M12 18h.01"/></svg>'
+};
+function ci2QuickHtml(){
+  return '<div id="ci2Quick" class="ci2-quick" hidden>'
+    + '<div class="ci2-qhead"><h3>Hangar</h3><span class="ci2-qsaved" id="ci2QSaved" role="status" aria-live="polite"></span></div>'
+    + '<div class="ci2-qhangars" id="ci2QHangars"></div>'
+    + '<div class="ci2-qstale" id="ci2QStale" role="status" hidden></div>'
+    + '<div class="ci2-qhead"><h3>Print tags</h3></div>'
+    + '<div class="ci2-qprint">'
+    +   '<button type="button" class="ci2-qtag" id="ci2QKey" onclick="ci2Print(\'key\')">' + CI2_QI.key + '<b>Key tag</b><small id="ci2QKeyS"></small></button>'
+    +   '<button type="button" class="ci2-qtag" id="ci2QDash" onclick="ci2Print(\'dash\')">' + CI2_QI.dash + '<b>Dashboard tag</b><small id="ci2QDashS"></small></button>'
+    +   '<button type="button" class="ci2-qtag both" id="ci2QBoth" onclick="ci2Print(\'both\')">' + CI2_QI.both + '<b>Print both</b><small id="ci2QBothS">Key + dashboard</small></button>'
+    + '</div></div>';
+}
+function ci2QShort(h){ return /^HANGAR /.test(h || '') ? 'H' + h.slice(7) : (h || ''); }
+function ci2QTime(){ return new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }); }
+function ci2QuickFocus(){ var b = ci2El('ci2Quick'); if (!b || b.hidden) return; b.scrollIntoView({ block: 'start', behavior: 'smooth' }); var on = b.querySelector('#ci2QHangars [aria-pressed="true"]') || b.querySelector('#ci2QHangars button'); if (on) on.focus({ preventScroll: true }); }
+// res: true printed · 'queued' waiting for the printer · false not printed
+function ci2TagMark(c, kind, res){
+  if (!c || !c.tags || !res) return;
+  var t = c.tags[kind];
+  if (res === 'queued') { t.queued = true; t.stale = false; }
+  else { t.at = ci2QTime(); t.stale = false; t.queued = false; }
+  if (!c.tags.key.stale && !c.tags.dash.stale) c.oldHangar = '';
+}
+function ci2HangarChanged(prev){
+  if (!_ci || !_ci.created) return;
+  _ci.qSaved = 'Saved · ' + ci2QShort(_ci.hangar);
+  var any = false;
+  ['key', 'dash'].forEach(function(k){
+    var t = _ci.tags[k];
+    if (t.queued) epqRebuild(_ci.id, k, ci2PrintRec());
+    else if (t.at) { t.stale = true; any = true; }
+  });
+  if (any && prev && !_ci.oldHangar) _ci.oldHangar = prev;
+  if (!_ci.tags.key.stale && !_ci.tags.dash.stale) _ci.oldHangar = '';
+  ci2QuickRender();
+}
+// The print queue printed or dropped a tag of this check-in.
+function ci2QueueChanged(job, printed){
+  if (!_ci || !_ci.tags || job.pid == null || job.pid !== _ci.id || !_ci.tags[job.kind]) return;
+  var t = _ci.tags[job.kind]; t.queued = false;
+  if (printed) t.at = ci2QTime();
+  ci2QuickRender();
+}
+function ci2QuickRender(){
+  var box = ci2El('ci2Quick'); if (!box || !_ci) return;
+  box.hidden = !_ci.created;
+  if (!_ci.created) return;
+  var counts = computeHangarCounts(), hs = ci2El('ci2QHangars');
+  hs.innerHTML = HANGARS.map(function(h){
+    var on = h === _ci.hangar, n = counts[h] || 0;
+    return '<button type="button" aria-pressed="' + on + '" data-h="' + escapeHTML(h) + '">' + CI2_QI.hangar
+      + '<b>' + escapeHTML(ci2QShort(h)) + '</b><small>' + n + (n === 1 ? ' car' : ' cars') + '</small></button>';
+  }).join('');
+  hs.querySelectorAll('[data-h]').forEach(function(b){ b.onclick = function(){ ci2PickHangar(b.getAttribute('data-h')); }; });
+  ci2El('ci2QSaved').textContent = _ci.qSaved || '';
+  var tk = _ci.tags.key, td = _ci.tags.dash, st = ci2El('ci2QStale');
+  if ((tk.stale || td.stale) && !_ci.printing) {
+    var which = tk.stale && td.stale ? 'both' : tk.stale ? 'key' : 'dash';
+    st.innerHTML = CI2_QI.warn + '<p>Hangar changed to <b>' + escapeHTML(ci2QShort(_ci.hangar)) + '</b>.'
+      + (_ci.oldHangar ? ' The printed ' + (which === 'both' ? 'tags still say ' : (which === 'key' ? 'key tag still says ' : 'dashboard tag still says ')) + '<b>' + escapeHTML(ci2QShort(_ci.oldHangar)) + '</b>.' : ' Reprint the tags.')
+      + '</p><button type="button" onclick="ci2Print(\'' + which + '\')">' + (which === 'both' ? 'Reprint both' : 'Reprint') + '</button>';
+    st.hidden = false;
+  } else st.hidden = true;
+  var noH = !_ci.hangar;
+  [['key', 'ci2QKey', tk], ['dash', 'ci2QDash', td]].forEach(function(x){
+    var b = ci2El(x[1]), t = x[2], s = ci2El(x[1] + 'S');
+    b.disabled = !!_ci.printing || noH;
+    b.className = 'ci2-qtag' + (t.queued ? ' queued' : t.stale ? ' stale' : t.at ? ' done' : '');
+    s.textContent = _ci.printing ? 'Printing…' : noH ? 'Pick the hangar first' : t.queued ? 'Waiting for Wi\u2011Fi' : t.stale ? 'Old hangar — reprint' : t.at ? 'Printed ' + t.at : 'Not printed yet';
+  });
+  var bb = ci2El('ci2QBoth'); bb.disabled = !!_ci.printing || noH;
+  ci2El('ci2QBothS').textContent = _ci.printing ? 'Printing…' : noH ? 'Pick the hangar first' : 'Key + dashboard';
 }
 
 // ── DETAIL PANEL ───────────────────────────────────────────────
@@ -19527,7 +19722,7 @@ async function mfDateReprint(i, btn){
   if (btn) { btn.disabled = true; btn.textContent = 'Printing…'; }
   var ok = false;
   try { ok = await printKeyTicket(r); } catch(e) { ok = false; }
-  if (btn) { btn.disabled = false; btn.textContent = ok ? '✓ Key tag printed' : '🖨 Reprint key tag'; }
+  if (btn) { btn.disabled = false; btn.textContent = ok === 'queued' ? '⏳ Waiting for the printer' : ok ? '✓ Key tag printed' : '🖨 Reprint key tag'; }
   if (!ok) showMsg('Key tag did not print. Check the printer and try again.', true);
 }
 function mfRenderPick(){
@@ -20548,7 +20743,7 @@ async function offlineSyncReprint(syncId){
   var r = data.find(function(x){ return x.id===it.id; });
   if(!r){ showMsg('Reload to see ticket '+it.newTicket+', then reprint from the car card.', true); return; }
   var k = await printKeyTicket(r), d = await printDashboardTicket(r);
-  if(k && d) showMsg('Tags for ticket '+it.newTicket+' printed. Replace the old '+it.oldTicket+' tags, then tap Done.', false);
+  if(k && d) showMsg('Tags for ticket '+it.newTicket+((k==='queued'||d==='queued')?' are waiting for the printer (hangar Wi-Fi)':' printed')+'. Replace the old '+it.oldTicket+' tags, then tap Done.', false);
 }
 async function offlineSyncAckRenumber(syncId){
   var it = _offlineSync.renumbered.find(function(x){ return x.syncId===syncId; });

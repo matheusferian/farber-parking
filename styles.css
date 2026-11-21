@@ -3410,7 +3410,8 @@ body.av-kiosk .ci2-wide .ci2-consent summary{font-size:16px;min-height:44px}
   body.av-kiosk .ci2-wide .ci2>#ci2Dock .ci2-need{flex-basis:100%;margin-bottom:6px}
   body.av-kiosk .ci2-wide .ci2>#ci2Dock .ci2-printw{flex:1}
   body.av-kiosk .ci2-wide .ci2>#ci2Dock .ci2-print{width:100%;min-height:60px;font-size:18px}
-  body.av-kiosk .ci2-wide .ci2>#ci2Details{grid-column:2;grid-row:1/span 3}
+  body.av-kiosk .ci2-wide .ci2>#ci2Quick{grid-column:2;grid-row:1}
+  body.av-kiosk .ci2-wide .ci2>#ci2Details{grid-column:2;grid-row:2/span 3}
 }
 body.av-kiosk .ci2-wide #ci2Hangars button{min-height:64px;min-width:120px;font-size:18px;font-weight:700}
 body.av-kiosk .ci2-wide .ci2-script{font-size:17px;line-height:1.5}
@@ -3605,3 +3606,54 @@ body.has-ibar .fab{display:none!important;}
 .dx .dx-b-gold{background:var(--gold-bg);border-color:var(--gold-bg);color:var(--tx-gold);}
 .fb-print-all-btn,.kv-col .fb-print-all-btn{border:0;border-radius:12px;}
 .fb-print-all-btn.dc-bulk-h19-btn,.kv-col .fb-print-all-btn.dc-bulk-h19-btn{background:var(--blue-bg);color:var(--blue-tx);border:0;}
+
+/* Quick hangar + print (owner 2026-11-21): big hangar tiles and tag buttons after the ticket exists.
+   The old Hangar section and the dock's Print/Reprint menu are replaced by this panel. */
+.ci2 #ci2SHangar{display:none}
+.ci2-dock .ci2-printw{display:none}
+.ci2-quick{display:flex;flex-direction:column;gap:10px;margin:14px 0 4px}
+.ci2-qhead{display:flex;align-items:baseline;gap:12px}
+.ci2-qhead h3{margin:0;font:700 18px 'Inter',sans-serif;color:var(--tx)}
+.ci2-qsaved{margin-left:auto;font-size:14px;font-weight:700;color:var(--tx-ok)}
+.ci2-qhangars{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
+.ci2-qhangars button{min-height:96px;border:2px solid var(--b);background:var(--s);color:var(--navy);border-radius:16px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:8px 4px;cursor:pointer;font-family:'Inter',sans-serif}
+.ci2-qhangars button b{font:800 22px/1 'Sora',sans-serif}
+.ci2-qhangars button small{font-size:12px;font-weight:600;color:var(--mu)}
+.ci2-qhangars button[aria-pressed="true"]{border:3px solid var(--navy);background:var(--gold)}
+.ci2-qhangars button[aria-pressed="true"] small{color:var(--navy)}
+.ci2-qstale{display:flex;align-items:center;gap:12px;background:var(--gold-bg);border:2px solid var(--gold);border-radius:14px;padding:10px 12px;color:var(--tx-gold)}
+.ci2-qstale svg{flex:none}
+.ci2-qstale p{margin:0;flex:1;font-size:15px;font-weight:600}
+.ci2-qstale button{flex:none;min-height:48px;padding:0 16px;border:0;border-radius:12px;background:var(--navy);color:#fff;font:700 15px 'Inter',sans-serif;cursor:pointer}
+.ci2-qprint{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.ci2-qtag{min-height:140px;border:2px solid var(--b);background:var(--s);color:var(--navy);border-radius:18px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:12px 6px;cursor:pointer;font-family:'Inter',sans-serif;text-align:center}
+.ci2-qtag b{font-size:18px;font-weight:800}
+.ci2-qtag small{font-size:13px;font-weight:700;color:var(--mu)}
+.ci2-qtag.done small{color:var(--tx-ok)}
+.ci2-qtag.stale{border:3px solid var(--gold);background:var(--gold-bg)}
+.ci2-qtag.stale small{color:var(--tx-gold)}
+.ci2-qtag.queued{border:3px dashed var(--blue);background:var(--blue-bg)}
+.ci2-qtag.queued small{color:var(--blue-tx)}
+.ci2-qtag.both{background:var(--navy);border-color:var(--navy);color:#fff}
+.ci2-qtag.both small{color:rgba(255,255,255,.78)}
+.ci2-qtag:disabled{opacity:.5;cursor:default}
+@media (max-width:520px){
+  .ci2-qhangars{gap:6px}
+  .ci2-qhangars button{min-height:84px}
+  .ci2-qhangars button svg{width:24px;height:24px}
+  .ci2-qhangars button b{font-size:18px}
+  .ci2-qprint{gap:6px}
+  .ci2-qtag{min-height:120px}
+  .ci2-qtag svg{width:36px;height:36px}
+  .ci2-qtag b{font-size:15px}
+  .ci2-qtag small{font-size:12px}
+}
+/* Print queue bar (owner 2026-11-21): tags waiting for the hangar Wi-Fi, on every screen. */
+.epq-bar{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(92px + env(safe-area-inset-bottom));z-index:9000;width:min(640px,calc(100vw - 24px));box-sizing:border-box;display:flex;align-items:center;gap:10px;background:var(--blue-bg);border:2px solid var(--blue);color:var(--blue-tx);border-radius:16px;padding:10px 12px;box-shadow:0 10px 28px rgba(1,21,50,.18);font-family:'Inter',sans-serif}
+.epq-bar svg{flex:none}
+.epq-t{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.epq-t b{font-size:15px;font-weight:800}
+.epq-t small{font-size:12.5px;line-height:1.3}
+.epq-bar button{flex:none;min-height:44px;padding:0 12px;border-radius:11px;border:0;background:var(--blue);color:#fff;font:700 14px 'Inter',sans-serif;cursor:pointer}
+.epq-bar button.ghost{background:#fff;color:var(--blue-tx);border:1px solid var(--blue)}
+.epq-bar button:disabled{opacity:.6}
