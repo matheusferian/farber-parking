@@ -88,3 +88,14 @@ export const loginPassword = (user: string, pass: string, f = fetch) =>
   cognito('InitiateAuth', { AuthFlow: 'USER_PASSWORD_AUTH', ClientId: COGNITO.clientId, AuthParameters: { USERNAME: user, PASSWORD: pass } }, f);
 export const loginRefresh = (refresh: string, f = fetch) =>
   cognito('InitiateAuth', { AuthFlow: 'REFRESH_TOKEN_AUTH', ClientId: COGNITO.clientId, AuthParameters: { REFRESH_TOKEN: refresh } }, f);
+
+// Owner 2026-11-21 ("Landing in 3 min · JH" right after JH TOOK OFF from FXE to Great Harbour; its leg to FXE left
+// Great Harbour only at 10:45). "Landing soon" only when ALL hold: the leg has left its island (not before its
+// departure time − 15 min), the plane has been flying 15+ min on this track (a take-off from FXE is never a landing),
+// it points at FXE AND is getting closer, fast (40+ kt), and is not already on the field.
+export function landingSoonOk(o: { now: number; dep: number | null; departedAt: string | null; dist: number; prevDist: number | null; kt: number; pointsAtFxe: boolean }): boolean {
+  const closing = o.prevDist != null && Number(o.prevDist) > o.dist + 0.2;
+  const legStarted = !o.dep || o.now >= o.dep - 15 * 60000;
+  const airborneLong = o.departedAt ? o.now - Date.parse(o.departedAt) >= 15 * 60000 : false;
+  return o.kt >= 40 && o.dist > 1 && o.pointsAtFxe && closing && legStarted && airborneLong;
+}
