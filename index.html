@@ -9255,24 +9255,38 @@ function dxJustArrived(r){
   return !!t && Date.now() - t < 3 * 3600 * 1000;
 }
 function dxFreshHtml(r){
-  var id = r.id, cur = r.ret ? tsToDateInput(r.ret) : '';
-  var hg = HANGARS.map(function(h){
-    return '<button type="button" data-h="' + h + '" aria-pressed="' + (r.loc === h) + '" onclick="dxQuickHangar(' + id + ',this.dataset.h)"><b>' + escapeHTML(h === 'HH' ? 'HH' : 'H' + h.slice(7)) + '</b></button>';
-  }).join('');
-  var days = '';
+  if (!avPhotosOn()) return '';
+  return '<div id="dxFqShot" class="dx-fq"><button type="button" class="dx-fq-shot" onclick="dxQuickShot(' + r.id + ')"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8h3l2-3h8l2 3h3v12H3z"/><circle cx="12" cy="13" r="4"/></svg><b>Take car photo</b></button><input type="file" id="dxFqIn" accept="image/*" capture="environment" hidden><p class="dx-fq-st" id="dxFqShotSt" role="status"></p></div>';
+}
+// Owner 2026-11-21: closed by default ("se eu esbarrar o dedo, caga") — tap the hangar or the return date
+// on the card, a sheet opens with only those choices, one tap saves and closes.
+function dxSheet(title, bodyHtml){
+  dxSheetClose();
+  var ov = document.createElement('div'); ov.id = 'dxSheet'; ov.className = 'dx-sheet-ov';
+  ov.innerHTML = '<div class="dx-sheet" role="dialog" aria-modal="true" aria-label="' + escapeHTML(title) + '"><h3>' + escapeHTML(title) + '</h3>' + bodyHtml
+    + '<button type="button" class="dx-sheet-x" onclick="dxSheetClose()">Cancel</button></div>';
+  ov.addEventListener('click', function(e){ if (e.target === ov) dxSheetClose(); });
+  document.body.appendChild(ov);
+  var on = ov.querySelector('[aria-pressed="true"]') || ov.querySelector('button'); if (on) on.focus();
+}
+function dxSheetClose(){ var o = document.getElementById('dxSheet'); if (o) o.remove(); }
+function dxPickHangar(id){
+  var r = data.find(function(x){ return x.id === id; }); if (!r) return;
+  dxSheet('Hangar', '<div class="dx-sheet-hg">' + HANGARS.map(function(h){
+    return '<button type="button" data-h="' + h + '" aria-pressed="' + (r.loc === h) + '" onclick="dxQuickHangar(' + id + ',this.dataset.h)">' + escapeHTML(h) + (r.loc === h ? ' ✓' : '') + '</button>';
+  }).join('') + '</div>');
+}
+function dxPickRet(id){
+  var r = data.find(function(x){ return x.id === id; }); if (!r) return;
+  var cur = r.ret ? tsToDateInput(r.ret) : '', days = '';
   for (var n = 0; n < 8; n++) {
     var iso = ci2Iso(ci2AddDays(n));
-    var lbl = n === 0 ? 'Today' : n === 1 ? 'Tmrw' : ci2Nice(iso, { weekday: 'short' });
-    days += '<button type="button" data-d="' + iso + '" aria-pressed="' + (cur === iso) + '" onclick="dxQuickRet(' + id + ',this.dataset.d)"><b>' + lbl + '</b><small>' + Number(iso.slice(8)) + '</small></button>';
+    var lbl = n === 0 ? 'Today' : n === 1 ? 'Tomorrow' : ci2Nice(iso, { weekday: 'short' });
+    days += '<button type="button" data-d="' + iso + '" aria-pressed="' + (cur === iso) + '" onclick="dxQuickRet(' + id + ',this.dataset.d)"><b>' + lbl + '</b><small>' + ci2Nice(iso, { month: 'short', day: 'numeric' }) + '</small></button>';
   }
-  var other = cur && !/aria-pressed="true"/.test(days);
-  return '<div class="dx-fq">'
-    + (avPhotosOn() ? '<div id="dxFqShot"><button type="button" class="dx-fq-shot" onclick="dxQuickShot(' + id + ')"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8h3l2-3h8l2 3h3v12H3z"/><circle cx="12" cy="13" r="4"/></svg><b>Take car photo</b><small>Rear, plate in frame</small></button><input type="file" id="dxFqIn" accept="image/*" capture="environment" hidden><p class="dx-fq-st" id="dxFqShotSt" role="status"></p></div>' : '')
-    + '<h4>Hangar</h4><div class="dx-fq-hg">' + hg + '</div>'
-    + '<h4>Return</h4><div class="dx-fq-days">' + days + '</div>'
-    + '<div class="dx-fq-more"><label class="dx-fq-other' + (other ? ' on' : '') + '">Other date<input type="date" value="' + escapeHTML(other ? cur : '') + '" onchange="if(this.value)dxQuickRet(' + id + ',this.value)"></label>'
-    + '<button type="button" class="dx-fq-nod' + (!cur ? ' on' : '') + '" onclick="dxQuickRet(' + id + ',\'\')">No date</button></div>'
-    + '</div>';
+  dxSheet('Return', '<div class="dx-sheet-days">' + days + '</div>'
+    + '<div class="dx-sheet-more"><label class="dx-sheet-other">Other date<input type="date" onchange="if(this.value)dxQuickRet(' + id + ',this.value)"></label>'
+    + '<button type="button" aria-pressed="' + (!cur) + '" onclick="dxQuickRet(' + id + ',\'\')">No date</button></div>');
 }
 function dxQuickShot(id){
   var r = data.find(function(x){ return x.id === id; }), inp = document.getElementById('dxFqIn'); if (!r || !inp) return;
@@ -9283,29 +9297,29 @@ async function dxQuickHangar(id, h){
   var r = data.find(function(x){ return x.id === id; }); if (!r || r.loc === h) return;
   if (r.isOfflinePending) { showMsg(OFFLINE_PENDING_SYNC_MSG, true); return; }
   var old = r.loc || '';
-  document.querySelectorAll('#detPanel .dx-fq-hg button').forEach(function(b){ b.disabled = true; });
+  document.querySelectorAll('#dxSheet button').forEach(function(b){ b.disabled = true; });
   try {
     await moveHangarCore(r, h, 'Quick hangar change on the car card');
-    render(); showDet(id);
+    dxSheetClose(); render(); showDet(id);
     showMsg('Moved to ' + h + '.', false);
     // Tags printed with the old hangar: offer new ones (they wait in the print queue off the hangar Wi-Fi).
     if (old && confirm('Moved ' + old + ' → ' + h + '.\n\nPrint new tags (key + dashboard)?')) { await printKeyTicket(r); await printDashboardTicket(r); }
-  } catch(e) { showMsg('Hangar not changed: ' + e.message, true); showDet(id); }
+  } catch(e) { dxSheetClose(); showMsg('Hangar not changed: ' + e.message, true); showDet(id); }
 }
 async function dxQuickRet(id, iso){
   var r = data.find(function(x){ return x.id === id; }); if (!r) return;
   if (r.isOfflinePending) { showMsg(OFFLINE_PENDING_SYNC_MSG, true); return; }
-  if ((r.ret ? tsToDateInput(r.ret) : '') === (iso || '')) return;
-  document.querySelectorAll('#detPanel .dx-fq-days button, #detPanel .dx-fq-nod').forEach(function(b){ b.disabled = true; });
+  if ((r.ret ? tsToDateInput(r.ret) : '') === (iso || '')) { dxSheetClose(); return; }
+  document.querySelectorAll('#dxSheet button').forEach(function(b){ b.disabled = true; });
   try {
     var row = await changePassengerReturnDate(id, iso ? d2us(iso) : '', 'Changed on the car card right after check-in', false);
     var r0 = Array.isArray(row) ? row[0] : row;
     if (r0) { r.ret = r0.ret; r.status = r0.status; r.obs = r0.obs; }
     if (!iso && r0 && r0.status === 'PENDING') { await sbUpdate(id, { status: 'NO DATE' }); r.status = 'NO DATE'; }
     if (iso && r.status === 'NO DATE') { await sbUpdate(id, { status: 'PENDING' }); r.status = 'PENDING'; }
-    render(); showDet(id);
+    dxSheetClose(); render(); showDet(id);
     showMsg(iso ? 'Return: ' + ci2Nice(iso) + '.' : 'Return: no date yet.', false);
-  } catch(e) { showMsg('Return date not saved: ' + e.message, true); showDet(id); }
+  } catch(e) { dxSheetClose(); showMsg('Return date not saved: ' + e.message, true); showDet(id); }
 }
 // Opens one section of the car card and brings it into view (header Edit, Move).
 function dxOpen(id){
@@ -9358,14 +9372,15 @@ function showDet(id){
       '<div class="dx-tk">'+escapeHTML(r.ticket||'—')+'</div>'+
       '<div class="dx-carrow"><span class="dx-car">'+(carLine?escapeHTML(carLine):'<span class="dx-empty">No car yet</span>')+'</span>'+
         '<button type="button" class="dx-edit" onclick="dxOpen(\'dxEd\')">Edit</button></div>'+
-      '<div class="dx-meta"><span class="dx-hg">'+escapeHTML(r.loc||'No location')+'</span>'+
-        '<span class="dx-ret"><small>Return</small> <b style="'+retC+'">'+escapeHTML(retLine)+'</b></span></div>'+
+      (fresh?
+        '<div class="dx-meta"><button type="button" class="dx-hg dx-tap" onclick="dxPickHangar('+r.id+')">'+escapeHTML(r.loc||'Add hangar')+'<i aria-hidden="true">▾</i></button>'+
+          '<button type="button" class="dx-ret dx-tap" onclick="dxPickRet('+r.id+')"><small>Return</small> <b>'+escapeHTML(r.ret?retLine:'No date')+'</b><i aria-hidden="true">▾</i></button></div>'
+      :'<div class="dx-meta"><span class="dx-hg">'+escapeHTML(r.loc||'No location')+'</span>'+
+        '<span class="dx-ret"><small>Return</small> <b style="'+retC+'">'+escapeHTML(retLine)+'</b></span></div>')+
     '</div>'+
     (fresh?dxFreshHtml(r):'')+
-    (active&&fresh?
-      '<div class="dx-3 dx-3s"><button type="button" class="dx-b" onclick="quickDeliver('+r.id+',\'NORMAL\')">Deliver</button>'+
-        '<button type="button" class="dx-b" onclick="quickDeliver('+r.id+',\'CUSTOMS\')">Customs</button>'+
-        '<button type="button" class="dx-b" onclick="quickDeliver('+r.id+',\'LOCKBOX\')">Lockbox</button></div>'
+    // Just arrived and not leaving today: no Deliver / Customs / Lockbox on the card (owner 11/21: "o cara acabou de chegar").
+    (active&&fresh&&!rt&&!ro?''
     :active?
       '<button type="button" class="dx-deliver" onclick="quickDeliver('+r.id+',\'NORMAL\')">Deliver</button>'+
       '<div class="dx-3"><button type="button" class="dx-b dx-b-navy" onclick="quickDeliver('+r.id+',\'CUSTOMS\')">Customs</button>'+
