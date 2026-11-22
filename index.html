@@ -4893,9 +4893,26 @@ function shareChooser(options){
   var key = 'n' + Date.now(); _shareLog[key] = options;
   var ov = document.createElement('div'); ov.id = 'shareOv'; ov.className = 'share-ov';
   ov.innerHTML = '<div class="share-box" role="dialog" aria-label="Send to an international number"><b>Send to ' + escapeHTML(options.passengerName || 'passenger') + '</b>' +
-    '<span>International number (+' + escapeHTML(guestPhoneIntl(options.phone)) + '): no AirValet SMS. Choose the app:</span>' +
+    '<span>International number (+' + escapeHTML(guestPhoneIntl(options.phone)) + '): no AirValet SMS.' + (options.welcomePid != null ? '' : ' Choose the app:') + '</span>' +
+    (options.welcomePid != null ? '<button type="button" class="share-wel" onclick="shareWelcome(\'' + key + '\')">Welcome + pass link</button><div class="share-wel-s" hidden></div><span class="share-or">Or a blank message:</span>' : '') +
     shareLinksHtml(options.phone, options.body, key) + '<button type="button" class="share-x" onclick="this.closest(\'.share-ov\').remove()">Cancel</button></div>';
   document.body.appendChild(ov);
+}
+// "Welcome + pass link" in the chooser: a NEW valet pass link (the old one stops opening), then
+// WhatsApp / iMessage open with the welcome text (owner 2026-11-22).
+async function shareWelcome(key){
+  var o = _shareLog[key], ov = document.getElementById('shareOv'); if (!o || !ov) return;
+  var btn = ov.querySelector('.share-wel'), st = ov.querySelector('.share-wel-s');
+  if (!confirm('Send the welcome with a new valet pass link to ' + (o.passengerName || 'the passenger') + '? If a link was sent before, that old link stops opening.')) return;
+  btn.disabled = true; btn.textContent = 'Creating the link…';
+  var s = await passShareLink(o.welcomePid);
+  ov = document.getElementById('shareOv'); if (!ov || !ov.contains(btn)) return;
+  if (!s.ok) { btn.disabled = false; btn.textContent = 'Welcome + pass link'; st.hidden = false; st.textContent = passShareErrorText(s.code); return; }
+  var k2 = 'w' + Date.now();
+  _shareLog[k2] = Object.assign({}, o, { templateKey: 'WELCOME', messageType: 'CHECK_IN', body: s.body, welcomePid: null });
+  var box = ov.querySelector('.share-box');
+  box.innerHTML = '<b>Welcome for ' + escapeHTML(o.passengerName || 'passenger') + '</b><span>Link ready (the old one no longer opens). Choose the app, then tap Send:</span>' +
+    shareLinksHtml(o.phone, s.body, k2) + '<button type="button" class="share-x" onclick="this.closest(\'.share-ov\').remove()">Cancel</button>';
 }
 // The server makes a NEW valet pass link (the previous one stops working) for
 // an international ticket enrolled at check-in. Never throws.
@@ -6574,12 +6591,18 @@ function sendGenericTextSms(id){
     openFreeformComposeModal(r);
     return;
   }
-  sendPassengerSms({
+  var gOpts={
     passengerId:r.id, passengerName:r.name, phone:r.phone, ticket:r.ticket,
     vehicle:formatVehicleLine(r), brand:isAscend(r)?'Ascend':'Makers Air',
     templateKey:'GENERIC', messageType:SMS_MESSAGE_TYPES.FREEFORM,
     body:'', metadata:{trigger:'Detail panel — generic Text button'}
-  });
+  };
+  // International guest, car still with us (owner 2026-11-22: "Text guest" opened a blank message):
+  // the chooser offers the welcome + valet pass link first, a blank message second.
+  if(guestPhoneIntl(r.phone) && isServerSms() && r.status!=='DELIVERED' && r.status!=='ARCHIVED' && !r.isOfflinePending){
+    shareChooser(Object.assign(gOpts,{welcomePid:r.id})); return;
+  }
+  sendPassengerSms(gOpts);
 }
 function openFreeformComposeModal(r){
   _freeformPendingRecord=r;

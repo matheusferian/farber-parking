@@ -2238,6 +2238,10 @@ body.tv-stale .tv-stale-banner{display:block;}
 .share-ov{position:fixed;inset:0;z-index:10050;background:rgba(10,15,30,.55);display:flex;align-items:flex-end;justify-content:center;padding:16px;}
 .share-box{background:#fff;color:var(--navy);border-radius:16px;padding:18px;width:100%;max-width:420px;display:flex;flex-direction:column;gap:8px;font-size:14px;}
 .share-box b{font-size:16px;}
+.share-wel{min-height:52px;border:0;border-radius:12px;background:var(--tx-ok);color:#fff;font-weight:800;font-size:16px;cursor:pointer;}
+.share-wel:disabled{opacity:.7;}
+.share-wel-s{color:var(--red);font-weight:700;}
+.share-or{margin-top:6px;color:var(--mu);font-size:13px;}
 .share-x{min-height:44px;border:1.5px solid var(--b);background:#fff;border-radius:10px;font-weight:700;color:var(--navy);cursor:pointer;}
 
 /* ── Smart Tips (owner 2026-10-27): in-person tip at delivery, car card Tips, Closing cash ── */
