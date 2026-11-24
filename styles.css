@@ -3696,3 +3696,4 @@ body.has-ibar .fab{display:none!important;}
 .dx-sheet [aria-pressed="true"] small{color:var(--navy)}
 .dx-sheet button:disabled{opacity:.5}
 .dx-sheet-x{min-height:52px;border:0;background:transparent;color:var(--mu);font:700 16px 'Inter',sans-serif;cursor:pointer}
+.auth-store-bar{position:fixed;left:50%;bottom:calc(12px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:10040;max-width:calc(100vw - 32px);padding:10px 16px;border-radius:12px;background:#7a1f16;color:#fff;font-weight:700;font-size:14px;text-align:center;pointer-events:none;}

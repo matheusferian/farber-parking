@@ -1812,7 +1812,86 @@ var SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSI
 var TABLE = 'passengers';
 var _authToken = null;
 var _currentUserEmail = '';
-var _supaClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+// ── SIGN-IN STORAGE (owner 2026-11-24: the hangar iPad signed out by itself) ──
+// The iPad stopped keeping its renewed session in localStorage, so it kept sending the same old
+// refresh token until the server cancelled the session ("refresh_token_already_used"). The session
+// now also lives in memory and in IndexedDB on this device, and the NEWEST copy wins. Same key as
+// before, so nobody has to sign in again. Sign Out clears all three copies.
+var AUTH_STORE_KEY = 'sb-' + new URL(SUPABASE_URL).hostname.split('.')[0] + '-auth-token';
+var _authStore = (function(){
+  var mem = null, bad = false, boot = null, DB = 'airvalet-auth', ST = 'kv';
+  function ls(k){ try { return localStorage.getItem(k); } catch(e) { return null; } }
+  function info(v){
+    try {
+      var s = JSON.parse(v), p = s.access_token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/');
+      while (p.length % 4) p += '=';
+      return { exp: +s.expires_at || 0, sid: JSON.parse(atob(p)).session_id || '' };
+    } catch(e) { return { exp: 0, sid: '' }; }
+  }
+  function idb(mode, fn){   // never blocks the sign-in: gives up after 1.2 s (iOS can hang opening IndexedDB)
+    return new Promise(function(done){
+      var t = setTimeout(function(){ done(null); }, 1200), end = function(v){ clearTimeout(t); done(v === undefined ? null : v); };
+      try {
+        var o = indexedDB.open(DB, 1);
+        o.onupgradeneeded = function(){ o.result.createObjectStore(ST); };
+        o.onerror = o.onblocked = function(){ end(null); };
+        o.onsuccess = function(){
+          try {
+            var tx = o.result.transaction(ST, mode), rq = fn(tx.objectStore(ST));
+            tx.oncomplete = function(){ o.result.close(); end(rq && rq.result); };
+            tx.onerror = tx.onabort = function(){ o.result.close(); end(null); };
+          } catch(e) { o.result.close(); end(null); }
+        };
+      } catch(e) { end(null); }
+    });
+  }
+  function put(k, v){
+    mem = v; bad = false;
+    try { localStorage.setItem(k, v); } catch(e) { bad = true; }
+    if (ls(k) !== v) bad = true;
+    authStoreWarn(bad);
+    return bad;
+  }
+  return {
+    getItem: async function(k){
+      if (k !== AUTH_STORE_KEY) return ls(k);
+      if (!boot) boot = idb('readonly', function(s){ return s.get(k); });
+      var saved = await boot, a = ls(k);
+      if (a === null) return bad ? mem : null;   // signed out here or in another tab
+      var best = a, bi = info(a), newer = function(v, any){
+        if (!v || v === best) return;
+        var i = info(v);
+        if (i.exp > bi.exp && (any || i.sid === bi.sid)) { best = v; bi = i; }
+      };
+      newer(mem, bad);
+      if (saved && saved.v && mem === null) newer(saved.v, !!saved.bad);
+      if (best !== a) put(k, best);
+      return best;
+    },
+    setItem: async function(k, v){
+      if (k !== AUTH_STORE_KEY) { localStorage.setItem(k, v); return; }
+      var b = put(k, v);
+      await idb('readwrite', function(s){ return s.put({ v: v, bad: b }, k); });
+    },
+    removeItem: async function(k){
+      try { localStorage.removeItem(k); } catch(e) {}
+      if (k !== AUTH_STORE_KEY) return;
+      mem = null; bad = false; boot = Promise.resolve(null); authStoreWarn(false);
+      await idb('readwrite', function(s){ return s.delete(k); });
+    }
+  };
+})();
+function authStoreWarn(on){
+  var el = document.getElementById('authStoreBar');
+  if (!on) { if (el) el.remove(); return; }
+  if (el) return;
+  if (!document.body) { document.addEventListener('DOMContentLoaded', function(){ authStoreWarn(true); }); return; }
+  console.warn('Sign-in not saved in localStorage on this device.');
+  el = document.createElement('div'); el.id = 'authStoreBar'; el.className = 'auth-store-bar'; el.setAttribute('role', 'status');
+  el.textContent = 'This device is not saving the sign-in. Restart it when you can.';
+  document.body.appendChild(el);
+}
+var _supaClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { storage: _authStore, storageKey: AUTH_STORE_KEY } });
 
 // ── SMS PROVIDER CONFIG (Fase 1 — see docs/TWILIO_MIGRATION_AUDIT.md) ──
 // Allowed values: 'native' (current sms: behavior, unchanged) |
@@ -20927,7 +21006,15 @@ function authEnsureFresh(force){
   if(!_authToken) return Promise.resolve(false);
   if(!force && jwtExpMs(_authToken) - Date.now() > 120000) return Promise.resolve(true);
   if(_authRefreshing) return _authRefreshing;
-  _authRefreshing = _supaClient.auth.refreshSession().then(function(r){
+  // getSession() renews by itself when the token is about to expire. refreshSession() alone renewed
+  // TWICE in a row after the iPad woke (load + refresh) and spent two refresh tokens (2026-11-24).
+  var old = _authToken;
+  _authRefreshing = _supaClient.auth.getSession().then(function(r){
+    var s = r && r.data && r.data.session;
+    if(!s) return r;
+    if(s.access_token !== old || !force) return r;                // renewed just now, or still valid
+    return _supaClient.auth.refreshSession({ refresh_token: s.refresh_token });   // server said expired: one renewal
+  }).then(function(r){
     if(r && r.data && r.data.session){ _authToken = r.data.session.access_token; return true; }
     return false;
   }).catch(function(){ return false; }).finally(function(){ _authRefreshing = null; });
