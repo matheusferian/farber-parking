@@ -17943,9 +17943,8 @@ function tvFuStripHtml(rows){
     meta.push('#' + escapeHTML(r.ticket || ''));
     return '<div class="tv-fu-card">' + (n.url ? '<img src="' + n.url + '" alt="Car photo">' : '') +
       '<div class="tv-fu-main"><div class="tv-fu-name">' + escapeHTML(tvShortName(r.name)) + '</div>' +
-      '<div class="tv-fu-meta">' + meta.join(' &middot; ') + '</div>' +
       '<div class="tv-fu-note">' + escapeHTML(n.note) + '</div>' +
-      (n.detail ? '<div class="tv-fu-detail">' + escapeHTML(n.detail) + '</div>' : '') + '</div></div>';
+      '<div class="tv-fu-meta">' + meta.join(' &middot; ') + (n.detail ? ' &middot; ' + escapeHTML(n.detail) : '') + '</div></div></div>';
   }).join('') + '</div>';
 }
 function maybeFetchTvPhotos(){
