@@ -16630,6 +16630,8 @@ var _tv = {
   spider:{},                // registration -> Spidertracks satellite position (airvalet_spider_board)
   spiderLastFetchAt:null,
   photosLastFetchAt:null,
+  fuNotes:{},               // passenger_id -> {note, detail, at, url} — Follow-Up note with a photo (owner 2026-11-24)
+  fuNotesLastFetchAt:null,
   makersLastFetchAt:null
 };
 var TV_RESIZE_DEBOUNCE_MS = 350;
@@ -16878,6 +16880,7 @@ async function refreshTvData(){
   try{
     var rows = await sbGetTvModePassengers();
     data = rows.map(mapPassengerRow);
+    maybeFetchTvFuNotes();     // Follow-Up notes with a photo (car with the tow truck) — own throttle, never awaited
     maybeFetchTvPhotos();      // car photos for today's/tomorrow's cards — needs the rows above; own throttle, never awaited
     _tv.lastSuccessAt = Date.now();
     _tv.reconnectAttempts = 0;
@@ -17904,6 +17907,46 @@ async function fetchTvPhotos(){
       renderTvDashboard();
     }
   } catch(e){ console.warn('TV photos unavailable (keeping the last ones):', e); }
+}
+// Follow-Up note + photo of a car that is away (owner 2026-11-24, Nancy Peel: "a foto do carro no guincho e
+// escrito waiting eles trazer de volta"). Never the valet pass photo. Gone when the ticket is closed.
+async function fetchTvFuNotes(){
+  _tv.fuNotesLastFetchAt = Date.now();
+  try{
+    var r = await fetch(SUPABASE_URL + '/rest/v1/rpc/airvalet_tv_followups', { method:'POST', headers: sbHeaders(), body:'{}' });
+    if(!r.ok) throw new Error('follow-up notes ' + r.status);
+    var list = await r.json(), next = {}, changed = false;
+    (list || []).forEach(function(x){
+      var old = _tv.fuNotes[x.passenger_id];
+      if(old && old.at === x.at){ next[x.passenger_id] = old; return; }
+      var url = '';
+      if(x.image_b64){ var bin = atob(x.image_b64), u8 = new Uint8Array(bin.length); for(var i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i); url = URL.createObjectURL(new Blob([u8], { type:'image/jpeg' })); }
+      next[x.passenger_id] = { note: x.note, detail: x.detail || '', at: x.at, url: url }; changed = true;
+    });
+    Object.keys(_tv.fuNotes).forEach(function(id){ if(next[id] !== _tv.fuNotes[id]){ changed = true; if(_tv.fuNotes[id].url) try{ URL.revokeObjectURL(_tv.fuNotes[id].url); }catch(e){} } });
+    _tv.fuNotes = next;
+    if(changed) renderTvDashboard();
+  } catch(e){ console.warn('TV follow-up notes unavailable (keeping the last ones):', e); }
+}
+function maybeFetchTvFuNotes(){
+  if(_tv.fuNotesLastFetchAt !== null && (Date.now() - _tv.fuNotesLastFetchAt) < 120000) return;
+  fetchTvFuNotes();
+}
+// Cars with a note sit on top of the Follow-Up page, bigger, with the photo; the rest stay in the list below.
+function tvFuNoteFor(r){ return (_tv.fuNotes && _tv.fuNotes[r.id]) || null; }
+function tvFuStripHtml(rows){
+  if(!rows.length) return '';
+  return '<div class="tv-fu-strip">' + rows.slice(0, 3).map(function(r){
+    var n = tvFuNoteFor(r), meta = [];
+    if(r.car) meta.push('<b>' + escapeHTML(r.car) + '</b>');
+    if(r.color) meta.push(escapeHTML(r.color));
+    meta.push('#' + escapeHTML(r.ticket || ''));
+    return '<div class="tv-fu-card">' + (n.url ? '<img src="' + n.url + '" alt="Car photo">' : '') +
+      '<div class="tv-fu-main"><div class="tv-fu-name">' + escapeHTML(tvShortName(r.name)) + '</div>' +
+      '<div class="tv-fu-meta">' + meta.join(' &middot; ') + '</div>' +
+      '<div class="tv-fu-note">' + escapeHTML(n.note) + '</div>' +
+      (n.detail ? '<div class="tv-fu-detail">' + escapeHTML(n.detail) + '</div>' : '') + '</div></div>';
+  }).join('') + '</div>';
 }
 function maybeFetchTvPhotos(){
   if(_tv.photosLastFetchAt !== null && (Date.now() - _tv.photosLastFetchAt) < 120000) return;
@@ -19620,12 +19663,15 @@ function tvBuildOpsPages(vm){
   if(vm.followUp.length){
     var fuTitleHtml = '<div class="tv-page-title" style="font-size:16px;margin-bottom:8px;">&#9888; Return Date Follow-Up <span class="tv-count-pill">'+vm.followUp.length+'</span></div>';
     var fuTitleHeight = tvMeasureElementOuterHeight(fuTitleHtml);
-    var fuAvailHeight = pageBodyBox.height - fuTitleHeight;
+    var fuNoted = vm.followUp.filter(tvFuNoteFor).slice(0, 3), fuStrip = tvFuStripHtml(fuNoted);
+    var fuRest = vm.followUp.filter(function(r){ return fuNoted.indexOf(r) < 0; });
+    var fuAvailHeight = pageBodyBox.height - fuTitleHeight - (fuStrip ? tvMeasureElementOuterHeight(fuStrip) + 8 : 0);
     var fuCols = pageBodyBox.width >= (TV_FOLLOWUP_COL_MIN*2 + TV_FOLLOWUP_GAP) ? 2 : 1;
     var fuColWidth = fuCols===2 ? (pageBodyBox.width - TV_FOLLOWUP_GAP)/2 : pageBodyBox.width;
     var fuCapPerCol = tvMeasureColumnCapacity(fuColWidth, fuAvailHeight, followUpSampleRow, '.tv-row', 'tv-density-'+fuTier) || TV_ROW_CAP[fuTier];
     var fuCapPerPage = fuCapPerCol * fuCols;
-    var fuPages = tvPaginate(vm.followUp, fuCapPerPage);
+    var fuPages = tvPaginate(fuRest, fuCapPerPage);
+    if(!fuPages.length) fuPages = [[]];
     fuPages.forEach(function(slice){
       groupB.push({kind:'ops', render:function(bodyEl, contHtml){
         bodyEl.style.flexDirection='column'; bodyEl.style.gap='8px';
@@ -19640,7 +19686,7 @@ function tvBuildOpsPages(vm){
         } else {
           colsHtml = '<div class="tv-list tv-density-'+fuTier+'" style="flex:1;">'+slice.map(followUpRowHtml).join('')+'</div>';
         }
-        bodyEl.innerHTML = '<div class="tv-page-title" style="font-size:16px;margin-bottom:8px;">&#9888; Return Date Follow-Up <span class="tv-count-pill">'+vm.followUp.length+'</span>'+contHtml+'</div>'+colsHtml;
+        bodyEl.innerHTML = '<div class="tv-page-title" style="font-size:16px;margin-bottom:8px;">&#9888; Return Date Follow-Up <span class="tv-count-pill">'+vm.followUp.length+'</span>'+contHtml+'</div>'+fuStrip+colsHtml;
       }});
     });
   }

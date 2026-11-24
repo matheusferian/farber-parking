@@ -3697,3 +3697,12 @@ body.has-ibar .fab{display:none!important;}
 .dx-sheet button:disabled{opacity:.5}
 .dx-sheet-x{min-height:52px;border:0;background:transparent;color:var(--mu);font:700 16px 'Inter',sans-serif;cursor:pointer}
 .auth-store-bar{position:fixed;left:50%;bottom:calc(12px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:10040;max-width:calc(100vw - 32px);padding:10px 16px;border-radius:12px;background:#7a1f16;color:#fff;font-weight:700;font-size:14px;text-align:center;pointer-events:none;}
+/* TV Follow-Up note with a photo (owner 2026-11-24) */
+.tv-fu-strip{display:flex;gap:16px;flex-shrink:0;}
+.tv-fu-card{flex:1;min-width:0;display:flex;align-items:center;gap:18px;padding:12px 18px 12px 12px;background:var(--tv-panel2);border:1px solid var(--tv-border);border-radius:14px;}
+.tv-fu-card img{width:288px;height:190px;object-fit:cover;border-radius:10px;flex:none;}
+.tv-fu-main{min-width:0;display:flex;flex-direction:column;gap:5px;}
+.tv-fu-name{font:800 26px/1.15 'Sora',sans-serif;color:var(--tv-text);}
+.tv-fu-meta{font-size:17px;color:var(--tv-mu);} .tv-fu-meta b{color:var(--tv-text);}
+.tv-fu-note{align-self:flex-start;margin-top:4px;padding:7px 14px;border-radius:9px;background:#FFD24A;color:#1C1500;font:800 19px/1.2 'Sora',sans-serif;}
+.tv-fu-detail{font-size:16px;color:var(--tv-mu);}
