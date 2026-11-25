@@ -3330,7 +3330,7 @@ img.mk-asc{height:calc(var(--r)*.24);border:0;padding:0;}
 .asc-undo{border:1.5px solid #0B5B34;border-radius:12px;background:transparent;color:#0B5B34;font:700 15px 'Sora',sans-serif;min-height:44px;padding:0 16px;cursor:pointer}
 #kvAscend .asc-board{margin:0 0 14px}
 #kvAscend .asc-t{font-size:40px}#kvAscend .asc:not(.asc-ok):not(.asc-line) b{font-size:24px}
-@media (max-width:600px){.asc:not(.asc-ok):not(.asc-line){flex-wrap:wrap;gap:6px 14px}.asc-t{font-size:28px}.asc-go{width:100%;margin-top:6px}}
+@media (max-width:600px){.asc:not(.asc-ok):not(.asc-line){flex-wrap:wrap;gap:6px 14px}.asc-t,#kvAscend .asc-t{font-size:26px}#kvAscend .asc:not(.asc-ok):not(.asc-line) b{font-size:18px}.asc:not(.asc-ok):not(.asc-line) .asc-m{flex:1 1 55%}.asc-go{width:100%;margin-top:4px;min-height:50px}.asc-line b{font-size:14px}}
 
 /* ── iPad KIOSK VIEW (owner 2026-11-12, opt-in per device — see kioskApply()) ──
    Only re-lays out the existing Dashboard nodes; classic view is untouched. */
