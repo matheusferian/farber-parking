@@ -21,7 +21,7 @@
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { MakersSuite, MakersSuiteError } from '../_shared/makers/suite.ts';
-import { HeldCar, lookupReturn, runSync, runWatch, SyncResult } from '../_shared/makers/sync.ts';
+import { type AscendOut, ascendOfRun, HeldCar, lookupReturn, runSync, runWatch, SyncResult } from '../_shared/makers/sync.ts';
 import { carUpdate, diffMoves, type Move, moveLine, normT, seenOf, boardOf } from '../_shared/makers/moves.ts';
 import { Feedback, parseDate } from '../_shared/manifest/match.ts';
 import { notifyCategory } from '../_shared/notify/staff.ts';
@@ -299,6 +299,14 @@ Deno.serve(async (req) => {
       body: lines.slice(0, 4).join('\n') + (lines.length > 4 ? `\n+${lines.length - 4} more` : ''), url: '/?mf=1', tag: `makers-moves-${day}-${Date.now()}` });
   };
 
+  // Ascend departures for the reminders (owner 2026-11-25). Never breaks a run.
+  const saveAscend = async (day: string, list: AscendOut[]) => {
+    try {
+      const { error } = await admin.rpc('airvalet_ascend_sync', { p_date: day, p_flights: list });
+      if (error) console.log(JSON.stringify({ event: 'ascend_sync.error', code: error.code }));
+    } catch (e) { console.log(JSON.stringify({ event: 'ascend_sync.error', msg: (e as Error)?.name })); }
+  };
+
   if (watchRun) {
     try {
       const [{ data: cars, error: cErr }, { data: fb, error: fErr }] = await Promise.all([
@@ -317,6 +325,7 @@ Deno.serve(async (req) => {
         usage: { mode: 'makers_watch', ok: true, cron: isCron, secs: Math.round((Date.now() - t0) / 1000) } });
       await admin.from('airvalet_manifest_scans').delete().eq('usage->>mode', 'makers_watch').lt('created_at', new Date(Date.now() - 3 * 864e5).toISOString());
       await pushMoves(moves, today);
+      await saveAscend(today, w.ascend);
       await unlock();
       return json(200, { ok: true, watch: true, date: today, matches: w.match.matches.length, moves: moves.length, cars_updated: updated });
     } catch (e) {
@@ -424,6 +433,7 @@ Deno.serve(async (req) => {
     created_by: userId, service_date: date, pages: result.inbound.length, manifest_rows: m.manifest_rows, matched: m.matches.length,
     surprises, missing: m.missing.length, result: saved, usage: { mode: 'makers_sync', ok: true, cron: isCron, secs: Math.round((Date.now() - t0) / 1000) },
   });
+  await saveAscend(date, ascendOfRun(result.outbound));
   // Check-in name suggestions (owner 2026-11-06): this day's FXE departures, name only, replaced on every
   // reading; anything older than today is deleted. Never in the scan result or in this response.
   let namesSaved = 0;

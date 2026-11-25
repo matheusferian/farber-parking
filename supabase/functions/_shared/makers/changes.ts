@@ -78,9 +78,10 @@ export function diffDepartures(prev: DepFlight[], next: DepFlight[]): DepChange[
 
 const PLACE: Record<string, string> = { ASD: 'Fresh Creek', COX: 'Congo Town', GHC: 'Great Harbor Cay', GHB: "Governor's Harbour", ATC: "Arthur's Town",
   SAQ: 'San Andros', TYM: 'Staniel Cay', ELH: 'North Eleuthera', TBI: 'Cat Island', RSD: 'Rock Sound', CCZ: 'Chub Cay', SML: 'Long Island',
-  MHH: 'Marsh Harbour', NAS: 'Nassau', GGT: 'Exuma', TCB: 'Treasure Cay', LGI: "Deadman's Cay", BIM: 'Bimini', ZSA: 'San Salvador' };
+  MHH: 'Marsh Harbour', NAS: 'Nassau', GGT: 'Exuma', TCB: 'Treasure Cay', LGI: "Deadman's Cay", BIM: 'Bimini', ZSA: 'San Salvador', NMC: "Norman's Cay", FPO: 'Freeport' };
 export const t12 = (hhmm: string) => { const m = /^(\d{1,2}):(\d{2})/.exec(hhmm || ''); if (!m) return hhmm || ''; const h = +m[1]; return `${((h + 11) % 12) + 1}:${m[2]} ${h < 12 ? 'AM' : 'PM'}`; };
-const place = (code: string) => PLACE[code] || code;
+export const placeName = (code: string) => PLACE[code] || code;
+const place = placeName;
 const sfx = (tail: string) => String(tail || '').toUpperCase().replace(/^N\d*/, '') || String(tail || '').slice(-2);
 const people = (n: number) => `${n} passenger${n === 1 ? '' : 's'}`;
 

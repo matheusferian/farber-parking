@@ -10,7 +10,7 @@
 
 import { Candidate, Feedback, ManifestPage, MatchResult, matchManifest, normTokens, parseDate, scoreName } from '../manifest/match.ts';
 import type { Leg, PaxRow, Trip } from './suite.ts';
-import { paxKey } from './changes.ts';
+import { paxKey, placeName } from './changes.ts';
 
 export type SuiteLike = {
   schedule(mdy: string): Promise<Leg[]>;
@@ -199,11 +199,32 @@ export function pagesOf(inbound: FlightSummary[], inPax: PaxRow[], date: string,
 // Owner 2026-11-12 (DAVID HOCHER moved from the 11:00 to a 5 PM flight after the 6 AM reading): the quick
 // check every 30 minutes — only that day's flights landing at FXE and their people, matched with our cars.
 // 2 Makers searches, read-only.
-export async function runWatch(suite: SuiteLike, o: { date: string; pool: HeldCar[]; feedback: Feedback[] }): Promise<{ inbound: FlightSummary[]; match: MatchResult }> {
+export async function runWatch(suite: SuiteLike, o: { date: string; pool: HeldCar[]; feedback: Feedback[] }): Promise<{ inbound: FlightSummary[]; match: MatchResult; ascend: AscendOut[] }> {
   const L = await suite.schedule(isoToMdy(o.date));
   const inPax = (await suite.passengers(isoToMdy(o.date), { to: 'FXE' })).filter((r) => !isPetRow(r));
   const inbound = inboundOf(L, inPax);
-  return { inbound, match: matchManifest(pagesOf(inbound, inPax, o.date, L), o.pool, o.feedback) };
+  // Owner 2026-11-25 (Ascend reminders): Ascend departures too; the extra search runs only on days with one.
+  const outPax = L.some((l) => l.from === 'FXE' && isAscendFlight(l.flight)) ? (await suite.passengers(isoToMdy(o.date), { from: 'FXE' })).filter((r) => !isPetRow(r)) : [];
+  return { inbound, match: matchManifest(pagesOf(inbound, inPax, o.date, L), o.pool, o.feedback), ascend: ascendOut(L, outPax) };
+}
+
+// Ascend flights leaving FXE with people on board, earliest first (Ascend reminders). dest = where most of them go.
+export type AscendOut = { flight: string; route: string; dest: string; time: string; pax: number; tail: string };
+export function ascendOut(L: Leg[], outPax: PaxRow[]): AscendOut[] {
+  return L.filter((l) => l.from === 'FXE' && isAscendFlight(l.flight)).map((l) => {
+    const people = new Map<string, string>();
+    for (const r of outPax) if (r.flight === l.flight && legFor(L, r, 'out') === l) people.set(`${r.last}|${r.first}`, r.to);
+    return { flight: l.flight, route: `FXE-${l.to}`, dest: ascendDest([...people.values()], l.to), time: l.dep, pax: people.size, tail: l.tail };
+  }).filter((f) => f.pax > 0).sort((a, b) => a.time.localeCompare(b.time));
+}
+// The same list out of a full run's departures.
+export const ascendOfRun = (outbound: FlightSummary[]): AscendOut[] => outbound.filter((f) => f.ascend).map((f) =>
+  ({ flight: f.flight, route: f.route, dest: ascendDest((f.dests || []).flatMap((d) => Array(d.pax).fill(d.to)), f.route.replace(/^FXE-/, '')), time: f.time, pax: f.pax, tail: f.tail }));
+function ascendDest(tos: string[], fallback: string): string {
+  const n = new Map<string, number>();
+  for (const t of tos) if (t) n.set(t, (n.get(t) || 0) + 1);
+  const top = [...n].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0];
+  return placeName(top ? top[0] : fallback);
 }
 
 export async function runSync(suite: SuiteLike, o: { date: string; today: string; pool: HeldCar[]; feedback: Feedback[]; maxLookups?: number; keySecret?: string }): Promise<SyncResult> {

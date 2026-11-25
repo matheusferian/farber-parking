@@ -6,12 +6,13 @@
 // else, plus the platform JWT (verify_jwt) the trigger sends.
 // Body: { kind: 'CHECK_IN' | 'TIP', id } (database triggers) or { kind: 'REMINDERS' } (pg_cron, every minute).
 // Env: STAFF_ALERT_SECRET, AIRVALET_VAPID_PRIVATE_JWK / AIRVALET_VAPID_PUBLIC /
-//      AIRVALET_VAPID_SUBJECT, SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY (platform).
+//      AIRVALET_VAPID_SUBJECT, ASCEND_SMS / ASCEND_SMS_TEST (Ascend texts to staff), SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY (platform).
 // Answers 200 once authorized: an alert problem is never retried into a flood.
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { notifyReminders, notifyStaff, type StaffDeps } from '../_shared/notify/staff.ts';
 import { readVapid } from '../_shared/notify/runtime.ts';
+import { ascendDepsFromEnv, sendAscendTexts } from '../_shared/notify/ascend.ts';
 
 function timingSafeEqual(a: string, b: string): boolean {
   if (a.length !== b.length) return false;
@@ -40,7 +41,10 @@ export async function handle(req: Request, get: (k: string) => string | undefine
     vapid: readVapid(get),
     log: (event: string, data: Record<string, unknown>) => console.log(JSON.stringify({ event, ...data })),
   };
-  if (kind === 'REMINDERS') return json(200, await notifyReminders(deps));
+  if (kind === 'REMINDERS') {
+    const [reminders, ascend] = await Promise.all([notifyReminders(deps), makeDeps ? 0 : sendAscendTexts(ascendDepsFromEnv(deps.db, get, deps.log))]);
+    return json(200, { ...reminders, ascend });
+  }
   return json(200, await notifyStaff(deps, kind, id));
 }
 

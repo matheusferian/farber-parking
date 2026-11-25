@@ -175,6 +175,7 @@
 </div>
 <div class="pane on" id="pane-day">
   <button type="button" class="kv-on" id="kioskOnBtn" onclick="kioskSet(true)"><i class="fa-solid fa-table-columns" aria-hidden="true"></i> Kiosk view</button>
+  <section class="asc-board" id="ascendBoard" aria-live="polite" hidden></section>
   <section class="jr-board" id="rideBoard" aria-live="polite" hidden></section>
   <!-- DAILY TIPS (owner 2026-10-28): cash the team recorded + online (Stripe) = total recorded.
        Read-only (airvalet_daily_tips); no split between staff. Falls back to the Stripe total alone. -->
@@ -3613,7 +3614,7 @@ function renderDay() {
 // It only MOVES the existing nodes (renderDay keeps filling them by id) and
 // puts them back when turned off, so no card or button logic is duplicated.
 // On/off per device: the button on the Dashboard, or ?kiosk=1 / ?kiosk=0.
-var KIOSK_KEY='av_kiosk', KIOSK_IDS=['rideBoard','stripeTipsKpi','titleToday','dToday','titleTomorrow','dTomorrow','titleArrived','dArrived','titleSunday','subSunday','dSunday','forgotSection'], _kioskSpots=null;
+var KIOSK_KEY='av_kiosk', KIOSK_IDS=['ascendBoard','rideBoard','stripeTipsKpi','titleToday','dToday','titleTomorrow','dTomorrow','titleArrived','dArrived','titleSunday','subSunday','dSunday','forgotSection'], _kioskSpots=null;
 function kioskWanted(){
   try{
     var q=new URLSearchParams(location.search).get('kiosk');
@@ -3625,7 +3626,7 @@ function kioskSet(on){ try{ localStorage.setItem(KIOSK_KEY,on?'1':'0'); }catch(e
 function kioskBuild(){
   var pane=document.getElementById('pane-day'), v=document.createElement('div');
   v.id='kioskView'; v.className='kv';
-  v.innerHTML='<div class="kv-top"><div class="kv-tabs" id="kvTabs" role="tablist" aria-label="Cars"></div><div class="kv-w kv-glance" id="kvGlance"></div><div class="kv-tips" id="kvTips"></div><div class="kv-w kv-rides" id="kvRides"></div></div>'+
+  v.innerHTML='<div id="kvAscend"></div><div class="kv-top"><div class="kv-tabs" id="kvTabs" role="tablist" aria-label="Cars"></div><div class="kv-w kv-glance" id="kvGlance"></div><div class="kv-tips" id="kvTips"></div><div class="kv-w kv-rides" id="kvRides"></div></div>'+
     '<div class="kv-board"><div class="kv-col kv-today" id="kvColToday"></div><div class="kv-col kv-tmrw" id="kvColTomorrow"></div>'+
     '<div class="kv-stack"><div class="kv-col kv-arr" id="kvColArrived"></div><div class="kv-col kv-sun" id="kvColSunday"></div><div class="kv-col kv-late" id="kvColLate"></div></div></div>';
   pane.insertBefore(v,pane.firstChild);
@@ -3637,7 +3638,7 @@ function kioskApply(on){
   var fresh=on&&!_kioskSpots;
   if(fresh) kioskBuild();
   if(!_kioskSpots) return;
-  var dest={rideBoard:'kvRides',stripeTipsKpi:'kvTips',titleToday:'kvColToday',dToday:'kvColToday',titleTomorrow:'kvColTomorrow',dTomorrow:'kvColTomorrow',
+  var dest={ascendBoard:'kvAscend',rideBoard:'kvRides',stripeTipsKpi:'kvTips',titleToday:'kvColToday',dToday:'kvColToday',titleTomorrow:'kvColTomorrow',dTomorrow:'kvColTomorrow',
     titleArrived:'kvColArrived',dArrived:'kvColArrived',titleSunday:'kvColSunday',subSunday:'kvColSunday',dSunday:'kvColSunday',forgotSection:'kvColLate'};
   KIOSK_IDS.forEach(function(id){
     var el=document.getElementById(id), ph=_kioskSpots[id]; if(!el||!ph) return;
@@ -17847,6 +17848,54 @@ setTimeout(ridesTick, 4000); setInterval(ridesTick, 20000);
 document.addEventListener('visibilitychange', function(){ if (!document.hidden) ridesTick(); });
 function ridesFocus(){ if (location.hash !== '#rides') return; ridesLoad().then(function(){ var el = document.getElementById('rideBoard'); if (el && !el.hidden) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }); }
 window.addEventListener('hashchange', ridesFocus); setTimeout(ridesFocus, 2500);
+
+// ── ASCEND REMINDERS (owner 2026-11-25) ────────────────────────────────
+// Flights leaving with Ascend (another building) are easy to forget: a bar on top of the Dashboard 2 h before
+// (blue) and in the last hour (red), one tap "On my way" (stops the 1 h text to the team) with Undo.
+// Later today / tomorrow (from 3 PM) = one thin line. Data: airvalet_ascend_board() (Makers robot).
+var _asc = { d: null, at: 0, busy: false };
+function ascendMins(f){ return Math.round(f.mins - (Date.now() - _asc.at) / 60000); }
+function ascendLeft(m){ return m <= 0 ? 'leaving now' : m < 55 ? 'leaves in ' + m + ' min' : m < 70 ? 'leaves in 1 hour' : m < 110 ? 'leaves in 1 h ' + (m - 60) + ' min' : 'leaves in 2 hours'; }
+function ascendList(a){ return a.length < 2 ? a.join('') : a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1]; }
+async function ascendLoad(){
+  if (typeof _currentUserRole === 'undefined' || !_currentUserRole || _currentUserRole === 'TV_ONLY' || !_authToken) return;
+  try {
+    var res = await fetch(SUPABASE_URL + '/rest/v1/rpc/airvalet_ascend_board', { method: 'POST', headers: sbHeaders(), body: '{}' });
+    if (!res.ok) return;
+    var d = await res.json(); if (!d || !Array.isArray(d.today)) return;
+    _asc.d = d; _asc.at = Date.now(); renderAscend();
+  } catch(e) {}
+}
+function renderAscend(){
+  var el = document.getElementById('ascendBoard'); if (!el || !_asc.d) return;
+  var html = '', later = [];
+  _asc.d.today.forEach(function(f){
+    var m = ascendMins(f), id = Number(f.id), who = escapeHTML(f.dest) + ', ' + Number(f.pax) + (f.pax === 1 ? ' guest' : ' guests');
+    if (m < -5) return;
+    if (f.went) { html += '<div class="asc asc-ok"><div class="asc-m"><b>&#10003; Ascend ' + escapeHTML(f.time) + '</b><span>' + (f.by ? escapeHTML(f.by) + ' is on the way' : 'On the way') + '</span></div>' +
+      '<button type="button" class="asc-undo" onclick="ascendWent(' + id + ',false)">Undo</button></div>'; return; }
+    if (m > 120) { later.push(f.time); return; }
+    html += '<div class="asc' + (m <= 60 ? ' asc-hot' : '') + '"><div class="asc-t">' + escapeHTML(f.time) + '</div><div class="asc-m"><b>' + (m <= 60 ? 'Go to Ascend now' : 'Go to Ascend') + '</b><span>' + who + ', ' + ascendLeft(m) + '</span></div>' +
+      '<button type="button" class="asc-go" onclick="ascendWent(' + id + ',true)">On my way</button></div>';
+  });
+  var line = (later.length ? 'Ascend today: ' + ascendList(later) : '') + (later.length && (_asc.d.tomorrow || []).length ? '  ·  ' : '') + ((_asc.d.tomorrow || []).length ? 'Ascend tomorrow: ' + ascendList(_asc.d.tomorrow) : '');
+  if (line) html += '<div class="asc asc-line"><b>' + escapeHTML(line) + '</b></div>';
+  if (el.getAttribute('data-v') !== html) { el.innerHTML = html; el.setAttribute('data-v', html); }
+  el.hidden = !html;
+}
+async function ascendWent(id, on){
+  if (_asc.busy) return; _asc.busy = true;
+  try {
+    var res = await fetch(SUPABASE_URL + '/rest/v1/rpc/airvalet_ascend_went', { method: 'POST', headers: sbHeaders(),
+      body: JSON.stringify({ p_id: id, p_on: on, p_name: (typeof smsStaffName === 'function' && smsStaffName()) || null }) });
+    var r = res.ok ? await res.json() : null;
+    if (!r || r.result !== 'OK') showMsg('Could not save. Try again.', true);
+  } catch(e) { showMsg('No connection. Try again.', true); }
+  _asc.busy = false; ascendLoad();
+}
+function ascendTick(){ if (document.hidden || document.body.classList.contains('tv-active')) return; renderAscend(); ascendLoad(); }
+setTimeout(ascendTick, 4500); setInterval(ascendTick, 60000);
+document.addEventListener('visibilitychange', function(){ if (!document.hidden) ascendTick(); });
 
 // App (iPhone/iPad dashboard): the same plane status as the TV, refreshed every minute without re-rendering
 // the cards (staff may be typing a flight/time on one).
