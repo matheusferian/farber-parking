@@ -2265,6 +2265,32 @@ function epqRender(){
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 })();
 
+// ── AUTO FLIGHT SLIPS (owner 2026-11-27) ───────────────────────
+// "imprimir automático, enviado do AirValet, para não depender do meu Mac": 8 AM today's cars, 2 PM
+// tomorrow's flights before 11 AM — one slip per flight to staple on the Makers manifest. The hangar
+// printer cannot fetch by itself, so the KIOSK iPad (next to it, on the hangar Wi-Fi) asks printer-poll
+// every minute in those windows and prints. The server hands each print to one device only.
+var _slipBusy = false, _slipLast = 0;
+function slipHourET(){ try { return +new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', hour12: false }).format(new Date()) % 24; } catch(e) { return -1; } }
+async function slipTick(){
+  if (_slipBusy || document.hidden || !_authToken || typeof kioskWanted !== 'function' || !kioskWanted()) return;
+  var h = slipHourET(); if (!((h >= 8 && h < 12) || (h >= 14 && h < 20))) return;
+  if (Date.now() - _slipLast < 55000) return;
+  _slipLast = Date.now(); _slipBusy = true;
+  try {
+    var r = await smsApi('/functions/v1/printer-poll', { method: 'POST', body: JSON.stringify({ action: 'due' }) });
+    if (!r || !r.job || !r.soap) return;
+    var res = await epsonSend(r.soap, 'Flight slips', { kind: 'slips', pid: r.job });
+    await smsApi('/functions/v1/printer-poll', { method: 'POST', body: JSON.stringify({ action: 'done', job: r.job, ok: res !== false, queued: res === 'queued' }) });
+  } catch(e) { console.warn('Auto flight slips:', e); }
+  finally { _slipBusy = false; }
+}
+(function slipStart(){
+  setInterval(slipTick, 60000);
+  document.addEventListener('visibilitychange', function(){ if (!document.hidden) setTimeout(slipTick, 3000); });
+  setTimeout(slipTick, 8000);
+})();
+
 // EPSON DIAGNOSTICS START
 // ── EPSON DIAGNOSTICS: connection history + status card ────────
 var EPSON_HISTORY = [];
