@@ -6815,11 +6815,6 @@ function buildWelcomeBackSms(){
   return 'Farber Parking: Welcome back!\n\nAfter clearing U.S. Customs, please remain with your pilots and return to Makers Air at Hangar 19, where your vehicle will be ready and waiting for you.\n\nPlease do not exit through the U.S. Customs terminal, as transportation back to Makers Air is not available from that location.\n\nWe hope you had a wonderful trip. We look forward to welcoming you back.';
 }
 
-// Owner 2026-11-27 ("mandei welcome back achando que estava chegando e estava errado"): while the satellite
-// shows the guest's aircraft still parked on the island, Welcome Back is not urgent yet.
-function wbPlaneNotLeft(r){
-  try { var o = tv4Origin(r, tvDayKeyOffset(0)); return !!o && tv4LegState(o).k === 'notleft'; } catch(e) { return false; }
-}
 function welcomeBackButtonHtml(r){
   // Welcome Back belongs to a Makers Air return (Hangar 19, or an approved
   // Customs exception). Ascend returns use the Customs flow; Other is manual.
@@ -6836,11 +6831,10 @@ function welcomeBackButtonHtml(r){
       '</span>';
   }
   var eta=getWelcomeBackEta(r);
-  var wait=wbPlaneNotLeft(r);
-  var urgent=!wait&&!!eta&&(Date.now()>=(eta.getTime()-WELCOME_BACK_REMINDER_MINUTES*60000));
-  return '<span class="wcb-wrap'+(urgent?' urgent':'')+(wait?' wcb-wait':'')+'"'+(eta?' data-wcb-eta="'+eta.toISOString()+'"':'')+' data-wcb-pid="'+r.id+'" data-wcb-sent="0">'+
+  var urgent=!!eta&&(Date.now()>=(eta.getTime()-WELCOME_BACK_REMINDER_MINUTES*60000));
+  return '<span class="wcb-wrap'+(urgent?' urgent':'')+'"'+(eta?' data-wcb-eta="'+eta.toISOString()+'"':'')+' data-wcb-sent="0">'+
       '<button type="button" class="qd-btn wcb-btn wcb-pending" onclick="event.stopPropagation();sendWelcomeBackSms('+r.id+')">Welcome Back</button>'+
-      '<span class="wcb-badge">'+(wait?'WAIT &middot; PLANE NOT LEFT':'SEND NOW')+'</span>'+
+      '<span class="wcb-badge">SEND NOW</span>'+
     '</span>';
 }
 
@@ -6909,10 +6903,7 @@ function refreshWelcomeBackUrgency(){
   for(var i=0;i<wraps.length;i++){
     var el=wraps[i];
     var eta=new Date(el.getAttribute('data-wcb-eta')).getTime();
-    var pid=+el.getAttribute('data-wcb-pid'), rr=pid&&typeof data!=='undefined'?data.find(function(x){ return x.id===pid; }):null, wait=!!rr&&wbPlaneNotLeft(rr);
-    el.classList.toggle('wcb-wait', wait);
-    var bd=el.querySelector('.wcb-badge'); if(bd) bd.innerHTML=wait?'WAIT &middot; PLANE NOT LEFT':'SEND NOW';
-    el.classList.toggle('urgent', !wait&&!isNaN(eta)&&now>=(eta-WELCOME_BACK_REMINDER_MINUTES*60000));
+    el.classList.toggle('urgent', !isNaN(eta)&&now>=(eta-WELCOME_BACK_REMINDER_MINUTES*60000));
   }
 }
 if(!window._wcbReminderInterval){
@@ -17755,7 +17746,6 @@ function tvWelcomeBackState(r){
   if(r.welcome_back_sent_at) return 'sent';
   var eta = getWelcomeBackEta(r);
   if(!eta) return null; // missing/invalid departure time — never guess
-  if(wbPlaneNotLeft(r)) return 'wait';
   var now = Date.now();
   if(now >= eta.getTime()) return 'overdue';
   if(now >= eta.getTime() - WELCOME_BACK_REMINDER_MINUTES*60000) return 'due';
@@ -17766,7 +17756,6 @@ function tvWelcomeBackBadge(r){
   if(state==='sent') return '<span class="tv-badge tv-badge-delivered">&#10003; WELCOME BACK SENT</span>';
   if(state==='overdue') return '<span class="tv-badge tv-badge-critical">&#9888; WELCOME BACK OVERDUE</span>';
   if(state==='due') return '<span class="tv-badge tv-badge-warning">SEND WELCOME BACK</span>';
-  if(state==='wait') return '<span class="tv-badge">PLANE NOT LEFT YET</span>';
   return '';
 }
 
@@ -18272,7 +18261,6 @@ function tvMakersTickerHtml(todayKey, tomorrowKey){
     bits.push('Next departure <b>'+tm.t+' '+tm.ap+'</b> · '+escapeHTML(tvMakersDests(nx).place)+' · '+escapeHTML(tvMakersTailSuffix(nx.tail))); }
   tv4InboundLegs().forEach(function(L){
     if(L.st.k === 'live') bits.push(escapeHTML(L.tail)+' from '+escapeHTML(L.place)+' · <b>LIVE</b> · ETA '+(L.st.eta != null ? L.st.eta+' min' : 'soon'));
-    else if(L.st.k === 'notleft') bits.push(escapeHTML(L.tail)+' · <b>NOT LEFT YET</b> · still at '+escapeHTML(L.place));
     else if(L.st.k === 'way') bits.push(escapeHTML(L.tail)+' from '+escapeHTML(L.place)+' · <b>ON THE WAY</b> · lands '+L.arr12);
     else if(L.st.k === 'landed') bits.push(escapeHTML(L.tail)+' from '+escapeHTML(L.place)+' · <b>LANDED</b>');
   });
@@ -18499,19 +18487,6 @@ function tv4LegStateRaw(o){
       }
     }
   }
-  // Owner 2026-11-27: the satellite shows the aircraft still powered off on the island after its departure
-  // time (RV parked at Great Harbour, 129 nm out, while the schedule said 11:00) → NOT LEFT YET, not ON THE WAY.
-  // Raw satellite record: tvSpiderFix() drops a fix older than 20 min, but a plane shut down on the island
-  // sends nothing new until it starts again — the last fix stays true while the satellite poll is fresh.
-  // (spider-sync stops re-polling a shut-down aircraft, so freshness = the feed itself polled in the last 5 min.)
-  var spw = _tv.spider && _tv.spider[o.registration], feedAt = 0;
-  if(spw) Object.keys(_tv.spider).forEach(function(k){ var t = Date.parse(_tv.spider[k].polled_at); if(t > feedAt) feedAt = t; });
-  if(spw && !(now - feedAt <= 5 * 60000)) spw = null;
-  if(spw && dep && now >= dep - 10 * 60000 && (!arr || now < arr + 3 * 3600000)){
-    var spAt = Date.parse(spw.last_at), spKt = Number(spw.speed_kt) || 0, spNm = Number(spw.dist_fxe_nm);
-    if(isFinite(spAt) && now - spAt < 8 * 3600000 && spNm > 20 && (spw.track_status === 'POWER_OFF' || spKt < 30) && tv4IsClosestLeg(o, Math.max(now, arr || now)))
-      return {k:'notleft', place: String(o.route || '').split('-')[0], nm: Math.round(spNm), src:'sat'};
-  }
   if(dep && arr && now >= dep && now < arr + 45 * 60000) return {k:'way', eta: Math.max(0, Math.round((arr - now) / 60000)), p: Math.max(.03, Math.min(.97, (now - dep) / Math.max(1, arr - dep)))};
   if(dep && now < dep) return {k:'sched', dep:dep};
   if(arr && now >= arr) return {k:'due'};
@@ -18630,7 +18605,6 @@ function tv4LegFacts(L){
   if(st.k === 'live'){ s = '<span class="tv4-fst tv4-live"><i></i>LIVE</span>';
     meta.push('<span class="tv4-eta">ETA <b>'+(st.eta != null ? st.eta+' min' : 'soon')+'</b></span>'); meta.push('<b>'+st.nm+' nm</b> out'); }
   else if(st.k === 'way'){ s = '<span class="tv4-fst tv4-way"><i></i>ON THE WAY</span>'; meta.push('<span class="tv4-eta">lands <b>'+L.arr12+'</b></span>'); meta.push('left <b>'+L.dep12+'</b>'); }
-  else if(st.k === 'notleft'){ s = '<span class="tv4-fst tv4-wait"><i></i>NOT LEFT YET</span>'; meta.push('at <b>'+escapeHTML(tv4TagCode(st.place))+'</b>'); meta.push('was due <b>'+L.arr12+'</b>'); }
   else if(st.k === 'landed'){ s = st.stage === 'taxi' ? '<span class="tv4-fst tv4-taxi"><i></i>COMING TO HANGAR 19</span>'
       : '<span class="tv4-fst tv4-landed"><i></i>'+(st.stage === 'h19' ? 'AT HANGAR 19' : st.stage === 'customs' ? 'AT CUSTOMS' : 'LANDED')+'</span>';
     meta.push('landed <b>'+st.mins+' min</b> ago'); }
@@ -18675,7 +18649,6 @@ function tv4LegPill(r){
       return {edge:'landed', html:'<span class="tv4-pill tv4-p-landed">&#10003; LANDED '+st.mins+' MIN AGO</span>'};
     }
     if(st.k === 'live') return {edge:'live', html:'<span class="tv4-pill tv4-p-live"><i></i>LIVE &middot; ETA '+(st.eta != null ? st.eta+' MIN' : 'SOON')+'</span>'};
-    if(st.k === 'notleft') return {edge:'', html:'<span class="tv4-pill tv4-p-wait"><i></i>NOT LEFT YET &middot; AT '+escapeHTML(tv4TagCode(st.place))+'</span>'};
     if(st.k === 'way') return {edge:'way', html:'<span class="tv4-pill tv4-p-way"><i></i>ON THE WAY &middot; '+(st.eta > 0 ? 'ETA '+st.eta+' MIN' : 'DUE NOW')+'</span>'};
     if(st.k === 'sched' && st.dep){ var code = String(o.route || '').split('-')[0];
       return {edge:'', html:'<span class="tv4-pill tv4-p-sched">LEAVES '+escapeHTML(tv4TagCode(code))+' '+tv412(o.dep_time)+'</span>'}; }   // owner 2026-11-07: code, not the island name
@@ -18871,7 +18844,7 @@ function tv4ArrivalOrder(){
   var now = Date.now();
   return tv4InboundLegs().filter(function(L){ return L.open && L.st && L.st.k !== 'landed'; }).map(function(L){
     var st = L.st, at = st.k === 'live' && st.eta != null ? now + st.eta * 60000 : st.k === 'way' ? now + (st.eta || 0) * 60000
-      : st.k === 'due' ? now : st.k === 'notleft' ? now + 60 * 60000 : (tv4TodayMs(L.o.arrival_time) || now + 864e5);
+      : st.k === 'due' ? now : (tv4TodayMs(L.o.arrival_time) || now + 864e5);
     var cars = L.guests.filter(function(r){ return r.status !== 'DELIVERED' && r.status !== 'ARCHIVED'; });
     return {L:L, at:at, live:st.k === 'live', cars:cars};
   }).sort(function(a, b){ return a.at - b.at; });
