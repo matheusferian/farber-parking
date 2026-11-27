@@ -1,7 +1,7 @@
 // Thermal slips for the Makers manifest (owner 2026-11-27): one slip per flight, printed by the Epson
 // TM-m30II itself through Server Direct Print (the printer asks printer-poll every few seconds).
-//   8 AM  → today's cars going out (flights landing 11 AM or later, plus any not printed the day before)
-//   2 PM  → tomorrow's cars on flights landing before 11 AM
+//   8 AM  → today's cars not printed the day before (flights after 1 PM, or changed since)
+//   2 PM  → tomorrow's cars on flights landing up to 1 PM (owner 2026-11-27: "voos de amanhã até 13 hrs")
 // Only name, flight and arrival time are printed.
 
 export type Pax = { id: number; name: string; return_flight?: string | null; departure_time?: string | null };
@@ -72,4 +72,5 @@ export function dueJob(etDate: string, etTomorrow: string, hour: number): { key:
   if (hour >= 14 && hour < 20) return { key: `pm-${etTomorrow}`, date: etTomorrow, kind: 'pm' };
   return null;
 }
-export const keepFor = (kind: 'am' | 'pm') => (t: string) => kind === 'pm' ? (t !== '' && t < '11:00') : true;
+export const PM_UNTIL = '13:00';
+export const keepFor = (kind: 'am' | 'pm') => (t: string) => kind === 'pm' ? (t !== '' && t <= PM_UNTIL) : true;

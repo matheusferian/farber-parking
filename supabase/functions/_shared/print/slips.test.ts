@@ -24,9 +24,9 @@ Deno.test('am keeps everything, grouped by flight, sorted by time', () => {
     ['NO FLIGHT', '', ['NO FLIGHT YET']],
   ]);
 });
-Deno.test('pm keeps only known arrivals before 11 AM (surname-only match ignored)', () => {
-  const s = buildSlips(pax, matches, keepFor('pm'));
-  assertEquals(s.map((x) => x.ids), [[4]]);
+Deno.test('pm keeps known arrivals up to 1 PM (surname-only match ignored)', () => {
+  const s = buildSlips([...pax, { id: 6, name: 'LATE ONE', return_flight: 'RV', departure_time: '13:01' }, { id: 7, name: 'ONE PM', return_flight: 'JH', departure_time: '13:00' }], matches, keepFor('pm'));
+  assertEquals(s.map((x) => x.ids), [[4], [3], [1, 2], [7]]);
 });
 Deno.test('due windows', () => {
   assertEquals(dueJob('2026-11-27', '2026-11-28', 7), null);

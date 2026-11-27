@@ -2,7 +2,7 @@
 // not from the owner's Mac). The thermal printer TM-m30II in the hangar asks this URL every few seconds:
 //   ConnectionType=GetRequest  → we answer with the slips that are due (or nothing)
 //   ConnectionType=SetResponse → the printer tells us if it printed
-// 8 AM: today's cars (flights landing 11 AM or later + any not printed yesterday). 2 PM: tomorrow, flights before 11 AM.
+// 8 AM: today's cars not printed yesterday. 2 PM: tomorrow, flights landing up to 1 PM.
 // Public endpoint: deploy with --no-verify-jwt; protected by the secret ?k= (PRINTER_POLL_KEY), set only in the printer.
 // Owner 2026-11-27: the hangar TM-m30II has no Server Direct Print, so the KIOSK iPad asks instead
 // ({action:'due'} / {action:'done'} with the staff login) and sends the slips to the printer itself.
