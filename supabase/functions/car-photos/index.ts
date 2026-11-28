@@ -5,6 +5,8 @@
 //   POST { action: 'add',  passenger_id, angle: 'front'|'rear', b64: '/9j/…' } → { ok, photo: { id, angle, taken_at, url } }
 //   POST { action: 'list', passenger_id }                                      → { ok, photos: [{ id, angle, taken_at, url }] }
 //     (newest first; url = signed link valid 1 hour)
+//   POST { action: 'thumbs', passenger_ids: [..≤150] }                         → { ok, thumbs: { [id]: { angle, taken_at, url } } }
+//     (one small picture per car — newest rear, else newest front; 360 px wide, signed 1 hour)
 // Schedule (pg_cron, X-Car-Photos-Secret, constant-time):
 //   POST { cleanup: true } → removes files + rows with delete_after < now() and hold = false (max 300 per run)
 // Retention is set by the database: delete_after = 30 days after the ticket becomes DELIVERED / ARCHIVED
@@ -72,6 +74,26 @@ Deno.serve(async (req) => {
   const [{ data: u }, { data: role, error: roleErr }] = await Promise.all([caller.auth.getUser(), caller.rpc('current_user_role')]);
   if (roleErr || !u?.user) return json(401, { ok: false, error: { code: 'UNAUTHENTICATED' } });
   if (!OPS.includes(String(role))) return json(403, { ok: false, error: { code: 'FORBIDDEN' } });
+
+  // Cars by hangar (owner 2026-11-27): one small picture per car, rear first (shows the plate), else front.
+  if (body.action === 'thumbs') {
+    const ids = Array.isArray(body.passenger_ids) ? body.passenger_ids.map(Number).filter((n) => Number.isSafeInteger(n) && n > 0) : [];
+    if (!ids.length || ids.length > 150) return json(400, { ok: false, error: { code: 'BAD_PASSENGERS' } });
+    const { data: rows, error } = await admin.from('airvalet_car_photos').select('passenger_id,angle,taken_at,path')
+      .in('passenger_id', ids).order('taken_at', { ascending: false }).limit(1000);
+    if (error) return json(500, { ok: false, error: { code: 'LOOKUP_FAILED' } });
+    const pick: Record<number, { angle: string; taken_at: string; path: string }> = {};
+    for (const r of rows || []) {
+      const cur = pick[r.passenger_id];
+      if (!cur || (cur.angle !== 'rear' && r.angle === 'rear')) pick[r.passenger_id] = r;
+    }
+    const thumbs: Record<number, { angle: string; taken_at: string; url: string | null }> = {};
+    await Promise.all(Object.entries(pick).map(async ([k, r]) => {
+      const { data } = await admin.storage.from(BUCKET).createSignedUrl(r.path, 3600, { transform: { width: 360, quality: 60 } });
+      thumbs[Number(k)] = { angle: r.angle, taken_at: r.taken_at, url: data?.signedUrl || null };
+    }));
+    return json(200, { ok: true, thumbs });
+  }
 
   const pid = Number(body.passenger_id);
   if (!Number.isSafeInteger(pid) || pid <= 0) return json(400, { ok: false, error: { code: 'BAD_PASSENGER' } });

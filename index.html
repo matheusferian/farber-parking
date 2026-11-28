@@ -92,6 +92,7 @@
   <div class="tab" data-t="all" onclick="resetAllPassengersDefaults()"><i class="fa-solid fa-users"></i><span>All Passengers</span><span class="tbadge" id="ball">0</span></div>
   <div class="tab" data-t="guests" onclick="guestsOpenTab()"><i class="fa-solid fa-address-book"></i><span>Passengers</span></div>
   <div class="tab on" data-t="day"><i class="fa-solid fa-gauge-high"></i><span>Dashboard</span><span class="tbadge red" id="bday">!</span></div>
+  <div class="tab" data-t="hangars" data-action="1" onclick="hgOpen()"><i class="fa-solid fa-warehouse"></i><span>Cars by Hangar</span></div>
   <div class="tab" data-t="makers" data-action="1" onclick="mfOpen()"><i class="fa-solid fa-plane-arrival"></i><span>Makers Flights</span></div>
   <div class="tab" data-t="tasks"><i class="fa-solid fa-square-check"></i><span>Tasks</span><span class="tbadge red" id="btasks">0</span></div>
   <div class="tab" data-t="messages" onclick="renderMessagesWorkspace();loadReturnReviews();if(isServerSms())loadInbox()"><i class="fa-solid fa-message"></i><span>Messages</span><span id="rrTabBadge" class="rr-tab-badge" style="display:none">0</span></div>
@@ -3680,7 +3681,7 @@ function kioskGlance(arrived,lt,lm,forgot,ls){
   var el=document.getElementById('kvGlance'); if(!el) return;
   var miss=arrived.filter(function(r){return !r.loc||!String(r.loc).trim();}).length;
   var tile=function(col,n,label,cls){ return '<button type="button" class="kv-g '+cls+'" onclick="kioskJump(\''+col+'\')"><b>'+n+'</b><span>'+label+'</span></button>'; };
-  el.innerHTML='<div class="kv-gh"><span>Today at a glance</span><button type="button" class="kv-classic" onclick="kioskSet(false)">Classic view</button></div><div class="kv-gg">'+
+  el.innerHTML='<div class="kv-gh"><span>Today at a glance</span><span class="kv-gh-btns"><button type="button" class="kv-classic kv-hangars" onclick="hgOpen()"><i class="fa-solid fa-warehouse" aria-hidden="true"></i> Cars by hangar</button><button type="button" class="kv-classic" onclick="kioskSet(false)">Classic view</button></span></div><div class="kv-gg">'+
     tile('kvColArrived',arrived.length,'Arrived'+(miss?' · <em>'+miss+' no hangar</em>':''),'g-arr')+
     tile('kvColToday',lt.filter(function(r){return r.status!=='DELIVERED';}).length,'Coming back today','g-today')+
     tile('kvColTomorrow',lm.length,'Coming back tomorrow','g-tmrw')+
@@ -3690,6 +3691,7 @@ function kioskGlance(arrived,lt,lm,forgot,ls){
   var t=function(id,n,label,cls,alert){ return '<button type="button" role="tab" class="kv-tab '+cls+'" data-tab="'+id+'" aria-selected="'+(_kioskTab===id)+'" onclick="kioskTab(\''+id+'\')"><b>'+n+'</b><span>'+label+(alert?' <em>!</em>':'')+'</span></button>'; };
   tabs.innerHTML=t('today',lt.filter(function(r){return r.status!=='DELIVERED';}).length,'Today','g-today')+t('tomorrow',lm.length,'Tomorrow','g-tmrw')+
     t('arrived',arrived.length,'Arrived','g-arr',miss>0)+t('sunday',(ls||[]).length,'Sunday','g-sun')+t('late',forgot.length,'Late','g-late')+
+    '<button type="button" class="kv-tab kv-tab-classic" onclick="hgOpen()" aria-label="Cars by hangar"><b><i class="fa-solid fa-warehouse" aria-hidden="true"></i></b><span>Hangars</span></button>'+
     '<button type="button" class="kv-tab kv-tab-classic" onclick="kioskSet(false)" aria-label="Classic view"><b>&#8634;</b><span>Classic</span></button>';
 }
 var _kioskTab='today';
@@ -19899,6 +19901,100 @@ function mfOpen(){
   mfHome();
 }
 function mfClose(){ if (_mf.busy) return; var ov = document.getElementById('mfOv'); if (ov) ov.remove(); }
+// ── CARS BY HANGAR (owner 2026-11-27) ─────────────────────────────
+// "quando eu clicar hangar 16 eu ver todos os carros que estão parados lá por foto": one tap on a hangar →
+// every parked car there as its check-in picture (rear first, it shows the plate). Tap a car → its normal card.
+// Pictures come small (360 px) from car-photos 'thumbs', signed for 1 hour; nothing is public.
+// BLOCKING / BLOCKED tag = the car's existing Block field (owner 11/27: no blocking filter for now; which car it blocks = later).
+var _hg = { loc: null, q: '', thumbs: {}, at: 0, loading: false };
+function hgCars(){ return (typeof data!=='undefined' && data ? data : []).filter(function(r){ return r && r.status!=='DELIVERED' && r.status!=='ARCHIVED'; }); }
+function hgKey(r){ return isValidOperationalHangar(r.loc) ? normalizeHangarValue(r.loc) : 'NONE'; }
+function hgLabel(h){ return h==='NONE' ? 'No hangar' : h==='HH' ? 'HH' : h===CUSTOMS_LOC ? 'Customs' : h.replace('HANGAR','Hangar'); }
+function hgBlock(r){ var b = String(r.block||'').trim().toUpperCase(); return b==='BLOCKING' ? 'blocking' : b==='BLOCKED' ? 'blocked' : ''; }
+function hgBack(r){
+  if (r.status==='NO DATE' || !pd(r.ret)) return { t: 'No return date', c: 'nodate' };
+  if (isToday(r.ret)) return { t: 'Back today', c: 'today' };
+  if (isTmrw(r.ret)) return { t: 'Back tomorrow', c: 'tmrw' };
+  if (isLate(r.ret)) return { t: 'Return passed', c: 'late' };
+  var d = pd(r.ret);
+  return { t: 'Back ' + d.toLocaleDateString('en-US', { weekday: 'short' }) + ' ' + (d.getMonth()+1) + '/' + d.getDate(), c: '' };
+}
+function hgOpen(loc){
+  var counts = {}; hgCars().forEach(function(r){ var k = hgKey(r); counts[k] = (counts[k]||0) + 1; });
+  if (loc) _hg.loc = loc;
+  if (!_hg.loc || !counts[_hg.loc]) _hg.loc = counts['HANGAR 16'] ? 'HANGAR 16' : (Object.keys(counts).sort(function(a,b){ return counts[b]-counts[a]; })[0] || 'ALL');
+  _hg.q = '';
+  var old = document.getElementById('hgOv'); if (old) old.remove();
+  var ov = document.createElement('div'); ov.id = 'hgOv'; ov.className = 'mf-ov hg-ov';
+  ov.innerHTML = '<div class="mf-box hg-box" role="dialog" aria-modal="true" aria-labelledby="hgTitle">' +
+    '<div class="mf-head"><b id="hgTitle">Cars by hangar</b><button type="button" class="mf-x" aria-label="Close" onclick="hgClose()">✕</button></div>' +
+    '<div class="hg-hangars" id="hgHangars" role="group" aria-label="Hangar"></div>' +
+    '<div class="hg-tools"><input type="search" id="hgQ" class="hg-q" placeholder="Plate, ticket, name or car" aria-label="Search plate, ticket, name or car" autocomplete="off"></div>' +
+    '<div class="hg-count" id="hgCount" aria-live="polite"></div><div class="hg-grid" id="hgGrid"></div></div>';
+  ov.addEventListener('click', function(e){ if (e.target === ov) hgClose(); });
+  document.body.appendChild(ov);
+  document.getElementById('hgQ').addEventListener('input', function(e){ _hg.q = e.target.value; hgGridRender(); });
+  hgRender();
+  hgLoadThumbs();
+}
+function hgClose(){ var ov = document.getElementById('hgOv'); if (ov) ov.remove(); }
+document.addEventListener('keydown', function(e){ if (e.key === 'Escape' && document.getElementById('hgOv')) hgClose(); });
+function hgRender(){
+  var counts = {}, all = hgCars();
+  all.forEach(function(r){ var k = hgKey(r); counts[k] = (counts[k]||0) + 1; });
+  var keys = VEHICLE_LOCATIONS.filter(function(h){ return counts[h]; }); if (counts.NONE) keys.push('NONE');
+  var chip = function(k, n){ return '<button type="button" class="hg-h" aria-pressed="' + (_hg.loc===k) + '" onclick="hgPickHangar(\'' + k + '\')"><b>' + escapeHTML(k==='ALL' ? 'All' : hgLabel(k)) + '</b><span>' + n + ' car' + (n===1?'':'s') + '</span></button>'; };
+  var el = document.getElementById('hgHangars'); if (!el) return;
+  el.innerHTML = keys.map(function(k){ return chip(k, counts[k]); }).join('') + chip('ALL', all.length);
+  hgGridRender();
+}
+function hgPickHangar(k){ _hg.loc = k; hgRender(); var g = document.getElementById('hgGrid'); if (g) g.scrollIntoView({ block: 'nearest' }); }
+function hgList(){
+  // Typing searches every hangar (a plate photo doesn't say where the car is); O and 0 count as the same.
+  var norm = function(v){ return String(v||'').toUpperCase().replace(/\s+/g, '').replace(/O/g, '0'); };
+  var s = norm(_hg.q);
+  return hgCars().filter(function(r){
+    if (!s && _hg.loc !== 'ALL' && hgKey(r) !== _hg.loc) return false;
+    if (s && norm(r.plate + r.ticket + r.name + r.car + r.color).indexOf(s) === -1) return false;
+    return true;
+  }).sort(function(a, b){
+    var da = pd(a.ret), db = pd(b.ret);
+    if (!da !== !db) return da ? -1 : 1;
+    return (da && db ? da - db : 0) || String(a.ticket).localeCompare(String(b.ticket), undefined, { numeric: true });
+  });
+}
+function hgGridRender(){
+  var grid = document.getElementById('hgGrid'), cnt = document.getElementById('hgCount'); if (!grid) return;
+  var L = hgList();
+  var searching = !!String(_hg.q||'').trim();
+  cnt.textContent = L.length + ' car' + (L.length===1?'':'s') + ' ' + (searching ? 'found in all hangars' : _hg.loc==='ALL' ? 'parked' : (_hg.loc==='NONE' ? 'with no hangar' : 'in ' + hgLabel(_hg.loc))) + (_hg.loading ? ' · loading pictures…' : '');
+  if (!L.length) { grid.innerHTML = '<div class="hg-empty">' + (searching ? 'No parked car matches “' + escapeHTML(_hg.q) + '”.' : 'No cars here.') + '</div>'; return; }
+  grid.innerHTML = L.map(function(r){
+    var th = _hg.thumbs[r.id], b = hgBlock(r), back = hgBack(r);
+    var pic = th && th.url
+      ? '<img src="' + escapeHTML(th.url) + '" alt="' + escapeHTML((th.angle==='rear'?'Rear':'Front') + ' of ' + (r.car||'car')) + '" loading="lazy" decoding="async">'
+      : '<div class="hg-nopic"><i class="fa-solid fa-car-rear" aria-hidden="true"></i><span>' + (_hg.loading ? 'Loading…' : 'No picture') + '</span></div>';
+    return '<button type="button" class="hg-card" onclick="hgPick(' + r.id + ')" aria-label="' + escapeHTML(r.ticket + ' ' + r.car + ' ' + r.name) + '">' +
+      '<div class="hg-pic">' + pic + (b ? '<span class="hg-tag ' + b + '">' + (b==='blocking' ? 'Blocking' : 'Blocked') + '</span>' : '') +
+      (_hg.loc==='ALL' || searching ? '<span class="hg-where">' + escapeHTML(hgLabel(hgKey(r))) + '</span>' : '') + '</div>' +
+      '<div class="hg-info"><div class="hg-tk">' + escapeHTML(r.ticket || '—') + '</div>' +
+      '<div class="hg-car">' + escapeHTML([r.car, r.color].filter(Boolean).join(' · ') || 'Car not set') + '</div>' +
+      '<div class="hg-who">' + escapeHTML(r.name || '') + (r.plate ? ' · ' + escapeHTML(r.plate) : '') + '</div>' +
+      '<span class="hg-back ' + back.c + '">' + back.t + '</span></div></button>';
+  }).join('');
+}
+function hgPick(id){ hgClose(); showDet(id); }
+async function hgLoadThumbs(){
+  var ids = hgCars().map(function(r){ return r.id; }).filter(function(id){ return id > 0; }).slice(0, 150);
+  if (!ids.length || _hg.loading) return;
+  if (Date.now() - _hg.at < 45 * 60000 && ids.every(function(id){ return id in _hg.thumbs; })) return;   // signed links last 1 hour
+  _hg.loading = true; hgGridRender();
+  try {
+    var res = await smsApi('/functions/v1/car-photos', { method: 'POST', headers: sbHeaders(), body: JSON.stringify({ action: 'thumbs', passenger_ids: ids }) });
+    if (res && res.ok) { var t = {}; ids.forEach(function(id){ t[id] = (res.thumbs && res.thumbs[id]) || null; }); _hg.thumbs = t; _hg.at = Date.now(); }
+  } catch(e) { console.warn('Cars by hangar pictures:', e && e.message); }
+  _hg.loading = false; hgGridRender();
+}
 // Makers robot (owner 2026-11-06): makers-sync reads Makers Air Suite at 3 PM (tomorrow) and 7 AM
 // (today). The screen opens on the latest result; "Update from Makers" reads it again now.
 async function mfHome(){
